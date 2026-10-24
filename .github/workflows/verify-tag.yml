@@ -1,0 +1,40 @@
+name: Verify Release Tag
+
+on:
+  push:
+    tags:
+      - 'magimail-v*'
+      - 'magical-v*'
+
+permissions:
+  contents: read
+
+# Asserts that a pushed tag is an ancestor of origin/main, failing fast in CI
+# on an Ubuntu runner if a release tag was created against an unmerged commit.
+jobs:
+  verify-tag-on-main:
+    name: Verify Tag is on main
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Assert tag is an ancestor of main
+        shell: bash
+        run: |
+          TAG="${{ github.ref_name }}"
+          echo "Verifying that tag '$TAG' is reachable from origin/main..."
+
+          if ! git rev-parse --verify origin/main >/dev/null 2>&1; then
+            echo "::error::origin/main not found during tag check."
+            exit 1
+          fi
+
+          if ! git merge-base --is-ancestor "$TAG" origin/main; then
+            echo "::error::Tag '$TAG' is not an ancestor of origin/main! Tags must only point to commits on the main branch."
+            exit 1
+          fi
+
+          echo "Tag '$TAG' is confirmed to be on main."

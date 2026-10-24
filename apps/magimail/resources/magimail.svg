@@ -1,0 +1,227 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!--
+    Magimail app icon.
+
+    TRADEMARK NOTE: this is a generic postal envelope — downward triangular flap,
+    thin diagonal seams, refined crimson outline. It must never reintroduce Gmail's
+    trade dress: no thick vertical red side pillars, and no thick red "V" folds
+    forming the letter "M".
+  -->
+  <defs>
+    <clipPath id="macSquircle">
+      <rect x="32" y="32" width="448" height="448" rx="100" ry="100" />
+    </clipPath>
+
+    <filter id="macShadow" x="-10%" y="-10%" width="125%" height="125%">
+      <feDropShadow dx="0" dy="16" stdDeviation="18" flood-color="#000000" flood-opacity="0.4" />
+    </filter>
+
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#1E1B4B" />
+      <stop offset="45%" stop-color="#221D54" />
+      <stop offset="100%" stop-color="#362F78" />
+    </linearGradient>
+    <radialGradient id="hatBacklight" cx="50%" cy="78%" r="40%">
+      <stop offset="0%" stop-color="#6366F1" stop-opacity="0.30" />
+      <stop offset="60%" stop-color="#4338CA" stop-opacity="0.12" />
+      <stop offset="100%" stop-color="#1E1B4B" stop-opacity="0" />
+    </radialGradient>
+
+    <linearGradient id="hatBody" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#1E1B32" />
+      <stop offset="35%" stop-color="#141225" />
+      <stop offset="100%" stop-color="#0D0B1A" />
+    </linearGradient>
+
+    <linearGradient id="hatBrim" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#2A2640" />
+      <stop offset="40%" stop-color="#1A1730" />
+      <stop offset="100%" stop-color="#0D0B1A" />
+    </linearGradient>
+
+    <linearGradient id="hatBand" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#9333EA" />
+      <stop offset="50%" stop-color="#C084FC" />
+      <stop offset="100%" stop-color="#7E22CE" />
+    </linearGradient>
+
+    <!-- Envelope grounded in 3D space: soft downward cast shadow -->
+    <filter id="envDropShadow" x="-25%" y="-25%" width="150%" height="160%">
+      <feDropShadow dx="0" dy="6" stdDeviation="6" flood-color="#05030F" flood-opacity="0.28" />
+    </filter>
+
+    <filter id="softBlur" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="7" />
+    </filter>
+
+    <filter id="foldBlur" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="5.5" />
+    </filter>
+
+    <clipPath id="envClip">
+      <rect x="0" y="0" width="296" height="204" rx="16" ry="16" />
+    </clipPath>
+
+    <!-- Refined crimson / coral — softer than harsh primary red, holds at 32pt -->
+    <linearGradient id="crimson" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#C05A4E" />
+      <stop offset="100%" stop-color="#9E4238" />
+    </linearGradient>
+
+    <!-- Extruded paper edge: the slab thickness under the front face -->
+    <linearGradient id="slabEdge" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#8E3B32" />
+      <stop offset="100%" stop-color="#6E2B24" />
+    </linearGradient>
+
+    <!-- Lower pocket: cool grey, reads as paper turned away from the light -->
+    <linearGradient id="paperPocket" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#E9EAF0" />
+      <stop offset="55%" stop-color="#DEE0E8" />
+      <stop offset="100%" stop-color="#CFD2DD" />
+    </linearGradient>
+
+    <!-- Flap underside, seen because the flap is lifted off the face -->
+    <linearGradient id="flapUnder" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#B9BCC8" />
+      <stop offset="100%" stop-color="#9DA1B0" />
+    </linearGradient>
+
+    <!-- Top flap: bright and reflective -->
+    <linearGradient id="paperFlap" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#F4F5F9" />
+      <stop offset="100%" stop-color="#E2E4EC" />
+    </linearGradient>
+
+    <linearGradient id="goldStarGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFFBEB" />
+      <stop offset="25%" stop-color="#FDE047" />
+      <stop offset="65%" stop-color="#EAB308" />
+      <stop offset="100%" stop-color="#B45309" />
+    </linearGradient>
+
+    <!-- Ambient halo bleeding from the star across the dark canvas -->
+    <radialGradient id="starHalo" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"   stop-color="#FFD07A" stop-opacity="0.62" />
+      <stop offset="28%"  stop-color="#F0A93C" stop-opacity="0.34" />
+      <stop offset="60%"  stop-color="#D98324" stop-opacity="0.13" />
+      <stop offset="100%" stop-color="#B45309" stop-opacity="0" />
+    </radialGradient>
+
+    <filter id="sparkleGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="2.5" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Outer squircle -->
+  <g filter="url(#macShadow)">
+    <rect x="32" y="32" width="448" height="448" rx="100" ry="100" fill="url(#bgGradient)" />
+  </g>
+
+  <g clip-path="url(#macSquircle)">
+    <!-- Ambient stars -->
+    <circle cx="85"  cy="85"  r="2.0" fill="#FFFFFF" opacity="0.35" />
+    <circle cx="430" cy="115" r="2.5" fill="#FFE57F" opacity="0.5" />
+    <circle cx="110" cy="425" r="1.5" fill="#FFFFFF" opacity="0.25" />
+    <circle cx="410" cy="410" r="1.8" fill="#FFFFFF" opacity="0.25" />
+    <circle cx="190" cy="65"  r="1.5" fill="#FFFFFF" opacity="0.2" />
+    <circle cx="390" cy="445" r="1.5" fill="#FFFFFF" opacity="0.2" />
+
+    <!-- Ambient Stage Glow -->
+    <ellipse cx="256" cy="425" rx="220" ry="95" fill="url(#hatBacklight)" />
+
+    <!-- Magician's top hat -->
+    <g>
+      <path d="M 148 375 L 140 520 L 372 520 L 364 375" fill="url(#hatBody)" />
+      <rect x="155" y="378" width="24" height="135" rx="12" fill="#FFFFFF" opacity="0.03" />
+
+      <rect x="146" y="372" width="220" height="26" rx="2" fill="url(#hatBand)" />
+      <rect x="146" y="372" width="220" height="2" fill="#FFFFFF" opacity="0.2" />
+
+      <ellipse cx="256" cy="374" rx="192" ry="42" fill="#0D0B1A" />
+      <ellipse cx="256" cy="368" rx="192" ry="42" fill="url(#hatBrim)" />
+      <ellipse cx="256" cy="366" rx="188" ry="40" fill="none" stroke="#FFFFFF" stroke-width="1.5" opacity="0.22" />
+
+      <ellipse cx="256" cy="368" rx="118" ry="26" fill="#04030A" />
+      <ellipse cx="256" cy="368" rx="118" ry="26" fill="none" stroke="#1A1730" stroke-width="1.5" />
+    </g>
+
+    <!-- Contact shadow: the envelope reads as hovering out of the hat, not pasted on -->
+    <ellipse cx="256" cy="372" rx="152" ry="30" fill="#04030A" opacity="0.30" filter="url(#softBlur)" />
+    <ellipse cx="256" cy="366" rx="112" ry="21" fill="#000000" opacity="0.45" filter="url(#softBlur)" />
+
+    <!-- ENVELOPE — generic postal fold structure -->
+    <g transform="translate(256, 222) rotate(-3.5) translate(-148, -102)">
+
+      <!-- Extruded slab edge, offset down-left: gives the envelope real thickness -->
+      <g filter="url(#envDropShadow)">
+        <rect x="-3.5" y="4.5" width="296" height="204" rx="16" ry="16" fill="url(#slabEdge)" />
+      </g>
+
+      <!-- Front face -->
+      <rect width="296" height="204" rx="16" ry="16" fill="url(#paperPocket)" />
+
+      <g clip-path="url(#envClip)">
+        <!-- Thin diagonal seams from the bottom corners up toward the fold -->
+        <line x1="11" y1="196" x2="110.8" y2="106.3" stroke="url(#crimson)" stroke-width="5.5" stroke-linecap="round" />
+        <line x1="285" y1="196" x2="185.2" y2="106.3" stroke="url(#crimson)" stroke-width="5.5" stroke-linecap="round" />
+
+        <!-- Shadow the lifted flap casts down onto the pocket. Its apex sits below the
+             flap's own apex; that offset is what reads as the flap standing slightly open. -->
+        <path d="M 0 0 L 131.53 148.58 A 22.00 22.00 0 0 0 164.47 148.58 L 296 0 Z" fill="#0B1020" opacity="0.46" filter="url(#foldBlur)" />
+
+        <!-- Flap underside: a sliver of paper turned away from the light -->
+        <path d="M 0 0 L 134.16 135.23 A 19.50 19.50 0 0 0 161.84 135.23 L 296 0 Z" fill="url(#flapUnder)" />
+
+        <!-- Flap face, lifted clear of the pocket -->
+        <path d="M 0 0 L 9 9 L 135.46 125.60 A 18.50 18.50 0 0 0 160.54 125.60 L 287 9 L 296 0 Z" fill="url(#paperFlap)" />
+
+        <!-- Flap edge -->
+        <path d="M 9 9 L 135.46 125.60 A 18.50 18.50 0 0 0 160.54 125.60 L 287 9" fill="none" stroke="url(#crimson)" stroke-width="9"
+              stroke-linecap="round" stroke-linejoin="round" />
+      </g>
+
+      <!-- Inner outline -->
+      <rect x="4.5" y="4.5" width="287" height="195" rx="13" ry="13"
+            fill="none" stroke="url(#crimson)" stroke-width="9" />
+    </g>
+
+    <!-- Magic star, outside the envelope's shadow filter so its halo bleeds freely -->
+    <g transform="translate(256, 222) rotate(-3.5) translate(-148, -102)">
+      <circle cx="14" cy="10" r="128" fill="url(#starHalo)" />
+      <g transform="translate(14, 10)">
+        <path d="M 0 -56 Q 0 0 56 0 Q 0 0 0 56 Q 0 0 -56 0 Q 0 0 0 -56 Z"
+              fill="none" stroke="#FFF8E1" stroke-width="3" opacity="0.9" />
+        <path d="M 0 -54 Q 0 0 54 0 Q 0 0 0 54 Q 0 0 -54 0 Q 0 0 0 -54 Z"
+              fill="url(#goldStarGrad)" />
+        <path d="M 0 -30 Q 0 0 30 0 Q 0 0 0 30 Q 0 0 -30 0 Q 0 0 0 -30 Z"
+              fill="#FFFDF2" opacity="0.6" />
+        <circle cx="0" cy="0" r="6" fill="#FFFFFF" />
+      </g>
+    </g>
+
+    <!-- Ambient sparkles -->
+    <g filter="url(#sparkleGlow)">
+      <g transform="translate(66, 185)">
+        <line x1="0" y1="-10" x2="0" y2="10" stroke="#FBBF24" stroke-width="2.5" stroke-linecap="round" />
+        <line x1="-10" y1="0" x2="10" y2="0" stroke="#FBBF24" stroke-width="2.5" stroke-linecap="round" />
+        <line x1="-6" y1="-6" x2="6" y2="6" stroke="#FBBF24" stroke-width="1.5" stroke-linecap="round" />
+        <line x1="6" y1="-6" x2="-6" y2="6" stroke="#FBBF24" stroke-width="1.5" stroke-linecap="round" />
+      </g>
+      <g transform="translate(446, 255)">
+        <line x1="0" y1="-8" x2="0" y2="8" stroke="#FBBF24" stroke-width="2.5" stroke-linecap="round" />
+        <line x1="-8" y1="0" x2="8" y2="0" stroke="#FBBF24" stroke-width="2.5" stroke-linecap="round" />
+        <line x1="-5" y1="-5" x2="5" y2="5" stroke="#FBBF24" stroke-width="1.2" stroke-linecap="round" />
+        <line x1="5" y1="-5" x2="-5" y2="5" stroke="#FBBF24" stroke-width="1.2" stroke-linecap="round" />
+      </g>
+      <g transform="translate(340, 80)">
+        <line x1="0" y1="-6" x2="0" y2="6" stroke="#E9D5FF" stroke-width="1.8" stroke-linecap="round" />
+        <line x1="-6" y1="0" x2="6" y2="0" stroke="#E9D5FF" stroke-width="1.8" stroke-linecap="round" />
+      </g>
+    </g>
+  </g>
+</svg>

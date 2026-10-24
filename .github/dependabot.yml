@@ -1,0 +1,25 @@
+version: 2
+updates:
+  # Check for updates to pnpm dependencies
+  - package-ecosystem: 'npm'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: 'chore(deps)'
+    labels:
+      - 'type:infra'
+      - 'app:core'
+      - 'area:security'
+
+  # Check for updates to GitHub Actions
+  - package-ecosystem: 'github-actions'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: 'chore(ci)'
+    labels:
+      - 'type:ci'

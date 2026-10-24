@@ -1,0 +1,178 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="40 40 472 438" width="472" height="438" role="img" aria-label="A magician's top hat with a postal envelope rising out of it, trailing gold sparkles">
+  <!--
+    Magic App Suite hero art.
+    Extracted from apps/magimail/build/icon.svg: the top hat and envelope lifted out of
+    the app icon's squircle so they can float over the page's own spotlight.
+
+    TRADEMARK NOTE: generic postal envelope only — downward triangular flap, thin
+    diagonal seams, crimson outline. Never Gmail trade dress: no thick vertical red
+    side pillars, and no thick red "V" folds forming the letter "M".
+  -->
+  <defs>
+    <radialGradient id="ha-backlight" cx="50%" cy="78%" r="40%">
+      <stop offset="0%" stop-color="#6366F1" stop-opacity="0.34" />
+      <stop offset="60%" stop-color="#4338CA" stop-opacity="0.14" />
+      <stop offset="100%" stop-color="#1E1B4B" stop-opacity="0" />
+    </radialGradient>
+
+    <!-- Lifted one stop from the app icon's values so the hat separates from the
+         page's near-black ground instead of dissolving into it. -->
+    <linearGradient id="ha-hatBody" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#3A3466" />
+      <stop offset="35%" stop-color="#252045" />
+      <stop offset="100%" stop-color="#171330" />
+    </linearGradient>
+    <linearGradient id="ha-hatBrim" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#4A4380" />
+      <stop offset="40%" stop-color="#2C2654" />
+      <stop offset="100%" stop-color="#171330" />
+    </linearGradient>
+    <linearGradient id="ha-hatBand" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#9333EA" />
+      <stop offset="50%" stop-color="#C084FC" />
+      <stop offset="100%" stop-color="#7E22CE" />
+    </linearGradient>
+
+    <filter id="ha-envDropShadow" x="-25%" y="-25%" width="150%" height="160%">
+      <feDropShadow dx="0" dy="6" stdDeviation="6" flood-color="#05030F" flood-opacity="0.28" />
+    </filter>
+    <filter id="ha-softBlur" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="7" />
+    </filter>
+    <filter id="ha-foldBlur" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="5.5" />
+    </filter>
+    <filter id="ha-sparkleGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="2.5" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+
+    <clipPath id="ha-envClip">
+      <rect x="0" y="0" width="296" height="204" rx="16" ry="16" />
+    </clipPath>
+    <clipPath id="ha-floor">
+      <rect x="40" y="40" width="472" height="438" />
+    </clipPath>
+
+    <linearGradient id="ha-crimson" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#C05A4E" />
+      <stop offset="100%" stop-color="#9E4238" />
+    </linearGradient>
+    <linearGradient id="ha-slabEdge" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#8E3B32" />
+      <stop offset="100%" stop-color="#6E2B24" />
+    </linearGradient>
+    <linearGradient id="ha-paperPocket" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#E9EAF0" />
+      <stop offset="55%" stop-color="#DEE0E8" />
+      <stop offset="100%" stop-color="#CFD2DD" />
+    </linearGradient>
+    <linearGradient id="ha-flapUnder" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#B9BCC8" />
+      <stop offset="100%" stop-color="#9DA1B0" />
+    </linearGradient>
+    <linearGradient id="ha-paperFlap" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#F4F5F9" />
+      <stop offset="100%" stop-color="#E2E4EC" />
+    </linearGradient>
+    <linearGradient id="ha-goldStar" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFFBEB" />
+      <stop offset="25%" stop-color="#FDE047" />
+      <stop offset="65%" stop-color="#EAB308" />
+      <stop offset="100%" stop-color="#B45309" />
+    </linearGradient>
+    <radialGradient id="ha-starHalo" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"   stop-color="#FFD07A" stop-opacity="0.66" />
+      <stop offset="28%"  stop-color="#F0A93C" stop-opacity="0.36" />
+      <stop offset="60%"  stop-color="#D98324" stop-opacity="0.14" />
+      <stop offset="100%" stop-color="#B45309" stop-opacity="0" />
+    </radialGradient>
+  </defs>
+
+  <g clip-path="url(#ha-floor)">
+    <!-- Stage glow pooling under the hat -->
+    <ellipse cx="256" cy="425" rx="220" ry="95" fill="url(#ha-backlight)" />
+
+    <!-- Magician's top hat -->
+    <g>
+      <path d="M 148 375 L 140 520 L 372 520 L 364 375" fill="url(#ha-hatBody)" />
+      <path d="M 148 375 L 140 520" fill="none" stroke="#8B84C8" stroke-width="1.6" opacity="0.4" />
+      <path d="M 364 375 L 372 520" fill="none" stroke="#8B84C8" stroke-width="1.6" opacity="0.28" />
+      <rect x="155" y="378" width="24" height="135" rx="12" fill="#FFFFFF" opacity="0.06" />
+
+      <rect x="146" y="372" width="220" height="26" rx="2" fill="url(#ha-hatBand)" />
+      <rect x="146" y="372" width="220" height="2" fill="#FFFFFF" opacity="0.2" />
+
+      <ellipse cx="256" cy="374" rx="192" ry="42" fill="#171330" />
+      <ellipse cx="256" cy="368" rx="192" ry="42" fill="url(#ha-hatBrim)" />
+      <ellipse cx="256" cy="366" rx="188" ry="40" fill="none" stroke="#FFFFFF" stroke-width="1.5" opacity="0.22" />
+
+      <ellipse cx="256" cy="368" rx="118" ry="26" fill="#08060F" />
+      <ellipse cx="256" cy="368" rx="118" ry="26" fill="none" stroke="#4A4380" stroke-width="1.5" opacity="0.7" />
+    </g>
+
+    <!-- Contact shadow: the envelope hovers out of the hat, it is not pasted on -->
+    <ellipse cx="256" cy="372" rx="152" ry="30" fill="#04030A" opacity="0.30" filter="url(#ha-softBlur)" />
+    <ellipse cx="256" cy="366" rx="112" ry="21" fill="#000000" opacity="0.45" filter="url(#ha-softBlur)" />
+
+    <!-- Envelope -->
+    <g transform="translate(256, 222) rotate(-3.5) translate(-148, -102)">
+      <g filter="url(#ha-envDropShadow)">
+        <rect x="-3.5" y="4.5" width="296" height="204" rx="16" ry="16" fill="url(#ha-slabEdge)" />
+      </g>
+      <rect width="296" height="204" rx="16" ry="16" fill="url(#ha-paperPocket)" />
+      <g clip-path="url(#ha-envClip)">
+        <line x1="11" y1="196" x2="110.8" y2="106.3" stroke="url(#ha-crimson)" stroke-width="5.5" stroke-linecap="round" />
+        <line x1="285" y1="196" x2="185.2" y2="106.3" stroke="url(#ha-crimson)" stroke-width="5.5" stroke-linecap="round" />
+        <path d="M 0 0 L 131.53 148.58 A 22.00 22.00 0 0 0 164.47 148.58 L 296 0 Z" fill="#0B1020" opacity="0.46" filter="url(#ha-foldBlur)" />
+        <path d="M 0 0 L 134.16 135.23 A 19.50 19.50 0 0 0 161.84 135.23 L 296 0 Z" fill="url(#ha-flapUnder)" />
+        <path d="M 0 0 L 9 9 L 135.46 125.60 A 18.50 18.50 0 0 0 160.54 125.60 L 287 9 L 296 0 Z" fill="url(#ha-paperFlap)" />
+        <path d="M 9 9 L 135.46 125.60 A 18.50 18.50 0 0 0 160.54 125.60 L 287 9" fill="none" stroke="url(#ha-crimson)" stroke-width="9"
+              stroke-linecap="round" stroke-linejoin="round" />
+      </g>
+      <rect x="4.5" y="4.5" width="287" height="195" rx="13" ry="13"
+            fill="none" stroke="url(#ha-crimson)" stroke-width="9" />
+    </g>
+
+    <!-- Magic star, halo bleeding freely across the dark stage -->
+    <g transform="translate(256, 222) rotate(-3.5) translate(-148, -102)">
+      <circle cx="14" cy="10" r="80" fill="url(#ha-starHalo)" />
+      <g transform="translate(14, 10)">
+        <path d="M 0 -56 Q 0 0 56 0 Q 0 0 0 56 Q 0 0 -56 0 Q 0 0 0 -56 Z"
+              fill="none" stroke="#FFF8E1" stroke-width="3" opacity="0.9" />
+        <path d="M 0 -54 Q 0 0 54 0 Q 0 0 0 54 Q 0 0 -54 0 Q 0 0 0 -54 Z"
+              fill="url(#ha-goldStar)" />
+        <path d="M 0 -30 Q 0 0 30 0 Q 0 0 0 30 Q 0 0 -30 0 Q 0 0 0 -30 Z"
+              fill="#FFFDF2" opacity="0.6" />
+        <circle cx="0" cy="0" r="6" fill="#FFFFFF" />
+      </g>
+    </g>
+
+    <!-- Ambient sparkles -->
+    <g filter="url(#ha-sparkleGlow)">
+      <g transform="translate(78, 195)">
+        <line x1="0" y1="-10" x2="0" y2="10" stroke="#FBBF24" stroke-width="2.5" stroke-linecap="round" />
+        <line x1="-10" y1="0" x2="10" y2="0" stroke="#FBBF24" stroke-width="2.5" stroke-linecap="round" />
+        <line x1="-6" y1="-6" x2="6" y2="6" stroke="#FBBF24" stroke-width="1.5" stroke-linecap="round" />
+        <line x1="6" y1="-6" x2="-6" y2="6" stroke="#FBBF24" stroke-width="1.5" stroke-linecap="round" />
+      </g>
+      <g transform="translate(462, 268)">
+        <line x1="0" y1="-8" x2="0" y2="8" stroke="#FBBF24" stroke-width="2.5" stroke-linecap="round" />
+        <line x1="-8" y1="0" x2="8" y2="0" stroke="#FBBF24" stroke-width="2.5" stroke-linecap="round" />
+        <line x1="-5" y1="-5" x2="5" y2="5" stroke="#FBBF24" stroke-width="1.2" stroke-linecap="round" />
+        <line x1="5" y1="-5" x2="-5" y2="5" stroke="#FBBF24" stroke-width="1.2" stroke-linecap="round" />
+      </g>
+      <g transform="translate(150, 96)">
+        <line x1="0" y1="-6" x2="0" y2="6" stroke="#E9D5FF" stroke-width="1.8" stroke-linecap="round" />
+        <line x1="-6" y1="0" x2="6" y2="0" stroke="#E9D5FF" stroke-width="1.8" stroke-linecap="round" />
+      </g>
+      <g transform="translate(88, 330)">
+        <line x1="0" y1="-5" x2="0" y2="5" stroke="#E9D5FF" stroke-width="1.5" stroke-linecap="round" />
+        <line x1="-5" y1="0" x2="5" y2="0" stroke="#E9D5FF" stroke-width="1.5" stroke-linecap="round" />
+      </g>
+    </g>
+  </g>
+</svg>

@@ -1,0 +1,573 @@
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "%@ is the default reader": {
+      "extractionState": "manual"
+    },
+    "%@ session has expired": {
+      "extractionState": "manual"
+    },
+    "%lldh": {
+      "extractionState": "manual"
+    },
+    "%lldh %lldm": {
+      "extractionState": "manual"
+    },
+    "%lldm": {
+      "extractionState": "manual"
+    },
+    "1 hour": {
+      "extractionState": "manual"
+    },
+    "1 minute": {
+      "extractionState": "manual"
+    },
+    "1 minute before": {
+      "extractionState": "manual"
+    },
+    "10 minutes": {
+      "extractionState": "manual"
+    },
+    "10 minutes before": {
+      "extractionState": "manual"
+    },
+    "15 minutes before": {
+      "extractionState": "manual"
+    },
+    "30 minutes": {
+      "extractionState": "manual"
+    },
+    "30 minutes before": {
+      "extractionState": "manual"
+    },
+    "5 minutes": {
+      "extractionState": "manual"
+    },
+    "5 minutes before": {
+      "extractionState": "manual"
+    },
+    "Account name": {
+      "extractionState": "manual"
+    },
+    "Accounts": {
+      "extractionState": "manual"
+    },
+    "Active: %lld accounts active (others silenced)": {
+      "extractionState": "manual"
+    },
+    "Active: %lld accounts visible (others hidden)": {
+      "extractionState": "manual"
+    },
+    "Add an account": {
+      "extractionState": "manual"
+    },
+    "Advanced": {
+      "extractionState": "manual"
+    },
+    "Alert me before meetings start": {
+      "extractionState": "manual"
+    },
+    "Alert me:": {
+      "extractionState": "manual"
+    },
+    "Alerts by calendar": {
+      "extractionState": "manual"
+    },
+    "All day": {
+      "extractionState": "manual"
+    },
+    "All outstanding invitations": {
+      "extractionState": "manual"
+    },
+    "Always ask": {
+      "extractionState": "manual"
+    },
+    "Always open calls in the browser": {
+      "extractionState": "manual"
+    },
+    "An account's organization has blocked Google Calendar.": {
+      "extractionState": "manual"
+    },
+    "An account you switch away from stays in memory for this long, then unloads to free around 300MB. Background events and alerts keep arriving either way, and returning to an unloaded account reopens it where you left off.": {
+      "extractionState": "manual"
+    },
+    "Appearance": {
+      "extractionState": "manual"
+    },
+    "Applies to the menu bar popover and the widgets, not the Tasks view inside the app.": {
+      "extractionState": "manual"
+    },
+    "Applies to the menu bar, widgets and links. Inside the app, the account on screen is always used.": {
+      "extractionState": "manual"
+    },
+    "Are you sure you want to delete this event from Google Calendar?": {
+      "extractionState": "manual"
+    },
+    "Are you sure you want to delete this task from Google Tasks?": {
+      "extractionState": "manual"
+    },
+    "Assembles application and extension logs along with system environment info into a redacted archive for troubleshooting.": {
+      "extractionState": "manual"
+    },
+    "Awaiting your reply": {
+      "extractionState": "manual"
+    },
+    "Birthday": {
+      "extractionState": "manual"
+    },
+    "Calendar": {
+      "extractionState": "manual"
+    },
+    "Calendar access blocked": {
+      "extractionState": "manual"
+    },
+    "Calendar files (.ics)": {
+      "extractionState": "manual"
+    },
+    "Cancel": {
+      "extractionState": "manual"
+    },
+    "Collapse Calendar": {
+      "extractionState": "manual"
+    },
+    "Collect Diagnostics…": {
+      "extractionState": "manual"
+    },
+    "Color by account": {
+      "extractionState": "manual",
+      "localizations": {
+        "en-GB": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Colour by account"
+          }
+        }
+      }
+    },
+    "Completed task": {
+      "extractionState": "manual"
+    },
+    "Configure Focus Filters in macOS System Settings to select which accounts and calendars stay active, and whether to prevent access to silenced accounts.": {
+      "extractionState": "manual"
+    },
+    "Copy Event Link": {
+      "extractionState": "manual"
+    },
+    "Dark": {
+      "extractionState": "manual"
+    },
+    "Day and month": {
+      "extractionState": "manual"
+    },
+    "Day of month": {
+      "extractionState": "manual"
+    },
+    "Delete": {
+      "extractionState": "manual"
+    },
+    "Delete Event": {
+      "extractionState": "manual"
+    },
+    "Delete Task": {
+      "extractionState": "manual"
+    },
+    "Delete “%@”?": {
+      "extractionState": "manual"
+    },
+    "Diagnostics": {
+      "extractionState": "manual"
+    },
+    "Dock & Menu Bar": {
+      "extractionState": "manual"
+    },
+    "Dock badge:": {
+      "extractionState": "manual"
+    },
+    "Drag to reorder": {
+      "extractionState": "manual"
+    },
+    "Expand Calendar": {
+      "extractionState": "manual"
+    },
+    "Filter Calendars": {
+      "extractionState": "manual"
+    },
+    "Filter Calendars (Active)": {
+      "extractionState": "manual"
+    },
+    "Filter Calendars (a Focus is silencing some)": {
+      "extractionState": "manual"
+    },
+    "Focus Filters": {
+      "extractionState": "manual"
+    },
+    "Focus Status:": {
+      "extractionState": "manual"
+    },
+    "Focus time": {
+      "extractionState": "manual"
+    },
+    "General": {
+      "extractionState": "manual"
+    },
+    "Google Calendar": {
+      "extractionState": "manual"
+    },
+    "Hide Tasks tab": {
+      "extractionState": "manual"
+    },
+    "Hide app sidebar": {
+      "extractionState": "manual"
+    },
+    "Hides the Calendar/Tasks switcher at the top of the app. Tasks stays reachable from the sidebar.": {
+      "extractionState": "manual"
+    },
+    "IN %lld HRS": {
+      "extractionState": "manual"
+    },
+    "IN %lld HRS %lld MINS": {
+      "extractionState": "manual"
+    },
+    "IN %lld HRS 1 MIN": {
+      "extractionState": "manual"
+    },
+    "IN %lld MIN": {
+      "extractionState": "manual"
+    },
+    "IN %lld MINS": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "IN 1 MIN"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "IN %lld MINS"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "IN 1 HR": {
+      "extractionState": "manual"
+    },
+    "IN 1 HR %lld MINS": {
+      "extractionState": "manual"
+    },
+    "IN 1 HR 1 MIN": {
+      "extractionState": "manual"
+    },
+    "Icon only": {
+      "extractionState": "manual"
+    },
+    "Inactive (All calendars active)": {
+      "extractionState": "manual"
+    },
+    "Join": {
+      "extractionState": "manual"
+    },
+    "Join Call": {
+      "extractionState": "manual"
+    },
+    "Join Meeting": {
+      "extractionState": "manual"
+    },
+    "Join “%@”": {
+      "extractionState": "manual"
+    },
+    "Joining calls": {
+      "extractionState": "manual"
+    },
+    "Jump to Now": {
+      "extractionState": "manual"
+    },
+    "Keep Google Calendar's own Appearance setting on \"Device\" and it will follow this.": {
+      "extractionState": "manual"
+    },
+    "LATER TODAY": {
+      "extractionState": "manual"
+    },
+    "Last synced %@": {
+      "extractionState": "manual"
+    },
+    "Launch Magical at login": {
+      "extractionState": "manual"
+    },
+    "Light": {
+      "extractionState": "manual"
+    },
+    "Magical Settings": {
+      "extractionState": "manual"
+    },
+    "Magical is not running from an app bundle": {
+      "extractionState": "manual"
+    },
+    "Mark Complete": {
+      "extractionState": "manual"
+    },
+    "Mark Incomplete": {
+      "extractionState": "manual"
+    },
+    "Maybe": {
+      "extractionState": "manual"
+    },
+    "Meeting alerts": {
+      "extractionState": "manual"
+    },
+    "Memory": {
+      "extractionState": "manual"
+    },
+    "Menu bar display:": {
+      "extractionState": "manual"
+    },
+    "Muted calendars do not raise upcoming meeting alerts or dock badge invitation counts.": {
+      "extractionState": "manual"
+    },
+    "NOW": {
+      "extractionState": "manual"
+    },
+    "Never": {
+      "extractionState": "manual"
+    },
+    "New Account": {
+      "extractionState": "manual"
+    },
+    "New Event": {
+      "extractionState": "manual"
+    },
+    "New Event in %@": {
+      "extractionState": "manual"
+    },
+    "New event account:": {
+      "extractionState": "manual"
+    },
+    "New invitations": {
+      "extractionState": "manual"
+    },
+    "Next Month": {
+      "extractionState": "manual"
+    },
+    "Next event": {
+      "extractionState": "manual"
+    },
+    "No": {
+      "extractionState": "manual"
+    },
+    "No accounts configured": {
+      "extractionState": "manual"
+    },
+    "No calendars available": {
+      "extractionState": "manual"
+    },
+    "No default reader": {
+      "extractionState": "manual"
+    },
+    "No events scheduled": {
+      "extractionState": "manual"
+    },
+    "Not up to date": {
+      "extractionState": "manual"
+    },
+    "Nothing else today": {
+      "extractionState": "manual"
+    },
+    "Nothing in the next few days": {
+      "extractionState": "manual"
+    },
+    "Nothing left today": {
+      "extractionState": "manual"
+    },
+    "Nothing scheduled": {
+      "extractionState": "manual"
+    },
+    "Notifications": {
+      "extractionState": "manual"
+    },
+    "Now": {
+      "extractionState": "manual"
+    },
+    "Now, %@": {
+      "extractionState": "manual"
+    },
+    "Offline": {
+      "extractionState": "manual"
+    },
+    "Only the installed app can be the default reader": {
+      "extractionState": "manual"
+    },
+    "Open Calendar": {
+      "extractionState": "manual"
+    },
+    "Open Focus Settings…": {
+      "extractionState": "manual"
+    },
+    "Open in Magical": {
+      "extractionState": "manual"
+    },
+    "Other": {
+      "extractionState": "manual"
+    },
+    "Preferences…": {
+      "extractionState": "manual"
+    },
+    "Previous Month": {
+      "extractionState": "manual"
+    },
+    "Quit Magical": {
+      "extractionState": "manual"
+    },
+    "RSVP": {
+      "extractionState": "manual"
+    },
+    "Refresh Calendars": {
+      "extractionState": "manual"
+    },
+    "Remove Account": {
+      "extractionState": "manual"
+    },
+    "Remove the selected account": {
+      "extractionState": "manual"
+    },
+    "Reply needed": {
+      "extractionState": "manual"
+    },
+    "Reset": {
+      "extractionState": "manual"
+    },
+    "Reset Session…": {
+      "extractionState": "manual"
+    },
+    "Reset the session for “%@”?": {
+      "extractionState": "manual"
+    },
+    "Search %@ — opens in app": {
+      "extractionState": "manual"
+    },
+    "Search in Account": {
+      "extractionState": "manual"
+    },
+    "Search — opens in app": {
+      "extractionState": "manual"
+    },
+    "Settings": {
+      "extractionState": "manual"
+    },
+    "Show All Calendars": {
+      "extractionState": "manual"
+    },
+    "Show Completed Tasks": {
+      "extractionState": "manual"
+    },
+    "Show completed tasks": {
+      "extractionState": "manual"
+    },
+    "Show menu bar icon": {
+      "extractionState": "manual"
+    },
+    "Sign In": {
+      "extractionState": "manual"
+    },
+    "Sign in required": {
+      "extractionState": "manual"
+    },
+    "Sign the selected account out of Google": {
+      "extractionState": "manual"
+    },
+    "Signs this account out of Google and clears its cookies. Other accounts are untouched.": {
+      "extractionState": "manual"
+    },
+    "Silenced by Focus": {
+      "extractionState": "manual"
+    },
+    "Snooze 5m": {
+      "extractionState": "manual"
+    },
+    "System Default": {
+      "extractionState": "manual"
+    },
+    "TODAY": {
+      "extractionState": "manual"
+    },
+    "TOMORROW": {
+      "extractionState": "manual"
+    },
+    "Task": {
+      "extractionState": "manual"
+    },
+    "The badge counts invitations, never meetings. All outstanding keeps counting every invitation awaiting a reply. New invitations counts only those that arrived while you were away. Either way, only answering an invitation takes the number down.": {
+      "extractionState": "manual"
+    },
+    "Theme": {
+      "extractionState": "manual"
+    },
+    "Theme:": {
+      "extractionState": "manual"
+    },
+    "Transparent background": {
+      "extractionState": "manual"
+    },
+    "Unknown": {
+      "extractionState": "manual"
+    },
+    "Unload inactive after:": {
+      "extractionState": "manual"
+    },
+    "Untitled Event": {
+      "extractionState": "manual"
+    },
+    "Use %@": {
+      "extractionState": "manual"
+    },
+    "Use active account": {
+      "extractionState": "manual"
+    },
+    "Used for meetings that have no notification time of their own. A meeting that sets one in Google Calendar is alerted at that time instead.": {
+      "extractionState": "manual"
+    },
+    "Video call": {
+      "extractionState": "manual"
+    },
+    "Waiting for network connection…": {
+      "extractionState": "manual"
+    },
+    "Window": {
+      "extractionState": "manual"
+    },
+    "Working from %@": {
+      "extractionState": "manual"
+    },
+    "Working from home": {
+      "extractionState": "manual"
+    },
+    "Working from the office": {
+      "extractionState": "manual"
+    },
+    "Yes": {
+      "extractionState": "manual"
+    },
+    "Zoom and Teams calls open in their desktop apps by default. Turn this on if you are signed in to the meeting's account in a browser rather than in the desktop app.": {
+      "extractionState": "manual"
+    },
+    "macOS does not recognize that file type": {
+      "extractionState": "manual",
+      "localizations": {
+        "en-GB": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS does not recognise that file type"
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}

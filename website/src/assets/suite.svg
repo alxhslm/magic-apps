@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Magic Apps: a gold star on deep indigo">
+  <!--
+    Magic Apps mark. The suite has no app of its own, so this is the star both app
+    icons carry, on the shared indigo ground. Used as the landing page's favicon and
+    social image, and matched by the inline brand mark in _includes/nav.njk.
+  -->
+  <defs>
+    <!-- Same stops as apps/magimail/build/icon.svg and apps/magical/build/icon.svg -->
+    <linearGradient id="suiteBg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1E1B4B"/>
+      <stop offset="45%" stop-color="#221D54"/>
+      <stop offset="100%" stop-color="#362F78"/>
+    </linearGradient>
+    <radialGradient id="suiteGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FFD07A" stop-opacity="0.55"/>
+      <stop offset="45%" stop-color="#F0A93C" stop-opacity="0.2"/>
+      <stop offset="100%" stop-color="#B45309" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="suiteStar" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFFBEB"/>
+      <stop offset="25%" stop-color="#FDE047"/>
+      <stop offset="65%" stop-color="#EAB308"/>
+      <stop offset="100%" stop-color="#B45309"/>
+    </linearGradient>
+    <clipPath id="suiteSquircle">
+      <rect width="512" height="512" rx="115" ry="115"/>
+    </clipPath>
+  </defs>
+
+  <g clip-path="url(#suiteSquircle)">
+    <rect width="512" height="512" fill="url(#suiteBg)"/>
+
+    <!-- Ambient dust, as on both app icons -->
+    <circle cx="85"  cy="85"  r="2.0" fill="#FFFFFF" opacity="0.35"/>
+    <circle cx="430" cy="115" r="2.5" fill="#FFE57F" opacity="0.5"/>
+    <circle cx="110" cy="425" r="1.5" fill="#FFFFFF" opacity="0.25"/>
+    <circle cx="410" cy="410" r="1.8" fill="#FFFFFF" opacity="0.25"/>
+    <circle cx="190" cy="65"  r="1.5" fill="#FFFFFF" opacity="0.2"/>
+    <circle cx="390" cy="445" r="1.5" fill="#FFFFFF" opacity="0.2"/>
+
+    <circle cx="256" cy="256" r="215" fill="url(#suiteGlow)"/>
+
+    <!-- The concave four-point star both app icons use -->
+    <g transform="translate(256, 256)">
+      <path d="M 0 -150 Q 0 0 150 0 Q 0 0 0 150 Q 0 0 -150 0 Q 0 0 0 -150 Z"
+            fill="none" stroke="#FFF8E1" stroke-width="6" opacity="0.85"/>
+      <path d="M 0 -146 Q 0 0 146 0 Q 0 0 0 146 Q 0 0 -146 0 Q 0 0 0 -146 Z"
+            fill="url(#suiteStar)"/>
+      <path d="M 0 -78 Q 0 0 78 0 Q 0 0 0 78 Q 0 0 -78 0 Q 0 0 0 -78 Z"
+            fill="#FFFDF2" opacity="0.6"/>
+      <circle cx="0" cy="0" r="16" fill="#FFFFFF"/>
+    </g>
+  </g>
+</svg>

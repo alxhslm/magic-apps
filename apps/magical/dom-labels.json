@@ -1,0 +1,108 @@
+{
+  "version": 1,
+  "actions": {
+    "create": {
+      "scope": "[data-is-drawer-closed]",
+      "selectors": ["[aria-haspopup=\"menu\"]"],
+      "order": "only"
+    },
+    "createEvent": {
+      "selectors": ["[role=\"menuitem\"][data-key=\"event\"]"],
+      "order": "only"
+    },
+    "createTask": {
+      "selectors": [
+        "[role=\"menuitem\"][data-key=\"task\"]",
+        "[role=\"menuitem\"][data-key=\"task_time_block\"]"
+      ],
+      "order": "only"
+    },
+    "addTaskButton": {
+      "selectors": ["[data-shown-add-task-btn=\"true\"] button"],
+      "order": "only"
+    },
+    "addTaskField": {
+      "labels": { "en": ["Task title"] },
+      "attrs": ["aria-label"],
+      "order": "first"
+    },
+    "searchInput": {
+      "selectors": ["input[name=\"q\"]"],
+      "order": "only"
+    },
+    "searchButton": {
+      "labels": { "en": ["Search"] },
+      "attrs": ["aria-label"],
+      "order": "only"
+    },
+    "today": {
+      "labels": { "en": ["Today"] },
+      "match": "startsWith",
+      "attrs": ["aria-label"],
+      "order": "only"
+    },
+    "navPrev": {
+      "labels": { "en": ["Previous"] },
+      "match": "startsWith",
+      "attrs": ["aria-label"],
+      "exclude": ["#drawerMiniMonthNavigator"],
+      "order": "only"
+    },
+    "navNext": {
+      "labels": { "en": ["Next"] },
+      "match": "startsWith",
+      "attrs": ["aria-label"],
+      "exclude": ["#drawerMiniMonthNavigator"],
+      "order": "only"
+    },
+    "back": {
+      "labels": { "en": ["Go back"] },
+      "attrs": ["aria-label"],
+      "order": "only"
+    },
+    "closeEventDialog": {
+      "selectors": ["#xDetDlgCloseBu"],
+      "order": "only"
+    },
+    "deleteEvent": {
+      "selectors": ["#xDetDlgDelBu"],
+      "order": "only"
+    },
+    "confirmScope": {
+      "selectors": ["[role=\"dialog\"] button[data-mdc-dialog-action=\"ok\"]"],
+      "order": "only"
+    },
+    "scopeInstance": {
+      "selectors": ["[role=\"dialog\"] [role=\"radiogroup\"] input[type=\"radio\"]"],
+      "order": "first"
+    },
+    "rsvpYes": {
+      "selectors": ["#xRsvpYesBu"],
+      "order": "only"
+    },
+    "rsvpNo": {
+      "selectors": ["#xRsvpNoBu"],
+      "order": "only"
+    },
+    "rsvpMaybe": {
+      "selectors": ["#xRsvpMaybeBu"],
+      "order": "only"
+    },
+    "settings": {
+      "labels": { "en": ["Settings"] },
+      "attrs": ["aria-label"],
+      "match": "contains",
+      "order": "first"
+    },
+    "sidePanel": {
+      "selectors": ["[data-keeps-details-open]"],
+      "order": "first"
+    },
+    "tasksTab": {
+      "labels": { "en": ["Switch to Tasks"] },
+      "attrs": ["aria-label"],
+      "match": "startsWith",
+      "order": "first"
+    }
+  }
+}

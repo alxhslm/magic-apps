@@ -1,0 +1,24 @@
+{
+  "name": "macmagic-app",
+  "compatibility_date": "2026-09-26",
+
+  // Assets-only: no "main", so every request is a free, non-billable asset
+  // serve. Adding a script would start metering invocations.
+  "assets": {
+    "directory": "./_site/",
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "404-page",
+  },
+
+  "workers_dev": false,
+
+  // Explicit because preview_urls defaults to the value of workers_dev -
+  // without this line, the false above would silently kill PR previews.
+  "preview_urls": true,
+
+  "routes": [
+    { "pattern": "macmagic.app/*", "zone_name": "macmagic.app" },
+    { "pattern": "www.macmagic.app/*", "zone_name": "macmagic.app" },
+    { "pattern": "help.macmagic.app/*", "zone_name": "macmagic.app" },
+  ],
+}

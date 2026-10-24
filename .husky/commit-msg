@@ -1,0 +1,4 @@
+#!/bin/sh
+# The staged diff can be clean while the message names the client, the venue or the
+# account. `$1` is the path to the message file git is about to commit.
+node tools/check-privacy.mjs --message "$1"

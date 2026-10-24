@@ -1,0 +1,14 @@
+{
+  "name": "Magic Apps",
+  "author": "Alex Haslam",
+  "year": 2026,
+  "blogUrl": "https://alexhaslam.dev/",
+  "githubUrl": "https://github.com/alxhslm/magic-apps",
+  "blurb": "Proper Mac apps for the Google apps you already use. Open source on GitHub. Built and maintained by an independent developer.",
+  "requirements": "Requires macOS 14 Sonoma or later. Apple silicon only.",
+  "trademark": "Magic Apps is an independent project and is not affiliated with, endorsed by, or sponsored by Google LLC. Gmail, Google Calendar, Google Workspace, Google Tasks, Google Meet and Google Drive are trademarks of Google LLC. macOS, Mac, Apple, Finder, Safari, Mail and Messages are trademarks of Apple Inc.",
+  "requirementsShort": "macOS 14 or later &middot; Apple silicon only",
+  "url": "https://macmagic.app",
+  "emailOctopusFormId": "154144fe-bb17-11f1-9805-89066791f21d",
+  "privacyUpdated": "September 2026"
+}

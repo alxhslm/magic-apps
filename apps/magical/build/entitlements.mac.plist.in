@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- V8 compiles JavaScript at runtime, so the hardened runtime has to let it
+         map executable pages it wrote itself. Electron does not start without
+         these two. -->
+    <key>com.apple.security.cs.allow-jit</key>
+    <true/>
+    <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+    <true/>
+    <key>com.apple.security.network.client</key>
+    <true/>
+    <key>com.apple.security.network.server</key>
+    <true/>
+    <!--
+      The group the widget extension reads its snapshot from.
+
+      Without this entitlement containerURL(forSecurityApplicationGroupIdentifier:)
+      returns nil, the app falls back to reaching into ~/Library/Group Containers/
+      by path as a process entitled for nothing, and macOS asks the user for access
+      to other apps' data. See native/Sources/WidgetBridge.swift.
+
+      <TEAM_ID> is resolved from the signing certificate by scripts/build-app.sh
+      into build/.generated/entitlements.mac.plist, which is what the signer reads.
+      Hardcoding a team prefix gives anyone building on their own Apple ID a
+      signature that cannot back the group the bundle claims.
+    -->
+    <key>com.apple.security.application-groups</key>
+    <array>
+        <string><TEAM_ID>.group.com.alexhaslam.magical</string>
+    </array>
+</dict>
+</plist>

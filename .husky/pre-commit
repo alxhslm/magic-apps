@@ -1,0 +1,2 @@
+pnpm exec lint-staged
+node tools/check-privacy.mjs --staged

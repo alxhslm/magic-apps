@@ -1,0 +1,25 @@
+{
+  "accounts": [
+    {
+      "id": "account_work",
+      "name": "Work",
+      "color": "#0096ff",
+      "unreadCount": 3,
+      "email": "taylor@example.com",
+      "needsAuth": false
+    },
+    {
+      "id": "account_personal",
+      "name": "Personal",
+      "color": "#73fa79",
+      "unreadCount": 0,
+      "email": "taylor.personal@example.com",
+      "needsAuth": false
+    }
+  ],
+  "totalUnread": 3,
+  "showCount": true,
+  "showDots": true,
+  "isOffline": false,
+  "isRestricted": false
+}

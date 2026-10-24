@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- macOS app extensions must be sandboxed. -->
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+	<!--
+	  accounts.json (read) and focus-filter.json (write) live in the App Group
+	  container, which both sides are entitled for, so the extension needs
+	  nothing from Application Support.
+
+	  <TEAM_ID> is resolved from the signing certificate by build.sh, which also
+	  stamps the same identifier into Info.plist as AppGroupIdentifier for the
+	  code to read back. Hardcoding a team prefix gives anyone building on their
+	  own Apple ID an extension whose log never reaches the app, because the
+	  signature cannot back the group the bundle claims.
+	-->
+	<key>com.apple.security.application-groups</key>
+	<array>
+		<string><TEAM_ID>.group.com.alexhaslam.magimail</string>
+	</array>
+</dict>
+</plist>

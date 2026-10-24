@@ -1,0 +1,4 @@
+# The maintainer owns every path, so a repository ruleset can require a
+# code-owner review on a pull request. Only the code owner's review satisfies
+# that requirement; a review from anyone else does not count toward it.
+* @alxhslm

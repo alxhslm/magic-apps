@@ -1,0 +1,1555 @@
+/*
+ * Magic App Suite — marketing site
+ *
+ * Visual world: a darkened stage. The app icons put a magician's hat, a wand and gold
+ * sparkles on deep indigo, so the site is that same theatre — indigo velvet ground, one
+ * warm spotlight, gilt as the only bold accent. Committed single-theme by design: there
+ * is no light variant, so every colour below is painted explicitly and nothing is left
+ * to inherit from the host page.
+ *
+ * Type is entirely Apple's own, per Apple's platform typography: SF Pro (via
+ * -apple-system) carries the page and SF Mono (via ui-monospace) sets eyebrows,
+ * keyboard shortcuts and figures. No web fonts. On a Mac these resolve to the real
+ * system faces — which is the argument the site is making, made in the type itself.
+ */
+
+/* ---------------------------------------------------------------- tokens */
+
+:root {
+  /* Ground and surfaces — indigo velvet, lifted from the app icon gradients */
+  --ink: #0b0918;
+  --ink-raised: #100c26;
+  --velvet: #191447;
+  --velvet-mid: #221d54;
+  --velvet-lit: #362f78;
+
+  /* Accents. Gilt is the page's one bold voice; each app owns a hue. */
+  --gilt: #f5c24c;
+  --gilt-bright: #ffe9a8;
+  --conjure: #c084fc; /* Magimail — the hat band */
+  --conjure-deep: #9333ea;
+  --azure: #5b9bf8; /* Magical — the calendar header */
+  --azure-deep: #2563eb;
+  --crimson: #f06a5d; /* Magimail card and envelope accent */
+
+  /* Text — warm off-white against cool indigo, neutrals biased violet */
+  --paper: #f4f1ea;
+  --mist: #b3accd;
+  --mist-dim: #8b84a9;
+
+  --hairline: rgb(244 241 234 / 10%);
+  --hairline-strong: rgb(244 241 234 / 18%);
+  --gilt-line: rgb(245 194 76 / 32%);
+
+  /* Type — Apple system faces only */
+  --font-ui:
+    -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, 'Helvetica Neue', sans-serif;
+  --font-display:
+    -apple-system, BlinkMacSystemFont, 'SF Pro Display', system-ui, 'Helvetica Neue', sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, monospace;
+
+  --fs-display: clamp(2.75rem, 7.5vw, 5.25rem);
+  --fs-h2: clamp(1.875rem, 3.8vw, 2.75rem);
+  --fs-h3: 1.3125rem;
+  --fs-lead: clamp(1.0625rem, 1.6vw, 1.3125rem);
+  --fs-body: 1.0625rem;
+  --fs-small: 0.9375rem;
+  --fs-label: 0.75rem;
+
+  /* Rhythm */
+  --wrap: 1120px;
+  --wrap-narrow: 720px;
+  --gutter: clamp(1.25rem, 4vw, 2.5rem);
+  --section-y: clamp(4rem, 8vw, 7rem);
+  --radius: 18px;
+  --radius-lg: 26px;
+}
+
+/* ---------------------------------------------------------------- base */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background-color: var(--ink);
+  color: var(--mist);
+  font-family: var(--font-ui);
+  font-size: var(--fs-body);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overflow-x: hidden;
+}
+
+/* The house lights: a single warm pool behind the top of the page, and a cooler
+   indigo wash that keeps the lower page from going flat black. */
+body::before {
+  content: '';
+  position: fixed;
+  inset: -20% -10% auto -10%;
+  height: 90vh;
+  background:
+    radial-gradient(
+      60% 55% at 50% 0%,
+      rgb(99 102 241 / 22%) 0%,
+      rgb(67 56 202 / 8%) 45%,
+      transparent 72%
+    ),
+    radial-gradient(38% 32% at 50% 6%, rgb(245 194 76 / 10%) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+img,
+svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+a {
+  color: var(--gilt);
+  text-decoration: none;
+}
+
+a:hover {
+  color: var(--gilt-bright);
+}
+
+:focus-visible {
+  outline: 2px solid var(--gilt);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-display);
+  color: var(--paper);
+  font-weight: 600;
+  line-height: 1.08;
+  letter-spacing: -0.025em;
+  text-wrap: balance;
+  margin: 0;
+}
+
+p {
+  margin: 0;
+  max-width: 62ch;
+}
+
+ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* ---------------------------------------------------------------- layout */
+
+.wrap {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: var(--wrap);
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+
+.band {
+  padding-block: var(--section-y);
+}
+
+.band--raised {
+  background: linear-gradient(
+    180deg,
+    transparent,
+    var(--ink-raised) 12%,
+    var(--ink-raised) 88%,
+    transparent
+  );
+}
+
+/* Section boundary as a strip of stage light: bright at centre, gone at the edges. */
+.band--ruled {
+  border-top: 1px solid transparent;
+  border-image: linear-gradient(90deg, transparent, var(--gilt-line) 50%, transparent) 1;
+}
+
+.section-head {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  max-width: 46rem;
+  margin-bottom: clamp(2.5rem, 5vw, 4rem);
+}
+
+.eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  font-family: var(--font-mono);
+  font-size: var(--fs-label);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--gilt);
+  margin: 0;
+}
+
+.eyebrow::before {
+  content: '';
+  width: 1.75rem;
+  height: 1px;
+  background: var(--gilt);
+  opacity: 0.7;
+  flex: none;
+}
+
+h2 {
+  font-size: var(--fs-h2);
+}
+
+h3 {
+  font-size: var(--fs-h3);
+  letter-spacing: -0.015em;
+  line-height: 1.25;
+}
+
+.lead {
+  font-size: var(--fs-lead);
+  line-height: 1.5;
+  color: var(--mist);
+}
+
+.small {
+  font-size: var(--fs-small);
+}
+
+.dim {
+  color: var(--mist-dim);
+}
+
+code {
+  font-family: var(--font-mono);
+  font-size: 0.875em;
+  color: var(--gilt-bright);
+  background: rgb(245 194 76 / 8%);
+  border-radius: 4px;
+  padding: 0.1em 0.32em;
+  overflow-wrap: break-word;
+}
+
+kbd {
+  font-family: var(--font-mono);
+  font-size: 0.8125em;
+  color: var(--paper);
+  background: rgb(244 241 234 / 8%);
+  border: 1px solid var(--hairline-strong);
+  border-radius: 5px;
+  padding: 0.1em 0.4em;
+  white-space: nowrap;
+}
+
+/* ---------------------------------------------------------------- chips */
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  align-self: flex-start;
+  font-family: var(--font-mono);
+  font-size: var(--fs-label);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--gilt);
+  background: rgb(245 194 76 / 10%);
+  border: 1px solid var(--gilt-line);
+  border-radius: 999px;
+  padding: 0.375rem 0.75rem;
+}
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.chip::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--gilt);
+  box-shadow: 0 0 8px var(--gilt);
+}
+
+.chip--quiet {
+  color: var(--mist);
+  background: rgb(244 241 234 / 5%);
+  border-color: var(--hairline);
+}
+
+.chip--quiet::before {
+  background: var(--mist-dim);
+  box-shadow: none;
+}
+
+/* ---------------------------------------------------------------- nav */
+
+.nav {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: rgb(11 9 24 / 78%);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  border-bottom: 1px solid var(--hairline);
+}
+
+.nav__inner {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  height: 3.5rem;
+}
+
+@media (min-width: 50rem) {
+  .nav__inner {
+    height: 4rem;
+  }
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: var(--paper);
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.0625rem;
+  letter-spacing: -0.015em;
+  margin-right: auto;
+}
+
+.brand:hover {
+  color: var(--paper);
+}
+
+.brand__mark {
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 8px;
+  flex: none;
+}
+
+.nav__links {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.nav__links a {
+  color: var(--mist);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  transition: color 0.18s ease;
+}
+
+.nav__links a:hover,
+.nav__links a[aria-current='page'] {
+  color: var(--paper);
+}
+
+.nav__icon-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--mist);
+  transition:
+    color 0.18s ease,
+    transform 0.18s ease;
+}
+
+.nav__icon-link:hover {
+  color: var(--paper);
+  transform: translateY(-1px);
+}
+
+/* ---------------------------------------------------------------- buttons */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-family: var(--font-ui);
+  font-size: var(--fs-small);
+  font-weight: 500;
+  line-height: 1;
+  padding: 0.8125rem 1.375rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  text-decoration: none;
+  appearance: none;
+  -webkit-appearance: none;
+  transition:
+    transform 0.18s ease,
+    background-color 0.18s ease,
+    border-color 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.btn--primary {
+  background: linear-gradient(180deg, var(--gilt-bright), var(--gilt));
+  color: #2a1d05;
+  font-weight: 600;
+  box-shadow: 0 6px 24px rgb(245 194 76 / 22%);
+}
+
+.btn--primary:hover {
+  color: #2a1d05;
+  transform: translateY(-1px);
+  box-shadow: 0 10px 30px rgb(245 194 76 / 32%);
+}
+
+.btn--ghost {
+  background: rgb(244 241 234 / 6%);
+  border-color: var(--hairline-strong);
+  color: var(--paper);
+}
+
+.btn--ghost:hover {
+  color: var(--paper);
+  background: rgb(244 241 234 / 11%);
+  border-color: var(--hairline-strong);
+  transform: translateY(-1px);
+}
+
+.btn-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+/* ---------------------------------------------------------------- hero */
+
+.hero {
+  padding-block: clamp(3rem, 7vw, 5.5rem) clamp(3.5rem, 8vw, 6rem);
+}
+
+.hero.wrap {
+  max-width: 1220px;
+}
+
+.hero__inner {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1.15fr);
+  gap: clamp(2rem, 4vw, 3.5rem);
+  align-items: center;
+}
+
+.hero__copy {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  align-items: flex-start;
+}
+
+/* The hero headline is an equation, because the equation is the product thesis.
+   Terms sit on the baseline; the operators are set smaller, gilt and monospaced so
+   they read as arithmetic rather than punctuation. */
+.equation {
+  font-size: var(--fs-display);
+  letter-spacing: -0.035em;
+  line-height: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25em 0.3em;
+}
+
+.equation__op {
+  font-family: var(--font-mono);
+  font-size: 0.42em;
+  font-weight: 400;
+  color: var(--gilt);
+  letter-spacing: 0;
+  transform: translateY(-0.22em);
+}
+
+/* Each operator travels with the term it belongs to, so the headline can only break
+   between terms — never leaving a "+" or "=" stranded at the end of a line. */
+.equation__group {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3em;
+  white-space: nowrap;
+}
+
+/* App pages carry a tagline rather than the equation, which belongs to the suite. */
+.hero__title {
+  font-size: var(--fs-display);
+  letter-spacing: -0.035em;
+  line-height: 1;
+}
+
+/* The gradient is clipped to the glyphs, but its paint box is still the element box,
+   which `line-height: 1` ends at the baseline. With no room below it, the descender of
+   the "g" falls outside the gradient and renders transparent, i.e. sliced off. The
+   padding extends the paint box; the negative margin keeps it out of the layout. */
+.equation__sum {
+  background: linear-gradient(96deg, var(--gilt-bright) 8%, var(--gilt) 45%, var(--conjure) 105%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  padding-right: 0.06em;
+  padding-bottom: 0.2em;
+  margin-bottom: -0.2em;
+}
+
+/* Sits with the buttons rather than floating in the hero's own gap, so the hardware
+   requirement is read before anyone commits to signing up. */
+.hero__req {
+  margin-top: -0.75rem;
+}
+
+.hero__art {
+  position: relative;
+  justify-self: center;
+}
+
+/* A soft warm pool behind the art so the hat sits on a lit stage floor. Kept inside
+   the element's own width — a horizontal bleed here puts the whole page into
+   sideways scroll on a phone. */
+.hero__art::before {
+  content: '';
+  position: absolute;
+  inset: 4% 0 -10% 0;
+  background: radial-gradient(72% 50% at 50% 62%, rgb(192 132 252 / 22%) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.hero__art img {
+  position: relative;
+  width: min(550px, 100%);
+  filter: drop-shadow(0 28px 50px rgb(4 3 10 / 60%));
+}
+
+/* ---------------------------------------------------------------- app cards */
+
+.apps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 21rem), 1fr));
+  gap: 1.5rem;
+}
+
+.app-card {
+  --accent: var(--crimson);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  padding: clamp(1.5rem, 3vw, 2.25rem);
+  background: linear-gradient(170deg, rgb(25 20 71 / 80%), rgb(16 12 38 / 92%));
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  transition:
+    transform 0.24s ease,
+    border-color 0.24s ease;
+}
+
+/* Accent as a light source washing in from the card's top edge, rather than the
+   usual left-hand accent rail. */
+.app-card::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 9rem;
+  background: radial-gradient(
+    70% 100% at 50% 0%,
+    color-mix(in srgb, var(--accent) 20%, transparent),
+    transparent 72%
+  );
+  pointer-events: none;
+}
+
+.app-card:hover {
+  transform: translateY(-3px);
+  border-color: color-mix(in srgb, var(--accent) 38%, transparent);
+}
+
+.app-card--calendar {
+  --accent: var(--azure);
+}
+
+.app-card__head {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.app-card__icon {
+  width: 4rem;
+  height: 4rem;
+  border-radius: 15px;
+  flex: none;
+  box-shadow: 0 10px 24px rgb(4 3 10 / 55%);
+}
+
+.app-card__title {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.app-card__title h3 {
+  font-size: 1.5rem;
+}
+
+.app-card__title span {
+  font-family: var(--font-mono);
+  font-size: var(--fs-label);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.app-card p {
+  position: relative;
+}
+
+.app-card__action {
+  position: relative;
+  display: flex;
+}
+
+.app-card__foot {
+  position: relative;
+  margin-top: auto;
+  padding-top: 0.5rem;
+  display: flex;
+  align-items: center;
+}
+
+.app-card__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: var(--fs-small);
+  font-weight: 500;
+  color: var(--accent);
+}
+
+.app-card__link:hover {
+  color: var(--paper);
+}
+
+/* The two arts have different aspect ratios and different subjects, so sizing them by
+   width made the portrait calendar tower over the landscape envelope. Size by height
+   instead and they read at the same scale. */
+.app-card__art {
+  position: relative;
+  display: grid;
+  place-items: end center;
+  margin: 0.5rem -1.5rem 0.25rem;
+}
+
+.app-card__art img {
+  height: 12rem;
+  width: auto;
+  max-width: 100%;
+}
+
+/* ---------------------------------------------------------------- feature grid */
+
+.features {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16.5rem), 1fr));
+  gap: 1px;
+  background: var(--hairline);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.feature {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1.625rem 1.5rem;
+  background: var(--ink);
+  transition: background-color 0.2s ease;
+}
+
+.feature:hover {
+  background: var(--ink-raised);
+}
+
+.feature h3 {
+  font-size: 1.0625rem;
+  color: var(--paper);
+}
+
+.feature p {
+  font-size: var(--fs-small);
+  color: var(--mist-dim);
+  max-width: 34ch;
+}
+
+.feature__glyph {
+  width: 1.5rem;
+  height: 1.5rem;
+  color: var(--gilt);
+  margin-bottom: 0.375rem;
+}
+
+/* ---------------------------------------------------------------- deep dives */
+
+.dive {
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1fr);
+  gap: clamp(2rem, 5vw, 4.5rem);
+  align-items: center;
+  padding-block: clamp(2.5rem, 6vw, 4.5rem);
+  border-top: 1px solid var(--hairline);
+}
+
+.dive:first-of-type {
+  border-top: 0;
+}
+
+.dive--flip .dive__copy {
+  order: 2;
+}
+
+.dive__copy {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.dive__copy h3 {
+  font-size: clamp(1.375rem, 2.4vw, 1.75rem);
+}
+
+.notes {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  font-size: var(--fs-small);
+  color: var(--mist);
+}
+
+/* The marker is absolutely positioned rather than a grid/flex sibling: these list
+   items contain inline <kbd> and <code>, and every in-flow child of a grid or flex
+   container becomes its own item, which would stack the sentence into rows. */
+.notes li {
+  position: relative;
+  padding-left: 1.125rem;
+}
+
+.notes li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.6em;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--gilt);
+  opacity: 0.8;
+}
+
+/* The stage: a velvet slab the UI sketches stand on. These are diagrams of the
+   native chrome, deliberately drawn in the site's own palette — never a facsimile
+   of Gmail's interface. */
+.stage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  padding: clamp(1.5rem, 4vw, 2.75rem);
+  min-height: 17rem;
+  background:
+    radial-gradient(80% 70% at 50% 0%, rgb(54 47 120 / 55%), transparent 70%),
+    linear-gradient(180deg, var(--velvet) 0%, var(--ink-raised) 100%);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.stage::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 1px 0 rgb(244 241 234 / 12%);
+  pointer-events: none;
+}
+
+/* --- themed: one shot in both appearances, swapped by radio ---
+   The page claims light and dark switch instantly, so the reader gets to try it.
+   Radios and a sibling selector: this section uses pure CSS radios rather than JavaScript. Both
+   images stack in the same grid cell so the stage does not resize on switch. */
+
+.themed {
+  display: grid;
+  justify-items: center;
+  gap: 0.875rem;
+  width: 100%;
+}
+
+.themed__pick {
+  display: inline-flex;
+  padding: 3px;
+  background: rgb(11 9 24 / 55%);
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+}
+
+.themed__pick input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.themed__pick label {
+  padding: 0.3rem 0.85rem;
+  border-radius: 999px;
+  font-size: var(--fs-small);
+  color: var(--mist);
+  cursor: pointer;
+  transition:
+    background 120ms ease,
+    color 120ms ease;
+}
+
+.themed__pick label:hover {
+  color: var(--paper);
+}
+
+.themed__pick input:checked + label {
+  background: rgb(244 241 234 / 12%);
+  color: var(--paper);
+}
+
+/* Keyboard focus has to be visible, since the control itself is off-screen. */
+.themed__pick input:focus-visible + label {
+  outline: 2px solid var(--gilt);
+  outline-offset: 2px;
+}
+
+.themed__light,
+.themed__dark {
+  grid-area: 2 / 1;
+}
+
+/* :has() rather than a sibling selector, because the radios sit inside the pill
+   with their labels rather than alongside the images. */
+.themed:has(#win-light:checked) .themed__dark,
+.themed:has(#win-dark:checked) .themed__light {
+  display: none;
+}
+
+/* --- hero showcase: the apps in action under the hero --- */
+
+.hero-showcase {
+  margin: 0 auto clamp(3.5rem, 9vw, 7rem);
+}
+
+.hero-switcher {
+  display: flex;
+  justify-content: center;
+  margin-bottom: clamp(1.25rem, 3vw, 2rem);
+  position: relative;
+  z-index: 2;
+}
+
+.hero-switcher__control {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px;
+  background: rgb(16 12 38 / 85%);
+  backdrop-filter: saturate(180%) blur(16px);
+  -webkit-backdrop-filter: saturate(180%) blur(16px);
+  border: 1px solid var(--hairline-strong);
+  border-radius: 999px;
+  box-shadow:
+    0 4px 16px rgb(4 3 10 / 40%),
+    inset 0 1px 0 rgb(244 241 234 / 8%);
+  gap: 4px;
+}
+
+.hero-switcher__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 1rem 0.45rem 0.65rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--mist);
+  font-family: var(--font-ui);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.hero-switcher__btn img {
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 4px;
+  flex: none;
+}
+
+.hero-switcher__badge {
+  font-size: 0.6875rem;
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0.12rem 0.4rem;
+  border-radius: 4px;
+  background: rgb(244 241 234 / 8%);
+  color: var(--mist-dim);
+  transition: all 0.2s ease;
+}
+
+.hero-switcher__btn:hover {
+  color: var(--paper);
+  background: rgb(244 241 234 / 6%);
+}
+
+.hero-switcher__btn.is-active {
+  background: rgb(244 241 234 / 14%);
+  border-color: rgb(244 241 234 / 15%);
+  color: var(--paper);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 25%);
+}
+
+.hero-switcher__btn.is-active .hero-switcher__badge {
+  background: rgb(245 194 76 / 15%);
+  color: var(--gilt-bright);
+}
+
+.hero-shot {
+  position: relative;
+  width: min(100% - 2 * var(--gutter), 62rem);
+  margin: 0 auto;
+}
+
+.hero-shot__pane {
+  display: none;
+  opacity: 0;
+  animation: heroFadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.hero-shot__pane.is-active {
+  display: block;
+}
+
+@keyframes heroFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.hero-shot::before {
+  content: '';
+  position: absolute;
+  z-index: 0;
+  /* Horizontally flush with the shot: an absolutely positioned child that
+     reaches past its parent widens the page's scroll box, which showed up as
+     3px of sideways scroll at 430px. The blur spreads it far enough anyway. */
+  inset: 8% 0 -14% 0;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at 50% 40%, rgb(54 47 120 / 62%), transparent 68%);
+  filter: blur(52px);
+  pointer-events: none;
+}
+
+.hero-shot img {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: clamp(8px, 1.2vw, 14px);
+  box-shadow:
+    0 0 0 1px rgb(244 241 234 / 10%),
+    0 2px 4px rgb(4 3 10 / 40%),
+    0 10px 20px rgb(11 9 24 / 42%),
+    0 30px 56px rgb(11 9 24 / 50%),
+    0 64px 110px rgb(4 3 10 / 48%);
+}
+
+/* --- shot: a real screenshot sitting on the stage ---
+   Two kinds. Opaque rectangles (a window, a menu, a dialog) get their own
+   corner radius and a cast shadow. Cut-outs that already carry an alpha edge —
+   the menu bar panel with its arrow, the Dock with its curve — get a
+   drop-shadow filter instead, which follows the shape rather than the box. */
+
+.shot {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* Elevation is layered rather than one blur: a tight contact shadow to seat the
+   shot on the stage, two mid tiers, and a wide ambient one. Tinted with the
+   page's indigo instead of black, so the shot sits in the scene rather than
+   being cut out of it. The hairline ring keeps a light screenshot's edge from
+   dissolving into the stage. */
+
+.shot--framed {
+  border-radius: 12px;
+  box-shadow:
+    0 0 0 1px rgb(244 241 234 / 9%),
+    0 1px 2px rgb(4 3 10 / 40%),
+    0 6px 12px rgb(11 9 24 / 40%),
+    0 18px 34px rgb(11 9 24 / 48%),
+    0 40px 72px rgb(4 3 10 / 46%);
+}
+
+/* Cut-outs that carry their own alpha edge get the same tiers as filters, which
+   follow the shape. No ring: there is no box to draw one around. */
+
+.shot--free {
+  filter: drop-shadow(0 1px 2px rgb(4 3 10 / 45%)) drop-shadow(0 8px 14px rgb(11 9 24 / 45%))
+    drop-shadow(0 24px 40px rgb(4 3 10 / 45%));
+}
+
+/* A bloom behind the shot, picking up the accent already in the stage gradient.
+   Sits under the image and never over it. */
+
+.stage::before {
+  content: '';
+  position: absolute;
+  z-index: 0;
+  width: 68%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgb(54 47 120 / 55%), transparent 68%);
+  filter: blur(38px);
+  pointer-events: none;
+}
+
+.stage > * {
+  position: relative;
+  z-index: 1;
+}
+
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .shot {
+    transition: transform 280ms cubic-bezier(0.2, 0.7, 0.3, 1);
+  }
+
+  .stage:hover .shot {
+    transform: translateY(-5px);
+  }
+}
+
+.shot--window {
+  max-width: 34rem;
+}
+
+.shot--wide {
+  max-width: 32rem;
+}
+
+.shot--dialog {
+  max-width: 24rem;
+}
+
+.shot--panel {
+  max-width: 18rem;
+}
+
+.shot--dock {
+  max-width: 21rem;
+}
+
+.shot--notification {
+  max-width: 23rem;
+}
+
+.shot--widget {
+  max-width: 19rem;
+}
+
+/* ---------------------------------------------------------------- prose
+
+   Running text, for the one page that is a document rather than a pitch.
+   Narrower than the wrap on purpose: a comfortable measure is about 70
+   characters, and the full 1120px is roughly double that. */
+
+.prose {
+  max-width: 44rem;
+  color: var(--mist);
+  font-size: var(--fs-body);
+  line-height: 1.7;
+}
+
+.prose h2 {
+  margin: 2.5rem 0 0.75rem;
+  color: var(--paper);
+  font-family: var(--font-display);
+  font-size: var(--fs-h3);
+  letter-spacing: -0.01em;
+}
+
+.prose h2:first-child {
+  margin-top: 0;
+}
+
+.prose p + p {
+  margin-top: 0.9rem;
+}
+
+.prose a {
+  color: var(--paper);
+  text-decoration-color: var(--gilt-line);
+  text-underline-offset: 3px;
+}
+
+.prose a:hover {
+  text-decoration-color: var(--gilt);
+}
+
+.prose .small {
+  margin-top: 2.5rem;
+}
+
+/* ---------------------------------------------------------------- fidelity list */
+
+.fidelity {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr));
+  gap: 0.75rem 1.5rem;
+}
+
+/* Same reason as .notes li: <strong> and the text around it would otherwise become
+   separate grid items and break the line apart. */
+.fidelity li {
+  position: relative;
+  padding: 0.5rem 0 0.5rem 1.75rem;
+  font-size: var(--fs-small);
+  color: var(--mist);
+  border-top: 1px solid var(--hairline);
+}
+
+.fidelity li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.65rem;
+  width: 1.125rem;
+  height: 1.125rem;
+  border-radius: 50%;
+  background-color: rgb(245 194 76 / 14%);
+  /* A gilt check, drawn as a vector rather than an emoji or icon font. */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 18 18'%3E%3Cpath d='M4.6 9.3 7.4 12l6-6.2' fill='none' stroke='%23F5C24C' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  box-shadow: inset 0 0 0 1px var(--gilt-line);
+}
+
+.fidelity strong {
+  color: var(--paper);
+  font-weight: 600;
+}
+
+/* ---------------------------------------------------------------- specs table */
+
+.specs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--hairline);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.spec {
+  background: var(--ink);
+  padding: 1.375rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.spec dt {
+  font-family: var(--font-mono);
+  font-size: var(--fs-label);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--mist-dim);
+}
+
+.spec dd {
+  margin: 0;
+  font-size: 1.0625rem;
+  color: var(--paper);
+  font-weight: 500;
+}
+
+/* ---------------------------------------------------------------- notify */
+
+.notify {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.25rem;
+  text-align: center;
+  padding: clamp(2.25rem, 6vw, 4rem);
+  background:
+    radial-gradient(60% 100% at 50% 0%, rgb(245 194 76 / 12%), transparent 70%),
+    linear-gradient(170deg, var(--velvet) 0%, var(--ink-raised) 100%);
+  border: 1px solid var(--gilt-line);
+  border-radius: var(--radius-lg);
+}
+
+.notify h2 {
+  max-width: 30rem;
+}
+
+.notify p {
+  margin-inline: auto;
+  max-width: 42ch;
+}
+
+.notify .eyebrow {
+  align-self: center;
+}
+
+/* The EmailOctopus form script injects its own markup and stylesheet into this
+   container. That stylesheet arrives after ours, so each override below out-specifies
+   it rather than relying on source order. */
+.notify__embed {
+  width: min(30rem, 100%);
+  margin-top: 0.5rem;
+}
+
+/* The embed's theme is driven by custom properties on the form wrapper. Overriding
+   them here (at a higher specificity than the injected sheet) re-skins the whole
+   form in one place, rather than chasing every generated rule. */
+.notify__embed [data-form] {
+  --font-family: var(--font-ui);
+  --text-colour: var(--paper);
+}
+
+.notify__embed [data-form] .emailoctopus-form {
+  --field-colour: rgb(11 9 24 / 70%);
+  --field-border-colour: var(--hairline-strong);
+  --button-colour: var(--gilt);
+  --button-text-colour: #2a1d05;
+  --label-colour: var(--paper);
+  --font-family: var(--font-ui);
+}
+
+.notify__embed .main-form {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.625rem;
+}
+
+.notify__embed [eo-form-fields-container] {
+  flex: 1 1 15rem;
+  min-width: 0;
+}
+
+.notify__embed .emailoctopus-form-row {
+  margin-bottom: 0;
+}
+
+.notify__embed .emailoctopus-form input[type='email'] {
+  width: 100%;
+  height: auto;
+  font-family: var(--font-ui);
+  font-size: var(--fs-small);
+  color: var(--paper);
+  background: rgb(11 9 24 / 70%);
+  border: 1px solid var(--hairline-strong);
+  border-radius: 999px;
+  padding: 0.8125rem 1.125rem;
+}
+
+.notify__embed .emailoctopus-form input[type='email']::placeholder {
+  color: var(--mist-dim);
+}
+
+.notify__embed .emailoctopus-form input[type='email']:focus {
+  color: var(--paper);
+  background: rgb(11 9 24 / 70%);
+  border-color: var(--gilt);
+  box-shadow: none;
+  outline: 2px solid var(--gilt);
+  outline-offset: 2px;
+}
+
+.notify__embed .emailoctopus-form input[type='submit'] {
+  flex: 0 0 auto;
+  width: auto;
+  font-family: var(--font-ui);
+  font-size: var(--fs-small);
+  font-weight: 600;
+  line-height: 1;
+  color: #2a1d05;
+  background: linear-gradient(180deg, var(--gilt-bright), var(--gilt));
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 0.8125rem 1.375rem;
+  cursor: pointer;
+  box-shadow: 0 6px 24px rgb(245 194 76 / 22%);
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.notify__embed .emailoctopus-form input[type='submit']:hover {
+  color: #2a1d05;
+  background: linear-gradient(180deg, var(--gilt-bright), var(--gilt));
+  transform: translateY(-1px);
+  box-shadow: 0 10px 30px rgb(245 194 76 / 32%);
+}
+
+.notify__embed .emailoctopus-form input[type='submit']:focus-visible {
+  outline: 2px solid var(--gilt);
+  outline-offset: 2px;
+}
+
+.notify__embed .emailoctopus-success-message,
+.notify__embed .emailoctopus-error-message {
+  font-family: var(--font-ui);
+  font-size: var(--fs-small);
+  color: var(--paper);
+}
+
+.notify__embed .emailoctopus-error-message {
+  color: var(--crimson);
+}
+
+.notify__embed .mastfoot p {
+  margin-top: 0.75rem;
+  font-size: var(--fs-label);
+  color: var(--mist-dim);
+}
+
+.notify__embed .mastfoot a {
+  color: var(--mist-dim);
+}
+
+/* ---------------------------------------------------------------- footer */
+
+.footer {
+  border-top: 1px solid var(--hairline);
+  padding-block: 3rem 3.5rem;
+}
+
+/* Three columns rather than a single row of links, so the footer reads as a sign-off
+   instead of a second copy of the navigation bar. */
+.footer__top {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) repeat(2, minmax(0, 1fr));
+  gap: 2rem;
+  padding-bottom: 2.5rem;
+  margin-bottom: 1.75rem;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.footer__about {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+  max-width: 36ch;
+}
+
+.brand--footer {
+  margin-right: 0;
+}
+
+.footer__col {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.footer__heading {
+  margin: 0 0 0.25rem;
+  font-family: var(--font-mono);
+  font-size: var(--fs-label);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--mist-dim);
+}
+
+.footer__col a {
+  font-size: var(--fs-small);
+  color: var(--mist);
+}
+
+.footer__col a:hover {
+  color: var(--paper);
+}
+
+.footer__link-with-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.footer__icon {
+  flex-shrink: 0;
+}
+
+.footnote {
+  margin-top: 1.5rem;
+  font-size: 0.8125rem;
+  color: var(--mist-dim);
+  max-width: 70ch;
+}
+
+.footnote--legal {
+  margin-top: 0;
+}
+
+/* ---------------------------------------------------------------- motion */
+
+/* One orchestrated entrance: the stage lights come up, then the hero lines land. */
+.rise {
+  animation: rise 0.85s cubic-bezier(0.22, 0.8, 0.28, 1) backwards;
+}
+
+.rise:nth-child(1) {
+  animation-delay: 0.05s;
+}
+.rise:nth-child(2) {
+  animation-delay: 0.14s;
+}
+.rise:nth-child(3) {
+  animation-delay: 0.23s;
+}
+.rise:nth-child(4) {
+  animation-delay: 0.32s;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.hero__art img {
+  animation: conjure 1.1s cubic-bezier(0.22, 0.8, 0.28, 1) 0.18s backwards;
+}
+
+@keyframes conjure {
+  from {
+    opacity: 0;
+    transform: translateY(26px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* ---------------------------------------------------------------- responsive */
+
+@media (width <= 960px) {
+  .hero__inner,
+  .dive {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .hero__inner {
+    gap: 2.5rem;
+  }
+
+  .dive--flip .dive__copy {
+    order: 0;
+  }
+
+  .specs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .hero__art {
+    order: -1;
+  }
+
+  .hero__art img {
+    width: min(340px, 82%);
+    margin-inline: auto;
+  }
+}
+
+@media (width <= 520px) {
+  /* The mark alone carries the brand once the nav needs the room. */
+  .nav .brand span {
+    display: none;
+  }
+}
+
+@media (width <= 620px) {
+  .nav__links {
+    gap: 1rem;
+  }
+
+  .app-card__art {
+    margin-inline: -1rem;
+  }
+
+  .specs {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .footer__top {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.75rem;
+  }
+}

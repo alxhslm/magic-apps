@@ -1,0 +1,213 @@
+{
+  "version": 1,
+  "strings": {
+    "menu.setAsDefault": { "en": "Set Magical as Default for Calendar Files…" },
+    "menu.settings": { "en": "Settings…" },
+    "menu.app.removeAllData": { "en": "Remove All App Data and Quit…" },
+    "menu.file": { "en": "File" },
+    "menu.file.newEvent": { "en": "New Event" },
+    "menu.file.importCalendarFile": { "en": "Import Calendar File…" },
+    "menu.edit": { "en": "Edit" },
+    "menu.edit.find": { "en": "Find" },
+    "menu.edit.find.findInPage": { "en": "Find in Page…" },
+    "menu.edit.find.findNext": { "en": "Find Next" },
+    "menu.edit.find.findPrevious": { "en": "Find Previous" },
+    "menu.edit.find.searchCalendar": { "en": "Search Calendar…" },
+    "menu.view": { "en": "View" },
+    "menu.view.back": { "en": "Back" },
+    "menu.view.forward": { "en": "Forward" },
+    "menu.view.reloadCalendar": { "en": "Reload Calendar" },
+    "menu.view.appearance": { "en": "Appearance" },
+    "menu.view.appearance.system": { "en": "System" },
+    "menu.view.appearance.light": { "en": "Light" },
+    "menu.view.appearance.dark": { "en": "Dark" },
+    "menu.view.customizeToolbar": { "en": "Customize Toolbar...", "en-GB": "Customise Toolbar..." },
+    "menu.accounts": { "en": "Accounts" },
+    "menu.help.magicalHelp": { "en": "Magical Help" },
+    "menu.help.googleCalendarHelp": { "en": "Google Calendar Help" },
+    "menu.help.collectDiagnostics": { "en": "Collect Diagnostics…" },
+    "menu.help.revealLogs": { "en": "Reveal Logs in Finder" },
+    "menu.help.githubRepository": { "en": "GitHub Repository" },
+    "menu.help.about": { "en": "About Magical" },
+
+    "window.main.title": { "en": "Magical" },
+
+    "dialog.cancel": { "en": "Cancel" },
+    "dialog.quit": { "en": "Quit" },
+    "dialog.accountPicker.button": { "en": "{name} Account" },
+    "dialog.eventAccount.title": { "en": "New Event" },
+    "dialog.eventAccount.message": { "en": "Choose Account for Event" },
+    "dialog.eventAccount.detail": { "en": "Select the calendar account to add this event to." },
+    "dialog.defaultCalendar.title": { "en": "Default Calendar App" },
+    "dialog.defaultCalendar.useMagical": { "en": "Use Magical" },
+    "dialog.defaultCalendar.notNow": { "en": "Not Now" },
+    "dialog.defaultCalendar.dontAskAgain": { "en": "Don't Ask Again" },
+    "dialog.defaultCalendar.question": { "en": "Open calendar files in Magical?" },
+    "dialog.defaultCalendar.explanationHandler": {
+      "en": "Invitations that arrive by email currently open in {handler}, which puts them in a calendar you may not work in."
+    },
+    "dialog.defaultCalendar.explanationNoHandler": {
+      "en": "Invitations that arrive by email would then open in the account you choose."
+    },
+    "dialog.defaultCalendar.couldNotRead.message": {
+      "en": "Magical could not read the current setting."
+    },
+    "dialog.defaultCalendar.couldNotRead.detail": {
+      "en": "The helper that talks to macOS is not running. Reopening Magical usually fixes it."
+    },
+    "dialog.defaultCalendar.devBuild.message": {
+      "en": "Only the installed Magical can be the default reader."
+    },
+    "dialog.defaultCalendar.devBuild.detail": {
+      "en": "This only works in the installed app, not a development build."
+    },
+    "dialog.defaultCalendar.alreadyDefault.message": {
+      "en": "Magical is already the default reader for calendar files."
+    },
+    "dialog.defaultCalendar.alreadyDefault.detail": {
+      "en": "Double-clicking a .ics invitation opens it here. To change that back, use Get Info on any .ics file in Finder."
+    },
+    "dialog.defaultCalendar.claimed.message": {
+      "en": "Magical is now the default reader for calendar files."
+    },
+    "dialog.defaultCalendar.claimed.detail": {
+      "en": "Double-clicking a .ics invitation will open it here. To change it back, use Get Info on any .ics file in Finder."
+    },
+    "dialog.defaultCalendar.refused.message": {
+      "en": "Magical could not be made the default reader."
+    },
+    "dialog.defaultCalendar.refused.detail": {
+      "en": "macOS refused the change. You can set it yourself with Get Info on any .ics file in Finder."
+    },
+    "dialog.alertPermission.message": { "en": "Magical cannot show meeting alerts" },
+    "dialog.alertPermission.detail": {
+      "en": "Notifications are turned off for Magical, so meeting alerts and invitations will not appear. Turn them on in System Settings › Notifications › Magical."
+    },
+    "dialog.alertPermission.openSettings": { "en": "Open System Settings" },
+    "dialog.alertPermission.notNow": { "en": "Not Now" },
+    "dialog.diagnosticsError.title": { "en": "Diagnostics Error" },
+    "dialog.diagnosticsError.message": { "en": "Failed to collect diagnostic bundle" },
+    "dialog.diagnostics.title": { "en": "{app} Diagnostics" },
+    "dialog.diagnostics.message": { "en": "Diagnostic Bundle Created" },
+    "dialog.diagnostics.archiveSaved": { "en": "Archive saved to:" },
+    "dialog.diagnostics.summary": { "en": "Summary:" },
+    "dialog.diagnostics.privacyGuarantee": { "en": "Privacy Guarantee:" },
+    "dialog.diagnostics.privacyDetail": {
+      "en": "All email addresses, personal directories, and sensitive parameters have been automatically redacted. No credentials or message bodies are included."
+    },
+    "dialog.diagnostics.prompt": { "en": "What would you like to do?" },
+    "dialog.diagnostics.revealInFinder": { "en": "Reveal in Finder" },
+    "dialog.diagnostics.copySystemInfo": { "en": "Copy System Info" },
+    "dialog.diagnostics.reportOnGitHub": { "en": "Report on GitHub…" },
+    "dialog.diagnostics.emailToSupport": { "en": "Email to Support…" },
+    "dialog.diagnostics.done": { "en": "Done" },
+    "dialog.expired.title": { "en": "Pre-release build expired" },
+    "dialog.expired.message": { "en": "This pre-release build has expired" },
+    "dialog.expired.unreadableVersion": {
+      "en": "This build's version could not be read, so it is no longer supported."
+    },
+    "dialog.expired.noTimestamp": {
+      "en": "This pre-release build carries no valid build timestamp, so it is no longer supported."
+    },
+    "dialog.expired.expired": {
+      "en": "This pre-release build was compiled on {date} and has passed its 90-day expiry, so it is no longer supported."
+    },
+    "dialog.expired.install": {
+      "en": "Visit {url} for the latest release and update details."
+    },
+    "dialog.importFile.title": { "en": "Import Calendar File" },
+    "dialog.importFile.button": { "en": "Import" },
+    "dialog.importFile.filterName": { "en": "Calendar Files" },
+    "dialog.ics.unreadable.message": { "en": "That calendar file could not be read." },
+    "dialog.ics.unreadable.detail": {
+      "en": "Magical could not open {file}. It may have been moved or deleted."
+    },
+    "dialog.ics.chooseAccount.title": { "en": "Import Calendar Event" },
+    "dialog.ics.chooseAccount.message": { "en": "Choose Account to Import Into" },
+    "dialog.ics.rejected.message": { "en": "Google Calendar did not import that file." },
+    "dialog.ics.rejected.detail": {
+      "en": "It found no events it could read in the file."
+    },
+    "dialog.ics.finish.message": { "en": "Finish the import in Google Calendar." },
+    "dialog.ics.finish.detail": {
+      "en": "{reason}. Google’s own import page is now open in {account} with the file already selected — press Import to finish."
+    },
+    "dialog.ics.imported.title": { "en": "Imported to Calendar" },
+    "dialog.ics.describe.multiple": { "en": "{count} events from “{file}”" },
+    "dialog.ics.describe.titled": { "en": "“{title}”" },
+    "dialog.ics.describe.titledWhen": { "en": "“{title}” · {when}" },
+    "dialog.ics.reason.paneRejected": { "en": "The import pane did not accept the file" },
+    "dialog.ics.reason.buttonUnavailable": { "en": "The Import button could not be pressed" },
+    "dialog.ics.reason.noReport": { "en": "Google never reported what it did" },
+    "dialog.ics.reason.unreadable": { "en": "Google’s confirmation could not be read" },
+    "dialog.ics.reason.accountMissing": { "en": "That account no longer exists" },
+    "dialog.ics.reason.paneUnavailable": { "en": "The import pane could not be driven" },
+
+    "dialog.removeAllData.title": { "en": "Remove All App Data" },
+    "dialog.removeAllData.message": { "en": "Remove all app data and quit?" },
+    "dialog.removeAllData.detail": {
+      "en": "{app} will remove the accounts and Google sessions stored on this Mac, along with its caches, preferences, login item and notifications. It will then quit. This cannot be undone."
+    },
+    "dialog.removeAllData.confirm": { "en": "Remove All Data and Quit" },
+
+    "notification.noTitle": { "en": "(No title)" },
+    "notification.lead.now": { "en": "Starting now" },
+    "notification.lead.minute": { "en": "In 1 minute" },
+    "notification.lead.minutes": { "en": "In {count} minutes" },
+    "notification.syncAge.minutes": { "en": "{count} minutes ago" },
+    "notification.syncAge.hour": { "en": "about an hour ago" },
+    "notification.syncAge.hours": { "en": "about {count} hours ago" },
+    "notification.stale": { "en": "Calendar last synced {age}" },
+    "notification.import.oneEvent": { "en": "1 event" },
+    "notification.import.events": { "en": "{imported} of {total} events" },
+    "notification.invite.from": { "en": "Invitation from {organizer}" },
+    "notification.invite.generic": { "en": "Invitation" },
+    "notification.videoCall": { "en": "Video call" },
+
+    "toolbar.invite.noTitle": { "en": "(no title)" },
+    "toolbar.navigation": { "en": "Navigation" },
+    "toolbar.newTask": { "en": "New Task" },
+    "toolbar.newEvent": { "en": "New Event" },
+    "toolbar.invitations": { "en": "Invitations" },
+    "toolbar.invitations.empty": { "en": "No Invitations" },
+    "toolbar.invitations.markAllRead": { "en": "Mark All as Read" },
+    "toolbar.invitations.tooltip.none": { "en": "No invitations awaiting a reply" },
+    "toolbar.invitations.tooltip.noneUnread": { "en": "No unread invitations" },
+    "toolbar.invitations.tooltip.one": { "en": "1 invitation awaiting a reply" },
+    "toolbar.invitations.tooltip.many": { "en": "{count} invitations awaiting a reply" },
+    "toolbar.invite.accept": { "en": "Accept" },
+    "toolbar.invite.maybe": { "en": "Maybe" },
+    "toolbar.invite.decline": { "en": "Decline" },
+    "toolbar.invite.markRead": { "en": "Mark as Read" },
+    "toolbar.invite.openInCalendar": { "en": "Open in Calendar" },
+    "toolbar.nav.previous": { "en": "Previous (J)" },
+    "toolbar.nav.today": { "en": "Today" },
+    "toolbar.nav.today.toolTip": { "en": "Today (T)" },
+    "toolbar.nav.next": { "en": "Next (K)" },
+    "toolbar.search": { "en": "Search" },
+    "toolbar.signInRequired": { "en": "Sign in required" },
+    "toolbar.account.unknown": { "en": "Unknown" },
+    "toolbar.account.noUnread": { "en": "{name} — no unread{shortcut}" },
+    "toolbar.account.oneUnread": { "en": "{name} — 1 unread{shortcut}" },
+    "toolbar.account.unread": { "en": "{name} — {count} unread{shortcut}" },
+    "toolbar.account.signInRequired": { "en": "{name} — Sign in required{shortcut}" },
+
+    "find.placeholder": { "en": "Find in page" },
+    "find.previous": { "en": "Previous (Shift+Enter)" },
+    "find.next": { "en": "Next (Enter)" },
+    "find.close": { "en": "Close (Escape)" },
+    "find.counter": { "en": "{current} of {total}" },
+
+    "offline.title": { "en": "Offline" },
+    "offline.heading": { "en": "You're offline" },
+    "offline.body": { "en": "{app} can't reach {service}." },
+    "offline.retry": { "en": "Try again" },
+
+    "calendar.birthdays": { "en": "Birthdays" },
+    "calendar.family": { "en": "Family" },
+    "calendar.holidays": { "en": "{country} Holidays" },
+    "calendar.holidaysGeneric": { "en": "Holidays" },
+    "calendar.imported": { "en": "Imported Calendar" },
+    "calendar.shared": { "en": "Shared Calendar" }
+  }
+}

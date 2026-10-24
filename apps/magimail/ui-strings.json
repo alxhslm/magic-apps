@@ -1,0 +1,160 @@
+{
+  "version": 1,
+  "strings": {
+    "menu.setAsDefaultEmailReader": { "en": "Set Magimail as Default Email Reader..." },
+    "menu.preferences": { "en": "Preferences..." },
+    "menu.app.removeAllData": { "en": "Remove All App Data and Quit…" },
+    "menu.file": { "en": "File" },
+    "menu.file.newMessage": { "en": "New Message" },
+    "menu.file.newDetachedCompose": { "en": "New Detached Compose Window" },
+    "menu.file.share": { "en": "Share" },
+    "menu.file.share.copyLink": { "en": "Copy Link" },
+    "menu.file.share.shareLink": { "en": "Share Link..." },
+    "menu.file.share.shareAsPdf": { "en": "Share as PDF..." },
+    "menu.file.exportAsPdf": { "en": "Export as PDF..." },
+    "menu.file.print": { "en": "Print..." },
+    "menu.accounts": { "en": "Accounts" },
+    "menu.edit": { "en": "Edit" },
+    "menu.edit.find": { "en": "Find" },
+    "menu.edit.find.findInPage": { "en": "Find in Page…" },
+    "menu.edit.find.findNext": { "en": "Find Next" },
+    "menu.edit.find.findPrevious": { "en": "Find Previous" },
+    "menu.edit.find.searchMailbox": { "en": "Search Mailbox…" },
+    "menu.view": { "en": "View" },
+    "menu.view.back": { "en": "Back" },
+    "menu.view.forward": { "en": "Forward" },
+    "menu.view.theme": { "en": "Theme" },
+    "menu.view.theme.system": { "en": "System Default" },
+    "menu.view.theme.light": { "en": "Light" },
+    "menu.view.theme.dark": { "en": "Dark" },
+    "menu.view.reload": { "en": "Reload" },
+    "menu.view.customizeToolbar": { "en": "Customize Toolbar...", "en-GB": "Customise Toolbar..." },
+    "menu.window": { "en": "Window" },
+    "menu.help.magimailHelp": { "en": "Magimail Help" },
+    "menu.help.gmailHelp": { "en": "Gmail Help" },
+    "menu.help.collectDiagnostics": { "en": "Collect Diagnostics…" },
+    "menu.help.revealLogs": { "en": "Reveal Logs in Finder" },
+    "menu.help.githubRepository": { "en": "GitHub Repository" },
+    "menu.help.about": { "en": "About Magimail" },
+
+    "dialog.ok": { "en": "OK" },
+    "dialog.cancel": { "en": "Cancel" },
+    "dialog.quit": { "en": "Quit" },
+    "dialog.accountPicker.button": { "en": "{name} Account" },
+    "dialog.composeAccount.title": { "en": "New Message" },
+    "dialog.composeAccount.message": { "en": "Choose Account to Send From" },
+    "dialog.composeAccount.detail": { "en": "Select the account to compose from." },
+    "dialog.composeAccount.mailtoDetail": { "en": "Composing to: {recipient}" },
+    "dialog.composeAccount.recipientFallback": { "en": "Recipient" },
+    "dialog.composeAccount.shareDetail": { "en": "Sharing content as email attachment." },
+    "dialog.noEmailSelected.title": { "en": "No Email Selected" },
+    "dialog.noEmailSelected.message": { "en": "Please select or open an email message first." },
+    "dialog.noEmailSelected.detail": { "en": "Open an email thread to print or share it." },
+    "dialog.exportPdf.title": { "en": "Export as PDF" },
+    "dialog.exportPdf.filterName": { "en": "PDF Document" },
+    "dialog.defaultReader.title": { "en": "Default Email Reader" },
+    "dialog.defaultReader.alreadyDefault": {
+      "en": "Magimail is already your default email application."
+    },
+    "dialog.defaultReader.nowDefault": {
+      "en": "Magimail is now your default email client for mailto: links."
+    },
+    "dialog.defaultReader.failed": {
+      "en": "Could not set Magimail as default email client. You can set it in System Settings → Desktop & Dock → Default web browser / Mail."
+    },
+    "dialog.defaultReader.setAsDefault": { "en": "Set as Default" },
+    "dialog.defaultReader.notNow": { "en": "Not Now" },
+    "dialog.defaultReader.dontAskAgain": { "en": "Don't Ask Again" },
+    "dialog.defaultReader.question": { "en": "Set Magimail as your default email reader?" },
+    "dialog.defaultReader.explanation": {
+      "en": "Magimail can automatically open email links (mailto:) clicked in browsers, notes, and other apps."
+    },
+    "dialog.diagnosticsError.title": { "en": "Diagnostics Error" },
+    "dialog.diagnosticsError.message": { "en": "Failed to collect diagnostic bundle" },
+    "dialog.diagnostics.title": { "en": "{app} Diagnostics" },
+    "dialog.diagnostics.message": { "en": "Diagnostic Bundle Created" },
+    "dialog.diagnostics.archiveSaved": { "en": "Archive saved to:" },
+    "dialog.diagnostics.summary": { "en": "Summary:" },
+    "dialog.diagnostics.privacyGuarantee": { "en": "Privacy Guarantee:" },
+    "dialog.diagnostics.privacyDetail": {
+      "en": "All email addresses, personal directories, and sensitive parameters have been automatically redacted. No credentials or message bodies are included."
+    },
+    "dialog.diagnostics.prompt": { "en": "What would you like to do?" },
+    "dialog.diagnostics.revealInFinder": { "en": "Reveal in Finder" },
+    "dialog.diagnostics.copySystemInfo": { "en": "Copy System Info" },
+    "dialog.diagnostics.reportOnGitHub": { "en": "Report on GitHub…" },
+    "dialog.diagnostics.emailToSupport": { "en": "Email to Support…" },
+    "dialog.diagnostics.done": { "en": "Done" },
+    "dialog.expired.title": { "en": "Pre-release build expired" },
+    "dialog.expired.message": { "en": "This pre-release build has expired" },
+    "dialog.expired.unreadableVersion": {
+      "en": "This build's version could not be read, so it is no longer supported."
+    },
+    "dialog.expired.noTimestamp": {
+      "en": "This pre-release build carries no valid build timestamp, so it is no longer supported."
+    },
+    "dialog.expired.expired": {
+      "en": "This pre-release build was compiled on {date} and has passed its 90-day expiry, so it is no longer supported."
+    },
+    "dialog.expired.install": {
+      "en": "Visit {url} for the latest release and update details."
+    },
+
+    "dialog.removeAllData.title": { "en": "Remove All App Data" },
+    "dialog.removeAllData.message": { "en": "Remove all app data and quit?" },
+    "dialog.removeAllData.detail": {
+      "en": "{app} will remove the accounts and Google sessions stored on this Mac, along with its caches, preferences, login item and notifications. It will then quit. This cannot be undone."
+    },
+    "dialog.removeAllData.confirm": { "en": "Remove All Data and Quit" },
+
+    "window.main.title": { "en": "Magimail" },
+    "window.compose.title": { "en": "New Message — Magimail" },
+    "window.compose.accountTitle": { "en": "New Message — {account}" },
+    "window.thread.title": { "en": "Magimail" },
+
+    "find.placeholder": { "en": "Find in page" },
+    "find.previous": { "en": "Previous (Shift+Enter)" },
+    "find.next": { "en": "Next (Enter)" },
+    "find.close": { "en": "Close (Escape)" },
+    "find.counter": { "en": "{current} of {total}" },
+
+    "offline.title": { "en": "Offline" },
+    "offline.heading": { "en": "You're offline" },
+    "offline.body": { "en": "{app} can't reach {service}." },
+    "offline.retry": { "en": "Try again" },
+
+    "notification.noSubject": { "en": "(no subject)" },
+
+    "toolbar.newMessage": { "en": "New Message" },
+    "toolbar.archive": { "en": "Archive" },
+    "toolbar.delete": { "en": "Delete" },
+    "toolbar.toggleRead": { "en": "Toggle Read" },
+    "toolbar.manage": { "en": "Manage" },
+    "toolbar.reply": { "en": "Reply" },
+    "toolbar.replyAll": { "en": "Reply All" },
+    "toolbar.forward": { "en": "Forward" },
+    "toolbar.print": { "en": "Print" },
+    "toolbar.print.toolTip": { "en": "Print or Export" },
+    "toolbar.print.menuPrint": { "en": "Print…" },
+    "toolbar.print.menuExport": { "en": "Export as PDF…" },
+    "toolbar.share": { "en": "Share" },
+    "toolbar.share.toolTip": { "en": "Share Email" },
+    "toolbar.search": { "en": "Search" },
+    "toolbar.signInRequired": { "en": "Sign in required" },
+    "toolbar.account.unknown": { "en": "Unknown" },
+    "toolbar.account.noUnread": { "en": "{name} — no unread{shortcut}" },
+    "toolbar.account.oneUnread": { "en": "{name} — 1 unread{shortcut}" },
+    "toolbar.account.unread": { "en": "{name} — {count} unread{shortcut}" },
+    "toolbar.account.signInRequired": { "en": "{name} — Sign in required{shortcut}" },
+
+    "banner.categories.message": {
+      "en": "For instant badge updates: show {categories} in Settings & drag them above “More” in your sidebar."
+    },
+    "banner.categories.openSettings": { "en": "Open Gmail Settings" },
+    "banner.categories.dismiss": { "en": "Dismiss" },
+    "banner.offlineMail.message": {
+      "en": "For accurate category badges and instant menu bar sync: enable offline mail in Gmail Settings."
+    },
+    "banner.offlineMail.openSettings": { "en": "Open Offline Settings" }
+  }
+}

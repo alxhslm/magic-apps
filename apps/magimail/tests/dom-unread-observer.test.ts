@@ -1,0 +1,512 @@
+import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest';
+import fs from 'node:fs';
+import { BaseWindow } from 'electron';
+import { AccountsManager } from '../src/accounts-manager.js';
+import { AtomFeedPoller, type NotificationCategory } from '../src/atom-poller.js';
+
+const TEST_USER_DATA = vi.hoisted(
+  () => `/tmp/magimail-dom-unread-test-${process.pid}-${Date.now()}`,
+);
+
+vi.mock('../src/native-toolbar.js', () => ({
+  attachNativeToolbar: vi.fn(),
+  updateNativeToolbarAccounts: vi.fn(),
+  setNativeToolbarItemEnabled: vi.fn(),
+  setNativeToolbarShareUrl: vi.fn(),
+  showNativeSharingPicker: vi.fn(),
+}));
+
+vi.mock('../src/dock.js', () => ({
+  updateDockBadge: vi.fn(),
+  getCurrentBadgeCount: vi.fn().mockReturnValue(0),
+}));
+
+vi.mock('@magimail/core', async () => {
+  const actual = await vi.importActual<typeof import('@magimail/core')>('@magimail/core');
+  return {
+    ...actual,
+    configureGoogleSession: vi.fn(),
+    injectGmailStyles: vi.fn().mockResolvedValue(undefined),
+  };
+});
+
+const mockChildren: unknown[] = [];
+const mockContentView = {
+  children: mockChildren,
+  addChildView: vi.fn((view: unknown) => {
+    mockChildren.push(view);
+  }),
+  removeChildView: vi.fn((view: unknown) => {
+    const idx = mockChildren.indexOf(view);
+    if (idx >= 0) mockChildren.splice(idx, 1);
+  }),
+};
+
+vi.mock('electron', () => {
+  const mockWebContents = {
+    loadURL: vi.fn().mockResolvedValue(undefined),
+    loadFile: vi.fn().mockResolvedValue(undefined),
+    on: vi.fn(),
+    once: vi.fn(),
+    off: vi.fn(),
+    close: vi.fn(),
+    isLoading: vi.fn().mockReturnValue(false),
+    setBackgroundThrottling: vi.fn(),
+    setWindowOpenHandler: vi.fn(),
+    send: vi.fn(),
+    insertCSS: vi.fn().mockResolvedValue(''),
+    isDestroyed: vi.fn().mockReturnValue(false),
+    executeJavaScript: vi.fn().mockResolvedValue(false),
+    getURL: vi.fn().mockReturnValue('https://mail.google.com/mail/u/0/#inbox'),
+    mainFrame: { frames: [] },
+  };
+
+  class MockWebContentsView {
+    webContents = { ...mockWebContents };
+    setBounds = vi.fn();
+    setBackgroundColor = vi.fn();
+  }
+
+  class MockBaseWindow {
+    contentView = mockContentView;
+    on = vi.fn();
+    isDestroyed = vi.fn().mockReturnValue(false);
+    isFocused = vi.fn().mockReturnValue(true);
+    isMinimized = vi.fn().mockReturnValue(false);
+    isVisible = vi.fn().mockReturnValue(true);
+    getBounds = vi.fn().mockReturnValue({ width: 1000, height: 800 });
+    getContentSize = vi.fn().mockReturnValue([1000, 800]);
+    setBackgroundColor = vi.fn();
+  }
+
+  return {
+    app: {
+      getPath: vi.fn().mockReturnValue(TEST_USER_DATA),
+      isPackaged: false,
+    },
+    BaseWindow: MockBaseWindow,
+    WebContentsView: MockWebContentsView,
+    webFrameMain: { fromId: vi.fn() },
+    session: { fromPartition: vi.fn() },
+    powerMonitor: {
+      isOnBatteryPower: vi.fn().mockReturnValue(false),
+      on: vi.fn(),
+    },
+  };
+});
+
+const mockCurrentSettings = {
+  inactiveAccountSuspendMinutes: 0,
+  transparentBackground: false,
+  dismissedApiPrompts: [] as string[],
+  notifications: {
+    primary: 'loud',
+    updates: 'silent',
+    social: 'badge',
+    promotions: 'off',
+    forums: 'off',
+  },
+};
+
+vi.mock('../src/settings-store.js', () => ({
+  loadSettings: vi.fn(() => ({ ...mockCurrentSettings })),
+  saveSetting: vi.fn((key: string, value: unknown) => {
+    (mockCurrentSettings as Record<string, unknown>)[key] = value;
+    return { ...mockCurrentSettings };
+  }),
+}));
+
+describe('DOM unread observation and adaptive polling', () => {
+  let mainWindow: BaseWindow;
+  let accountsManager: AccountsManager;
+
+  beforeEach(() => {
+    mockChildren.length = 0;
+    mockCurrentSettings.dismissedApiPrompts = [];
+    fs.mkdirSync(TEST_USER_DATA, { recursive: true });
+    const accountsData = [
+      {
+        id: 'account_personal',
+        name: 'Personal',
+        email: 'test@example.com',
+        color: '#4285f4',
+        partition: 'persist:magimail_personal',
+        unreadCount: 0,
+      },
+    ];
+    fs.writeFileSync(`${TEST_USER_DATA}/accounts.json`, JSON.stringify(accountsData));
+
+    mainWindow = new BaseWindow();
+    accountsManager = new AccountsManager(mainWindow, '/mock/preload.js');
+    accountsManager.bannerSettleDelayMs = 0;
+    accountsManager.initialize();
+  });
+
+  afterAll(() => {
+    try {
+      fs.rmSync(TEST_USER_DATA, { recursive: true, force: true });
+    } catch {
+      // Ignore cleanup error if already removed
+    }
+  });
+
+  it('calculates effective unread blending DOM counts for present categories with Atom counts for absent categories', () => {
+    const onUnreadChanged = vi.fn();
+    accountsManager.onUnreadChanged = onUnreadChanged;
+
+    // Atom poll reported social: 5, updates: 2
+    const atomCategoryCounts = new Map<NotificationCategory, number>([
+      ['primary', 0],
+      ['social', 5],
+      ['updates', 2],
+      ['promotions', 10], // Off in settings
+    ]);
+    accountsManager.handleApiUnreadUpdate('account_personal', 17, atomCategoryCounts);
+
+    // DOM report arrives: Inbox (Primary) = 3. Social and Updates are not in sidebar.
+    accountsManager.handleDomUnreadUpdate('account_personal', {
+      timestamp: Date.now(),
+      counts: { inbox: 3 },
+      presentCategories: ['inbox'],
+    });
+
+    // Effective: Primary (3 from DOM) + Social (5 from Atom) + Updates (2 from Atom) = 10
+    // Promotions (10) is excluded because notifications.promotions is 'off'
+    expect(accountsManager.getEffectiveUnreadForAccount('account_personal')).toBe(10);
+    expect(onUnreadChanged).toHaveBeenLastCalledWith(expect.anything(), 10);
+  });
+
+  it('prevents stale Atom poll from clobbering active DOM unread count (anti-bounce)', () => {
+    // 1. User sees 4 unread in DOM
+    accountsManager.handleDomUnreadUpdate('account_personal', {
+      timestamp: Date.now(),
+      counts: { inbox: 4 },
+      presentCategories: ['inbox'],
+    });
+    expect(accountsManager.getEffectiveUnreadForAccount('account_personal')).toBe(4);
+
+    // 2. User archives email -> DOM updates to 3 instantly (0ms)
+    accountsManager.handleDomUnreadUpdate('account_personal', {
+      timestamp: Date.now(),
+      counts: { inbox: 3 },
+      presentCategories: ['inbox'],
+    });
+    expect(accountsManager.getEffectiveUnreadForAccount('account_personal')).toBe(3);
+
+    // 3. Stale Atom poll arrives 500ms later reporting old count of 4
+    const atomCategoryCounts = new Map<NotificationCategory, number>([['primary', 4]]);
+    accountsManager.handleApiUnreadUpdate('account_personal', 4, atomCategoryCounts);
+
+    // The active account's effective unread MUST remain 3, not revert to 4!
+    expect(accountsManager.getEffectiveUnreadForAccount('account_personal')).toBe(3);
+    const acc = accountsManager.getAccounts().find((a) => a.id === 'account_personal');
+    expect(acc?.unreadCount).toBe(3);
+  });
+
+  it('accelerates AtomFeedPoller interval to 5s when window is focused', () => {
+    const onPoll = vi.fn();
+    const poller = new AtomFeedPoller(
+      'account_personal',
+      'persist:magimail_personal',
+      60,
+      120,
+      onPoll,
+    );
+
+    // Baseline: 60s AC / 120s battery
+    expect(poller.getEffectiveInterval()).toBe(60000);
+
+    // When focused: 5s on AC
+    poller.setFocusAndMissingCategories(true, ['updates']);
+    expect(poller.getEffectiveInterval()).toBe(5000);
+
+    // When window loses focus: reverts to 60s
+    poller.setFocusAndMissingCategories(false, ['updates']);
+    expect(poller.getEffectiveInterval()).toBe(60000);
+  });
+
+  it('does not prompt for missing categories or show category banner now that cache supplies category counts', () => {
+    // 1. Initially no banner is shown before any scan
+    expect(accountsManager.isCategoryBannerShowing()).toBe(false);
+
+    // 2. DOM report without updates or social in sidebar
+    accountsManager.handleDomUnreadUpdate('account_personal', {
+      timestamp: Date.now(),
+      counts: { inbox: 2 },
+      presentCategories: ['inbox'],
+      isLoaded: true,
+    });
+
+    // Banner is NOT shown because local cache supplies category counts
+    expect(accountsManager.isCategoryBannerShowing()).toBe(false);
+    expect(accountsManager.getMissingCategoriesForAccount('account_personal')).toEqual([]);
+  });
+
+  it('manages native category banner dismissal methods safely', () => {
+    expect(accountsManager.isCategoryBannerShowing()).toBe(false);
+    accountsManager.dismissCategoryBanner('account_personal');
+    expect(accountsManager.isCategoryBannerDismissed('account_personal')).toBe(true);
+    expect(accountsManager.isCategoryBannerShowing()).toBe(false);
+
+    // Ensure it was NOT written to settings.json
+    expect(mockCurrentSettings.dismissedApiPrompts).not.toContain(
+      'account_personal_category_banner',
+    );
+  });
+
+  it('shows offline mail banner and prompts for Atom polling when offline cache is absent', () => {
+    const onAbsent = vi.fn();
+    accountsManager.onAbsentCategoriesChanged = onAbsent;
+
+    expect(accountsManager.isCategoryBannerShowing()).toBe(false);
+
+    accountsManager.handleOfflineCacheStatus('account_personal', false);
+
+    expect(accountsManager.isCategoryBannerShowing()).toBe(true);
+    expect(accountsManager.isOfflineCacheAvailable('account_personal')).toBe(false);
+    expect(onAbsent).toHaveBeenCalledWith('account_personal', ['updates', 'social']);
+
+    // Dismissing banner hides it
+    accountsManager.dismissCategoryBanner('account_personal');
+    expect(accountsManager.isCategoryBannerShowing()).toBe(false);
+
+    // If cache becomes available later, status updates and banner stays hidden
+    accountsManager.handleOfflineCacheStatus('account_personal', true);
+    expect(accountsManager.isOfflineCacheAvailable('account_personal')).toBe(true);
+    expect(accountsManager.isCategoryBannerShowing()).toBe(false);
+  });
+
+  it('hides offline mail banner when cache status transitions to true', () => {
+    expect(accountsManager.isCategoryBannerShowing()).toBe(false);
+
+    accountsManager.handleOfflineCacheStatus('account_personal', false);
+    expect(accountsManager.isCategoryBannerShowing()).toBe(true);
+
+    accountsManager.handleOfflineCacheStatus('account_personal', true);
+    expect(accountsManager.isCategoryBannerShowing()).toBe(false);
+  });
+
+  it('cleans up legacy category banner keys from settings on initialize', () => {
+    mockCurrentSettings.dismissedApiPrompts = ['account_personal_category_banner', 'other_prompt'];
+    const newMgr = new AccountsManager(mainWindow, '/mock/preload.js');
+    newMgr.initialize();
+
+    expect(mockCurrentSettings.dismissedApiPrompts).toEqual(['other_prompt']);
+  });
+
+  it('identifies absent categories for Atom feed polling when categories tree is folded', () => {
+    const onAbsent = vi.fn();
+    accountsManager.onAbsentCategoriesChanged = onAbsent;
+
+    // Report arrives for an account with hasCategoriesSection: true (e.g. Work), but categories tree is folded
+    accountsManager.handleDomUnreadUpdate('account_personal', {
+      timestamp: Date.now(),
+      counts: { inbox: 2 },
+      presentCategories: ['inbox'],
+      hasCategoriesSection: true,
+      isLoaded: true,
+    });
+
+    // For banner UI: not missing because hasCategoriesSection is true
+    expect(accountsManager.getMissingCategoriesForAccount('account_personal')).toEqual([]);
+    expect(accountsManager.isCategoryBannerShowing()).toBe(false);
+
+    // For Atom feed polling: updates and social are absent from the DOM, so they must be polled!
+    const absent = accountsManager.getAbsentCategoriesForAccount('account_personal');
+    expect(absent).toEqual(['updates', 'social']);
+    expect(onAbsent).toHaveBeenCalledWith('account_personal', ['updates', 'social']);
+  });
+
+  it('accurately blends unread counts from Atom feeds when categories are folded', () => {
+    // 1. Account has inbox unread: 2 in DOM, but social is folded/absent
+    accountsManager.handleDomUnreadUpdate('account_personal', {
+      timestamp: Date.now(),
+      counts: { inbox: 2 },
+      presentCategories: ['inbox'],
+      hasCategoriesSection: true,
+      isLoaded: true,
+    });
+
+    // 2. Poller fetches category feed for social (via ^smartlabel_social) and reports 1 unread
+    const atomCounts = new Map<NotificationCategory, number>([
+      ['primary', 2],
+      ['social', 1],
+      ['updates', 0],
+    ]);
+    accountsManager.handleApiUnreadUpdate('account_personal', 3, atomCounts);
+
+    // 3. Effective unread must be 2 (DOM inbox) + 1 (Atom social) = 3!
+    const effective = accountsManager.getEffectiveUnreadForAccount('account_personal');
+    expect(effective).toBe(3);
+  });
+
+  it('holds the count steady when the user folds Categories away', () => {
+    // 1. Initial state from local cache: Updates holds the account's only unread message.
+    accountsManager.handleCacheCategoryCounts(
+      'account_personal',
+      new Map<NotificationCategory, number>([
+        ['primary', 0],
+        ['updates', 1],
+        ['promotions', 0],
+        ['social', 0],
+        ['forums', 0],
+      ]),
+    );
+    // Categories expanded: every category is in the sidebar.
+    accountsManager.handleDomUnreadUpdate('account_personal', {
+      timestamp: Date.now(),
+      counts: { inbox: 0, updates: 1, promotions: 0, social: 0, forums: 0 },
+      presentCategories: ['inbox', 'updates', 'promotions', 'social', 'forums'],
+      hasCategoriesSection: true,
+      isLoaded: true,
+    });
+    expect(accountsManager.getEffectiveUnreadForAccount('account_personal')).toBe(1);
+
+    // 2. A poll lands while the section is open. Nothing is absent from the
+    //    sidebar, so the poller fetches only the sub-feeds it must -- the
+    //    silenced ones -- and reports no count for Updates or Social.
+    accountsManager.handleApiUnreadUpdate(
+      'account_personal',
+      1,
+      new Map<NotificationCategory, number>([
+        ['promotions', 0],
+        ['forums', 0],
+        ['primary', 1],
+      ]),
+    );
+    expect(accountsManager.getEffectiveUnreadForAccount('account_personal')).toBe(1);
+
+    // 3. The user folds Categories and its rows leave the sidebar. The message
+    //    is still unread, so the count must not move.
+    accountsManager.handleDomUnreadUpdate('account_personal', {
+      timestamp: Date.now(),
+      counts: { inbox: 0 },
+      presentCategories: ['inbox'],
+      hasCategoriesSection: true,
+      isLoaded: true,
+    });
+    expect(accountsManager.getEffectiveUnreadForAccount('account_personal')).toBe(1);
+  });
+
+  it('prevents account-wide Atom sub-feeds from clobbering inbox cache category counts', () => {
+    // 1. Local cache reports 0 unread for Social (unread email was archived)
+    accountsManager.handleCacheCategoryCounts(
+      'account_personal',
+      new Map<NotificationCategory, number>([
+        ['primary', 0],
+        ['social', 0],
+      ]),
+    );
+    accountsManager.handleDomUnreadUpdate('account_personal', {
+      timestamp: Date.now(),
+      counts: { inbox: 0 },
+      presentCategories: ['inbox'],
+      hasCategoriesSection: true,
+      isLoaded: true,
+    });
+    expect(accountsManager.getEffectiveUnreadForAccount('account_personal')).toBe(0);
+
+    // 2. Routine Atom poller sub-feed reports social: 1 (because Google's ^smartlabel_social feed
+    // includes archived mail account-wide).
+    accountsManager.handleApiUnreadUpdate(
+      'account_personal',
+      1,
+      new Map<NotificationCategory, number>([
+        ['primary', 0],
+        ['social', 1],
+      ]),
+    );
+
+    // 3. Effective unread must REMAIN 0, protected by the local cache reading!
+    expect(accountsManager.getEffectiveUnreadForAccount('account_personal')).toBe(0);
+  });
+});
+
+/**
+ * A count read off an open Gmail page is the best guess available: it is the
+ * sidebar Gmail itself renders, and it moves the instant the mailbox does, where
+ * the Atom feed lags by seconds and is edge-cached besides.
+ *
+ * These cover the cases where that guess exists but nothing on screen shows it.
+ * Menu bar triage is the one that bites: it acts on a hidden window, on an account
+ * that is usually not the one in front, so gating the sidebar numbers on either
+ * left every count waiting for the next poll.
+ */
+describe('a sidebar count off screen', () => {
+  let mainWindow: BaseWindow;
+  let accountsManager: AccountsManager;
+
+  /** Fire a window event the manager subscribed to; the mock records, never emits. */
+  const fireWindowEvent = (name: string) => {
+    for (const [event, handler] of (mainWindow.on as unknown as ReturnType<typeof vi.fn>).mock
+      .calls) {
+      if (event === name) (handler as () => void)();
+    }
+  };
+
+  const report = (inbox: number) => ({
+    timestamp: Date.now(),
+    counts: { inbox },
+    presentCategories: ['inbox'],
+    hasCategoriesSection: false,
+    isLoaded: true,
+  });
+
+  beforeEach(() => {
+    mockChildren.length = 0;
+    fs.mkdirSync(TEST_USER_DATA, { recursive: true });
+    fs.writeFileSync(
+      `${TEST_USER_DATA}/accounts.json`,
+      JSON.stringify([
+        {
+          id: 'account_personal',
+          name: 'Personal',
+          email: 'test@example.com',
+          color: '#4285f4',
+          partition: 'persist:magimail_personal',
+          unreadCount: 0,
+        },
+        {
+          id: 'account_work',
+          name: 'Work',
+          email: 'work@example.com',
+          color: '#db4437',
+          partition: 'persist:magimail_work',
+          unreadCount: 0,
+        },
+      ]),
+    );
+
+    mainWindow = new BaseWindow();
+    accountsManager = new AccountsManager(mainWindow, '/mock/preload.js');
+    accountsManager.bannerSettleDelayMs = 0;
+    accountsManager.initialize();
+  });
+
+  it('counts a hidden window the same as one on screen', () => {
+    fireWindowEvent('hide');
+    accountsManager.handleDomUnreadUpdate('account_personal', report(4));
+    expect(accountsManager.getEffectiveUnreadForAccount('account_personal')).toBe(4);
+  });
+
+  it('counts an account that is not the one in front', () => {
+    accountsManager.switchAccount('account_work');
+    accountsManager.handleDomUnreadUpdate('account_personal', report(2));
+    expect(accountsManager.getEffectiveUnreadForAccount('account_personal')).toBe(2);
+  });
+
+  it('does not let a poll undo what the open page reported', () => {
+    fireWindowEvent('hide');
+    accountsManager.handleDomUnreadUpdate('account_personal', report(2));
+    // The feed still serves the count Gmail held before the page moved on.
+    accountsManager.handleApiUnreadUpdate('account_personal', 7);
+    expect(accountsManager.getEffectiveUnreadForAccount('account_personal')).toBe(2);
+  });
+
+  it('hands the account back to the feed once its page is gone', () => {
+    accountsManager.handleDomUnreadUpdate('account_personal', report(2));
+    accountsManager.suspendAllAccounts();
+    accountsManager.handleApiUnreadUpdate('account_personal', 7);
+    expect(accountsManager.getEffectiveUnreadForAccount('account_personal')).toBe(7);
+  });
+});

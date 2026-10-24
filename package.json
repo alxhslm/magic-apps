@@ -1,0 +1,66 @@
+{
+  "name": "magimail-suite",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Magimail Monorepo - High-performance native macOS desktop suite for Google Workspace",
+  "license": "MPL-2.0",
+  "packageManager": "pnpm@11.24.0",
+  "scripts": {
+    "dev": "pnpm --filter magimail dev",
+    "dev:demo": "pnpm --filter magimail dev:demo",
+    "site": "pnpm --filter @magimail/website dev",
+    "build": "pnpm -r run build",
+    "test": "vitest run",
+    "test:e2e": "vitest run --config vitest.e2e.config.ts",
+    "test:watch": "vitest",
+    "typecheck": "pnpm -r run typecheck",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "privacy": "node tools/check-privacy.mjs --all",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "audit": "pnpm audit --prod --audit-level high",
+    "audit:dev": "pnpm audit --dev",
+    "shots": "./tools/generate-shots.sh website/src/assets",
+    "magimail": "pnpm --filter magimail app",
+    "magimail:install": "pnpm --filter magimail app:install",
+    "package:magimail": "pnpm --filter magimail package:dmg",
+    "prepare": "husky",
+    "magimail:debug": "pnpm --filter magimail debug",
+    "magimail:dev:demo": "pnpm --filter magimail dev:demo",
+    "magical:debug": "pnpm --filter magical debug",
+    "magical:dev:demo": "pnpm --filter magical dev:demo",
+    "release:magimail": "pnpm --filter magimail release",
+    "release:magical": "pnpm --filter magical release"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,mjs}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,yml,yaml,css,html}": [
+      "prettier --write"
+    ],
+    "*.swift": [
+      "swiftformat"
+    ]
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.20.0",
+    "@playwright/test": "^1.62.1",
+    "@types/node": "^22.13.5",
+    "@types/ws": "^8.18.1",
+    "electron": "^44.9.1",
+    "electron-builder": "^26.15.3",
+    "eslint": "^9.20.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.4.1",
+    "playwright": "^1.64.1",
+    "prettier": "^3.9.10",
+    "tsup": "^9.0.0",
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.71.2",
+    "vitest": "^5.0.5",
+    "ws": "^8.21.3"
+  }
+}

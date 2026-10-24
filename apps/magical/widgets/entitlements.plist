@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- macOS app extensions must be sandboxed. -->
+    <key>com.apple.security.app-sandbox</key>
+    <true/>
+    <!--
+      Read the snapshot through the App Group both sides are entitled for.
+
+      The group is the whole of the extension's reach. It never sees
+      Application Support, where the unencrypted Google session cookies live,
+      and it needs no provisioning profile: a development certificate is enough
+      for both sides, and the app creates the container through
+      containerURL(forSecurityApplicationGroupIdentifier:).
+
+      <TEAM_ID> is resolved from the signing certificate by build.sh, which also
+      stamps the same identifier into Info.plist as AppGroupIdentifier for the
+      code to read back. Hardcoding a team prefix gives anyone building on their
+      own Apple ID a dead widget, because the signature cannot back the group
+      the bundle claims.
+    -->
+    <key>com.apple.security.application-groups</key>
+    <array>
+        <string><TEAM_ID>.group.com.alexhaslam.magical</string>
+    </array>
+</dict>
+</plist>

@@ -1,0 +1,76 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import site from '../data/site.json';
+
+const blogDisplay = site.blogUrl.replace('https://', '').replace('/', '');
+---
+
+<BaseLayout
+  title="Privacy | Magic Apps"
+  description="What Magic Apps does with your data. Short version: the apps send nothing anywhere, and this site collects only an email address if you type one in."
+  ogDescription="What Magic Apps does with your data. Short version: almost nothing."
+  icon="suite.svg"
+  current="privacy"
+  permalink="privacy.html"
+>
+  <section class="wrap band" aria-labelledby="privacy-title">
+    <div class="section-head">
+      <h1 id="privacy-title">What happens to your data</h1>
+      <p class="lead">
+        Short version: your mail and calendar data travels directly between your Mac and
+        Google. This site collects no personal analytics, and the apps collect no usage telemetry.
+      </p>
+    </div>
+
+    <div class="prose">
+      <h2>This website</h2>
+      <p>
+        There is no analytics, tracking pixels, or third-party advertising on this site.
+        It sets no cookies. Waitlist registration forms are embedded via EmailOctopus
+        to collect email addresses with your explicit consent.
+      </p>
+      <p>
+        The site is served from Cloudflare's edge, which keeps its own request logs. Those
+        are Cloudflare's, not ours, and we do not read them. See <a
+          href="https://www.cloudflare.com/privacypolicy/"
+          target="_blank"
+          rel="noopener noreferrer"
+        >Cloudflare's privacy policy <span aria-hidden="true">&#8599;</span></a>.
+      </p>
+
+      <h2>The apps themselves</h2>
+      <p>
+        Your credentials, emails, calendar events, contacts, and tasks travel exclusively
+        and directly between your Mac and Google's official servers. We operate no
+        intermediate servers, proxies, or relays that touch, inspect, or store your communications.
+        We cannot read your mail or events, and we have no record of your accounts.
+      </p>
+      <p>
+        Everything the apps store stays in your local user library on your Mac. The apps collect
+        no behavioral analytics or usage telemetry. Automatic update checks connect to our release
+        distribution server (updates.macmagic.app) to verify the latest release version without
+        transmitting account information or personal data.
+      </p>
+
+      <h2>Your rights</h2>
+      <p>
+        If you are in the UK or the EU, you have the right to ask what we hold about you,
+        to have it corrected or deleted, to withdraw consent, and to receive a copy. In
+        practice there is only ever one thing to ask about, and unsubscribing already
+        deletes it. The lawful basis for holding an address is your consent, given when you
+        confirm it.
+      </p>
+      <p>
+        You also have the right to complain to the <a href="https://ico.org.uk/" target="_blank" rel="noopener noreferrer">Information Commissioner's Office <span aria-hidden="true">&#8599;</span></a>.
+      </p>
+
+      <h2>Getting in touch</h2>
+      <p>
+        {site.author} is the data controller. Ask anything, including to be deleted,
+        via <a href={site.blogUrl} target="_blank" rel="noopener noreferrer">{blogDisplay} <span aria-hidden="true">&#8599;</span></a>.
+      </p>
+
+      <p class="small dim">Last updated {site.privacyUpdated}.</p>
+    </div>
+  </section>
+</BaseLayout>

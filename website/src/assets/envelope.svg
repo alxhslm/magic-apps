@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="36 30 390 320" width="390" height="320" role="img" aria-label="A postal envelope with a lifted flap and a gold star at its corner">
+  <!--
+    Magimail envelope art.
+    Extracted from apps/magimail/build/icon.svg: the envelope and its star, lifted out of
+    the app icon's squircle and away from the hat.
+
+    TRADEMARK NOTE: generic postal envelope only — downward triangular flap, thin diagonal
+    seams, crimson outline. Never Gmail trade dress: no thick vertical red side pillars,
+    and no thick red "V" folds forming the letter "M".
+  -->
+  <defs>
+    <filter id="ev-envDropShadow" x="-25%" y="-25%" width="150%" height="160%">
+      <feDropShadow dx="0" dy="10" stdDeviation="10" flood-color="#05030F" flood-opacity="0.42" />
+    </filter>
+    <filter id="ev-foldBlur" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="5.5" />
+    </filter>
+    <clipPath id="ev-envClip">
+      <rect x="0" y="0" width="296" height="204" rx="16" ry="16" />
+    </clipPath>
+    <linearGradient id="ev-crimson" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#C05A4E" />
+      <stop offset="100%" stop-color="#9E4238" />
+    </linearGradient>
+    <linearGradient id="ev-slabEdge" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#8E3B32" />
+      <stop offset="100%" stop-color="#6E2B24" />
+    </linearGradient>
+    <linearGradient id="ev-paperPocket" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#E9EAF0" />
+      <stop offset="55%" stop-color="#DEE0E8" />
+      <stop offset="100%" stop-color="#CFD2DD" />
+    </linearGradient>
+    <linearGradient id="ev-flapUnder" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#B9BCC8" />
+      <stop offset="100%" stop-color="#9DA1B0" />
+    </linearGradient>
+    <linearGradient id="ev-paperFlap" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#F4F5F9" />
+      <stop offset="100%" stop-color="#E2E4EC" />
+    </linearGradient>
+    <linearGradient id="ev-goldStar" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFFBEB" />
+      <stop offset="25%" stop-color="#FDE047" />
+      <stop offset="65%" stop-color="#EAB308" />
+      <stop offset="100%" stop-color="#B45309" />
+    </linearGradient>
+    <radialGradient id="ev-starHalo" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"   stop-color="#FFD07A" stop-opacity="0.62" />
+      <stop offset="28%"  stop-color="#F0A93C" stop-opacity="0.34" />
+      <stop offset="60%"  stop-color="#D98324" stop-opacity="0.13" />
+      <stop offset="100%" stop-color="#B45309" stop-opacity="0" />
+    </radialGradient>
+  </defs>
+
+  <g transform="translate(256, 222) rotate(-3.5) translate(-148, -102)">
+    <g filter="url(#ev-envDropShadow)">
+      <rect x="-3.5" y="4.5" width="296" height="204" rx="16" ry="16" fill="url(#ev-slabEdge)" />
+    </g>
+    <rect width="296" height="204" rx="16" ry="16" fill="url(#ev-paperPocket)" />
+    <g clip-path="url(#ev-envClip)">
+      <line x1="11" y1="196" x2="110.8" y2="106.3" stroke="url(#ev-crimson)" stroke-width="5.5" stroke-linecap="round" />
+      <line x1="285" y1="196" x2="185.2" y2="106.3" stroke="url(#ev-crimson)" stroke-width="5.5" stroke-linecap="round" />
+      <path d="M 0 0 L 131.53 148.58 A 22.00 22.00 0 0 0 164.47 148.58 L 296 0 Z" fill="#0B1020" opacity="0.46" filter="url(#ev-foldBlur)" />
+      <path d="M 0 0 L 134.16 135.23 A 19.50 19.50 0 0 0 161.84 135.23 L 296 0 Z" fill="url(#ev-flapUnder)" />
+      <path d="M 0 0 L 9 9 L 135.46 125.60 A 18.50 18.50 0 0 0 160.54 125.60 L 287 9 L 296 0 Z" fill="url(#ev-paperFlap)" />
+      <path d="M 9 9 L 135.46 125.60 A 18.50 18.50 0 0 0 160.54 125.60 L 287 9" fill="none" stroke="url(#ev-crimson)" stroke-width="9"
+            stroke-linecap="round" stroke-linejoin="round" />
+    </g>
+    <rect x="4.5" y="4.5" width="287" height="195" rx="13" ry="13"
+          fill="none" stroke="url(#ev-crimson)" stroke-width="9" />
+  </g>
+
+  <g transform="translate(256, 222) rotate(-3.5) translate(-148, -102)">
+    <circle cx="14" cy="10" r="78" fill="url(#ev-starHalo)" />
+    <g transform="translate(14, 10)">
+      <path d="M 0 -56 Q 0 0 56 0 Q 0 0 0 56 Q 0 0 -56 0 Q 0 0 0 -56 Z"
+            fill="none" stroke="#FFF8E1" stroke-width="3" opacity="0.9" />
+      <path d="M 0 -54 Q 0 0 54 0 Q 0 0 0 54 Q 0 0 -54 0 Q 0 0 0 -54 Z"
+            fill="url(#ev-goldStar)" />
+      <path d="M 0 -30 Q 0 0 30 0 Q 0 0 0 30 Q 0 0 -30 0 Q 0 0 0 -30 Z"
+            fill="#FFFDF2" opacity="0.6" />
+      <circle cx="0" cy="0" r="6" fill="#FFFFFF" />
+    </g>
+  </g>
+</svg>

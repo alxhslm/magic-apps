@@ -1,0 +1,27 @@
+name: Feature Request
+description: New feature or user capability.
+title: ''
+labels: ['type:feature']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This project focuses on Gmail and Google Calendar, nothing else. Check [existing issues](https://github.com/alxhslm/magic-apps/issues) first.
+  - type: textarea
+    id: what-cant-you-do-today
+    attributes:
+      label: What can't you do today?
+    validations:
+      required: true
+  - type: textarea
+    id: what-would-you-like-it-to-do
+    attributes:
+      label: What would you like it to do?
+    validations:
+      required: true
+  - type: textarea
+    id: relevant-information
+    attributes:
+      label: Relevant information
+    validations:
+      required: false

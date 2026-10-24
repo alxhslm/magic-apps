@@ -1,0 +1,315 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0F46B62C1B8E4CAC93CAAA9E /* MagicalWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 508E66CB4DA84E49BCCDE09F /* MagicalWidgets.swift */; };
+		A0AC9044D7F84D1A92A00D9A /* Views.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40E79E3D77A04D55ABC2F38D /* Views.swift */; };
+		724A22A842C941BD93333D38 /* WidgetCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A2340DFA970457CB64DDADC /* WidgetCache.swift */; };
+		F146B62C1B8E4CAC93CAAA9E /* WidgetsLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = F08E66CB4DA84E49BCCDE09F /* WidgetsLogger.swift */; };
+		B14A62C11B8E4CAC93CAAB1A /* BrandArtwork.swift in Sources */ = {isa = PBXBuildFile; fileRef = B08E66CB4DA84E49BCCDAB1A /* BrandArtwork.swift */; };
+		C0DE0001A1B2C3D4E5F60013 /* HelperBrand in Frameworks */ = {isa = PBXBuildFile; productRef = C0DE0001A1B2C3D4E5F60012 /* HelperBrand */; };
+		D14A62C11B8E4CAC93CAAB03 /* CalendarFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = D08E66CB4DA84E49BCCDAB03 /* CalendarFilter.swift */; };
+		E14A62C11B8E4CAC93CAAB04 /* CalendarDot.swift in Sources */ = {isa = PBXBuildFile; fileRef = E08E66CB4DA84E49BCCDAB04 /* CalendarDot.swift */; };
+		A348749C598E41E7B8B51B78 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B27FE08A86EC49BDBFACC3AD /* SwiftUI.framework */; };
+		5D3C2BE183C94252B185D4A9 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C9DC677AFF254F82A949D456 /* WidgetKit.framework */; };
+		D14A62C11B8E4CAC93CDAB03 /* SecretFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = D08E66CB4DA84E49BCCDAB05 /* SecretFile.swift */; };
+		B1B2C3D4E5F60718293B0001 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = B1B2C3D4E5F60718293B0002 /* Localizable.xcstrings */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		508E66CB4DA84E49BCCDE09F /* MagicalWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MagicalWidgets.swift; sourceTree = "<group>"; };
+		40E79E3D77A04D55ABC2F38D /* Views.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = Views.swift; path = "../../swift/Sources/MagicalHelperLib/Widgets/Views.swift"; sourceTree = "<group>"; };
+		5A2340DFA970457CB64DDADC /* WidgetCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = WidgetCache.swift; path = "../../swift/Sources/MagicalHelperLib/Widgets/WidgetCache.swift"; sourceTree = "<group>"; };
+		F08E66CB4DA84E49BCCDE09F /* WidgetsLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = WidgetsLogger.swift; path = "../../swift/Sources/MagicalHelperLib/Widgets/WidgetsLogger.swift"; sourceTree = "<group>"; };
+		B08E66CB4DA84E49BCCDAB1A /* BrandArtwork.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = BrandArtwork.swift; path = "../../swift/Sources/MagicalHelperLib/BrandArtwork.swift"; sourceTree = "<group>"; };
+		D08E66CB4DA84E49BCCDAB03 /* CalendarFilter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarFilter.swift; sourceTree = "<group>"; };
+		E08E66CB4DA84E49BCCDAB04 /* CalendarDot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CalendarDot.swift; path = "../../app-intents-extension/Sources/CalendarDot.swift"; sourceTree = "<group>"; };
+		B27FE08A86EC49BDBFACC3AD /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
+		C9DC677AFF254F82A949D456 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		9698A01925174F21956AE16E /* MagicalWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = MagicalWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		D08E66CB4DA84E49BCCDAB05 /* SecretFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SecretFile.swift; path = "../../swift/Sources/MagicalHelperLib/SecretFile.swift"; sourceTree = "<group>"; };
+		B1B2C3D4E5F60718293B0002 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		4CF1B390CF5E4670A1865B4A /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A348749C598E41E7B8B51B78 /* SwiftUI.framework in Frameworks */,
+				5D3C2BE183C94252B185D4A9 /* WidgetKit.framework in Frameworks */,
+				C0DE0001A1B2C3D4E5F60013 /* HelperBrand in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		749F0C751C9C4D9D939DD41A = {
+			isa = PBXGroup;
+			children = (
+				9B6EA4C103A24FC29761658A /* Sources */,
+				B1B2C3D4E5F60718293B0003 /* Resources */,
+				B90151EBB2CE48FA9BC6E5DD /* Frameworks */,
+				564B22731B5E494D931E1976 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		9B6EA4C103A24FC29761658A /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				508E66CB4DA84E49BCCDE09F /* MagicalWidgets.swift */,
+				40E79E3D77A04D55ABC2F38D /* Views.swift */,
+				5A2340DFA970457CB64DDADC /* WidgetCache.swift */,
+				D08E66CB4DA84E49BCCDAB03 /* CalendarFilter.swift */,
+				E08E66CB4DA84E49BCCDAB04 /* CalendarDot.swift */,
+				F08E66CB4DA84E49BCCDE09F /* WidgetsLogger.swift */,
+				B08E66CB4DA84E49BCCDAB1A /* BrandArtwork.swift */,
+				D08E66CB4DA84E49BCCDAB05 /* SecretFile.swift */,
+			);
+			name = Sources;
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		B90151EBB2CE48FA9BC6E5DD /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				B27FE08A86EC49BDBFACC3AD /* SwiftUI.framework */,
+				C9DC677AFF254F82A949D456 /* WidgetKit.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		B1B2C3D4E5F60718293B0003 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				B1B2C3D4E5F60718293B0002 /* Localizable.xcstrings */,
+			);
+			name = Resources;
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		564B22731B5E494D931E1976 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				9698A01925174F21956AE16E /* MagicalWidgets.appex */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		52CF333D2DCF4A0FA79C6BEE /* MagicalWidgets */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 5E60D331D533432B9ED4E2B7 /* Build configuration list for PBXNativeTarget "MagicalWidgets" */;
+			buildPhases = (
+				E2FE4E9B8BEB4458B032C938 /* Sources */,
+				4CF1B390CF5E4670A1865B4A /* Frameworks */,
+				0EDA9BB7D8D048B0A5C11770 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = MagicalWidgets;
+			packageProductDependencies = (
+				C0DE0001A1B2C3D4E5F60012 /* HelperBrand */,
+			);
+			productName = MagicalWidgets;
+			productReference = 9698A01925174F21956AE16E /* MagicalWidgets.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		B1BE37EC1E7F4A6D9A46F8EA /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+					52CF333D2DCF4A0FA79C6BEE = {
+						CreatedOnToolsVersion = 16.0;
+					};
+				};
+			};
+			buildConfigurationList = 4CFA4002BC6C437297A14A1C /* Build configuration list for PBXProject "MagicalWidgets" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 749F0C751C9C4D9D939DD41A;
+			packageReferences = (
+				C0DE0001A1B2C3D4E5F60011 /* XCLocalSwiftPackageReference "../../../packages/swift-brand" */,
+			);
+			productRefGroup = 564B22731B5E494D931E1976 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				52CF333D2DCF4A0FA79C6BEE /* MagicalWidgets */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		0EDA9BB7D8D048B0A5C11770 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B1B2C3D4E5F60718293B0001 /* Localizable.xcstrings in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		E2FE4E9B8BEB4458B032C938 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				0F46B62C1B8E4CAC93CAAA9E /* MagicalWidgets.swift in Sources */,
+				A0AC9044D7F84D1A92A00D9A /* Views.swift in Sources */,
+				724A22A842C941BD93333D38 /* WidgetCache.swift in Sources */,
+				D14A62C11B8E4CAC93CAAB03 /* CalendarFilter.swift in Sources */,
+				E14A62C11B8E4CAC93CAAB04 /* CalendarDot.swift in Sources */,
+				F146B62C1B8E4CAC93CAAA9E /* WidgetsLogger.swift in Sources */,
+				B14A62C11B8E4CAC93CAAB1A /* BrandArtwork.swift in Sources */,
+				D14A62C11B8E4CAC93CDAB03 /* SecretFile.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		5EB39F75F59A42CCAAB2DAE5 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_TESTABILITY = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		67D5CA6F234D49F7A97ED292 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		482907E3C5A440C8BA9622FB /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGNING_ALLOWED = NO;
+				ENABLE_APP_SANDBOX = YES;
+				INFOPLIST_FILE = Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.alexhaslam.magical.widgets";
+				PRODUCT_NAME = MagicalWidgets;
+				SDKROOT = macosx;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		D3D78CB3048E4BC39F275045 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGNING_ALLOWED = NO;
+				ENABLE_APP_SANDBOX = YES;
+				INFOPLIST_FILE = Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.alexhaslam.magical.widgets";
+				PRODUCT_NAME = MagicalWidgets;
+				SDKROOT = macosx;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		5E60D331D533432B9ED4E2B7 /* Build configuration list for PBXNativeTarget "MagicalWidgets" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				482907E3C5A440C8BA9622FB /* Debug */,
+				D3D78CB3048E4BC39F275045 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		4CFA4002BC6C437297A14A1C /* Build configuration list for PBXProject "MagicalWidgets" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5EB39F75F59A42CCAAB2DAE5 /* Debug */,
+				67D5CA6F234D49F7A97ED292 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		C0DE0001A1B2C3D4E5F60011 /* XCLocalSwiftPackageReference "../../../packages/swift-brand" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = "../../../packages/swift-brand";
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		C0DE0001A1B2C3D4E5F60012 /* HelperBrand */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = HelperBrand;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = B1BE37EC1E7F4A6D9A46F8EA /* Project object */;
+}

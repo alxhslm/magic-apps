@@ -1,0 +1,96 @@
+name: Deploy Website to Cloudflare
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'website/**'
+      - '.github/workflows/deploy-website.yml'
+  pull_request:
+    paths:
+      - 'website/**'
+      - '.github/workflows/deploy-website.yml'
+
+concurrency:
+  group: deploy-website-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  build-and-deploy:
+    name: Build & Deploy Website
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 11.24.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build website
+        run: pnpm --filter @magimail/website build
+
+      # Dependabot-triggered runs are treated like fork PRs: they cannot see
+      # Actions secrets, only Dependabot secrets. Both Cloudflare values exist
+      # in both stores, so this step has the same credentials either way.
+      - name: Upload preview version
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_PAGES_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          packageManager: pnpm
+          workingDirectory: website
+          command: versions upload --preview-alias pr-${{ github.event.number }} --message "PR ${{ github.event.number }} - ${{ github.sha }}"
+
+      - name: Comment the preview URL on the PR
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.number }}
+          URL: https://pr-${{ github.event.number }}-macmagic-app.${{ vars.WORKERS_DEV_SUBDOMAIN }}.workers.dev
+        run: |
+          cat > /tmp/body.md <<EOF
+          <!-- cloudflare-preview -->
+          ### 🔎 Cloudflare preview
+
+          **$URL**
+
+          Built from \`${{ github.sha }}\`. Updated on every push to this PR.
+
+          Production is unaffected — \`versions upload\` publishes a version
+          without changing which one is live.
+          EOF
+          ID=$(gh pr view "$PR" --json comments \
+                 --jq '.comments[] | select(.body | contains("<!-- cloudflare-preview -->")) | .id' \
+               | tail -1)
+          if [ -n "$ID" ]; then
+            gh pr comment "$PR" --edit-last --body-file /tmp/body.md
+          else
+            gh pr comment "$PR" --body-file /tmp/body.md
+          fi
+
+      - name: Deploy to Cloudflare Workers
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_PAGES_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          packageManager: pnpm
+          workingDirectory: website
+          command: deploy --message "${{ github.sha }}"

@@ -1,0 +1,308 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="50 90 550 430" width="550" height="430" role="img" aria-label="Magic App Suite hero art: Magimail envelope and Magical calendar with wand emerging from a magician's top hat">
+  <!--
+    Magic App Suite combined hero art.
+    - Magimail envelope (left) and Magical calendar + wand (right) emerge from
+      inside the magician's top hat.
+    - Calendar and magic wand are extracted literally from apps/magical/build/icon.svg
+      and flipped horizontally as requested.
+    - Sized and positioned at a natural height emerging from the hat opening,
+      without clipping through the hat.
+  -->
+  <defs>
+    <!-- Stage backlights -->
+    <radialGradient id="comb-backlight" cx="50%" cy="78%" r="40%">
+      <stop offset="0%" stop-color="#6366F1" stop-opacity="0.36" />
+      <stop offset="60%" stop-color="#4338CA" stop-opacity="0.14" />
+      <stop offset="100%" stop-color="#1E1B4B" stop-opacity="0" />
+    </radialGradient>
+
+    <!-- Hat gradients -->
+    <linearGradient id="comb-hatBody" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#3A3466" />
+      <stop offset="35%" stop-color="#252045" />
+      <stop offset="100%" stop-color="#171330" />
+    </linearGradient>
+    <linearGradient id="comb-hatBrim" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#4A4380" />
+      <stop offset="40%" stop-color="#2C2654" />
+      <stop offset="100%" stop-color="#171330" />
+    </linearGradient>
+    <linearGradient id="comb-hatBand" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#9333EA" />
+      <stop offset="50%" stop-color="#C084FC" />
+      <stop offset="100%" stop-color="#7E22CE" />
+    </linearGradient>
+
+    <!-- Filters from Magimail and Magical -->
+    <filter id="comb-envDropShadow" x="-25%" y="-25%" width="150%" height="160%">
+      <feDropShadow dx="0" dy="6" stdDeviation="6" flood-color="#05030F" flood-opacity="0.28" />
+    </filter>
+    <filter id="comb-softBlur" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="7" />
+    </filter>
+    <filter id="comb-foldBlur" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="5.5" />
+    </filter>
+    <filter id="comb-cardShadow" x="-20%" y="-20%" width="150%" height="150%">
+      <feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#05030F" flood-opacity="0.45" />
+    </filter>
+    <filter id="comb-ringShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#000000" flood-opacity="0.2" />
+    </filter>
+    <filter id="comb-wandShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="2" dy="5" stdDeviation="4" flood-color="#05030F" flood-opacity="0.4" />
+    </filter>
+    <filter id="comb-shaftSoftAura" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="5" />
+    </filter>
+    <filter id="comb-sparkleGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="2.5" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+
+    <!-- Clips -->
+    <clipPath id="comb-envClip">
+      <rect x="0" y="0" width="296" height="204" rx="16" ry="16" />
+    </clipPath>
+
+    <!-- Envelope colors -->
+    <linearGradient id="comb-crimson" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#C05A4E" />
+      <stop offset="100%" stop-color="#9E4238" />
+    </linearGradient>
+    <linearGradient id="comb-slabEdge" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#8E3B32" />
+      <stop offset="100%" stop-color="#6E2B24" />
+    </linearGradient>
+    <linearGradient id="comb-paperPocket" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#E9EAF0" />
+      <stop offset="55%" stop-color="#DEE0E8" />
+      <stop offset="100%" stop-color="#CFD2DD" />
+    </linearGradient>
+    <linearGradient id="comb-flapUnder" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#B9BCC8" />
+      <stop offset="100%" stop-color="#9DA1B0" />
+    </linearGradient>
+    <linearGradient id="comb-paperFlap" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#F4F5F9" />
+      <stop offset="100%" stop-color="#E2E4EC" />
+    </linearGradient>
+
+    <!-- Star & Burst colors from app icons -->
+    <linearGradient id="comb-goldStar" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFFBEB" />
+      <stop offset="25%" stop-color="#FDE047" />
+      <stop offset="65%" stop-color="#EAB308" />
+      <stop offset="100%" stop-color="#B45309" />
+    </linearGradient>
+    <linearGradient id="comb-violetStar" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FAF5FF" />
+      <stop offset="30%" stop-color="#E9D5FF" />
+      <stop offset="70%" stop-color="#C084FC" />
+      <stop offset="100%" stop-color="#7E22CE" />
+    </linearGradient>
+    <radialGradient id="comb-starHalo" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FFD07A" stop-opacity="0.66" />
+      <stop offset="28%" stop-color="#F0A93C" stop-opacity="0.36" />
+      <stop offset="60%" stop-color="#D98324" stop-opacity="0.14" />
+      <stop offset="100%" stop-color="#B45309" stop-opacity="0" />
+    </radialGradient>
+    <radialGradient id="comb-burstHalo" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FFD07A" stop-opacity="0.55" />
+      <stop offset="45%" stop-color="#F0A93C" stop-opacity="0.22" />
+      <stop offset="100%" stop-color="#B45309" stop-opacity="0" />
+    </radialGradient>
+
+    <!-- Calendar colors from Magical icon -->
+    <linearGradient id="comb-calCard" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" />
+      <stop offset="100%" stop-color="#F8F6F0" />
+    </linearGradient>
+    <linearGradient id="comb-calHeaderBlue" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#3B82F6" />
+      <stop offset="40%" stop-color="#2563EB" />
+      <stop offset="100%" stop-color="#1D4ED8" />
+    </linearGradient>
+    <linearGradient id="comb-ringMetal" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#D4D4D8" />
+      <stop offset="30%" stop-color="#FAFAFA" />
+      <stop offset="60%" stop-color="#A1A1AA" />
+      <stop offset="100%" stop-color="#71717A" />
+    </linearGradient>
+    <linearGradient id="comb-cardEdge" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#B8B0A0" />
+      <stop offset="55%" stop-color="#A29A88" />
+      <stop offset="100%" stop-color="#8A8272" />
+    </linearGradient>
+
+    <!-- Wand colors from Magical icon -->
+    <linearGradient id="comb-wandBody" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#5E538C" />
+      <stop offset="50%" stop-color="#433B6E" />
+      <stop offset="100%" stop-color="#5E538C" />
+    </linearGradient>
+  </defs>
+
+  <!-- ==================== Stage Backlight ==================== -->
+  <ellipse cx="330" cy="430" rx="280" ry="80" fill="url(#comb-backlight)" />
+
+  <!-- ==================== Magician's Top Hat ==================== -->
+  <g id="top-hat">
+    <!-- Hat body extending down to stage floor -->
+    <path d="M 218 375 L 210 520 L 442 520 L 434 375" fill="url(#comb-hatBody)" />
+    <path d="M 218 375 L 210 520" fill="none" stroke="#8B84C8" stroke-width="1.6" opacity="0.4" />
+    <path d="M 434 375 L 442 520" fill="none" stroke="#8B84C8" stroke-width="1.6" opacity="0.28" />
+    <rect x="225" y="378" width="24" height="135" rx="12" fill="#FFFFFF" opacity="0.06" />
+
+    <!-- Hat ribbon / band -->
+    <rect x="216" y="372" width="220" height="26" rx="2" fill="url(#comb-hatBand)" />
+    <rect x="216" y="372" width="220" height="2" fill="#FFFFFF" opacity="0.2" />
+
+    <!-- Hat brim back edge -->
+    <ellipse cx="330" cy="374" rx="192" ry="42" fill="#171330" />
+    <ellipse cx="330" cy="368" rx="192" ry="42" fill="url(#comb-hatBrim)" />
+    <ellipse cx="330" cy="366" rx="188" ry="40" fill="none" stroke="#FFFFFF" stroke-width="1.5" opacity="0.22" />
+
+    <!-- Deep dark interior hole of the hat -->
+    <ellipse cx="330" cy="368" rx="118" ry="26" fill="#08060F" />
+    <ellipse cx="330" cy="368" rx="118" ry="26" fill="none" stroke="#4A4380" stroke-width="1.5" opacity="0.7" />
+  </g>
+
+  <!-- ==================== Left: Magimail Envelope Emerging from Hat ==================== -->
+  <!-- Scaled 0.65, positioned so its bottom enters the hat opening -->
+  <g id="magimail-envelope" transform="translate(210, 248) scale(0.65) translate(-256, -222)">
+    <g transform="translate(256, 222) rotate(-3.5) translate(-148, -102)">
+      <!-- Extruded slab edge -->
+      <g filter="url(#comb-envDropShadow)">
+        <rect x="-3.5" y="4.5" width="296" height="204" rx="16" ry="16" fill="url(#comb-slabEdge)" />
+      </g>
+      <!-- Front face -->
+      <rect width="296" height="204" rx="16" ry="16" fill="url(#comb-paperPocket)" />
+      <!-- Fold structure -->
+      <g clip-path="url(#comb-envClip)">
+        <line x1="11" y1="196" x2="110.8" y2="106.3" stroke="url(#comb-crimson)" stroke-width="5.5" stroke-linecap="round" />
+        <line x1="285" y1="196" x2="185.2" y2="106.3" stroke="url(#comb-crimson)" stroke-width="5.5" stroke-linecap="round" />
+        <path d="M 0 0 L 131.53 148.58 A 22.00 22.00 0 0 0 164.47 148.58 L 296 0 Z" fill="#0B1020" opacity="0.46" filter="url(#comb-foldBlur)" />
+        <path d="M 0 0 L 134.16 135.23 A 19.50 19.50 0 0 0 161.84 135.23 L 296 0 Z" fill="url(#comb-flapUnder)" />
+        <path d="M 0 0 L 9 9 L 135.46 125.60 A 18.50 18.50 0 0 0 160.54 125.60 L 287 9 L 296 0 Z" fill="url(#comb-paperFlap)" />
+        <path d="M 9 9 L 135.46 125.60 A 18.50 18.50 0 0 0 160.54 125.60 L 287 9" fill="none" stroke="url(#comb-crimson)" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" />
+      </g>
+      <!-- Crimson border -->
+      <rect x="4.5" y="4.5" width="287" height="195" rx="13" ry="13" fill="none" stroke="url(#comb-crimson)" stroke-width="9" />
+      <!-- Magimail gold seal star -->
+      <circle cx="14" cy="10" r="80" fill="url(#comb-starHalo)" />
+      <g transform="translate(14, 10)">
+        <path d="M 0 -56 Q 0 0 56 0 Q 0 0 0 56 Q 0 0 -56 0 Q 0 0 0 -56 Z" fill="none" stroke="#FFF8E1" stroke-width="3" opacity="0.9" />
+        <path d="M 0 -54 Q 0 0 54 0 Q 0 0 0 54 Q 0 0 -54 0 Q 0 0 0 -54 Z" fill="url(#comb-goldStar)" />
+        <path d="M 0 -30 Q 0 0 30 0 Q 0 0 0 30 Q 0 0 -30 0 Q 0 0 0 -30 Z" fill="#FFFDF2" opacity="0.6" />
+        <circle cx="0" cy="0" r="6" fill="#FFFFFF" />
+      </g>
+    </g>
+  </g>
+
+  <!-- ==================== Right: Magical Calendar & Wand (Extracted from icon.svg, Flipped Horizontally) ==================== -->
+  <!-- Scaled 0.50, positioned emerging over hat opening, flipped horizontally -->
+  <g id="magical-calendar-and-wand" transform="translate(412, 252) scale(0.50) scale(-1, 1) translate(-256, -256)">
+    <!-- Calendar card — centred -->
+    <g transform="translate(256, 256) scale(0.96) translate(-256, -256)">
+      <g transform="translate(256, 256) rotate(-2.5) translate(-170, -175)">
+        <!-- Page stack: three receding edges -->
+        <g filter="url(#comb-cardShadow)">
+          <rect x="-9" y="11" width="340" height="350" rx="16" fill="url(#comb-cardEdge)" opacity="0.55" />
+          <rect x="-6" y="8" width="340" height="350" rx="16" fill="url(#comb-cardEdge)" opacity="0.8" />
+          <rect x="-3" y="5" width="340" height="350" rx="16" fill="url(#comb-cardEdge)" />
+        </g>
+
+        <!-- Card body -->
+        <rect x="0" y="0" width="340" height="350" rx="16" fill="url(#comb-calCard)" stroke="#dcd4c3" stroke-width="1.5" />
+
+        <!-- Blue header band -->
+        <path d="M 0 16 A 16 16 0 0 1 16 0 L 324 0 A 16 16 0 0 1 340 16 L 340 120 L 0 120 Z" fill="url(#comb-calHeaderBlue)" />
+        <line x1="0" y1="120" x2="340" y2="120" stroke="#1d4ed8" stroke-width="2" />
+
+        <!-- Month text (under rings) - un-mirrored for readability -->
+        <g transform="translate(170, 98) scale(-1, 1) translate(-170, -98)">
+          <text id="cal-month-text-back" x="170" y="98" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', sans-serif" font-size="68" font-weight="800" fill="#ffffff" text-anchor="middle" letter-spacing="2.0">AUG</text>
+        </g>
+
+        <!-- Ring binders — full metal bars -->
+        <rect x="96" y="-36" width="8" height="76" rx="4" fill="url(#comb-ringMetal)" />
+        <rect x="236" y="-36" width="8" height="76" rx="4" fill="url(#comb-ringMetal)" />
+
+        <!-- Re-draw header on top to cover where rings pass through -->
+        <path d="M 0 16 A 16 16 0 0 1 16 0 L 324 0 A 16 16 0 0 1 340 16 L 340 120 L 0 120 Z" fill="url(#comb-calHeaderBlue)" />
+
+        <!-- Punch holes in header -->
+        <circle cx="100" cy="28" r="7" fill="#1a3f8f" stroke="#1e3a7a" stroke-width="1" />
+        <circle cx="100" cy="28" r="5" fill="#0c1e4a" opacity="0.5" />
+        <circle cx="240" cy="28" r="7" fill="#1a3f8f" stroke="#1e3a7a" stroke-width="1" />
+        <circle cx="240" cy="28" r="5" fill="#0c1e4a" opacity="0.5" />
+
+        <!-- Front portion of rings -->
+        <g filter="url(#comb-ringShadow)">
+          <rect x="96" y="-36" width="8" height="60" rx="4" fill="url(#comb-ringMetal)" />
+          <rect x="97.5" y="-36" width="2.5" height="60" rx="1.2" fill="#ffffff" opacity="0.35" />
+          <rect x="236" y="-36" width="8" height="60" rx="4" fill="url(#comb-ringMetal)" />
+          <rect x="237.5" y="-36" width="2.5" height="60" rx="1.2" fill="#ffffff" opacity="0.35" />
+        </g>
+
+        <!-- Re-draw month text on top - un-mirrored -->
+        <g transform="translate(170, 98) scale(-1, 1) translate(-170, -98)">
+          <text id="cal-month-text" x="170" y="98" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', sans-serif" font-size="68" font-weight="800" fill="#ffffff" text-anchor="middle" letter-spacing="2.0">AUG</text>
+        </g>
+
+        <!-- Date number - un-mirrored -->
+        <g transform="translate(170, 300) scale(-1, 1) translate(-170, -300)">
+          <text id="cal-date-number" x="170" y="300" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', sans-serif" font-size="182" font-weight="800" fill="#0f172a" text-anchor="middle" letter-spacing="-3">31</text>
+        </g>
+      </g>
+    </g>
+
+    <!-- Delicate rim glow along shaft -->
+    <g transform="translate(-2, 270) rotate(-60)" filter="url(#comb-shaftSoftAura)">
+      <rect x="-143" y="-12" width="312" height="24" rx="12" fill="#818CF8" opacity="0.45" />
+    </g>
+
+    <!-- Magic Wand from Magical icon (two white tips, full icon proportion) -->
+    <g transform="translate(-2, 270) rotate(-60)" filter="url(#comb-wandShadow)">
+      <!-- Wand shaft -->
+      <rect x="-125" y="-8.5" width="270" height="17" rx="8.5" fill="url(#comb-wandBody)" stroke="#B4C6FC" stroke-width="1.1" />
+      <!-- Shaft highlight -->
+      <rect x="-125" y="-6" width="270" height="5" rx="2.5" fill="#ffffff" opacity="0.40" />
+      <!-- Top white tip -->
+      <rect x="128" y="-11" width="38" height="22" rx="11" fill="#f0f0f0" stroke="#d4d4d4" stroke-width="0.9" />
+      <rect x="128" y="-7.5" width="38" height="7" rx="3.5" fill="#ffffff" opacity="0.4" />
+      <!-- Bottom white tip -->
+      <rect x="-142" y="-11" width="38" height="22" rx="11" fill="#f0f0f0" stroke="#d4d4d4" stroke-width="0.9" />
+      <rect x="-142" y="-7.5" width="38" height="7" rx="3.5" fill="#ffffff" opacity="0.4" />
+    </g>
+
+    <!-- Wand-tip burst from Magical icon -->
+    <g transform="translate(256, 256) scale(0.96) translate(-256, -256)">
+      <g transform="translate(-20, -20)">
+        <g filter="url(#comb-sparkleGlow)" transform="translate(125, 108) scale(1.45) translate(-125, -108)">
+          <circle cx="125" cy="108" r="34" fill="url(#comb-burstHalo)" />
+          <g transform="translate(125, 108)">
+            <path d="M 0 -18 Q 0 0 18 0 Q 0 0 0 18 Q 0 0 -18 0 Q 0 0 0 -18 Z" fill="url(#comb-goldStar)" />
+            <path d="M 0 -9.0 Q 0 0 9.0 0 Q 0 0 0 9.0 Q 0 0 -9.0 0 Q 0 0 0 -9.0 Z" fill="#FFFDF2" opacity="0.65" />
+          </g>
+          <g transform="translate(147, 84)">
+            <path d="M 0 -11 Q 0 0 11 0 Q 0 0 0 11 Q 0 0 -11 0 Q 0 0 0 11 Z" fill="url(#comb-violetStar)" />
+            <path d="M 0 -5.5 Q 0 0 5.5 0 Q 0 0 0 5.5 Q 0 0 -5.5 0 Q 0 0 0 -5.5 Z" fill="#FFFDF2" opacity="0.65" />
+          </g>
+        </g>
+      </g>
+    </g>
+  </g>
+
+  <!-- ==================== Hat Front Rim & Lip ==================== -->
+  <!-- Curves over the bottom of both items so they emerge directly FROM INSIDE the top hat -->
+  <g id="hat-front-rim">
+    <path d="M 212 368 A 118 26 0 0 0 448 368" fill="none" stroke="#4A4380" stroke-width="1.8" opacity="0.75" />
+    <path d="M 138 368 A 192 42 0 0 0 522 368 L 448 368 A 118 26 0 0 1 212 368 Z" fill="url(#comb-hatBrim)" />
+    <path d="M 142 368 A 188 40 0 0 0 518 368" fill="none" stroke="#FFFFFF" stroke-width="1.5" opacity="0.22" />
+  </g>
+</svg>

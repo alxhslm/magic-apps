@@ -1,0 +1,113 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "Agenda" : {
+      "extractionState" : "manual"
+    },
+    "All day" : {
+      "extractionState" : "manual"
+    },
+    "Birthday" : {
+      "extractionState" : "manual"
+    },
+    "Calendar" : {
+      "extractionState" : "manual"
+    },
+    "Calendars" : {
+      "extractionState" : "manual"
+    },
+    "Choose Calendars" : {
+      "extractionState" : "manual"
+    },
+    "Choose which calendars this widget shows. It starts with the ones the menu bar shows." : {
+      "extractionState" : "manual"
+    },
+    "Completed task" : {
+      "extractionState" : "manual"
+    },
+    "Focus time" : {
+      "extractionState" : "manual"
+    },
+    "Join" : {
+      "extractionState" : "manual"
+    },
+    "LATER TODAY" : {
+      "extractionState" : "manual"
+    },
+    "Month" : {
+      "extractionState" : "manual"
+    },
+    "NOW" : {
+      "extractionState" : "manual"
+    },
+    "Nothing else today" : {
+      "extractionState" : "manual"
+    },
+    "Nothing in the next few days" : {
+      "extractionState" : "manual"
+    },
+    "Nothing left today" : {
+      "extractionState" : "manual"
+    },
+    "Nothing scheduled" : {
+      "extractionState" : "manual"
+    },
+    "Silenced by Focus" : {
+      "extractionState" : "manual"
+    },
+    "TODAY" : {
+      "extractionState" : "manual"
+    },
+    "TOMORROW" : {
+      "extractionState" : "manual"
+    },
+    "Task" : {
+      "extractionState" : "manual"
+    },
+    "Up Next" : {
+      "extractionState" : "manual"
+    },
+    "Working from %@" : {
+      "extractionState" : "manual"
+    },
+    "Working from home" : {
+      "extractionState" : "manual"
+    },
+    "Working from the office" : {
+      "extractionState" : "manual"
+    },
+    "Your next event and a button to join it." : {
+      "extractionState" : "manual"
+    },
+    "Your next few days of events." : {
+      "extractionState" : "manual"
+    },
+    "A month grid with today's events." : {
+      "extractionState" : "manual"
+    },
+    "IN %lld MINS" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "IN 1 MIN"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "IN %lld MINS"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

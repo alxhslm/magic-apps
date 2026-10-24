@@ -1,0 +1,38 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import site from '../data/site.json';
+---
+
+<BaseLayout
+  title="You're on the list | Magic Apps"
+  description="Thank you for joining the Magic Apps waitlist. We'll let you know when the v1.0 release is officially available."
+  ogDescription="Thank you for joining the Magic Apps waitlist."
+  icon="suite.svg"
+  current="subscribed"
+  permalink="subscribed.html"
+>
+  <section class="wrap band" aria-labelledby="subscribed-title">
+    <div class="notify" style="margin-block: clamp(2rem, 5vw, 4rem);">
+      <p class="chip">Registration confirmed</p>
+      <h1 id="subscribed-title">You're on the list.</h1>
+      <p class="lead">
+        Thank you for joining the waitlist. We'll let you know the moment the v1.0 release
+        is officially available, along with exclusive launch updates for Magimail and Magical.
+      </p>
+      <div class="btn-row" style="justify-content: center; width: 100%; margin-top: 0.5rem;">
+        <a class="btn btn--primary" href="index.html">&larr; Back to overview</a>
+        <a
+          class="btn btn--ghost"
+          href={site.githubUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Star on GitHub &rarr;
+        </a>
+      </div>
+      <p class="small dim">
+        No spam, ever. You can unsubscribe at any time with one click.
+      </p>
+    </div>
+  </section>
+</BaseLayout>

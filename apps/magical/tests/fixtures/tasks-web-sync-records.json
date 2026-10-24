@@ -1,0 +1,165 @@
+[
+  [
+    [null, null, [null, "1"]],
+    [null, ["~default", null, null, null, null, null, null, null, null, null, [null, "1"]]],
+    [
+      null,
+      null,
+      null,
+      [
+        "~default",
+        ["My Tasks", null, "user"],
+        [[["task-open-0001"]]],
+        null,
+        null,
+        ["1725270394", 819508000],
+        [null, "25"],
+        ["1790174731", 243039000]
+      ]
+    ],
+    [
+      null,
+      null,
+      null,
+      null,
+      null,
+      [
+        "recurrence-0001",
+        "~default",
+        [[], null, null, null, 1, [2026, 9, 23], [17, 30], "Europe/London"],
+        [[null, "Weekly review"], [2026, 10, 23], "recurrence-anchor-0001"],
+        [null, "6"],
+        null,
+        ["1790174656", 723177000],
+        "occurrence-0001"
+      ]
+    ],
+    [
+      null,
+      null,
+      [
+        "occurrence-0001",
+        [null, "Weekly review", null, [2026, 9, 23], null, null, null, null, null, "recurrence-0001"],
+        ["1790174656", 891711000],
+        "~default",
+        null,
+        null,
+        null,
+        [null, "4"],
+        [[null, [2026, 9, 23], [17, 30], "Europe/London", null, ["1790181000"]]],
+        null,
+        ["1790174656", 721391000],
+        null,
+        ["000000000000000000000"]
+      ]
+    ],
+    [
+      null,
+      null,
+      [
+        "occurrence-0002",
+        [
+          null,
+          "Weekly review",
+          null,
+          [2026, 9, 24],
+          null,
+          null,
+          null,
+          null,
+          null,
+          "recurrence-0001",
+          1
+        ],
+        ["1790174656", 891711000],
+        "~default",
+        null,
+        null,
+        null,
+        [null, "5"],
+        [[null, [2026, 9, 24], [17, 30], "Europe/London", null, ["1790267400"]]],
+        null,
+        ["1790174656", 769650000],
+        null,
+        ["000000000000000000000"]
+      ]
+    ],
+    [
+      null,
+      null,
+      [
+        "task-done-0001",
+        [1, "Send the invoice", null, [2026, 9, 23], ["1790174730", 963000000]],
+        ["1790174731", 243039000],
+        "~default",
+        null,
+        null,
+        null,
+        [null, "9"],
+        [[null, [2026, 9, 23], [17], "Europe/London", null, ["1790179200"]]],
+        null,
+        ["1790174691", 676546000],
+        null,
+        ["000000000000000000000"],
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        [
+          [
+            "binding-0001",
+            ["cal-event-done-0001"],
+            [null, [2026, 9, 23], [17], "Europe/London", null, ["1790179200"]]
+          ]
+        ]
+      ]
+    ],
+    [
+      null,
+      null,
+      null,
+      null,
+      null,
+      [
+        "task-open-0001",
+        [null, "Book the venue", null, [2026, 9, 25], null],
+        ["1790174731", 243039000],
+        "~default",
+        null,
+        null,
+        null,
+        [null, "9"],
+        [[null, [2026, 9, 25], [9], "Europe/London", null, ["1790323200"]]],
+        null,
+        ["1790174691", 676546000],
+        null,
+        ["000000000000000000000"],
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        [
+          [
+            "binding-0002",
+            ["cal-event-open-0001"],
+            [null, [2026, 9, 25], [9], "Europe/London", null, ["1790323200"]]
+          ]
+        ]
+      ]
+    ]
+  ],
+  null,
+  null
+]

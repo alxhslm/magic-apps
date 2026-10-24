@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+	<!-- accounts.json (read) and focus-filter.json (write) live in the App Group
+	     container, which both sides are entitled for, so the extension needs
+	     nothing from Application Support. -->
+	<key>com.apple.security.application-groups</key>
+	<array>
+		<string><TEAM_ID>.group.com.alexhaslam.magical</string>
+	</array>
+</dict>
+</plist>

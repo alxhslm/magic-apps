@@ -1,0 +1,80 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "All caught up" : {
+      "extractionState" : "manual"
+    },
+    "Forums" : {
+      "extractionState" : "manual"
+    },
+    "Inbox Dashboard" : {
+      "extractionState" : "manual"
+    },
+    "Open Magimail to sync" : {
+      "extractionState" : "manual"
+    },
+    "Per-account unread counts with one-tap compose." : {
+      "extractionState" : "manual"
+    },
+    "Primary" : {
+      "extractionState" : "manual"
+    },
+    "Promotions" : {
+      "extractionState" : "manual"
+    },
+    "Quick Actions" : {
+      "extractionState" : "manual"
+    },
+    "RECENT" : {
+      "extractionState" : "manual"
+    },
+    "Recents" : {
+      "extractionState" : "manual"
+    },
+    "Social" : {
+      "extractionState" : "manual"
+    },
+    "Unread" : {
+      "extractionState" : "manual"
+    },
+    "Unread counts plus your latest threads." : {
+      "extractionState" : "manual"
+    },
+    "Unread totals across your accounts." : {
+      "extractionState" : "manual"
+    },
+    "Updates" : {
+      "extractionState" : "manual"
+    },
+    "Your most recent threads." : {
+      "extractionState" : "manual"
+    },
+    "%lld unread" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "1 unread"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld unread"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "unread" : {
+      "extractionState" : "manual"
+    }
+  },
+  "version" : "1.0"
+}

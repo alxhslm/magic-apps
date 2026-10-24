@@ -1,0 +1,117 @@
+{
+  "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
+  "appId": "com.alexhaslam.magical",
+  "productName": "Magical",
+  "copyright": "Copyright \u00a9 2026 Alex Haslam",
+  "electronFuses": {
+    "enableCookieEncryption": true
+  },
+  "directories": {
+    "output": "release"
+  },
+  "publish": {
+    "provider": "generic",
+    "url": "https://updates.macmagic.app/magical/"
+  },
+  "files": ["dist/**/*", "node_modules/**/*", "package.json"],
+  "extraResources": [
+    {
+      "from": "native/.build/release/libMagicalNative.dylib",
+      "to": "libMagicalNative.dylib"
+    },
+    {
+      "from": "build/icon.svg",
+      "to": "icon.svg"
+    },
+    {
+      "from": "native/build/Release/magical_addon.node",
+      "to": "magical_addon.node"
+    },
+    {
+      "from": "swift/.build/release/HelperResources",
+      "to": ".",
+      "filter": ["*.lproj/**/*"]
+    }
+  ],
+  "extraFiles": [
+    {
+      "from": "swift/.build/release/MagicalHelper",
+      "to": "MacOS/MagicalHelper"
+    },
+    {
+      "from": "app-intents-extension/.build/release/MagicalAppIntents.appex",
+      "to": "Extensions/MagicalAppIntents.appex"
+    },
+    {
+      "from": "widgets/.build/release/MagicalWidgets.appex",
+      "to": "PlugIns/MagicalWidgets.appex"
+    }
+  ],
+  "fileAssociations": [
+    {
+      "ext": "ics",
+      "name": "iCalendar File",
+      "description": "Calendar event",
+      "role": "Editor",
+      "icon": "build/icon.icns",
+      "mimeType": "text/calendar"
+    }
+  ],
+  "mac": {
+    "category": "public.app-category.productivity",
+    "signIgnore": ["Contents/Extensions/MagicalAppIntents\\.appex", "Contents/MacOS/MagicalHelper"],
+    "target": [
+      {
+        "target": "dmg",
+        "arch": ["arm64"]
+      },
+      {
+        "target": "zip",
+        "arch": ["arm64"]
+      },
+      {
+        "target": "dir",
+        "arch": ["arm64"]
+      }
+    ],
+    "icon": "build/icon.icns",
+    "hardenedRuntime": true,
+    "entitlements": "build/.generated/entitlements.mac.plist",
+    "entitlementsInherit": "build/entitlements.mac.inherit.plist",
+    "gatekeeperAssess": false,
+    "extendInfo": {
+      "CFBundleName": "Magical",
+      "CFBundleDisplayName": "Magical",
+      "CFBundleDevelopmentRegion": "en",
+      "CFBundleLocalizations": ["en", "en-GB"],
+      "LSMinimumSystemVersion": "14.0.0",
+      "NSHumanReadableCopyright": "Copyright \u00a9 2026 Alex Haslam",
+      "CFBundleURLTypes": [
+        {
+          "CFBundleURLName": "Magical Event Link",
+          "CFBundleURLSchemes": ["magical"]
+        }
+      ]
+    }
+  },
+  "dmg": {
+    "title": "Magical ${version}",
+    "icon": "build/icon.icns",
+    "contents": [
+      {
+        "x": 130,
+        "y": 220
+      },
+      {
+        "x": 410,
+        "y": 220,
+        "type": "link",
+        "path": "/Applications"
+      }
+    ],
+    "window": {
+      "width": 540,
+      "height": 380
+    }
+  }
+}
