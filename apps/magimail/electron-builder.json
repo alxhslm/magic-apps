@@ -1,0 +1,110 @@
+{
+  "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
+  "appId": "com.alexhaslam.magimail",
+  "productName": "Magimail",
+  "copyright": "Copyright © 2026 Alex Haslam",
+  "electronFuses": {
+    "enableCookieEncryption": true
+  },
+  "directories": {
+    "output": "release"
+  },
+  "publish": {
+    "provider": "generic",
+    "url": "https://updates.macmagic.app/magimail/"
+  },
+  "files": ["dist/**/*", "node_modules/**/*", "package.json"],
+  "extraResources": [
+    {
+      "from": "native/.build/release/libMagimailNative.dylib",
+      "to": "libMagimailNative.dylib"
+    },
+    {
+      "from": "native/build/Release/magimail_addon.node",
+      "to": "magimail_addon.node"
+    },
+    {
+      "from": "swift/.build/release/HelperResources",
+      "to": ".",
+      "filter": ["*.lproj/**/*"]
+    }
+  ],
+  "extraFiles": [
+    {
+      "from": "swift/.build/release/MagimailHelper",
+      "to": "MacOS/MagimailHelper"
+    },
+    {
+      "from": "share-extension/.build/release/MagimailShare.appex",
+      "to": "PlugIns/MagimailShare.appex"
+    },
+    {
+      "from": "widgets/.build/release/MagimailWidgets.appex",
+      "to": "PlugIns/MagimailWidgets.appex"
+    },
+    {
+      "from": "app-intents-extension/.build/release/MagimailAppIntents.appex",
+      "to": "Extensions/MagimailAppIntents.appex"
+    }
+  ],
+  "protocols": [
+    {
+      "name": "Magimail Email Handler",
+      "schemes": ["mailto", "magimail"]
+    }
+  ],
+  "mac": {
+    "category": "public.app-category.productivity",
+    "signIgnore": [
+      "Contents/Extensions/MagimailAppIntents\\.appex",
+      "Contents/MacOS/MagimailHelper"
+    ],
+    "target": [
+      {
+        "target": "dmg",
+        "arch": ["arm64"]
+      },
+      {
+        "target": "zip",
+        "arch": ["arm64"]
+      },
+      {
+        "target": "dir",
+        "arch": ["arm64"]
+      }
+    ],
+    "icon": "build/icon.icns",
+    "hardenedRuntime": true,
+    "entitlements": "build/.generated/entitlements.mac.plist",
+    "entitlementsInherit": "build/entitlements.mac.inherit.plist",
+    "gatekeeperAssess": false,
+    "extendInfo": {
+      "CFBundleName": "Magimail",
+      "CFBundleDisplayName": "Magimail",
+      "CFBundleDevelopmentRegion": "en",
+      "CFBundleLocalizations": ["en", "en-GB"],
+      "LSMinimumSystemVersion": "14.0.0",
+      "NSHumanReadableCopyright": "Copyright \u00a9 2026 Alex Haslam"
+    }
+  },
+  "dmg": {
+    "title": "Magimail ${version}",
+    "icon": "build/icon.icns",
+    "contents": [
+      {
+        "x": 130,
+        "y": 220
+      },
+      {
+        "x": 410,
+        "y": 220,
+        "type": "link",
+        "path": "/Applications"
+      }
+    ],
+    "window": {
+      "width": 540,
+      "height": 380
+    }
+  }
+}

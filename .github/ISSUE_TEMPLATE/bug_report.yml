@@ -1,0 +1,47 @@
+name: Bug Report
+description: Something isn't working or renders incorrectly.
+title: ''
+labels: ['type:bug']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Check [existing issues](https://github.com/alxhslm/magic-apps/issues) first; your bug may already be reported. If it is, add what is new to it rather than opening a second.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+    validations:
+      required: true
+  - type: textarea
+    id: what-did-you-expect
+    attributes:
+      label: What did you expect to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: how-can-we-reproduce-it
+    attributes:
+      label: How can we reproduce it?
+      placeholder: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      value: |
+        - macOS version:
+        - Apple Silicon chip:
+    validations:
+      required: true
+  - type: textarea
+    id: screenshots-and-logs
+    attributes:
+      label: Screenshots and logs
+      description: A screenshot or screen recording that shows the problem, and console or diagnostic logs (Help, then Reveal Log). Drag files into this box.
+    validations:
+      required: false

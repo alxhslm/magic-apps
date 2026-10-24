@@ -1,0 +1,26 @@
+{
+  "taskRecord": {
+    "id": 0,
+    "details": 1,
+    "updated": 2,
+    "taskListId": 3,
+    "schedule": 8,
+    "created": 10,
+    "gaiaId": 12,
+    "calendarBinding": 23
+  },
+  "taskDetails": {
+    "completed": 0,
+    "title": 1,
+    "notes": 2,
+    "dueDate": 3,
+    "completedTime": 4,
+    "recurrence": 9
+  },
+  "taskSchedule": {
+    "date": 1,
+    "timeOfDay": 2,
+    "timezone": 3,
+    "epochSeconds": 5
+  }
+}

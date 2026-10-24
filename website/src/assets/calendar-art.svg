@@ -1,0 +1,140 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="64 34 384 424" width="384" height="424" role="img" aria-label="A flip-page desk calendar showing August 31, standing on its ring binders">
+  <!--
+    Magic App Suite calendar art.
+    The flip calendar from apps/magical/build/icon.svg, lifted out of the icon's
+    squircle so it can float over the page's own stage glow. Same geometry, same
+    page-stack thickness, same off-plane tilt. The wand is deliberately left in the
+    app icon only — at this size it read as a stray diagonal line.
+  -->
+  <defs>
+    <linearGradient id="calCard" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#f8f6f0"/>
+    </linearGradient>
+    <linearGradient id="calHeaderBlue" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#3b82f6"/>
+      <stop offset="40%" stop-color="#2563eb"/>
+      <stop offset="100%" stop-color="#1d4ed8"/>
+    </linearGradient>
+    <linearGradient id="ringMetal" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#d4d4d8"/>
+      <stop offset="30%" stop-color="#fafafa"/>
+      <stop offset="60%" stop-color="#a1a1aa"/>
+      <stop offset="100%" stop-color="#71717a"/>
+    </linearGradient>
+    <linearGradient id="cardEdge" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#b8b0a0"/>
+      <stop offset="55%" stop-color="#a29a88"/>
+      <stop offset="100%" stop-color="#8a8272"/>
+    </linearGradient>
+    <radialGradient id="stageGlow" cx="50%" cy="78%" r="40%">
+      <stop offset="0%" stop-color="#6366F1" stop-opacity="0.30"/>
+      <stop offset="60%" stop-color="#4338CA" stop-opacity="0.12"/>
+      <stop offset="100%" stop-color="#1E1B4B" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="cardShadow" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000000" flood-opacity="0.5"/>
+    </filter>
+    <filter id="sparkleGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="2.5" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="ringShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#000000" flood-opacity="0.2"/>
+    </filter>
+    <linearGradient id="goldStar" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFFBEB"/>
+      <stop offset="25%" stop-color="#FDE047"/>
+      <stop offset="65%" stop-color="#EAB308"/>
+      <stop offset="100%" stop-color="#B45309"/>
+    </linearGradient>
+    <linearGradient id="violetStar" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FAF5FF"/>
+      <stop offset="30%" stop-color="#E9D5FF"/>
+      <stop offset="70%" stop-color="#C084FC"/>
+      <stop offset="100%" stop-color="#7E22CE"/>
+    </linearGradient>
+    <radialGradient id="burstHalo" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FFD07A" stop-opacity="0.55"/>
+      <stop offset="45%" stop-color="#F0A93C" stop-opacity="0.22"/>
+      <stop offset="100%" stop-color="#B45309" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Ambient stage glow, matching the app icon -->
+  <ellipse cx="256" cy="425" rx="220" ry="95" fill="url(#stageGlow)"/>
+
+  <!-- Calendar card — centred -->
+  <g transform="translate(256, 256) scale(0.96) translate(-256, -256)">
+    <!-- Rotated a touch off-plane about its own centre, as the Magimail envelope is,
+         so the card reads as an object in space rather than a flat sticker. -->
+    <g transform="translate(256, 256) rotate(-2.5) translate(-170, -175)" filter="url(#cardShadow)">
+
+      <!-- Page stack: three receding edges, then the extruded slab the front page
+           sits on. Offset down-left so the light stays top-right, as in Magimail. -->
+      <rect x="-9" y="11" width="340" height="350" rx="16" fill="url(#cardEdge)" opacity="0.55"/>
+      <rect x="-6" y="8" width="340" height="350" rx="16" fill="url(#cardEdge)" opacity="0.8"/>
+      <rect x="-3" y="5" width="340" height="350" rx="16" fill="url(#cardEdge)"/>
+
+      <!-- Card body -->
+      <rect x="0" y="0" width="340" height="350" rx="16" fill="url(#calCard)" stroke="#dcd4c3" stroke-width="1.5"/>
+
+      <!-- Blue header band — single shape, rounded top corners only -->
+      <path d="M 0 16 A 16 16 0 0 1 16 0 L 324 0 A 16 16 0 0 1 340 16 L 340 120 L 0 120 Z" fill="url(#calHeaderBlue)"/>
+      <line x1="0" y1="120" x2="340" y2="120" stroke="#1d4ed8" stroke-width="2"/>
+
+      <!-- Month text (under rings) -->
+      <text id="cal-month-text-back" x="170" y="98" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', sans-serif" font-size="68" font-weight="800" fill="#ffffff" text-anchor="middle" letter-spacing="2.0">AUG</text>
+
+      <!-- Ring binders — full metal bars running from above the page down through holes into the header -->
+      <!-- Back portion of rings (behind the page, extending down through header) -->
+      <rect x="96" y="-36" width="8" height="76" rx="4" fill="url(#ringMetal)"/>
+      <rect x="236" y="-36" width="8" height="76" rx="4" fill="url(#ringMetal)"/>
+
+      <!-- Re-draw header on top to cover where rings pass through -->
+      <path d="M 0 16 A 16 16 0 0 1 16 0 L 324 0 A 16 16 0 0 1 340 16 L 340 120 L 0 120 Z" fill="url(#calHeaderBlue)"/>
+
+      <!-- Punch holes where rings enter the page (mid-header) -->
+      <circle cx="100" cy="28" r="7" fill="#1a3f8f" stroke="#1e3a7a" stroke-width="1"/>
+      <circle cx="100" cy="28" r="5" fill="#0c1e4a" opacity="0.5"/>
+      <circle cx="240" cy="28" r="7" fill="#1a3f8f" stroke="#1e3a7a" stroke-width="1"/>
+      <circle cx="240" cy="28" r="5" fill="#0c1e4a" opacity="0.5"/>
+
+      <!-- Front portion of rings (above the page) -->
+      <g filter="url(#ringShadow)">
+        <rect x="96" y="-36" width="8" height="60" rx="4" fill="url(#ringMetal)"/>
+        <rect x="97.5" y="-36" width="2.5" height="60" rx="1.2" fill="#ffffff" opacity="0.35"/>
+        <rect x="236" y="-36" width="8" height="60" rx="4" fill="url(#ringMetal)"/>
+        <rect x="237.5" y="-36" width="2.5" height="60" rx="1.2" fill="#ffffff" opacity="0.35"/>
+      </g>
+
+      <!-- Re-draw month text on top -->
+      <text id="cal-month-text" x="170" y="98" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', sans-serif" font-size="68" font-weight="800" fill="#ffffff" text-anchor="middle" letter-spacing="2.0">AUG</text>
+
+      <!-- Date number -->
+      <text id="cal-date-number" x="170" y="300" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', sans-serif" font-size="182" font-weight="800" fill="#0f172a" text-anchor="middle" letter-spacing="-3">31</text>
+    </g>
+  </g>
+
+  <!-- Wand-tip burst. Magimail's concave four-point star, so the two icons share a
+       motif and the burst is distinct from the ambient plus-shaped dust. Part of the
+       calendar mark, so it appears in the standalone art too. -->
+  <g transform="translate(256, 256) scale(0.96) translate(-256, -256)">
+    <g transform="translate(-20, -20)">
+      <g filter="url(#sparkleGlow)" transform="translate(125, 108) scale(1.45) translate(-125, -108)">
+        <circle cx="125" cy="108" r="34" fill="url(#burstHalo)"/>
+        <g transform="translate(125, 108)">
+          <path d="M 0 -18 Q 0 0 18 0 Q 0 0 0 18 Q 0 0 -18 0 Q 0 0 0 -18 Z" fill="url(#goldStar)"/>
+          <path d="M 0 -9.0 Q 0 0 9.0 0 Q 0 0 0 9.0 Q 0 0 -9.0 0 Q 0 0 0 -9.0 Z" fill="#FFFDF2" opacity="0.65"/>
+        </g>
+        <g transform="translate(147, 84)">
+          <path d="M 0 -11 Q 0 0 11 0 Q 0 0 0 11 Q 0 0 -11 0 Q 0 0 0 11 Z" fill="url(#violetStar)"/>
+          <path d="M 0 -5.5 Q 0 0 5.5 0 Q 0 0 0 5.5 Q 0 0 -5.5 0 Q 0 0 0 -5.5 Z" fill="#FFFDF2" opacity="0.65"/>
+        </g>
+      </g>
+    </g>
+  </g>
+</svg>

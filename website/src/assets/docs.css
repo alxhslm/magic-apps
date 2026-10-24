@@ -1,0 +1,219 @@
+/* Custom styles for Magic Apps Help (Starlight) */
+:root {
+  --sl-font:
+    -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', system-ui, sans-serif;
+  --sl-font-mono: ui-monospace, 'SF Mono', Menlo, Monaco, Consolas, monospace;
+
+  /* Default theme values (Dark Mode matching marketing site velvet & paper tokens) */
+  --sl-color-accent-low: #191447;
+  --sl-color-accent: #6366f1;
+  --sl-color-accent-high: #f5c24c;
+  --sl-color-white: #ffffff;
+  --sl-color-gray-1: #f4f1ea;
+  --sl-color-gray-2: #cbd5e1;
+  --sl-color-gray-3: #b3accd;
+  --sl-color-gray-4: #8b84a9;
+  --sl-color-gray-5: #362f78;
+  --sl-color-gray-6: #191447;
+  --sl-color-gray-7: #100c26;
+  --sl-color-black: #0b0918;
+
+  --sl-color-bg: #0b0918;
+  --sl-color-bg-nav: rgb(11 9 24 / 78%);
+  --sl-color-bg-sidebar: #100c26;
+  --sl-color-bg-inline-code: #191447;
+  --sl-color-hairline: rgb(244 241 234 / 10%);
+  --sl-color-hairline-shade: rgb(244 241 234 / 6%);
+  --sl-color-hairline-light: rgb(244 241 234 / 15%);
+  --sl-color-text: #f4f1ea;
+  --sl-color-text-accent: #f5c24c;
+  --sl-color-text-invert: #0b0918;
+
+  --magic-kbd-bg: #191447;
+  --magic-kbd-text: #f5c24c;
+  --magic-kbd-border: rgba(245, 194, 76, 0.3);
+  --magic-kbd-shadow: rgba(0, 0, 0, 0.4);
+}
+
+:root[data-theme='dark'] {
+  --sl-color-accent-low: #191447;
+  --sl-color-accent: #6366f1;
+  --sl-color-accent-high: #f5c24c;
+  --sl-color-white: #ffffff;
+  --sl-color-gray-1: #f4f1ea;
+  --sl-color-gray-2: #cbd5e1;
+  --sl-color-gray-3: #b3accd;
+  --sl-color-gray-4: #8b84a9;
+  --sl-color-gray-5: #362f78;
+  --sl-color-gray-6: #191447;
+  --sl-color-gray-7: #100c26;
+  --sl-color-black: #0b0918;
+
+  --sl-color-bg: #0b0918;
+  --sl-color-bg-nav: rgb(11 9 24 / 78%);
+  --sl-color-bg-sidebar: #100c26;
+  --sl-color-bg-inline-code: #191447;
+  --sl-color-hairline: rgb(244 241 234 / 10%);
+  --sl-color-hairline-shade: rgb(244 241 234 / 6%);
+  --sl-color-hairline-light: rgb(244 241 234 / 15%);
+  --sl-color-text: #f4f1ea;
+  --sl-color-text-accent: #f5c24c;
+  --sl-color-text-invert: #0b0918;
+
+  --magic-kbd-bg: #191447;
+  --magic-kbd-text: #f5c24c;
+  --magic-kbd-border: rgba(245, 194, 76, 0.3);
+  --magic-kbd-shadow: rgba(0, 0, 0, 0.4);
+}
+
+:root[data-theme='light'] {
+  --sl-color-accent-low: #e0e7ff;
+  --sl-color-accent: #4f46e5;
+  --sl-color-accent-high: #3730a3;
+  --sl-color-white: #0f172a;
+  --sl-color-gray-1: #1e293b;
+  --sl-color-gray-2: #334155;
+  --sl-color-gray-3: #64748b;
+  --sl-color-gray-4: #94a3b8;
+  --sl-color-gray-5: #cbd5e1;
+  --sl-color-gray-6: #f1f5f9;
+  --sl-color-gray-7: #f8fafc;
+  --sl-color-black: #ffffff;
+
+  --sl-color-bg: #ffffff;
+  --sl-color-bg-nav: rgb(255 255 255 / 85%);
+  --sl-color-bg-sidebar: #f8fafc;
+  --sl-color-bg-inline-code: #f1f5f9;
+  --sl-color-hairline: #e2e8f0;
+  --sl-color-hairline-shade: #e2e8f0;
+  --sl-color-hairline-light: #f1f5f9;
+  --sl-color-text: #0f172a;
+  --sl-color-text-accent: #4338ca;
+  --sl-color-text-invert: #ffffff;
+
+  --magic-kbd-bg: #f1f5f9;
+  --magic-kbd-text: #1e1b4b;
+  --magic-kbd-border: #cbd5e1;
+  --magic-kbd-shadow: rgba(0, 0, 0, 0.08);
+}
+
+/* Frosted glass header matching marketing site */
+header.header {
+  background: var(--sl-color-bg-nav) !important;
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  border-bottom: 1px solid var(--sl-color-hairline) !important;
+}
+
+/* Brand mark geometry and proportions */
+.site-title {
+  gap: 0.75rem !important;
+  align-items: center;
+  min-width: 0;
+}
+
+.site-title img {
+  width: 1.75rem !important;
+  height: 1.75rem !important;
+  border-radius: 8px;
+  flex: none;
+}
+
+.site-title span {
+  font-family: var(--sl-font);
+  font-weight: 600 !important;
+  font-size: 1.0625rem !important;
+  letter-spacing: -0.015em;
+  color: var(--sl-color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Scope keyboard shortcut badges to the help pages only */
+.sl-markdown-content kbd {
+  display: inline-block;
+  padding: 0.15em 0.45em;
+  font-size: 0.85em;
+  font-family: var(--sl-font-mono);
+  background-color: var(--magic-kbd-bg);
+  color: var(--magic-kbd-text);
+  border: 1px solid var(--magic-kbd-border);
+  border-radius: 4px;
+  box-shadow: 0 1px 0 var(--magic-kbd-shadow);
+}
+
+/* Ensure search shortcut key indicator only displays on desktop */
+@media (max-width: 49.99rem) {
+  site-search button kbd {
+    display: none !important;
+  }
+}
+
+/* Framed screenshots in the help pages, matching the marketing site */
+.sl-markdown-content img {
+  border-radius: 12px;
+  box-shadow:
+    0 0 0 1px var(--sl-color-hairline),
+    0 1px 2px rgb(4 3 10 / 25%),
+    0 6px 16px rgb(11 9 24 / 25%),
+    0 18px 36px -4px rgb(11 9 24 / 35%);
+  margin: 1.75rem 0;
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* SF Symbols the help pages name, so a control is recognisable by its glyph
+   rather than by an identifier. Each PNG is an alpha mask, which is what lets
+   the glyph take the colour of the text around it and one file serve both
+   themes. Regenerate with `./tools/generate-shots.sh`. */
+.sl-markdown-content .sym {
+  display: inline-block;
+  width: 1.05em;
+  height: 1.05em;
+  vertical-align: -0.16em;
+  background-color: currentColor;
+  -webkit-mask-image: var(--sym);
+  mask-image: var(--sym);
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+}
+
+.sym-tray {
+  --sym: url('/assets/sym/tray.png');
+}
+.sym-tray-full {
+  --sym: url('/assets/sym/tray-full.png');
+}
+.sym-circle-badge-plus {
+  --sym: url('/assets/sym/circle-badge-plus.png');
+}
+.sym-calendar-badge-plus {
+  --sym: url('/assets/sym/calendar-badge-plus.png');
+}
+.sym-filter {
+  --sym: url('/assets/sym/filter.png');
+}
+.sym-chevron-left {
+  --sym: url('/assets/sym/chevron-left.png');
+}
+.sym-chevron-right {
+  --sym: url('/assets/sym/chevron-right.png');
+}
+.sym-compose {
+  --sym: url('/assets/sym/compose.png');
+}
+.sym-reply {
+  --sym: url('/assets/sym/reply.png');
+}
+.sym-reply-all {
+  --sym: url('/assets/sym/reply-all.png');
+}
+.sym-forward {
+  --sym: url('/assets/sym/forward.png');
+}

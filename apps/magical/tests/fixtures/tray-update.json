@@ -1,0 +1,217 @@
+{
+  "accounts": [
+    {
+      "id": "account_work",
+      "name": "Work",
+      "color": "#0096ff",
+      "email": "taylor@example.com",
+      "unreadCount": 1,
+      "needsAuth": false
+    },
+    {
+      "id": "account_personal",
+      "name": "Personal",
+      "color": "#73fa79",
+      "email": "taylor.personal@example.com",
+      "unreadCount": 0,
+      "needsAuth": false
+    }
+  ],
+  "calendars": [
+    {
+      "id": "taylor@example.com",
+      "accountId": "account_work",
+      "name": "Taylor Smith",
+      "colorHex": "#039BE5"
+    },
+    {
+      "id": "team-calendar@group.calendar.google.com",
+      "accountId": "account_work",
+      "name": "Engineering",
+      "colorHex": "#7CB342"
+    },
+    {
+      "id": "tasks@tasks.google.com",
+      "accountId": "account_work",
+      "name": "Tasks",
+      "colorHex": "#4285F4"
+    },
+    {
+      "id": "taylor.personal@example.com",
+      "accountId": "account_personal",
+      "name": "Personal",
+      "colorHex": "#F1C40F"
+    },
+    {
+      "id": "birthdays@birthdays.google.com",
+      "accountId": "account_personal",
+      "name": "Birthdays",
+      "colorHex": "#828BC2"
+    }
+  ],
+  "events": [
+    {
+      "id": "evt_standup_001",
+      "accountId": "account_work",
+      "calendarIds": [
+        "taylor@example.com",
+        "team-calendar@group.calendar.google.com"
+      ],
+      "calendarName": "Engineering",
+      "summary": "Team Standup",
+      "startTime": 1789750800000,
+      "endTime": 1789752600000,
+      "isAllDay": false,
+      "eventType": 0,
+      "colorHex": "#039BE5",
+      "location": "Meeting Room 3B",
+      "conferenceUrl": "https://meet.google.com/abc-defg-hij",
+      "myResponseStatus": 3,
+      "organizerEmail": "lead@example.com",
+      "webUrl": "https://www.google.com/calendar/event?eid=REDACTED_EID_001",
+      "deepLink": "magical://event?account=account_work&eid=REDACTED_EID_001&at=2026-09-18T17%3A00%3A00.000Z"
+    },
+    {
+      "id": "evt_all_day_002",
+      "accountId": "account_personal",
+      "calendarIds": [
+        "taylor.personal@example.com"
+      ],
+      "calendarName": "Personal",
+      "summary": "Annual Leave",
+      "startTime": 1789603200000,
+      "endTime": 1790899200000,
+      "isAllDay": true,
+      "eventType": 0,
+      "colorHex": "#9E69AF",
+      "location": "Offsite",
+      "myResponseStatus": -1,
+      "organizerEmail": "taylor.personal@example.com",
+      "webUrl": "https://www.google.com/calendar/event?eid=REDACTED_EID_002",
+      "deepLink": "magical://event?account=account_personal&eid=REDACTED_EID_002&at=2026-09-17T00%3A00%3A00.000Z"
+    },
+    {
+      "id": "evt_invite_needs_rsvp_003",
+      "accountId": "account_work",
+      "calendarIds": [
+        "taylor@example.com"
+      ],
+      "calendarName": "Taylor Smith",
+      "summary": "Architecture Review",
+      "startTime": 1789812000000,
+      "endTime": 1789815600000,
+      "isAllDay": false,
+      "eventType": 0,
+      "colorHex": "#039BE5",
+      "conferenceUrl": "https://zoom.us/j/1234567890",
+      "myResponseStatus": 0,
+      "organizerEmail": "colleague@example.com",
+      "webUrl": "https://www.google.com/calendar/event?eid=REDACTED_EID_003",
+      "deepLink": "magical://event?account=account_work&eid=REDACTED_EID_003&at=2026-09-19T10%3A00%3A00.000Z"
+    },
+    {
+      "id": "task_review_pr_004",
+      "accountId": "account_work",
+      "calendarIds": [
+        "tasks@tasks.google.com"
+      ],
+      "calendarName": "Tasks",
+      "summary": "Review open pull requests",
+      "startTime": 1789820000000,
+      "endTime": 1789823600000,
+      "isAllDay": false,
+      "eventType": 9,
+      "isCompleted": false,
+      "colorHex": "#4285F4",
+      "myResponseStatus": -1,
+      "organizerEmail": "taylor@example.com",
+      "webUrl": "https://tasks.google.com/task/REDACTED_TASK_001",
+      "deepLink": "magical://event?account=account_work&eid=REDACTED_TASK_001&at=2026-09-19T12%3A00%3A00.000Z"
+    },
+    {
+      "id": "task_done_005",
+      "accountId": "account_work",
+      "calendarIds": [
+        "tasks@tasks.google.com"
+      ],
+      "calendarName": "Tasks",
+      "summary": "Submit expense report",
+      "startTime": 1789740000000,
+      "endTime": 1789743600000,
+      "isAllDay": false,
+      "eventType": 9,
+      "isCompleted": true,
+      "colorHex": "#4285F4",
+      "myResponseStatus": -1,
+      "organizerEmail": "taylor@example.com",
+      "webUrl": "https://tasks.google.com/task/REDACTED_TASK_002",
+      "deepLink": "magical://event?account=account_work&eid=REDACTED_TASK_002&at=2026-09-18T14%3A00%3A00.000Z"
+    },
+    {
+      "id": "focus_time_006",
+      "accountId": "account_work",
+      "calendarIds": [
+        "taylor@example.com"
+      ],
+      "calendarName": "Taylor Smith",
+      "summary": "Focus time",
+      "startTime": 1789830000000,
+      "endTime": 1789837200000,
+      "isAllDay": false,
+      "eventType": 7,
+      "colorHex": "#039BE5",
+      "myResponseStatus": -1,
+      "organizerEmail": "taylor@example.com",
+      "webUrl": "https://www.google.com/calendar/event?eid=REDACTED_EID_006",
+      "deepLink": "magical://event?account=account_work&eid=REDACTED_EID_006&at=2026-09-19T15%3A00%3A00.000Z"
+    },
+    {
+      "id": "working_location_007",
+      "accountId": "account_work",
+      "calendarIds": [
+        "taylor@example.com"
+      ],
+      "calendarName": "Taylor Smith",
+      "summary": "Office",
+      "startTime": 1789718400000,
+      "endTime": 1789804800000,
+      "isAllDay": true,
+      "eventType": 10,
+      "colorHex": "#039BE5",
+      "myResponseStatus": -1,
+      "organizerEmail": "taylor@example.com",
+      "webUrl": "https://www.google.com/calendar/event?eid=REDACTED_EID_007",
+      "deepLink": "magical://event?account=account_work&eid=REDACTED_EID_007&at=2026-09-18T08%3A00%3A00.000Z"
+    },
+    {
+      "id": "birthday_008",
+      "accountId": "account_personal",
+      "calendarIds": [
+        "birthdays@birthdays.google.com"
+      ],
+      "calendarName": "Birthdays",
+      "summary": "Colleague Birthday",
+      "startTime": 1789804800000,
+      "endTime": 1789891200000,
+      "isAllDay": true,
+      "eventType": 13,
+      "colorHex": "#828BC2",
+      "myResponseStatus": -1,
+      "organizerEmail": "taylor.personal@example.com",
+      "webUrl": "https://www.google.com/calendar/event?eid=REDACTED_EID_008",
+      "deepLink": "magical://event?account=account_personal&eid=REDACTED_EID_008&at=2026-09-19T00%3A00%3A00.000Z"
+    }
+  ],
+  "activeAccountId": "account_work",
+  "isCalendarCollapsed": false,
+  "isOffline": false,
+  "menuBarDisplayMode": "iconOnly",
+  "showMenuBarAccountColor": true,
+  "hiddenCalendars": [
+    {
+      "accountId": "account_personal",
+      "calendarId": "birthdays@birthdays.google.com"
+    }
+  ],
+  "showCompletedTasks": true
+}

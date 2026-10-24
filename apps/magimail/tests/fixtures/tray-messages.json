@@ -1,0 +1,51 @@
+{
+  "accountId": "account_work",
+  "messages": [
+    {
+      "id": "msg_001",
+      "threadId": "thread_101",
+      "from": "Taylor Smith <taylor@example.com>",
+      "subject": "Q3 Performance Review",
+      "snippet": "Here is the summary of the quarterly metrics...",
+      "internalDate": "1789750800000",
+      "category": "primary",
+      "labelIds": [
+        "UNREAD"
+      ]
+    },
+    {
+      "id": "msg_002",
+      "threadId": "thread_102",
+      "from": "GitHub <notifications@github.com>",
+      "subject": "[magic-apps] Review requested on shared fixtures",
+      "snippet": "taylor commented on the pull request...",
+      "internalDate": "1789750200000",
+      "category": "updates",
+      "labelIds": [
+        "UNREAD"
+      ]
+    },
+    {
+      "id": "msg_003",
+      "threadId": "thread_103",
+      "from": "Figma <updates@figma.com>",
+      "subject": "New comment on Menu Bar Icons",
+      "snippet": "Designer left a comment on your layout...",
+      "internalDate": "1789748400000",
+      "category": "promotions",
+      "labelIds": [
+        "UNREAD"
+      ]
+    },
+    {
+      "id": "msg_004",
+      "threadId": "thread_104",
+      "from": "Sarah Connor <sarah@cyberdyne.com>",
+      "subject": "Re: Q3 Strategy Planning",
+      "snippet": "Sounds good, I will bring the deck...",
+      "internalDate": "1789744800000",
+      "category": "primary",
+      "labelIds": []
+    }
+  ]
+}

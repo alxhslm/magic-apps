@@ -1,0 +1,30 @@
+---
+import site from '../data/site.json';
+
+interface Props {
+  notify: {
+    band: string;
+    heading: string;
+    lead: string;
+  };
+}
+
+const { notify } = Astro.props;
+---
+
+<!-- ============================================================ register interest -->
+<section class={notify.band} id="notify">
+  <div class="notify">
+    <h2 set:html={notify.heading}></h2>
+    <p class="lead" set:html={notify.lead}></p>
+    <div class="notify__embed">
+      <script
+        is:inline
+        async
+        src={`https://eocampaign1.com/form/${site.emailOctopusFormId}.js`}
+        data-form={site.emailOctopusFormId}
+      ></script>
+    </div>
+    <p class="small" set:html={site.requirements}></p>
+  </div>
+</section>

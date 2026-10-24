@@ -1,0 +1,59 @@
+# Node / pnpm
+node_modules/
+.pnpm-store/
+.pnpm-debug.log*
+
+# Build outputs
+dist/
+release/
+out/
+website/_site/
+website/.astro/
+/bin/
+*.iconset
+
+# macOS system
+.DS_Store
+*.swp
+*.swo
+
+# Logs & Testing
+*.log
+coverage/
+.nyc_output/
+
+# IDE
+.vscode/
+.idea/
+
+# Per-machine agent config; shared config is AGENTS.md and .agents/.
+.claude/settings.local.json
+.claude/worktrees/
+.gemini/
+.pi/
+
+# Environment
+.env
+.env.*
+!.env.release.example
+.envrc
+*.pem
+
+# Google OAuth credentials (contains client secret)
+google-credentials.json
+apps/magimail/swift/.build/
+apps/magimail/widgets/.build/
+apps/magimail/share-extension/.build/
+**/.build/
+**/DerivedData/
+
+# Entitlements generated at build time with the local team ID substituted in
+apps/*/build/.generated/
+
+# Built by tools/shots; the .webp it produces is what the website ships.
+tools/shots/.build/
+website/src/assets/shot-*-magical.png
+
+# Real names, addresses and client strings the privacy gate refuses to commit.
+# The list itself must never be committed, or it leaks what it protects.
+.sensitive-terms

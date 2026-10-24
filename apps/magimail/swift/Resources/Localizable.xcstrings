@@ -1,0 +1,436 @@
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "%@ (%@)": {
+      "extractionState": "manual"
+    },
+    "%@ is the default reader": {
+      "extractionState": "manual"
+    },
+    "%@ session has expired": {
+      "extractionState": "manual"
+    },
+    "%lld unread": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "1 unread"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld unread"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "(no subject)": {
+      "extractionState": "manual"
+    },
+    "1 hour": {
+      "extractionState": "manual"
+    },
+    "1 minute": {
+      "extractionState": "manual"
+    },
+    "10 minutes": {
+      "extractionState": "manual"
+    },
+    "30 minutes": {
+      "extractionState": "manual"
+    },
+    "5 minutes": {
+      "extractionState": "manual"
+    },
+    "Account name": {
+      "extractionState": "manual"
+    },
+    "Accounts": {
+      "extractionState": "manual"
+    },
+    "Active: %lld accounts active (others silenced)": {
+      "extractionState": "manual"
+    },
+    "Active: %lld accounts visible (others hidden)": {
+      "extractionState": "manual"
+    },
+    "Add an account": {
+      "extractionState": "manual"
+    },
+    "Advanced": {
+      "extractionState": "manual"
+    },
+    "All Accounts": {
+      "extractionState": "manual"
+    },
+    "All caught up": {
+      "extractionState": "manual"
+    },
+    "All unread messages": {
+      "extractionState": "manual"
+    },
+    "Always ask": {
+      "extractionState": "manual"
+    },
+    "An account's organization has blocked Gmail.": {
+      "extractionState": "manual"
+    },
+    "An account you switch away from stays in memory for this long, then unloads to free around 450MB. Unread counts and notifications keep arriving either way, and returning to an unloaded account reopens it where you left off.": {
+      "extractionState": "manual"
+    },
+    "Appearance": {
+      "extractionState": "manual"
+    },
+    "Applies to the main window, where the active account is on screen. A mailto: link, a widget, the menu bar and the quick compose hotkey always ask, since none of them shows you which account is active.": {
+      "extractionState": "manual"
+    },
+    "Archive": {
+      "extractionState": "manual"
+    },
+    "Assembles application and extension logs along with system environment info into a redacted archive for troubleshooting.": {
+      "extractionState": "manual"
+    },
+    "Badge only": {
+      "extractionState": "manual"
+    },
+    "Cancel": {
+      "extractionState": "manual"
+    },
+    "Category Notification Levels": {
+      "extractionState": "manual"
+    },
+    "Checks Gmail's background feed to update unread counts and deliver native notifications.": {
+      "extractionState": "manual"
+    },
+    "Collect Diagnostics…": {
+      "extractionState": "manual"
+    },
+    "Compose account:": {
+      "extractionState": "manual"
+    },
+    "Configure Focus Filters in macOS System Settings to select which accounts are active and whether to hide excluded accounts from the window and menu bar.": {
+      "extractionState": "manual"
+    },
+    "Counts mail that arrived while you were away, and goes down as you read it. The backlog is left out.": {
+      "extractionState": "manual"
+    },
+    "Dark": {
+      "extractionState": "manual"
+    },
+    "Delete": {
+      "extractionState": "manual"
+    },
+    "Diagnostics": {
+      "extractionState": "manual"
+    },
+    "Dock & Menu Bar": {
+      "extractionState": "manual"
+    },
+    "Dock badge:": {
+      "extractionState": "manual"
+    },
+    "Drag to reorder": {
+      "extractionState": "manual"
+    },
+    "Email links (mailto:)": {
+      "extractionState": "manual"
+    },
+    "Every 10 minutes": {
+      "extractionState": "manual"
+    },
+    "Every 15 minutes": {
+      "extractionState": "manual"
+    },
+    "Every 2 minutes": {
+      "extractionState": "manual"
+    },
+    "Every 3 minutes": {
+      "extractionState": "manual"
+    },
+    "Every 30 seconds": {
+      "extractionState": "manual"
+    },
+    "Every 5 minutes": {
+      "extractionState": "manual"
+    },
+    "Every minute": {
+      "extractionState": "manual"
+    },
+    "Fetch Frequency": {
+      "extractionState": "manual"
+    },
+    "Focus Filters": {
+      "extractionState": "manual"
+    },
+    "Focus Status:": {
+      "extractionState": "manual"
+    },
+    "For best results, keep Gmail's own theme set to \"Default\" (light) and let Magimail handle dark mode.": {
+      "extractionState": "manual"
+    },
+    "Forums": {
+      "extractionState": "manual"
+    },
+    "Forums:": {
+      "extractionState": "manual"
+    },
+    "General": {
+      "extractionState": "manual"
+    },
+    "Gmail": {
+      "extractionState": "manual"
+    },
+    "Gmail access blocked": {
+      "extractionState": "manual"
+    },
+    "Hide app sidebar": {
+      "extractionState": "manual"
+    },
+    "Hide inbox ads": {
+      "extractionState": "manual"
+    },
+    "Inactive (All accounts active)": {
+      "extractionState": "manual"
+    },
+    "Launch Magimail at login": {
+      "extractionState": "manual"
+    },
+    "Light": {
+      "extractionState": "manual"
+    },
+    "Loud": {
+      "extractionState": "manual"
+    },
+    "Magimail Preferences": {
+      "extractionState": "manual"
+    },
+    "Magimail is not running from an app bundle": {
+      "extractionState": "manual"
+    },
+    "Mark Read": {
+      "extractionState": "manual"
+    },
+    "Mark as Read": {
+      "extractionState": "manual"
+    },
+    "Mark as Unread": {
+      "extractionState": "manual"
+    },
+    "Memory": {
+      "extractionState": "manual"
+    },
+    "Never": {
+      "extractionState": "manual"
+    },
+    "New Account": {
+      "extractionState": "manual"
+    },
+    "New Message": {
+      "extractionState": "manual"
+    },
+    "New Message in %@": {
+      "extractionState": "manual"
+    },
+    "New messages only": {
+      "extractionState": "manual"
+    },
+    "No accounts configured": {
+      "extractionState": "manual"
+    },
+    "No default reader": {
+      "extractionState": "manual"
+    },
+    "No unread messages across %lld accounts.": {
+      "extractionState": "manual"
+    },
+    "No unread messages in %@ or %@.": {
+      "extractionState": "manual"
+    },
+    "No unread messages in %@.": {
+      "extractionState": "manual"
+    },
+    "No unread messages.": {
+      "extractionState": "manual"
+    },
+    "Nothing recent to show": {
+      "extractionState": "manual"
+    },
+    "Notifications": {
+      "extractionState": "manual"
+    },
+    "Off": {
+      "extractionState": "manual"
+    },
+    "Offline": {
+      "extractionState": "manual"
+    },
+    "On battery:": {
+      "extractionState": "manual"
+    },
+    "On power adapter:": {
+      "extractionState": "manual"
+    },
+    "Only the installed app can be the default reader": {
+      "extractionState": "manual"
+    },
+    "Open Focus Settings…": {
+      "extractionState": "manual"
+    },
+    "Open Inbox": {
+      "extractionState": "manual"
+    },
+    "Open Magimail to sync": {
+      "extractionState": "manual"
+    },
+    "Open in Magimail": {
+      "extractionState": "manual"
+    },
+    "Opens a compose window from any application. It always asks which account to send from when there is more than one, since no account is on screen to be the active one.": {
+      "extractionState": "manual"
+    },
+    "Preferences…": {
+      "extractionState": "manual"
+    },
+    "Primary": {
+      "extractionState": "manual"
+    },
+    "Primary:": {
+      "extractionState": "manual"
+    },
+    "Promotions": {
+      "extractionState": "manual"
+    },
+    "Promotions:": {
+      "extractionState": "manual"
+    },
+    "Quick compose hotkey:": {
+      "extractionState": "manual"
+    },
+    "Quit Magimail": {
+      "extractionState": "manual"
+    },
+    "RECENT": {
+      "extractionState": "manual"
+    },
+    "Refresh Inbox": {
+      "extractionState": "manual"
+    },
+    "Remove Account": {
+      "extractionState": "manual"
+    },
+    "Remove the selected account": {
+      "extractionState": "manual"
+    },
+    "Reset": {
+      "extractionState": "manual"
+    },
+    "Reset Session…": {
+      "extractionState": "manual"
+    },
+    "Reset the session for “%@”?": {
+      "extractionState": "manual"
+    },
+    "Search %@ — opens in app": {
+      "extractionState": "manual"
+    },
+    "Search in": {
+      "extractionState": "manual"
+    },
+    "Search — opens in app": {
+      "extractionState": "manual"
+    },
+    "Settings": {
+      "extractionState": "manual"
+    },
+    "Show color dots": {
+      "extractionState": "manual",
+      "localizations": {
+        "en-GB": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show colour dots"
+          }
+        }
+      }
+    },
+    "Show menu bar tray": {
+      "extractionState": "manual"
+    },
+    "Show unread count": {
+      "extractionState": "manual"
+    },
+    "Showing %@": {
+      "extractionState": "manual"
+    },
+    "Sign In": {
+      "extractionState": "manual"
+    },
+    "Sign in required": {
+      "extractionState": "manual"
+    },
+    "Sign the selected account out of Google": {
+      "extractionState": "manual"
+    },
+    "Signs this account out of Google and clears its cookies. Other accounts are untouched.": {
+      "extractionState": "manual"
+    },
+    "Silent": {
+      "extractionState": "manual"
+    },
+    "Social": {
+      "extractionState": "manual"
+    },
+    "Social:": {
+      "extractionState": "manual"
+    },
+    "System Default": {
+      "extractionState": "manual"
+    },
+    "Theme": {
+      "extractionState": "manual"
+    },
+    "Theme:": {
+      "extractionState": "manual"
+    },
+    "Transparent background": {
+      "extractionState": "manual"
+    },
+    "Unknown": {
+      "extractionState": "manual"
+    },
+    "Unload inactive after:": {
+      "extractionState": "manual"
+    },
+    "Updates": {
+      "extractionState": "manual"
+    },
+    "Updates:": {
+      "extractionState": "manual"
+    },
+    "Use %@": {
+      "extractionState": "manual"
+    },
+    "Use active account": {
+      "extractionState": "manual"
+    },
+    "Waiting for network connection…": {
+      "extractionState": "manual"
+    },
+    "Window": {
+      "extractionState": "manual"
+    },
+    "unread": {
+      "extractionState": "manual"
+    }
+  },
+  "version": "1.0"
+}

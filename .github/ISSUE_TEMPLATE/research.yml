@@ -1,0 +1,21 @@
+name: Research
+description: An investigation that informs a decision.
+title: ''
+labels: ['type:research']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Check [existing issues](https://github.com/alxhslm/magic-apps/issues) first. A research issue tracks an investigation that informs a decision.
+  - type: textarea
+    id: question
+    attributes:
+      label: What is the question?
+    validations:
+      required: true
+  - type: textarea
+    id: decision
+    attributes:
+      label: What decision does it unblock?
+    validations:
+      required: true

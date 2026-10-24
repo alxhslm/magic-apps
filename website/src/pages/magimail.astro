@@ -1,0 +1,394 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Notify from '../components/Notify.astro';
+import site from '../data/site.json';
+
+const notify = {
+  band: 'wrap band',
+  heading: 'Join the v1.0 waitlist',
+  lead: "Download the Magimail alpha today, or leave your email to find out when the first stable release is ready.",
+};
+---
+
+<BaseLayout
+  title="Magimail | Gmail as a proper Mac app"
+  description="Tame your inbox with a little sorcery. All of Gmail, from schedule send to snooze to search operators, with a real Mac menu bar panel, a toolbar you can rearrange, the Share Sheet and notification buttons. Coming soon for macOS."
+  ogDescription="Tame your inbox with a little sorcery. All of Gmail, with every Mac part built properly. Coming soon."
+  icon="magimail.svg"
+  current="magimail"
+  permalink="magimail.html"
+>
+  <!-- ============================================================ hero -->
+  <section class="wrap hero">
+    <div class="hero__inner">
+      <div class="hero__copy">
+        <p class="chip rise">Open source</p>
+        <h1 class="hero__title rise">Tame your inbox with a&nbsp;little sorcery.</h1>
+        <p class="lead rise">
+          All of Gmail, in an app that looks and feels like it came with your Mac. Supports multiple accounts so no switching back and forth between tabs or browser profiles.
+        </p>
+        <div class="btn-row rise">
+          <a class="btn btn--primary" href="https://github.com/alxhslm/magic-apps/releases" target="_blank" rel="noopener noreferrer">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            Download Magimail (Alpha)
+          </a>
+          <a class="btn btn--ghost" href="#notify">Join v1.0 Waitlist</a>
+        </div>
+        <p class="hero__req small dim rise" set:html={site.requirementsShort} />
+      </div>
+
+      <div class="hero__art">
+        <img
+          src="assets/envelope.svg"
+          width="390"
+          height="320"
+          alt="A postal envelope with a lifted flap and a gold star at its corner"
+        />
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================ deep dives -->
+  <section class="band band--raised band--ruled" id="mac-app" aria-labelledby="mac-app-title">
+    <div class="wrap">
+      <div class="section-head">
+        <h2 id="mac-app-title">What makes it a Mac app</h2>
+        <p class="lead">
+          Gmail in a tab can never fully break free of the browser. Magimail lives in your Dock
+          alongside your other apps, and plays nicely the rest of your Mac.
+        </p>
+      </div>
+
+      <!-- 1. accounts -->
+      <article class="dive">
+        <div class="dive__copy">
+          <h3>Every account, properly isolated</h3>
+          <p>
+            Every account keeps its own sign-in. No signing out, no switching, no wondering which
+            address just sent that.
+          </p>
+          <ul class="notes">
+            <li>
+              Each account carries its own colour, on its tab, in the menu bar and on its
+              notifications.
+            </li>
+            <li>Switch with <kbd>&#8984;1</kbd> and <kbd>&#8984;2</kbd>, or click its tab.</li>
+            <li>
+              Accounts you aren't looking at don't sit there using memory, but they still check for
+              new mail in the background, so counts and notifications stay right.
+            </li>
+            <li>
+              Your desktop shows through the sidebar the way it does in Mail and Finder, in
+              light and dark alike.
+            </li>
+          </ul>
+        </div>
+        <div class="stage">
+          <!-- Light and dark are a claim the page makes, so let the reader check it.
+               Radios rather than a script: the site ships no JavaScript. -->
+          <div class="themed">
+            <div class="themed__pick" role="group" aria-label="Appearance">
+              <input type="radio" name="win-theme" id="win-light" checked />
+              <label for="win-light">Light</label>
+              <input type="radio" name="win-theme" id="win-dark" />
+              <label for="win-dark">Dark</label>
+            </div>
+            <img
+              class="shot shot--framed shot--window themed__light"
+              src="assets/shot-window-light.webp"
+              width="1600"
+              height="1049"
+              alt="The Magimail window in light mode, with Personal and Work tabs in the toolbar, each with its own colour dot and unread count"
+              loading="lazy"
+            />
+            <img
+              class="shot shot--framed shot--window themed__dark"
+              src="assets/shot-window-dark.webp"
+              width="1600"
+              height="1049"
+              alt="The same window in dark mode"
+              loading="lazy"
+            />
+          </div>
+        </div>
+      </article>
+
+      <!-- 2. menu bar -->
+      <article class="dive dive--flip">
+        <div class="dive__copy">
+          <h3>Your inbox from the menu bar</h3>
+          <p>
+            A quick, unobtrusive way to manage your inbox without opening the full window.
+          </p>
+          <ul class="notes">
+            <li>
+              Choose what sits next to the icon: a count for each account in its own colour,
+              the colours on their own, a single total, or nothing at all.
+            </li>
+            <li>Open it and see one account, or all of them at once.</li>
+            <li>Click a message to jump straight to that thread in the main window.</li>
+          </ul>
+        </div>
+        <div class="stage">
+          <img
+            class="shot shot--free shot--panel"
+            src="assets/shot-popover.webp"
+            width="700"
+            height="932"
+            alt="The Magimail panel in the menu bar, listing unread messages with tabs for all accounts, Personal and Work"
+            loading="lazy"
+          />
+        </div>
+      </article>
+
+      <!-- 3. widgets -->
+      <article class="dive">
+        <div class="dive__copy">
+          <h3>And on the desktop too</h3>
+          <p>
+            The same glance, without even going to the menu bar.
+          </p>
+          <ul class="notes">
+            <li>
+              Four sizes, from a single unread number to the full list shown here.
+            </li>
+            <li>Each account is counted on its own, in its own colour.</li>
+            <li>
+              Click a message to open that thread, or start a new one straight from the widget.
+            </li>
+          </ul>
+        </div>
+        <div class="stage">
+          <img
+            class="shot shot--free shot--widget"
+            src="assets/shot-widgets.webp"
+            width="730"
+            height="561"
+            alt="Magimail's four widgets on the desktop: a small unread total, a medium Quick actions with a compose button for each account, a medium Recents list, and the large dashboard"
+            loading="lazy"
+          />
+        </div>
+      </article>
+
+      <!-- 4. the window -->
+      <article class="dive dive--flip">
+        <div class="dive__copy">
+          <h3>A toolbar you can rearrange</h3>
+          <p>
+            A real Mac toolbar, not a row of buttons drawn in a web page, so it behaves like
+            every other one you use.
+          </p>
+          <ul class="notes">
+            <li>
+              Drag the buttons into whatever order suits you, from
+              <em>View &rarr; Customise Toolbar…</em>
+            </li>
+            <li>Take out the ones you never press, or add the ones you want.</li>
+          </ul>
+        </div>
+        <div class="stage">
+          <img
+            class="shot shot--framed shot--window"
+            src="assets/shot-toolbar.webp"
+            width="1200"
+            height="838"
+            alt="The Customise Toolbar sheet, with toolbar items laid out ready to drag into place"
+            loading="lazy"
+          />
+        </div>
+      </article>
+
+      <!-- 5. share sheet -->
+      <article class="dive">
+        <div class="dive__copy">
+          <h3>It works with everything else</h3>
+          <p>
+            Magimail integrates Gmail with the rest of your Mac, including all your other
+            apps.
+          </p>
+          <ul class="notes">
+            <li>
+              Share into Magimail: a file from Finder, a page from Safari, and a compose
+              window opens with it already attached.
+            </li>
+            <li>
+              Share an email to Messages, Notes, Reminders or anywhere else the Share Sheet
+              reaches, or export a thread as a PDF for filing.
+            </li>
+            <li>
+              Make it your Mac's mail app, and an email link anywhere opens a compose window
+              here instead of a browser tab, sending from whichever account you pick.
+            </li>
+          </ul>
+        </div>
+        <div class="stage">
+          <img
+            class="shot shot--framed shot--panel"
+            src="assets/shot-share.webp"
+            width="620"
+            height="1048"
+            alt="The macOS share menu with Magimail listed alongside Mail, Messages, Notes and Reminders"
+            loading="lazy"
+          />
+        </div>
+      </article>
+
+      <!-- 6. notifications -->
+      <article class="dive dive--flip">
+        <div class="dive__copy">
+          <h3>Archive it from the notification</h3>
+          <p>
+            Manage your email from the banner without opening the app, or jump straight to the
+            thread.
+          </p>
+          <ul class="notes">
+            <li>
+              Gmail's own notifications are all or nothing. Here you can have Primary loud,
+              Updates silent and Promotions badge-only.
+            </li>
+            <li>
+              Choose how often it checks for new mail, from every minute to every fifteen,
+              depending on what you want from your battery.
+            </li>
+          </ul>
+        </div>
+        <div class="stage">
+          <img
+            class="shot shot--framed shot--notification"
+            src="assets/shot-notification.webp"
+            width="744"
+            height="316"
+            alt="A Magimail notification banner with its Options menu open on Archive and Mark Read"
+            loading="lazy"
+          />
+        </div>
+      </article>
+
+      <!-- 7. dock -->
+      <article class="dive">
+        <div class="dive__copy">
+          <h3>One glance is enough</h3>
+          <p>
+            The badge on the Dock icon shows the total unread count across all your
+            inboxes.
+          </p>
+          <ul class="notes">
+            <li>No need to open three windows to find out whether anything has arrived.</li>
+            <li>Updates in the background, even when the account is asleep.</li>
+          </ul>
+        </div>
+        <div class="stage">
+          <img
+            class="shot shot--free shot--dock"
+            src="assets/shot-dock.webp"
+            width="760"
+            height="221"
+            alt="The Dock, with Magimail carrying a badge of seven unread messages"
+            loading="lazy"
+          />
+        </div>
+      </article>
+
+      <!-- 8. focus -->
+      <article class="dive dive--flip">
+        <div class="dive__copy">
+          <h3>Work can wait until Monday</h3>
+          <p>
+            For each Focus, set which accounts you want to be notified for and which you
+            don't.
+          </p>
+          <ul class="notes">
+            <li>
+              Muted accounts stop notifying, and are hidden from the menu bar, the widgets
+              and the number on the Dock.
+            </li>
+            <li>
+              Choose whether you can still get to them while the Focus is on, or have them
+              greyed out until it ends.
+            </li>
+          </ul>
+        </div>
+        <div class="stage">
+          <img
+            class="shot shot--framed shot--wide"
+            src="assets/shot-focus.webp"
+            width="420"
+            height="347"
+            alt="The macOS Focus settings for Magimail, with Personal ticked and Work left out"
+            loading="lazy"
+          />
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <!-- ============================================================ premise -->
+  <section class="wrap band band--ruled" aria-labelledby="premise-title">
+    <div class="section-head">
+      <h2 id="premise-title">The full Gmail experience</h2>
+      <p class="lead">
+        Magimail supports every feature Gmail supports in the browser, and new features arrive the day Google ships them. All you do is sign
+        in.
+      </p>
+    </div>
+
+    <ul class="fidelity">
+      <li><strong>Schedule send</strong>, snooze and undo send</li>
+      <li>Fast <strong>server-side search</strong></li>
+      <li><strong>Drive chips</strong> and inline attachment previews</li>
+      <li>Labels, filters, <strong>multiple inboxes</strong></li>
+      <li>Built-in <strong>Gemini</strong> integration</li>
+      <li><strong>Workspace add-ons</strong> and marketplace apps</li>
+      <li>Gmail's own <strong>keyboard shortcuts</strong>, untouched</li>
+      <li><strong>Offline Gmail</strong>, for planes and tunnels</li>
+    </ul>
+  </section>
+
+  <!-- ============================================================ under the hood -->
+  <section class="wrap band" aria-labelledby="hood-title">
+    <div class="section-head">
+      <h2 id="hood-title">No accounts to make, no servers in the middle</h2>
+    </div>
+
+    <dl class="specs">
+      <div class="spec">
+        <dt>Sign-in</dt>
+        <dd>Your ordinary Google sign-in</dd>
+      </div>
+      <div class="spec">
+        <dt>Source code</dt>
+        <dd>Open source (MPL 2.0)</dd>
+      </div>
+      <div class="spec">
+        <dt>Accounts at once</dt>
+        <dd>As many as you like</dd>
+      </div>
+      <div class="spec">
+        <dt>Analytics &amp; tracking</dt>
+        <dd>None</dd>
+      </div>
+      <div class="spec">
+        <dt>Our servers</dt>
+        <dd>None</dd>
+      </div>
+      <div class="spec">
+        <dt>Requires</dt>
+        <dd>macOS 14 or later, Apple silicon</dd>
+      </div>
+    </dl>
+
+    <p class="footnote">
+      Unread counts and new mail come straight from Google to your Mac, using the sign-in you
+      already have, so there's nothing to set up and no permissions screen to approve. The
+      settings window, the menu bar panel and the notifications run separately from the mailbox,
+      so they stay quick even while a big inbox is still loading. Nothing about your mail goes
+      anywhere except Google.
+    </p>
+  </section>
+
+  <Notify notify={notify} />
+</BaseLayout>

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!--
+      The helper reads focus-filter.json from the App Group container the
+      sandboxed App Intents extension writes to.
+
+      <TEAM_ID> is resolved from the signing certificate by build.sh, so the
+      group always matches the team that signed the helper. With no certificate
+      the group is dropped and the helper falls back to Application Support.
+    -->
+    <key>com.apple.security.application-groups</key>
+    <array>
+        <string><TEAM_ID>.group.com.alexhaslam.magimail</string>
+    </array>
+</dict>
+</plist>

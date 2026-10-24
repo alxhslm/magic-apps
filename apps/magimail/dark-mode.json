@@ -1,0 +1,150 @@
+{
+  "version": 1,
+  "restoreFilter": "saturate(0.909091) contrast(1.176471) brightness(0.833333) hue-rotate(180deg) invert(1)",
+  "sections": {
+    "main": [
+      {
+        "id": "colorScheme",
+        "selectors": [":root"],
+        "dark": "color-scheme: dark !important;",
+        "light": "color-scheme: light !important;"
+      },
+      {
+        "id": "pageInvert",
+        "selectors": ["html"],
+        "dark": "filter: invert(1) hue-rotate(180deg) brightness(1.2) contrast(0.85) saturate(1.1) !important;",
+        "light": "filter: none !important;",
+        "note": "Gmail serves no dark palette, so the whole page is inverted as the first half of the filter chain."
+      },
+      {
+        "id": "counterInvertMedia",
+        "selectors": ["img, video, canvas, svg"],
+        "dark": "filter: {{restoreFilter}} !important;",
+        "light": "filter: none !important;",
+        "note": "Counter-invert media so a photograph keeps its authored colours under the page inversion."
+      },
+      {
+        "id": "monochromeIcons",
+        "selectors": [
+          "[role=\"toolbar\"] svg",
+          "[role=\"button\"] svg",
+          "[role=\"link\"] svg",
+          "[role=\"checkbox\"] svg",
+          "[role=\"menuitem\"] svg",
+          "[role=\"option\"] svg",
+          "[role=\"tab\"] svg",
+          "[aria-label] svg",
+          "[data-tooltip] svg",
+          "[title] svg",
+          "button svg",
+          "a svg",
+          "img[src*=\"cleardot\"]",
+          "div[role=\"main\"] svg",
+          "div[role=\"region\"] svg"
+        ],
+        "dark": "filter: none !important;",
+        "light": "filter: none !important;",
+        "note": "Gmail draws every chrome icon as an inline <svg> or a cleardot.gif sprite; both are monochrome and must take the page inversion rather than the counter-invert. Nothing else may join this list, because only img, video, canvas and svg are counter-inverted and an <img> here strips the counter-invert from the account avatar, the lockup and inline mail images."
+      },
+      {
+        "id": "companionTabIcons",
+        "selectors": [
+          "div[role=\"complementary\"] [role=\"tab\"]:not(:is({{label:addOnTab}})) [style*=\"background-image\"]",
+          "div[role=\"complementary\"] [role=\"tab\"]:not(:is({{label:addOnTab}})) [style*=\"background:\"]"
+        ],
+        "lightSelectors": [
+          "div[role=\"complementary\"] [role=\"tab\"] [style*=\"background-image\"]",
+          "div[role=\"complementary\"] [role=\"tab\"] [style*=\"background:\"]"
+        ],
+        "dark": "filter: {{restoreFilter}} !important;",
+        "light": "filter: none !important;",
+        "note": "Built-in and marketplace tab icons are painted as background-images, so the base counter-invert never reaches them. The generic add-on '+' glyph is monochrome and excluded."
+      },
+      {
+        "id": "chromeText",
+        "selectors": ["div[role=\"navigation\"] *", "header[role=\"banner\"] *"],
+        "dark": "color: #1a1a1a !important;",
+        "light": "color: inherit !important;",
+        "note": "Keep sidebar and header text legible against the dark vibrancy."
+      },
+      {
+        "id": "chromeIcons",
+        "selectors": ["div[role=\"navigation\"] svg", "header[role=\"banner\"] svg"],
+        "dark": "filter: none !important;",
+        "light": "filter: none !important;",
+        "note": "Re-invert nav and header SVGs so they take the html invert instead of being counter-inverted back to dark."
+      },
+      {
+        "id": "gemini",
+        "selectors": [
+          "header[role=\"banner\"] div:has(> * > :is({{label:gemini}}))",
+          "header[role=\"banner\"] :is({{label:gemini}})",
+          "header[role=\"banner\"] :is({{label:gemini}}) svg"
+        ],
+        "lightSelectors": [
+          "header[role=\"banner\"] div:has(> * > :is({{label:gemini}}))",
+          "header[role=\"banner\"] :is({{label:gemini}})"
+        ],
+        "dark": "filter: {{restoreFilter}} !important;",
+        "light": "filter: none !important;",
+        "note": "The Ask Gemini button is a multicolour gradient and is exempt from the blanket svg rule."
+      },
+      {
+        "id": "lockupIcon",
+        "selectors": ["img[src*=\"logo_gmail_lockup\"]"],
+        "dark": "clip-path: inset(0 63% 0 0) !important;",
+        "light": "clip-path: none !important;",
+        "note": "The lockup PNG holds the multicolour M beside dark wordmark text; clip it to the icon portion for the counter-invert."
+      },
+      {
+        "id": "lockupAnchor",
+        "selectors": ["a:has(> img[src*=\"logo_gmail_lockup\"])"],
+        "dark": "position: relative !important;",
+        "darkOnly": true,
+        "note": "The wordmark overlay is positioned against the anchor. Light mode leaves Gmail's own positioning in place, so this rule has no reset."
+      },
+      {
+        "id": "lockupOverlay",
+        "selectors": ["a:has(> img[src*=\"logo_gmail_lockup\"])::after"],
+        "dark": "content: '' !important; position: absolute !important; inset: 0 !important; background: url(https://ssl.gstatic.com/ui/v1/icons/mail/rfr/logo_gmail_lockup_default_1x_r7.png) no-repeat left center / contain !important; clip-path: inset(0 0 0 37%) !important; filter: none !important;",
+        "light": "content: none !important;",
+        "note": "A second copy of the lockup clipped to the wordmark, left un-counter-inverted so the page invert lightens it."
+      }
+    ],
+    "subframe": [
+      {
+        "id": "media",
+        "selectors": ["img, video, canvas, svg"],
+        "dark": "filter: {{restoreFilter}} !important;",
+        "light": "filter: none !important;"
+      },
+      {
+        "id": "backgroundImages",
+        "selectors": [
+          "[style*=\"background-image\"]",
+          "[style*=\"background:\"]",
+          "a span[style*=\"background\"]"
+        ],
+        "dark": "filter: {{restoreFilter}} !important;",
+        "light": "filter: none !important;",
+        "note": "Add-on markup paints icons as background-images far more often than Gmail's own chrome does."
+      },
+      {
+        "id": "monochromeIcons",
+        "selectors": [
+          "[role=\"toolbar\"] svg",
+          "[role=\"button\"] svg",
+          "[role=\"link\"] svg",
+          "[aria-label] svg",
+          "[data-tooltip] svg",
+          "button svg",
+          "a svg",
+          "img[src*=\"cleardot\"]"
+        ],
+        "dark": "filter: none !important;",
+        "light": "filter: none !important;",
+        "note": "Same rule as the top frame: only inline <svg> and cleardot sprites invert; real images keep the counter-invert."
+      }
+    ]
+  }
+}

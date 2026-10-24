@@ -1,0 +1,210 @@
+{
+  "version": 1,
+  "generator": {
+    "name": "xcode-tools",
+    "version": "17F113"
+  },
+  "shortcutTileColor": 14,
+  "actions": {
+    "MagimailFocusFilter": {
+      "identifier": "MagimailFocusFilter",
+      "fullyQualifiedTypeName": "MagimailAppIntents.MagimailFocusFilter",
+      "mangledTypeName": "18MagimailAppIntents0A11FocusFilterV",
+      "mangledTypeNameV2": "18MagimailAppIntents0A11FocusFilterV",
+      "title": {
+        "alternatives": [],
+        "key": "Filter Accounts"
+      },
+      "descriptionMetadata": {
+        "descriptionText": {
+          "alternatives": [],
+          "key": "Choose which accounts stay active during this Focus. The rest are silenced and left out of the menu bar, widgets and unread count."
+        },
+        "searchKeywords": []
+      },
+      "parameters": [
+        {
+          "name": "accounts",
+          "title": {
+            "alternatives": [],
+            "key": "Accounts"
+          },
+          "queryIdentifier": "MagimailAppIntents.MagimailAccountQuery",
+          "isOptional": false,
+          "isInput": false,
+          "inputConnectionBehavior": 0,
+          "dynamicOptionsSupport": 1,
+          "capabilities": 5,
+          "resolvableInputTypes": [],
+          "valueType": {
+            "array": {
+              "wrapper": {
+                "capabilities": 3,
+                "memberValueType": {
+                  "entity": {
+                    "wrapper": {
+                      "typeName": "MagimailAccountEntity"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "typeSpecificMetadata": [
+            "LNValueTypeSpecificMetadataKeyDefaultValue",
+            {
+              "array": {
+                "elements": []
+              }
+            }
+          ]
+        },
+        {
+          "name": "disableExcludedAccounts",
+          "title": {
+            "alternatives": [],
+            "key": "Prevent Access to Silenced Accounts"
+          },
+          "isOptional": false,
+          "isInput": false,
+          "inputConnectionBehavior": 0,
+          "dynamicOptionsSupport": 0,
+          "capabilities": 1,
+          "resolvableInputTypes": [
+            {
+              "kindValue": 0,
+              "valueType": {
+                "primitive": {
+                  "wrapper": {
+                    "typeIdentifier": 1
+                  }
+                }
+              }
+            }
+          ],
+          "valueType": {
+            "primitive": {
+              "wrapper": {
+                "typeIdentifier": 1
+              }
+            }
+          },
+          "typeSpecificMetadata": []
+        }
+      ],
+      "systemProtocols": [
+        "com.apple.link.systemProtocol.FocusConfiguration"
+      ],
+      "systemProtocolMetadata": [
+        "com.apple.link.systemProtocol.FocusConfiguration",
+        {
+          "empty": {}
+        }
+      ],
+      "systemProtocolMetadataV2": [
+        "com.apple.link.systemProtocol.FocusConfiguration",
+        {
+          "empty": {}
+        }
+      ],
+      "availabilityAnnotations": {
+        "LNPlatformNameMACOS": {
+          "introducedVersion": "14.0"
+        },
+        "LNPlatformNameWildcard": {
+          "introducedVersion": "*"
+        }
+      },
+      "isDiscoverable": true,
+      "visibilityMetadata": {
+        "isDiscoverable": true,
+        "assistantOnly": false
+      },
+      "supportedModes": 1,
+      "presentationStyle": 0,
+      "requiredCapabilities": [],
+      "authenticationPolicy": 0,
+      "isAuthPolExplicit": false,
+      "openAppWhenRun": false,
+      "outputFlags": 0,
+      "assistantDefinedSchemaTraits": [],
+      "assistantDefinedSchemas": [],
+      "effectiveBundleIdentifiers": [],
+      "mangledTypeNameByBundleIdentifier": {},
+      "mangledTypeNameByBundleIdentifierV2": {},
+      "typeSpecificMetadata": []
+    }
+  },
+  "entities": {
+    "MagimailAccountEntity": {
+      "typeName": "MagimailAccountEntity",
+      "fullyQualifiedTypeName": "MagimailAppIntents.MagimailAccountEntity",
+      "mangledTypeName": "18MagimailAppIntents0A13AccountEntityV",
+      "displayTypeName": {
+        "alternatives": [],
+        "key": "Magimail Account"
+      },
+      "defaultQueryIdentifier": "MagimailAppIntents.MagimailAccountQuery",
+      "availabilityAnnotations": {
+        "LNPlatformNameMACOS": {
+          "introducedVersion": "14.0"
+        },
+        "LNPlatformNameWildcard": {
+          "introducedVersion": "*"
+        }
+      },
+      "visibilityMetadata": {
+        "isDiscoverable": true,
+        "assistantOnly": false
+      },
+      "assistantDefinedSchemas": [],
+      "effectiveBundleIdentifiers": [],
+      "mangledTypeNameByBundleIdentifier": {},
+      "properties": [],
+      "requiredCapabilities": [],
+      "systemProtocolMetadata": [],
+      "systemProtocolMetadataV2": [],
+      "transient": false
+    }
+  },
+  "queries": {
+    "MagimailAccountQuery": {
+      "identifier": "MagimailAccountQuery",
+      "fullyQualifiedIdentifier": "MagimailAppIntents.MagimailAccountQuery",
+      "mangledTypeName": "18MagimailAppIntents0A12AccountQueryV",
+      "entityType": "MagimailAccountEntity",
+      "queryType": "MagimailAccountQuery",
+      "defaultQueryForEntity": true,
+      "capabilities": 2,
+      "resultValueType": {
+        "entity": {
+          "wrapper": {
+            "typeName": "MagimailAccountEntity"
+          }
+        }
+      },
+      "availabilityAnnotations": {
+        "LNPlatformNameMACOS": {
+          "introducedVersion": "14.0"
+        },
+        "LNPlatformNameWildcard": {
+          "introducedVersion": "*"
+        }
+      },
+      "visibilityMetadata": {
+        "isDiscoverable": true,
+        "assistantOnly": false
+      },
+      "effectiveBundleIdentifiers": [],
+      "mangledTypeNameByBundleIdentifier": {},
+      "parameters": [],
+      "sortingOptions": []
+    }
+  },
+  "enums": [],
+  "assistantEntities": [],
+  "assistantIntentNegativePhrases": [],
+  "assistantIntents": [],
+  "autoShortcuts": [],
+  "negativePhrases": []
+}

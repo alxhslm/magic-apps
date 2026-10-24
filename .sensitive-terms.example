@@ -1,0 +1,8 @@
+# Copy this to `.sensitive-terms` (gitignored) and list the real names, addresses,
+# client and venue strings that must never reach a tracked file. One term per line,
+# case-insensitive, `#` starts a comment. This template is committed; the real list is
+# not, because committing it would publish exactly what it protects.
+acme-corp
+example-client
+someone@example-client.example
+Some Fictional Venue

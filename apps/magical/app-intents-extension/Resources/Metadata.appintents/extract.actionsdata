@@ -1,0 +1,308 @@
+{
+  "version": 1,
+  "generator": {
+    "name": "xcode-tools",
+    "version": "17F113"
+  },
+  "shortcutTileColor": 14,
+  "actions": {
+    "MagicalFocusFilter": {
+      "identifier": "MagicalFocusFilter",
+      "fullyQualifiedTypeName": "MagicalAppIntents.MagicalFocusFilter",
+      "mangledTypeName": "17MagicalAppIntents0A11FocusFilterV",
+      "mangledTypeNameV2": "17MagicalAppIntents0A11FocusFilterV",
+      "title": {
+        "alternatives": [],
+        "key": "Filter Calendars"
+      },
+      "descriptionMetadata": {
+        "descriptionText": {
+          "alternatives": [],
+          "key": "Choose which accounts and calendars stay active during this Focus. The rest are silenced and left out of the menu bar and the popover."
+        },
+        "searchKeywords": []
+      },
+      "parameters": [
+        {
+          "name": "accounts",
+          "title": {
+            "alternatives": [],
+            "key": "Accounts"
+          },
+          "queryIdentifier": "MagicalAppIntents.MagicalAccountQuery",
+          "isOptional": false,
+          "isInput": false,
+          "inputConnectionBehavior": 0,
+          "dynamicOptionsSupport": 1,
+          "capabilities": 5,
+          "resolvableInputTypes": [],
+          "valueType": {
+            "array": {
+              "wrapper": {
+                "capabilities": 3,
+                "memberValueType": {
+                  "entity": {
+                    "wrapper": {
+                      "typeName": "MagicalAccountEntity"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "typeSpecificMetadata": [
+            "LNValueTypeSpecificMetadataKeyDefaultValue",
+            {
+              "array": {
+                "elements": []
+              }
+            }
+          ]
+        },
+        {
+          "name": "calendars",
+          "title": {
+            "alternatives": [],
+            "key": "Calendars"
+          },
+          "queryIdentifier": "MagicalAppIntents.MagicalCalendarQuery",
+          "isOptional": false,
+          "isInput": false,
+          "inputConnectionBehavior": 0,
+          "dynamicOptionsSupport": 1,
+          "capabilities": 5,
+          "resolvableInputTypes": [],
+          "valueType": {
+            "array": {
+              "wrapper": {
+                "capabilities": 3,
+                "memberValueType": {
+                  "entity": {
+                    "wrapper": {
+                      "typeName": "MagicalCalendarEntity"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "typeSpecificMetadata": [
+            "LNValueTypeSpecificMetadataKeyDefaultValue",
+            {
+              "array": {
+                "elements": []
+              }
+            }
+          ]
+        },
+        {
+          "name": "preventAccess",
+          "title": {
+            "alternatives": [],
+            "key": "Prevent Access to Silenced Accounts"
+          },
+          "isOptional": false,
+          "isInput": false,
+          "inputConnectionBehavior": 0,
+          "dynamicOptionsSupport": 0,
+          "capabilities": 1,
+          "resolvableInputTypes": [
+            {
+              "kindValue": 0,
+              "valueType": {
+                "primitive": {
+                  "wrapper": {
+                    "typeIdentifier": 1
+                  }
+                }
+              }
+            }
+          ],
+          "valueType": {
+            "primitive": {
+              "wrapper": {
+                "typeIdentifier": 1
+              }
+            }
+          },
+          "typeSpecificMetadata": []
+        }
+      ],
+      "systemProtocols": [
+        "com.apple.link.systemProtocol.FocusConfiguration"
+      ],
+      "systemProtocolMetadata": [
+        "com.apple.link.systemProtocol.FocusConfiguration",
+        {
+          "empty": {}
+        }
+      ],
+      "systemProtocolMetadataV2": [
+        "com.apple.link.systemProtocol.FocusConfiguration",
+        {
+          "empty": {}
+        }
+      ],
+      "availabilityAnnotations": {
+        "LNPlatformNameMACOS": {
+          "introducedVersion": "14.0"
+        },
+        "LNPlatformNameWildcard": {
+          "introducedVersion": "*"
+        }
+      },
+      "isDiscoverable": true,
+      "visibilityMetadata": {
+        "isDiscoverable": true,
+        "assistantOnly": false
+      },
+      "supportedModes": 1,
+      "presentationStyle": 0,
+      "requiredCapabilities": [],
+      "authenticationPolicy": 0,
+      "isAuthPolExplicit": false,
+      "openAppWhenRun": false,
+      "outputFlags": 0,
+      "assistantDefinedSchemaTraits": [],
+      "assistantDefinedSchemas": [],
+      "effectiveBundleIdentifiers": [],
+      "mangledTypeNameByBundleIdentifier": {},
+      "mangledTypeNameByBundleIdentifierV2": {},
+      "typeSpecificMetadata": []
+    }
+  },
+  "entities": {
+    "MagicalCalendarEntity": {
+      "typeName": "MagicalCalendarEntity",
+      "fullyQualifiedTypeName": "MagicalAppIntents.MagicalCalendarEntity",
+      "mangledTypeName": "17MagicalAppIntents0A14CalendarEntityV",
+      "displayTypeName": {
+        "alternatives": [],
+        "key": "Magical Calendar"
+      },
+      "defaultQueryIdentifier": "MagicalAppIntents.MagicalCalendarQuery",
+      "availabilityAnnotations": {
+        "LNPlatformNameMACOS": {
+          "introducedVersion": "14.0"
+        },
+        "LNPlatformNameWildcard": {
+          "introducedVersion": "*"
+        }
+      },
+      "visibilityMetadata": {
+        "isDiscoverable": true,
+        "assistantOnly": false
+      },
+      "assistantDefinedSchemas": [],
+      "effectiveBundleIdentifiers": [],
+      "mangledTypeNameByBundleIdentifier": {},
+      "properties": [],
+      "requiredCapabilities": [],
+      "systemProtocolMetadata": [],
+      "systemProtocolMetadataV2": [],
+      "transient": false
+    },
+    "MagicalAccountEntity": {
+      "typeName": "MagicalAccountEntity",
+      "fullyQualifiedTypeName": "MagicalAppIntents.MagicalAccountEntity",
+      "mangledTypeName": "17MagicalAppIntents0A13AccountEntityV",
+      "displayTypeName": {
+        "alternatives": [],
+        "key": "Magical Account"
+      },
+      "defaultQueryIdentifier": "MagicalAppIntents.MagicalAccountQuery",
+      "availabilityAnnotations": {
+        "LNPlatformNameMACOS": {
+          "introducedVersion": "14.0"
+        },
+        "LNPlatformNameWildcard": {
+          "introducedVersion": "*"
+        }
+      },
+      "visibilityMetadata": {
+        "isDiscoverable": true,
+        "assistantOnly": false
+      },
+      "assistantDefinedSchemas": [],
+      "effectiveBundleIdentifiers": [],
+      "mangledTypeNameByBundleIdentifier": {},
+      "properties": [],
+      "requiredCapabilities": [],
+      "systemProtocolMetadata": [],
+      "systemProtocolMetadataV2": [],
+      "transient": false
+    }
+  },
+  "queries": {
+    "MagicalCalendarQuery": {
+      "identifier": "MagicalCalendarQuery",
+      "fullyQualifiedIdentifier": "MagicalAppIntents.MagicalCalendarQuery",
+      "mangledTypeName": "17MagicalAppIntents0A13CalendarQueryV",
+      "entityType": "MagicalCalendarEntity",
+      "queryType": "MagicalCalendarQuery",
+      "defaultQueryForEntity": true,
+      "capabilities": 2,
+      "resultValueType": {
+        "entity": {
+          "wrapper": {
+            "typeName": "MagicalCalendarEntity"
+          }
+        }
+      },
+      "availabilityAnnotations": {
+        "LNPlatformNameMACOS": {
+          "introducedVersion": "14.0"
+        },
+        "LNPlatformNameWildcard": {
+          "introducedVersion": "*"
+        }
+      },
+      "visibilityMetadata": {
+        "isDiscoverable": true,
+        "assistantOnly": false
+      },
+      "effectiveBundleIdentifiers": [],
+      "mangledTypeNameByBundleIdentifier": {},
+      "parameters": [],
+      "sortingOptions": []
+    },
+    "MagicalAccountQuery": {
+      "identifier": "MagicalAccountQuery",
+      "fullyQualifiedIdentifier": "MagicalAppIntents.MagicalAccountQuery",
+      "mangledTypeName": "17MagicalAppIntents0A12AccountQueryV",
+      "entityType": "MagicalAccountEntity",
+      "queryType": "MagicalAccountQuery",
+      "defaultQueryForEntity": true,
+      "capabilities": 2,
+      "resultValueType": {
+        "entity": {
+          "wrapper": {
+            "typeName": "MagicalAccountEntity"
+          }
+        }
+      },
+      "availabilityAnnotations": {
+        "LNPlatformNameMACOS": {
+          "introducedVersion": "14.0"
+        },
+        "LNPlatformNameWildcard": {
+          "introducedVersion": "*"
+        }
+      },
+      "visibilityMetadata": {
+        "isDiscoverable": true,
+        "assistantOnly": false
+      },
+      "effectiveBundleIdentifiers": [],
+      "mangledTypeNameByBundleIdentifier": {},
+      "parameters": [],
+      "sortingOptions": []
+    }
+  },
+  "enums": [],
+  "assistantEntities": [],
+  "assistantIntentNegativePhrases": [],
+  "assistantIntents": [],
+  "autoShortcuts": [],
+  "negativePhrases": []
+}

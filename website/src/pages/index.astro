@@ -1,0 +1,358 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Notify from '../components/Notify.astro';
+import site from '../data/site.json';
+
+const notify = {
+  band: 'wrap band',
+  heading: 'Join the v1.0 waitlist',
+  lead: "Try the public alpha today, or leave your email to find out when the first stable release is ready.",
+};
+---
+
+<BaseLayout
+  title="Magic Apps | Gmail and Google Calendar as proper Mac apps"
+  description="Mac + Google = Magic. Gmail and Google Calendar as proper Mac apps: every account at once, every feature intact, and a real menu bar, toolbar and Share Sheet. Coming soon."
+  ogDescription="Mac + Google = Magic. Gmail and Google Calendar as proper Mac apps. Coming soon."
+  icon="suite.svg"
+  current="home"
+  permalink="index.html"
+>
+  <!-- ============================================================ hero -->
+  <section class="wrap hero">
+    <div class="hero__inner">
+      <div class="hero__copy">
+        <p class="chip rise">Open source</p>
+        <h1 class="equation rise" aria-label="Mac plus Google equals Magic">
+          <span>Mac</span>
+          <span class="equation__group">
+            <span class="equation__op" aria-hidden="true">+</span>
+            <span>Google</span>
+          </span>
+          <span class="equation__group">
+            <span class="equation__op" aria-hidden="true">=</span>
+            <span class="equation__sum">Magic</span>
+          </span>
+        </h1>
+        <p class="lead rise">
+          Gmail and Google Calendar apps that feel like they came with your
+          Mac. Use all your accounts without switching tabs or profiles.
+        </p>
+        <div class="btn-row rise">
+          <a class="btn btn--primary" href="#apps">Download Alpha &darr;</a>
+          <a class="btn btn--ghost" href="#notify">Join v1.0 Waitlist</a>
+        </div>
+        <p class="hero__req small dim rise" set:html={site.requirementsShort} />
+      </div>
+
+      <div class="hero__art">
+        <img
+          src="assets/hero-art-combined.svg"
+          width="550"
+          height="430"
+          alt="Magic App Suite hero art: Magimail envelope and Magical calendar with wand emerging from a magician's top hat"
+        />
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================ the apps in action -->
+  <!-- The pitch is "apps that feel like they came with your Mac", so the reader
+       can preview both Magimail and Magical directly below the hero. -->
+  <section class="hero-showcase" aria-label="Magic Apps on macOS">
+    <div class="hero-switcher">
+      <div class="hero-switcher__control" role="tablist" aria-label="Select app to preview">
+        <button
+          type="button"
+          class="hero-switcher__btn is-active"
+          role="tab"
+          aria-selected="true"
+          aria-controls="hero-shot-magimail"
+          id="tab-magimail"
+          data-app="magimail"
+        >
+          <img src="assets/magimail.svg" width="20" height="20" alt="" aria-hidden="true" />
+          <span>Magimail</span>
+          <span class="hero-switcher__badge">Gmail</span>
+        </button>
+        <button
+          type="button"
+          class="hero-switcher__btn"
+          role="tab"
+          aria-selected="false"
+          aria-controls="hero-shot-magical"
+          id="tab-magical"
+          data-app="magical"
+        >
+          <img src="assets/magical.svg" width="20" height="20" alt="" aria-hidden="true" />
+          <span>Magical</span>
+          <span class="hero-switcher__badge">Calendar</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="hero-shot" id="hero-shot-frame">
+      <div
+        class="hero-shot__pane is-active"
+        id="hero-shot-magimail"
+        role="tabpanel"
+        aria-labelledby="tab-magimail"
+      >
+        <img
+          src="assets/shot-hero.webp"
+          width="2000"
+          height="1311"
+          alt="The Magimail window on macOS, with Personal and Work account tabs in the toolbar and an inbox below"
+        />
+      </div>
+      <div
+        class="hero-shot__pane"
+        id="hero-shot-magical"
+        role="tabpanel"
+        aria-labelledby="tab-magical"
+        hidden
+      >
+        <img
+          src="assets/shot-window-magical-light.webp"
+          width="1600"
+          height="1025"
+          alt="The Magical window on macOS, with Personal and Work account tabs in the toolbar and a week calendar view below"
+        />
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================ the apps -->
+  <section class="wrap band" id="apps" aria-labelledby="apps-title">
+    <div class="section-head">
+      <h2 id="apps-title">Built as a pair</h2>
+      <p class="lead">
+        Magimail and Magical are built on the same foundations. The menu
+        bar, the settings, the notifications and account management work the same way. Use one and you know how to use the other.
+      </p>
+    </div>
+
+    <div class="apps">
+      <article class="app-card">
+        <div class="app-card__head">
+          <img class="app-card__icon" src="assets/magimail.svg" width="64" height="64" alt="" />
+          <div class="app-card__title">
+            <h3>Magimail</h3>
+            <span>Gmail &middot; Public Alpha</span>
+          </div>
+        </div>
+        <p>
+          The full Gmail experience: schedule send, snooze, and add-ons. Plus it looks like a
+          proper Mac app, with all your accounts in one place.
+        </p>
+        <div class="app-card__action">
+          <a class="btn btn--primary" href="https://github.com/alxhslm/magic-apps/releases" target="_blank" rel="noopener noreferrer">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            Download Magimail Alpha
+          </a>
+        </div>
+        <div class="app-card__art">
+          <img
+            src="assets/envelope.svg"
+            width="390"
+            height="320"
+            alt="A postal envelope with a lifted flap and a gold star at its corner"
+          />
+        </div>
+        <div class="app-card__foot">
+          <a class="app-card__link" href="magimail.html">Find out more about Magimail &rarr;</a>
+        </div>
+      </article>
+
+      <article class="app-card app-card--calendar">
+        <div class="app-card__head">
+          <img class="app-card__icon" src="assets/magical.svg" width="64" height="64" alt="" />
+          <div class="app-card__title">
+            <h3>Magical</h3>
+            <span>Google Calendar &middot; Public Alpha</span>
+          </div>
+        </div>
+        <p>
+          The real Google Calendar experience, with your next meeting in the menu bar.
+        </p>
+        <div class="app-card__action">
+          <a class="btn btn--primary" href="https://github.com/alxhslm/magic-apps/releases" target="_blank" rel="noopener noreferrer">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            Download Magical Alpha
+          </a>
+        </div>
+        <div class="app-card__art">
+          <img
+            src="assets/calendar-art.svg"
+            width="384"
+            height="424"
+            alt="A flip-page desk calendar with a magic wand sweeping past it, trailing sparkles"
+          />
+        </div>
+        <div class="app-card__foot">
+          <a class="app-card__link" href="magical.html">Find out more about Magical &rarr;</a>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <!-- ============================================================ pillars -->
+  <section class="band band--raised band--ruled" id="architecture" aria-labelledby="architecture-title">
+    <div class="wrap">
+      <div class="section-head">
+        <h2 id="architecture-title">One architecture, built for the Mac</h2>
+        <p class="lead">
+          Both apps share the same foundation: native macOS controls, isolated account sessions,
+          and direct communication with Google.
+        </p>
+      </div>
+
+      <div class="features">
+        <div class="feature">
+          <svg class="feature__glyph" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <circle cx="8" cy="8" r="3.2" stroke="currentColor" stroke-width="1.6"></circle>
+            <circle cx="16" cy="16" r="3.2" stroke="currentColor" stroke-width="1.6"></circle>
+            <path
+              d="M10.6 10.6 13.4 13.4"
+              stroke="currentColor"
+              stroke-width="1.6"
+              stroke-linecap="round"
+            ></path>
+          </svg>
+          <h3>Isolated account sessions</h3>
+          <p>
+            Every account stays sandboxed with its own isolated session and accent colour.
+            Switch instantly without browser tabs or signing in and out.
+          </p>
+        </div>
+
+        <div class="feature">
+          <svg class="feature__glyph" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <rect
+              x="3"
+              y="4.5"
+              width="18"
+              height="15"
+              rx="3"
+              stroke="currentColor"
+              stroke-width="1.6"
+            ></rect>
+            <path d="M3 8.5h18" stroke="currentColor" stroke-width="1.6"></path>
+            <circle cx="17" cy="6.5" r="1" fill="currentColor"></circle>
+          </svg>
+          <h3>Native system integration</h3>
+          <p>
+            Translucent sidebars that blend with your desktop, menu bar popovers, desktop
+            widgets, Focus filter support, and customisable toolbars that look and feel at home
+            on macOS.
+          </p>
+        </div>
+
+        <div class="feature">
+          <svg class="feature__glyph" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path
+              d="M12 3.5 4.5 7v6c0 5 3.5 8.5 7.5 9.5 4-1 7.5-4.5 7.5-9.5V7L12 3.5Z"
+              stroke="currentColor"
+              stroke-width="1.6"
+              stroke-linejoin="round"
+            ></path>
+            <path
+              d="m9.5 12 1.8 1.8 3.7-3.6"
+              stroke="currentColor"
+              stroke-width="1.6"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            ></path>
+          </svg>
+          <h3>Direct and private</h3>
+          <p>
+            All data, sync, and notifications move directly between your Mac and Google with no
+            intermediate servers. Both apps are open source, so you can inspect the code
+            yourself.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <Notify notify={notify} />
+
+  <script>
+    function setupHeroSwitcher() {
+      const tabs = document.querySelectorAll<HTMLButtonElement>('.hero-switcher__btn');
+      const panes = document.querySelectorAll<HTMLElement>('.hero-shot__pane');
+      const frame = document.getElementById('hero-shot-frame');
+      if (!tabs.length || !panes.length) return;
+
+      let currentIndex = 0;
+      let autoTimer: ReturnType<typeof setInterval> | null = null;
+
+      function switchTab(index: number) {
+        currentIndex = index;
+        tabs.forEach((tab, i) => {
+          const isActive = i === index;
+          tab.classList.toggle('is-active', isActive);
+          tab.setAttribute('aria-selected', String(isActive));
+        });
+        panes.forEach((pane, i) => {
+          const isActive = i === index;
+          pane.classList.toggle('is-active', isActive);
+          if (isActive) {
+            pane.removeAttribute('hidden');
+          } else {
+            pane.setAttribute('hidden', '');
+          }
+        });
+      }
+
+      tabs.forEach((tab, index) => {
+        tab.addEventListener('click', () => {
+          stopAuto();
+          switchTab(index);
+        });
+        tab.addEventListener('keydown', (e) => {
+          if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+            e.preventDefault();
+            stopAuto();
+            const nextIndex = (currentIndex + 1) % tabs.length;
+            switchTab(nextIndex);
+            tabs[nextIndex]?.focus();
+          }
+        });
+      });
+
+      function startAuto() {
+        if (autoTimer) return;
+        autoTimer = setInterval(() => {
+          const nextIndex = (currentIndex + 1) % tabs.length;
+          switchTab(nextIndex);
+        }, 7000);
+      }
+
+      function stopAuto() {
+        if (autoTimer) {
+          clearInterval(autoTimer);
+          autoTimer = null;
+        }
+      }
+
+      if (frame) {
+        frame.addEventListener('mouseenter', stopAuto);
+        frame.addEventListener('mouseleave', startAuto);
+      }
+
+      startAuto();
+    }
+
+    setupHeroSwitcher();
+    document.addEventListener('astro:page-load', setupHeroSwitcher);
+  </script>
+</BaseLayout>

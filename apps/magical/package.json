@@ -1,0 +1,43 @@
+{
+  "name": "magical",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Magical - Native macOS Desktop Client for Google Calendar",
+  "license": "MPL-2.0",
+  "main": "./dist/main.js",
+  "scripts": {
+    "dev": "tsup --watch --onSuccess \"electron .\"",
+    "dev:demo": "tsup --watch --onSuccess \"electron . --demo\"",
+    "build": "tsup",
+    "build:swift": "cd swift && ./build.sh release",
+    "build:native": "cd native && swift build -c release && npx node-gyp rebuild",
+    "build:intents": "cd app-intents-extension && ./build.sh release",
+    "build:widgets": "cd widgets && ./build.sh release",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:native": "node scripts/test-native-alerts.mjs",
+    "test:focus-filter": "node ../../tools/test-focus-filter-appcontext.mjs magical",
+    "start": "electron .",
+    "app": "./scripts/build-app.sh",
+    "app:install": "./scripts/build-app.sh --install",
+    "icons": "cd ../.. && swift apps/magical/build/generate-icons.swift && iconutil -c icns apps/magical/build/icon.iconset -o apps/magical/build/icon.icns",
+    "package:dir": "pnpm build && electron-builder --mac --dir",
+    "package:dmg": "pnpm build && electron-builder --mac dmg",
+    "debug": "./scripts/debug-app.sh",
+    "cdp": "CDP_PORT=9223 node ../../tools/cdp-eval.mjs",
+    "release": "./scripts/release.sh"
+  },
+  "dependencies": {
+    "@magimail/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.5",
+    "electron": "^44.9.1",
+    "electron-builder": "^26.15.3",
+    "node-addon-api": "^8.9.2",
+    "node-gyp": "^13.1.0",
+    "tsup": "^9.0.0",
+    "typescript": "^5.7.3",
+    "vitest": "^5.0.5"
+  }
+}

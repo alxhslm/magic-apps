@@ -1,0 +1,109 @@
+name: Build
+
+# Do the apps still package? electron-builder downgrades a missing
+# extraResources or extraFiles entry to a warning, so a bundle with no Swift
+# helper, no native addon and no extensions packages happily and reports
+# success. Each app's build-app.sh refuses to package unless every artefact is
+# on disk, which is why this job runs those rather than electron-builder.
+#
+# Runs on push to main to verify that the native targets still assemble and
+# package cleanly. pull_request runs check-swift in ci.yml to compile the
+# Swift targets quickly; this catches the full assembly step behind it.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    outputs:
+      apps: ${{ steps.pick.outputs.apps }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Detect path changes
+        id: filter
+        uses: dorny/paths-filter@v4
+        with:
+          # packages/** and the lockfile land in both bundles, so they rebuild
+          # both. Only apps/<app>/** is app-specific.
+          filters: |
+            magimail:
+              - 'apps/magimail/**'
+              - 'packages/**'
+              - 'tools/**'
+              - 'pnpm-lock.yaml'
+              - '.github/workflows/build.yml'
+            magical:
+              - 'apps/magical/**'
+              - 'packages/**'
+              - 'tools/**'
+              - 'pnpm-lock.yaml'
+              - '.github/workflows/build.yml'
+
+      - name: Pick the apps to package
+        id: pick
+        # Resolved to a list here rather than gated inside the matrix job: a leg
+        # that skips every step still shows up as a green check nobody ran.
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            APPS='["magimail","magical"]'
+          else
+            APPS="$(jq -cn --argjson m ${{ steps.filter.outputs.magimail }} \
+                            --argjson c ${{ steps.filter.outputs.magical }} \
+              '[if $m then "magimail" else empty end, if $c then "magical" else empty end]')"
+          fi
+          echo "apps=$APPS" >> "$GITHUB_OUTPUT"
+          echo "Packaging: $APPS"
+
+  package-macos:
+    name: Package ${{ matrix.app }} (macOS)
+    needs: changes
+    if: needs.changes.outputs.apps != '[]'
+    runs-on: macos-latest
+    strategy:
+      # Parallel: GitHub-hosted runners run each matrix leg independently.
+      # Which of the two broke is the first thing anyone opening this workflow
+      # wants to know, so the second app is packaged even when the first failed.
+      fail-fast: false
+      matrix:
+        app: ${{ fromJSON(needs.changes.outputs.apps) }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Add Homebrew to PATH
+        run: echo "/opt/homebrew/bin" >> $GITHUB_PATH
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 11.24.0
+          run_install: false
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Clear the previous run's packaged bundle
+        run: rm -rf apps/${{ matrix.app }}/release
+
+      - name: Build and package ${{ matrix.app }}
+        # The unpacked bundle, not --dist: this proves the native artefacts
+        # assemble, and the DMG and zip add two minutes of compression that nothing
+        # here needs. Pass --adhoc because GitHub-hosted runners have no signing certificate.
+        run: pnpm --filter ${{ matrix.app }} app -- --adhoc

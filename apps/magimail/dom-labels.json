@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "actions": {
+    "archive": { "selectors": ["div[act=\"7\"]"], "order": "only" },
+    "trash": { "selectors": ["div[act=\"10\"]"], "order": "only" },
+    "markRead": { "selectors": ["div[act=\"1\"]"], "order": "only" },
+    "markUnread": { "selectors": ["div[act=\"2\"]"], "order": "only" },
+    "refresh": { "selectors": ["div[act=\"20\"]"], "order": "only" },
+    "compose": { "selectors": ["[gh=\"cm\"]"], "order": "only" },
+    "search": { "selectors": ["input[name=\"q\"]"], "order": "only" },
+    "sidePanel": { "selectors": ["[role=\"complementary\"]"], "order": "only" },
+    "composeTo": { "selectors": ["div[name=\"to\"] input"], "order": "only" },
+    "composeSubject": { "selectors": ["input[name=\"subjectbox\"]"], "order": "only" },
+    "composeBody": { "selectors": ["div[role=\"textbox\"]"], "order": "only" },
+    "composeCc": { "selectors": ["div[name=\"cc\"] input"], "order": "only" },
+    "composeBcc": { "selectors": ["div[name=\"bcc\"] input"], "order": "only" },
+    "addCc": { "labels": { "en": ["Add Cc recipients"] }, "match": "startsWith", "order": "only" },
+    "addBcc": {
+      "labels": { "en": ["Add Bcc recipients"] },
+      "match": "startsWith",
+      "order": "only"
+    },
+    "reply": { "labels": { "en": ["Reply"] }, "order": "last" },
+    "replyAll": { "labels": { "en": ["Reply all", "Reply to all"] }, "order": "last" },
+    "forward": { "labels": { "en": ["Forward"] }, "order": "last" },
+    "sidePanelToggle": {
+      "labels": { "en": ["Show side panel", "Hide side panel"] },
+      "order": "first"
+    },
+    "gemini": { "labels": { "en": ["Ask Gemini"] }, "order": "first" },
+    "quickSettings": { "labels": { "en": ["Quick settings"] }, "order": "first" },
+    "addOnTab": { "labels": { "en": ["add-on"] }, "match": "contains", "order": "first" },
+    "adRowExact": { "labels": { "en": ["Ad", "Sponsored"] }, "order": "first" },
+    "adRowPhrase": {
+      "labels": { "en": ["Ad info", "About this ad", "Why this ad", "Sponsored"] },
+      "match": "contains",
+      "order": "first"
+    },
+    "back": { "selectors": ["div[act=\"19\"]"], "order": "only" }
+  }
+}

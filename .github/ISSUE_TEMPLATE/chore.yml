@@ -1,0 +1,22 @@
+name: Chore
+description: Maintenance, builds or CI.
+title: ''
+labels: ['type:infra']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Check [existing issues](https://github.com/alxhslm/magic-apps/issues) first. A chore is the duplication, the inconsistency, or the thing that is hard to maintain. It carries `type:infra`, or `type:ci` for tests and workflows.
+  - type: textarea
+    id: what-needs-maintaining
+    attributes:
+      label: What needs maintaining?
+    validations:
+      required: true
+  - type: textarea
+    id: why-it-matters
+    attributes:
+      label: Why does it matter?
+      description: The cost of leaving it alone.
+    validations:
+      required: true

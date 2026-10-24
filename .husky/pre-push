@@ -1,0 +1,44 @@
+#!/bin/sh
+# Prevent pushing tags that do not point to a commit on main.
+
+remote="$1"
+url="$2"
+
+z40="0000000000000000000000000000000000000000"
+
+while read local_ref local_sha remote_ref remote_sha; do
+  case "$remote_ref" in
+    refs/tags/*)
+      tag_name="${remote_ref#refs/tags/}"
+      # Release tags are per app: magimail-v1.2.0, magical-v0.3.0. Anything else
+      # is somebody's own marker and is none of this hook's business.
+      case "$tag_name" in
+        magimail-v* | magical-v*) ;;
+        *) continue ;;
+      esac
+      # Deleting a tag is fine
+      if [ "$local_sha" = "$z40" ]; then
+        continue
+      fi
+
+      # Determine main branch reference (prefer origin/main, fallback to main)
+      target_branch="origin/main"
+      if ! git rev-parse --verify "$target_branch" >/dev/null 2>&1; then
+        target_branch="main"
+      fi
+
+      if ! git rev-parse --verify "$target_branch" >/dev/null 2>&1; then
+        # If neither origin/main nor main exists, allow push
+        continue
+      fi
+
+      if ! git merge-base --is-ancestor "$local_sha" "$target_branch"; then
+        echo "\033[1;31m[husky] Error: Tag '$tag_name' ($local_sha) is not in the history of '$target_branch'.\033[0m" >&2
+        echo "\033[1;31m[husky] Release tags may only be created against commits on the main branch.\033[0m" >&2
+        exit 1
+      fi
+      ;;
+  esac
+done
+
+exit 0

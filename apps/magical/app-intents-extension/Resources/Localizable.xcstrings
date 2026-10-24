@@ -1,0 +1,59 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "Account" : {
+      "extractionState" : "manual"
+    },
+    "Accounts" : {
+      "extractionState" : "manual"
+    },
+    "Calendars" : {
+      "extractionState" : "manual"
+    },
+    "Choose which accounts and calendars stay active during this Focus. The rest are silenced and left out of the menu bar and the popover." : {
+      "extractionState" : "manual"
+    },
+    "Filter Calendars" : {
+      "extractionState" : "manual"
+    },
+    "Gray out silenced accounts so they cannot be opened." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Grey out silenced accounts so they cannot be opened."
+          }
+        }
+      }
+    },
+    "Magical Account" : {
+      "extractionState" : "manual"
+    },
+    "Magical Calendar" : {
+      "extractionState" : "manual"
+    },
+    "Magical could not save the Focus filter. Check that Magical is installed in /Applications." : {
+      "extractionState" : "manual"
+    },
+    "No Accounts" : {
+      "extractionState" : "manual"
+    },
+    "Others silenced" : {
+      "extractionState" : "manual"
+    },
+    "Others silenced and blocked" : {
+      "extractionState" : "manual"
+    },
+    "Pick which individual calendars remain active for unsilenced accounts." : {
+      "extractionState" : "manual"
+    },
+    "Prevent Access to Silenced Accounts" : {
+      "extractionState" : "manual"
+    },
+    "Turning an account off silences every calendar it has." : {
+      "extractionState" : "manual"
+    }
+  },
+  "version" : "1.0"
+}

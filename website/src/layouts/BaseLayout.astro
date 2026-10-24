@@ -1,0 +1,66 @@
+---
+import Nav from '../components/Nav.astro';
+import Footer from '../components/Footer.astro';
+import site from '../data/site.json';
+
+interface Props {
+  title: string;
+  description: string;
+  ogDescription: string;
+  icon?: string;
+  current?: string;
+  permalink?: string;
+}
+
+const {
+  title,
+  description,
+  ogDescription,
+  icon = 'suite.svg',
+  current,
+  permalink = '',
+} = Astro.props;
+
+const canonicalUrl = `${site.url}/${permalink && permalink !== 'index.html' ? permalink : ''}`;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <meta name="theme-color" content="#0B0918" />
+    <link rel="icon" href={`/assets/${icon}`} type="image/svg+xml" />
+    <link rel="alternate icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/assets/site.css" />
+
+    <link rel="canonical" href={canonicalUrl} />
+
+    {/* Social cards need absolute URLs: a relative one resolves against the
+       scraper's host, not ours, and silently yields no preview. */}
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content={canonicalUrl} />
+    <meta property="og:site_name" content={site.name} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={ogDescription} />
+    <meta property="og:image" content={`${site.url}/assets/og-card.jpg`} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="The Magimail window on macOS, beside the words Mac plus Google equals Magic" />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={ogDescription} />
+    <meta name="twitter:image" content={`${site.url}/assets/og-card.jpg`} />
+  </head>
+
+  <body>
+    <Nav current={current} />
+    <main>
+      <slot />
+    </main>
+    <Footer />
+  </body>
+</html>

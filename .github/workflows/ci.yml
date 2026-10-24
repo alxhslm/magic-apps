@@ -1,0 +1,239 @@
+name: CI
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref == 'refs/heads/main' && github.sha || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft != true
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+      magimail_native: ${{ steps.filter.outputs.magimail_native }}
+      magical_native: ${{ steps.filter.outputs.magical_native }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Detect path changes
+        id: filter
+        uses: dorny/paths-filter@v4
+        with:
+          filters: |
+            code:
+              - '!**/*.md'
+              - '!docs/**'
+              - 'packages/**'
+              - 'apps/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'tsconfig.json'
+              - 'vitest.config.ts'
+              - 'eslint.config.*'
+              - '.github/workflows/ci.yml'
+              - '.github/dependabot.yml'
+            # Every directory holding Swift the app ships, extensions included.
+            # An extension nobody compiles until the push to main is an
+            # extension that reaches main broken, and tools/signing.sh is what
+            # each extension's build.sh is built out of.
+            magimail_native:
+              - 'apps/magimail/swift/**'
+              - 'apps/magimail/native/**'
+              - 'apps/magimail/share-extension/**'
+              - 'apps/magimail/widgets/**'
+              - 'apps/magimail/app-intents-extension/**'
+              - 'packages/swift-rpc/**'
+              - 'packages/swift-native/**'
+              - 'packages/swift-notifications/**'
+              - 'packages/swift-brand/**'
+              - 'packages/swift-ui/**'
+              - 'tools/signing.sh'
+              - 'tools/test-focus-filter-appcontext.mjs'
+              - '.github/workflows/ci.yml'
+            magical_native:
+              - 'apps/magical/swift/**'
+              - 'apps/magical/native/**'
+              - 'apps/magical/widgets/**'
+              - 'apps/magical/app-intents-extension/**'
+              - 'packages/swift-rpc/**'
+              - 'packages/swift-native/**'
+              - 'packages/swift-notifications/**'
+              - 'packages/swift-brand/**'
+              - 'packages/swift-ui/**'
+              - 'tools/signing.sh'
+              - 'tools/test-focus-filter-appcontext.mjs'
+              - '.github/workflows/ci.yml'
+
+  check-ts:
+    name: Check TypeScript (lint, typecheck, test)
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 11.24.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check code formatting
+        run: pnpm format:check
+
+      - name: Run ESLint
+        run: pnpm lint
+
+      - name: Audit production dependencies
+        run: pnpm audit --prod --audit-level high
+
+      - name: Report dev dependency advisories
+        run: pnpm audit --dev
+        continue-on-error: true
+
+      - name: Build core package (required for typecheck)
+        run: pnpm --filter @magimail/core build
+
+      - name: Typecheck TypeScript
+        run: pnpm typecheck
+
+      - name: Run unit tests
+        run: pnpm test
+
+  check-swift:
+    name: Check Swift (build, format)
+    runs-on: macos-latest
+    if: needs.changes.outputs.magimail_native == 'true' || needs.changes.outputs.magical_native == 'true' || github.event_name == 'workflow_dispatch'
+    needs: changes
+    steps:
+      # GitHub-hosted: the only macOS job a pull request triggers.
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      # Not in the hosted image, and `--lint` fails on a missing binary rather
+      # than skipping the check.
+      - name: Install swiftformat
+        run: brew install swiftformat
+
+      # A helper's stdout is the JSON-RPC pipe, so `print()` is dropped by the
+      # supervisor as malformed JSON and the diagnostic is never seen anywhere.
+      # Every helper diagnostic goes through HelperLog, which writes to stderr.
+      - name: Check helpers log to stderr, not the RPC pipe
+        run: |
+          if grep -rn '^[[:space:]]*print(' apps/magimail/swift/Sources apps/magical/swift/Sources packages/swift-rpc/Sources packages/swift-notifications/Sources packages/swift-brand/Sources packages/swift-ui/Sources; then
+            echo "::error::print() writes to the JSON-RPC pipe and is dropped. Use HelperLog."
+            exit 1
+          fi
+
+      - name: Lint Swift formatting
+        run: |
+          swiftformat --lint \
+            apps/magimail/swift apps/magimail/native apps/magimail/share-extension \
+            apps/magimail/widgets apps/magimail/app-intents-extension \
+            apps/magical/swift apps/magical/native \
+            apps/magical/widgets apps/magical/app-intents-extension \
+            packages/swift-rpc packages/swift-native packages/swift-notifications packages/swift-brand packages/swift-ui
+
+      - name: Test HelperRPC
+        run: cd packages/swift-rpc && swift test
+
+      - name: Test HelperBrand
+        run: cd packages/swift-brand && swift test
+
+      - name: Test HelperUI
+        run: cd packages/swift-ui && swift test
+
+      - name: Build Magimail Swift helper
+        if: needs.changes.outputs.magimail_native == 'true' || github.event_name == 'workflow_dispatch'
+        run: cd apps/magimail/swift && swift build
+
+      - name: Test Magimail Swift helper
+        if: needs.changes.outputs.magimail_native == 'true' || github.event_name == 'workflow_dispatch'
+        run: cd apps/magimail/swift && swift test
+
+      - name: Build Magimail native toolbar
+        if: needs.changes.outputs.magimail_native == 'true' || github.event_name == 'workflow_dispatch'
+        run: cd apps/magimail/native && swift build
+
+      # Each extension goes through its own build.sh, so what CI compiles is
+      # what a packaged build compiles. MAGIC_SUITE_COMPILE_ONLY stops each script
+      # before it stamps a bundle version and codesigns: a pull request has no
+      # certificate to sign with, and neither step says anything about whether
+      # the Swift still builds.
+      - name: Build Magimail Share extension
+        if: needs.changes.outputs.magimail_native == 'true' || github.event_name == 'workflow_dispatch'
+        env:
+          MAGIC_SUITE_COMPILE_ONLY: '1'
+        run: cd apps/magimail/share-extension && ./build.sh release
+
+      - name: Build Magimail widget extension
+        if: needs.changes.outputs.magimail_native == 'true' || github.event_name == 'workflow_dispatch'
+        env:
+          MAGIC_SUITE_COMPILE_ONLY: '1'
+        run: cd apps/magimail/widgets && ./build.sh release
+
+      - name: Build Magimail App Intents extension
+        if: needs.changes.outputs.magimail_native == 'true' || github.event_name == 'workflow_dispatch'
+        env:
+          MAGIC_SUITE_COMPILE_ONLY: '1'
+        run: cd apps/magimail/app-intents-extension && ./build.sh release
+
+      # The build above only compiles the extension. This actually runs its `appContext`,
+      # where a notification predicate traps inside App Intents — a failure no compile,
+      # lint or source grep can see.
+      - name: Test Magimail Focus Filter appContext
+        if: needs.changes.outputs.magimail_native == 'true' || github.event_name == 'workflow_dispatch'
+        run: node tools/test-focus-filter-appcontext.mjs magimail
+
+      - name: Build Magical Swift helper
+        if: needs.changes.outputs.magical_native == 'true' || github.event_name == 'workflow_dispatch'
+        run: cd apps/magical/swift && swift build
+
+      - name: Test Magical Swift helper
+        if: needs.changes.outputs.magical_native == 'true' || github.event_name == 'workflow_dispatch'
+        run: cd apps/magical/swift && swift test
+
+      - name: Build Magical native toolbar
+        if: needs.changes.outputs.magical_native == 'true' || github.event_name == 'workflow_dispatch'
+        run: cd apps/magical/native && swift build
+
+      - name: Build Magical widget extension
+        if: needs.changes.outputs.magical_native == 'true' || github.event_name == 'workflow_dispatch'
+        env:
+          MAGIC_SUITE_COMPILE_ONLY: '1'
+        run: cd apps/magical/widgets && ./build.sh release
+
+      - name: Build Magical App Intents extension
+        if: needs.changes.outputs.magical_native == 'true' || github.event_name == 'workflow_dispatch'
+        env:
+          MAGIC_SUITE_COMPILE_ONLY: '1'
+        run: cd apps/magical/app-intents-extension && ./build.sh release
+
+      # See the Magimail step above: compiling the extension cannot show a trap inside
+      # `appContext`.
+      - name: Test Magical Focus Filter appContext
+        if: needs.changes.outputs.magical_native == 'true' || github.event_name == 'workflow_dispatch'
+        run: node tools/test-focus-filter-appcontext.mjs magical

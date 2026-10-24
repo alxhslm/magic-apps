@@ -1,0 +1,9 @@
+packages:
+  - 'packages/*'
+  - 'apps/*'
+  - 'website'
+allowBuilds:
+  electron: true
+  electron-winstaller: true
+  esbuild: true
+  workerd: true
