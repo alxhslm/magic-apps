@@ -19,10 +19,12 @@ concurrency:
 permissions:
   contents: read
   pull-requests: write
+  deployments: write
 
 jobs:
-  build-and-deploy:
-    name: Build & Deploy Website
+  preview:
+    name: Preview Website
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -49,7 +51,7 @@ jobs:
       # Actions secrets, only Dependabot secrets. Both Cloudflare values exist
       # in both stores, so this step has the same credentials either way.
       - name: Upload preview version
-        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        if: github.event.pull_request.head.repo.full_name == github.repository
         uses: cloudflare/wrangler-action@v4
         with:
           apiToken: ${{ secrets.CLOUDFLARE_PAGES_API_TOKEN }}
@@ -59,7 +61,7 @@ jobs:
           command: versions upload --preview-alias pr-${{ github.event.number }} --message "PR ${{ github.event.number }} - ${{ github.sha }}"
 
       - name: Comment the preview URL on the PR
-        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        if: github.event.pull_request.head.repo.full_name == github.repository
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR: ${{ github.event.number }}
@@ -85,8 +87,35 @@ jobs:
             gh pr comment "$PR" --body-file /tmp/body.md
           fi
 
+  deploy:
+    name: Deploy to Production
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://macmagic.app
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 11.24.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build website
+        run: pnpm --filter @magimail/website build
+
       - name: Deploy to Cloudflare Workers
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: cloudflare/wrangler-action@v4
         with:
           apiToken: ${{ secrets.CLOUDFLARE_PAGES_API_TOKEN }}
