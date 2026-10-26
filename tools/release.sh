@@ -478,7 +478,6 @@ release_github_release() {
 
     gh_args=(
         release create "$TARGET_TAG"
-        --target "$TARGET_COMMIT"
         --title "$RELEASE_APP_NAME $TARGET_VERSION"
         --generate-notes
         --notes "$notes"
