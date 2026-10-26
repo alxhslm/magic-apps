@@ -106,4 +106,4 @@ jobs:
         # The unpacked bundle, not --dist: this proves the native artefacts
         # assemble, and the DMG and zip add two minutes of compression that nothing
         # here needs. Pass --adhoc because GitHub-hosted runners have no signing certificate.
-        run: pnpm --filter ${{ matrix.app }} app -- --adhoc
+        run: pnpm --filter ${{ matrix.app }} app --adhoc

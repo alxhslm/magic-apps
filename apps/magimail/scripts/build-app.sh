@@ -63,6 +63,7 @@ IDENTITY="${MAGIMAIL_SIGN_IDENTITY:-}"
 
 while [ $# -gt 0 ]; do
     case "$1" in
+    --) ;;
     --install) DO_INSTALL=1 ;;
     --fast) FAST=1 ;;
     --dist) DIST=1 ;;

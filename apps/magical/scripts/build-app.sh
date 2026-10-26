@@ -46,6 +46,7 @@ IDENTITY="${MAGICAL_SIGN_IDENTITY:-}"
 
 while [ $# -gt 0 ]; do
     case "$1" in
+    --) ;;
     --install) DO_INSTALL=1 ;;
     --dist) DIST=1 ;;
     --adhoc) FORCE_ADHOC=1 ;;

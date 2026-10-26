@@ -9,6 +9,7 @@ apps/magimail/share-extension/.build
 website/_site
 website/.astro
 **/fixtures/**
+pnpm-lock.yaml
 
 # Xcode's localisation resources: a String Catalog is JSON Xcode rewrites, and
 # Prettier has no parser for either it or a .strings plist.
