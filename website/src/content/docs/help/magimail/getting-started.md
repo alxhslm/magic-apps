@@ -7,7 +7,17 @@ Magimail is a native macOS Gmail client for macOS 14 Sonoma or later on Apple si
 
 ## Installation
 
-1. Download the signed `Magimail.dmg` disk image.
+### Via Homebrew (Recommended)
+
+Install Magimail via the official tap:
+
+```sh
+brew install --cask alxhslm/tap/magimail
+```
+
+### Direct Download (DMG)
+
+1. Download the signed [`Magimail.dmg`](https://updates.macmagic.app/magimail/Magimail.dmg) disk image.
 2. Open the disk image and drag **Magimail** into your `/Applications` folder.
 3. Open Magimail from your Applications folder or Spotlight.
 

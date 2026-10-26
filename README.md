@@ -17,6 +17,36 @@ Both apps are in active development. Requires macOS 14 (Sonoma) or later on Appl
 |                                                                      Tame your inbox with a little sorcery.                                                                      |                                                                                 Put a spell on your calendar.                                                                                  |
 | <img src="website/src/assets/shot-window-light.webp" width="380" alt="The Magimail window in light mode, with Personal and Work account tabs in the toolbar and an inbox below"> | <img src="website/src/assets/shot-window-magical-light.webp" width="380" alt="The Magical window in light mode, with Personal and Work account tabs in the toolbar and a week calendar below"> |
 
+## 📦 Installation
+
+Requires macOS 14 (Sonoma) or later on Apple silicon.
+
+### Via Homebrew
+
+Install either app directly using our official tap:
+
+```sh
+# Install Magimail (Gmail client)
+brew install --cask alxhslm/tap/magimail
+
+# Install Magical (Google Calendar client)
+brew install --cask alxhslm/tap/magical
+```
+
+Or tap the repository first:
+
+```sh
+brew tap alxhslm/tap
+brew install --cask magimail magical
+```
+
+### Direct Download
+
+Download the signed and notarised `.dmg` disk images:
+
+- **Magimail**: [Download Magimail.dmg](https://updates.macmagic.app/magimail/Magimail.dmg) or view [GitHub Releases](https://github.com/alxhslm/magic-apps/releases)
+- **Magical**: [Download Magical.dmg](https://updates.macmagic.app/magical/Magical.dmg) or view [GitHub Releases](https://github.com/alxhslm/magic-apps/releases)
+
 ## 🧩 One architecture, built for the Mac
 
 Both apps share the same foundations.

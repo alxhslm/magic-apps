@@ -77,3 +77,12 @@ Even native clients like Mimestream that use the official Gmail API are restrict
 ### What happens if Google changes its web interface?
 
 Because Magic Apps connects directly to Google's web frontends, Google will occasionally tweak selectors or layout styles. Because the project is open source and built with an automated CI/CD pipeline, fixes can be pushed and verified quickly via GitHub releases. Community contributions and issue reports are always appreciated.
+
+### Can I install Magic Apps with Homebrew?
+
+**Yes.** Both apps are available via our official Homebrew tap:
+
+```sh
+brew install --cask alxhslm/tap/magimail
+brew install --cask alxhslm/tap/magical
+```
