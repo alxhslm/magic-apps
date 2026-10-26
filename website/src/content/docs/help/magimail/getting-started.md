@@ -9,10 +9,17 @@ Magimail is a native macOS Gmail client for macOS 14 Sonoma or later on Apple si
 
 ### Via Homebrew (Recommended)
 
-Install Magimail via the official tap:
+Install Magimail using the official Homebrew tap:
 
 ```sh
-brew install --cask alxhslm/tap/magimail
+brew install --cask alxhslm/magic-apps/magimail
+```
+
+Or tap the repository first:
+
+```sh
+brew tap alxhslm/magic-apps
+brew install --cask magimail
 ```
 
 ### Direct Download (DMG)

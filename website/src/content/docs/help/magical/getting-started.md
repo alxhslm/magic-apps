@@ -9,10 +9,17 @@ Magical is a native macOS Google Calendar client for macOS 14 Sonoma or later on
 
 ### Via Homebrew (Recommended)
 
-Install Magical via the official tap:
+Install Magical using the official Homebrew tap:
 
 ```sh
-brew install --cask alxhslm/tap/magical
+brew install --cask alxhslm/magic-apps/magical
+```
+
+Or tap the repository first:
+
+```sh
+brew tap alxhslm/magic-apps
+brew install --cask magical
 ```
 
 ### Direct Download (DMG)

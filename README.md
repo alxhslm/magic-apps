@@ -23,21 +23,24 @@ Requires macOS 14 (Sonoma) or later on Apple silicon.
 
 ### Via Homebrew
 
-Install either app directly using our official tap:
+Install using our official tap:
 
 ```sh
+# Tap the Magic Apps repository
+brew tap alxhslm/magic-apps
+
 # Install Magimail (Gmail client)
-brew install --cask alxhslm/tap/magimail
+brew install --cask magimail
 
 # Install Magical (Google Calendar client)
-brew install --cask alxhslm/tap/magical
+brew install --cask magical
 ```
 
-Or tap the repository first:
+Or install directly in one command:
 
 ```sh
-brew tap alxhslm/tap
-brew install --cask magimail magical
+brew install --cask alxhslm/magic-apps/magimail
+brew install --cask alxhslm/magic-apps/magical
 ```
 
 ### Direct Download

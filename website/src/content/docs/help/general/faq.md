@@ -83,6 +83,13 @@ Because Magic Apps connects directly to Google's web frontends, Google will occa
 **Yes.** Both apps are available via our official Homebrew tap:
 
 ```sh
-brew install --cask alxhslm/tap/magimail
-brew install --cask alxhslm/tap/magical
+brew install --cask alxhslm/magic-apps/magimail
+brew install --cask alxhslm/magic-apps/magical
+```
+
+Or tap the repository first:
+
+```sh
+brew tap alxhslm/magic-apps
+brew install --cask magimail magical
 ```
