@@ -10,5 +10,15 @@
   "requirementsShort": "macOS 14 or later &middot; Apple silicon only",
   "url": "https://macmagic.app",
   "emailOctopusFormId": "154144fe-bb17-11f1-9805-89066791f21d",
-  "privacyUpdated": "September 2026"
+  "privacyUpdated": "September 2026",
+  "downloads": {
+    "magimail": {
+      "dmgUrl": "https://updates.macmagic.app/magimail/Magimail.dmg",
+      "githubReleases": "https://github.com/alxhslm/magic-apps/releases"
+    },
+    "magical": {
+      "dmgUrl": "https://updates.macmagic.app/magical/Magical.dmg",
+      "githubReleases": "https://github.com/alxhslm/magic-apps/releases"
+    }
+  }
 }
