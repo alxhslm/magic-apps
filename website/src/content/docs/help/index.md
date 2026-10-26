@@ -49,6 +49,7 @@ Both apps adhere to three shared foundations:
 
 ### General & Support
 
+- [Frequently Asked Questions](/help/general/faq/)
 - [Privacy & Security Guide](/help/general/privacy/)
 - [Diagnostics & Troubleshooting](/help/general/troubleshooting/)
 - [Uninstalling & Complete Data Removal](/help/general/uninstall/)

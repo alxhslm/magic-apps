@@ -127,6 +127,7 @@ export default defineConfig({
         {
           label: 'General & Support',
           items: [
+            { label: 'Frequently Asked Questions', link: '/help/general/faq/' },
             { label: 'Privacy & Security', link: '/help/general/privacy/' },
             { label: 'Diagnostics & Troubleshooting', link: '/help/general/troubleshooting/' },
             { label: 'Uninstalling & Data Removal', link: '/help/general/uninstall/' },
