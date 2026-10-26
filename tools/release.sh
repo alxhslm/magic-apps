@@ -453,6 +453,10 @@ release_upload() {
         --cache-control "public, max-age=60"
     ok "latest-mac.yml uploaded"
 
+    step "Updating unversioned $RELEASE_APP_NAME.dmg for direct downloads"
+    "${AWS_CMD[@]}" s3 cp "$dest/${RELEASE_APP_NAME}-${TARGET_VERSION}-arm64.dmg" "$dest/${RELEASE_APP_NAME}.dmg" --copy-props none
+    ok "$RELEASE_APP_NAME.dmg updated"
+
     # Nothing to invalidate. Cloudflare caches by file extension by default and
     # .yml is not on the list, so the manifest is served from R2 every time
     # while the .dmg and .zip are cached at the edge. The Cache-Control headers
