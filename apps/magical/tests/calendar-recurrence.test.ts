@@ -245,6 +245,46 @@ describe('a series whose occurrence schedule is its only source', () => {
     expect(out.some((e) => e.startTime.toISOString() === '2026-11-20T14:00:00.000Z')).toBe(true);
   });
 
+  it('drops a deleted _R anchor but keeps the schedule it carries', () => {
+    const events = decode([
+      tuple({
+        id: 'series_j',
+        seriesId: 'series_j',
+        summary: 'Old title',
+        start: '2026-04-21T10:00:00.000Z',
+        end: '2026-04-21T10:30:00.000Z',
+        recurrence: ['RRULE:FREQ=WEEKLY'],
+        starts: ['2026-04-21T10:00:00.000Z', '2026-04-28T10:00:00.000Z'],
+      }),
+      // The anchor for a split half. Its own occurrence (27 Oct) was deleted, so the row is
+      // still live but the schedule it carries starts at the next surviving occurrence.
+      tuple({
+        id: 'series_j_R20261027T110000',
+        seriesId: 'series_j',
+        summary: 'Current title',
+        start: '2026-10-27T11:00:00.000Z',
+        end: '2026-10-27T11:30:00.000Z',
+        starts: ['2026-11-03T11:00:00.000Z', '2026-11-10T11:00:00.000Z'],
+      }),
+      // A materialised exception after the anchor, which is not in the schedule and stays.
+      tuple({
+        id: 'series_j_20261117T110000Z',
+        seriesId: 'series_j',
+        summary: 'Current title',
+        start: '2026-11-17T11:00:00.000Z',
+        end: '2026-11-17T11:30:00.000Z',
+      }),
+    ]);
+
+    const out = expandRecurringEvents(events, range);
+    expect(out.some((e) => e.startTime.toISOString() === '2026-10-27T11:00:00.000Z')).toBe(false);
+    expect(out.map((e) => e.startTime.toISOString())).toEqual([
+      '2026-11-03T11:00:00.000Z',
+      '2026-11-10T11:00:00.000Z',
+      '2026-11-17T11:00:00.000Z',
+    ]);
+  });
+
   it('uses the schedule even when the master also carries a rule', () => {
     const events = decode([
       tuple({

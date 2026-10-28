@@ -840,6 +840,47 @@ describe('Category filtering', () => {
     poller.stop();
   });
 
+  it('does not negative-clamp when off-category sub-feed contains archived unread mail', async () => {
+    // Root feed has 2 unread inbox emails (msg1, msg2)
+    // Promotions has 3 archived unread emails (promo1, promo2, promo3) not in inbox
+    // Notifications for promotions is 'off'
+    mockFetch
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        text: async () => `<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://purl.org/atom/ns#" version="0.3">
+  <fullcount>2</fullcount>
+  <entry><id>tag:gmail.google.com,2004:msg1</id></entry>
+  <entry><id>tag:gmail.google.com,2004:msg2</id></entry>
+</feed>`,
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        text: async () => `<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://purl.org/atom/ns#" version="0.3">
+  <fullcount>3</fullcount>
+  <entry><id>tag:gmail.google.com,2004:promo1</id></entry>
+  <entry><id>tag:gmail.google.com,2004:promo2</id></entry>
+  <entry><id>tag:gmail.google.com,2004:promo3</id></entry>
+</feed>`,
+      });
+
+    const poller = new AtomFeedPoller('cat_clamp', 'persist:cat_clamp', 60, (res) => {
+      pollResults.push(res);
+    });
+    poller.updateNotificationSettings({ promotions: 'off' });
+    await poller.pollNow();
+
+    expect(pollResults.length).toBe(1);
+    // Displayed unread must NOT clamp to Math.max(0, 2 - 3) = 0!
+    // Since neither msg1 nor msg2 is in promotions, offCategoryCount is 0, so displayedUnread is 2!
+    expect(pollResults[0].totalUnread).toBe(2);
+
+    poller.stop();
+  });
+
   it('does not subtract badge, silent, or loud categories from total', async () => {
     // Only 'off' should be subtracted — badge/silent/loud all count toward the badge
     mockFetch.mockResolvedValueOnce({ ok: true, status: 200, text: async () => rootXml(10) });
@@ -996,6 +1037,36 @@ describe('Category tagging', () => {
 
     expect(pollResults[1].newMessages.map((m) => m.id)).toEqual(['msg2']);
     expect(pollResults[1].newMessages[0].category).toBe('updates');
+
+    poller.stop();
+  });
+
+  it('re-classifies entry category when moved from Promotions to Primary on another device', async () => {
+    let pollCount = 0;
+    mockFetch.mockImplementation(async (url: string) => {
+      if (url.endsWith('/atom')) {
+        pollCount++;
+        return ok(feedXml(1, ['msg1']));
+      }
+      if (url.includes('%5Esmartlabel_promo')) {
+        // In poll 1, msg1 is in Promotions. In poll 2, it was moved to Primary on another device.
+        return ok(feedXml(pollCount === 1 ? 1 : 0, pollCount === 1 ? ['msg1'] : []));
+      }
+      return ok(feedXml(0, []));
+    });
+
+    const poller = new AtomFeedPoller('cattag_recat', 'persist:cattag_recat', 60, (res) => {
+      pollResults.push(res);
+    });
+    poller.updateNotificationSettings({ promotions: 'off' });
+
+    // Poll 1: msg1 classified as promotions (which is off), so totalUnread is 0
+    await poller.pollNow();
+    expect(pollResults[0].totalUnread).toBe(0);
+
+    // Poll 2: msg1 reclassified to primary, so totalUnread is 1!
+    await poller.pollNow();
+    expect(pollResults[1].totalUnread).toBe(1);
 
     poller.stop();
   });

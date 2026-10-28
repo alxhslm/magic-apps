@@ -158,8 +158,8 @@ export class RendererPool<Account, View extends WebContentsView> {
    *
    * Only the account on screen is ever a child of contentView: an account view is transparent
    * until its page paints, so two attached at once would composite together. The others come
-   * off first and start ageing towards suspension, which is also when Chromium may begin
-   * throttling their timers. Returns undefined for an account that is not configured.
+   * off first and start ageing towards suspension. Returns undefined for an account that is
+   * not configured.
    */
   public attachOnly(accountId: string): View | undefined {
     this.cancelSuspend(accountId);
@@ -173,29 +173,61 @@ export class RendererPool<Account, View extends WebContentsView> {
 
     if (view) {
       this.spec.attach(accountId, view);
-      if (viewIsAlive(view)) view.webContents.setBackgroundThrottling(false);
     }
     return view;
   }
 
   /**
-   * Drops an account's view for good: off the window, forgotten, and closed.
+   * Drops an account's view: off the window, and closed.
    *
-   * Nothing is remembered for it. An account that is gone has no page to return to, and a
-   * remembered URL left behind would be restored if the same id were ever reused.
+   * Nothing is remembered for it by default, since an account being removed has
+   * no page to return to. Passing `options.rememberUrl: true` preserves the route
+   * the view was looking at, so `firstLoadUrl` can return it when rebuilding.
    */
-  public removeView(accountId: string): void {
+  public removeView(accountId: string, options?: { rememberUrl?: boolean }): void {
     this.cancelSuspend(accountId);
-    this.forgetSuspendedUrl(accountId);
+    const view = this.views.get(accountId);
+    if (options?.rememberUrl && viewIsAlive(view)) {
+      const remembered = this.spec.rememberUrl(view.webContents.getURL());
+      if (remembered) this.suspendedUrls.set(accountId, remembered);
+    } else {
+      this.forgetSuspendedUrl(accountId);
+    }
     this.loadedAccounts.delete(accountId);
 
-    const view = this.views.get(accountId);
     if (!view) return;
 
     this.spec.detach(accountId, view);
     this.views.delete(accountId);
     this.spec.onRelease(accountId, view);
     if (viewIsAlive(view)) view.webContents.close();
+  }
+
+  /**
+   * Tears down an account's view and creates a fresh replacement attached to the window,
+   * preserving the route it was on so it returns to where the user left off.
+   *
+   * Recovers an account whose WebContents or compositor pipeline has stopped presenting
+   * frames without restarting the application.
+   */
+  public rebuildView(
+    accountId: string,
+    options?: {
+      fallbackUrl?: string;
+      onLayout?: (view: View) => void;
+    },
+  ): View | undefined {
+    this.removeView(accountId, { rememberUrl: true });
+    const view = this.attachOnly(accountId);
+    if (!view) return undefined;
+
+    options?.onLayout?.(view);
+
+    if (options?.fallbackUrl) {
+      const url = this.firstLoadUrl(accountId, options.fallbackUrl);
+      if (url) view.webContents.loadURL(url);
+    }
+    return view;
   }
 
   /** The account's view, created on demand. Undefined for an account that is not configured. */
@@ -212,10 +244,9 @@ export class RendererPool<Account, View extends WebContentsView> {
     return view;
   }
 
-  /** Takes an account's view off the window and hands its timers back to Chromium. */
+  /** Takes an account's view off the window. */
   private detachView(accountId: string, view: View): void {
     this.spec.detach(accountId, view);
-    if (viewIsAlive(view)) view.webContents.setBackgroundThrottling(true);
   }
 
   // MARK: - Suspension

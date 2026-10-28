@@ -253,7 +253,9 @@ function scanSidebar() {
     const catLink = nav.querySelector(`a[href*="#category/${cat}"]`);
     if (catLink) {
       presentCategories.push(cat);
-      counts[cat] = parseUnreadFromLink(catLink);
+      // Category rows in Gmail's sidebar (#category/...) are label-scoped and count
+      // archived unread mail across the entire smartlabel query. We do not extract
+      // scalar counts from them for inbox unread totals.
     }
   }
 

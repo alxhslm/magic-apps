@@ -1,31 +1,18 @@
 # Engineering workflow
 
-All work is tracked in GitHub Issues and GitHub's native sub-issues.
+All work is tracked in GitHub Issues.
 
 ```mermaid
 graph TD
-    M["Milestone"] --> E1["Epic (type:epic)"]
-    M --> E2["Epic (type:epic)"]
-    E1 --> S1["Sub-issue"]
-    E1 --> S2["Sub-issue"]
-    S1 -.-> PR["Pull request: Closes #N"]
-    PR == Merged ==> Done["Issue closed, epic progress updated"]
+    M["Milestone"] --> I1["Issue"]
+    M --> I2["Issue"]
+    I1 -.-> PR["Pull request: Closes #N"]
+    PR == Merged ==> Done["Issue closed automatically"]
 ```
-
-## Epics
-
-An Epic is a parent tracking issue for a large feature theme or architectural initiative. It holds no
-code of its own; break the work into child sub-issues with GitHub's native sub-issues, and GitHub
-recalculates the epic's percentage complete as they close.
-
-- Label it `type:epic`.
-- Title it with the initiative's emoji and theme: `🎨 Epic: <Theme Name>`, `⚡ Epic: <Theme Name>`,
-  `🍎 Epic: <Theme Name>`.
 
 ## Issues
 
-A sub-issue is one executable unit of work, linked to a parent Epic. A standalone issue is a discrete
-bug or self-contained task that belongs to no Epic. Every issue carries:
+An issue is one executable unit of work. Every issue carries:
 
 1. A clear problem statement and technical acceptance criteria.
 2. A milestone naming the target phase.
@@ -54,12 +41,17 @@ is rewritten into the living docs and deleted; the `writing-docs` skill defines 
 
 Tag issues and PRs with at least one label from each relevant category:
 
-| Category     | Labels                                                                                                                                                                                      | Description                           |
-| :----------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | :------------------------------------ |
-| **Type**     | `type:epic`, `type:feature`, `type:bug`, `type:infra`, `type:ci`, `type:research`, `type:docs`                                                                                              | What kind of work this is.            |
-| **Area**     | `area:css-theming`, `area:native-swift`, `area:memory-perf`, `area:extensions`, `area:compose`, `area:search`, `area:licensing`, `area:notifications`, `area:security`, `area:distribution` | Subsystem affected.                   |
-| **App**      | `app:magimail`, `app:magical`, `app:core`                                                                                                                                                   | Target application or shared package. |
-| **Priority** | `priority:p1-urgent`, `priority:p2-important`, `priority:p3-normal`                                                                                                                         | Urgency and scheduling order.         |
+| Category | Labels                                                               | Description                    |
+| :------- | :------------------------------------------------------------------- | :----------------------------- |
+| **Type** | `bug`, `enhancement`, `documentation`, `ci`, `infra`, `dependencies` | What kind of work this is.     |
+| **Area** | `swift`, `notifications`, `performance`, `security`                  | Subsystem affected.            |
+| **App**  | `magimail`, `magical`, `core`, `website`                             | Workspace the work belongs to. |
+
+Labels are flat, with no `type:` or `area:` prefix. `dependencies` is GitHub's built-in label for
+pull requests that update a dependency file, and Dependabot applies it.
+
+`help wanted` and `good first issue` sit outside this taxonomy: they mark work you want someone
+else to pick up, rather than describing the work itself.
 
 ## Pull requests and branching
 
@@ -80,8 +72,8 @@ Closes #<issue-number>
 
 The [pull request template](../../.github/pull_request_template.md) defines the expected format.
 
-Never close an issue by hand when a PR resolves it. GitHub closes the issue and advances the
-epic's progress automatically as soon as the PR merges into `main`.
+Never close an issue by hand when a PR resolves it. GitHub closes the issue automatically as
+soon as the PR merges into `main`.
 
 ## Merging into main
 
