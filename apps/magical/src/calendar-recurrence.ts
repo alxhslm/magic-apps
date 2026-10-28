@@ -117,6 +117,23 @@ function toCompactIso(d: Date, clock: EventClock): string {
 const MATERIALISED_ID = /^(.+)_R?(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2})Z?)?$/;
 
 /**
+ * The `_R` recurrence spelling of an id, `<seriesId>_R<slotUTC>`.
+ *
+ * One copy of a split or edited series' anchor occurrence carries this id, and the same copy
+ * carries the schedule for the new half of the series. Its own slot belongs to the schedule, so
+ * when the slot is missing the occurrence was deleted even though the row is still live.
+ */
+const RECURRENCE_ANCHOR_ID = /_R\d{8}(?:T\d{6})?Z?$/;
+
+/** The UTC slot an occurrence id names, or null when the id does not name one. */
+function slotOfId(event: NormalizedCalendarEvent): number | null {
+  const match = MATERIALISED_ID.exec(event.id);
+  if (!match) return null;
+  const [, , year, month, day, hour = '00', minute = '00', second = '00'] = match;
+  return Date.UTC(+year, +month - 1, +day, +hour, +minute, +second);
+}
+
+/**
  * The events to show in `range`.
  *
  * A recurring series contributes the occurrences the wire materialised plus the starts its own
@@ -215,7 +232,17 @@ export function expandRecurringEvents(
 
     if (!event.recurrenceRule) {
       if (overlapsRange(event.startTime, event.endTime)) {
-        result.push(event.seriesId ? event : { ...event, seriesId });
+        // A deleted occurrence can still arrive as a live `_R` anchor row carrying the
+        // schedule for the rest of the series. When its own slot is not in that schedule it
+        // is the deleted occurrence, not an instance; the schedule's future starts are
+        // emitted below, so only this row has to go.
+        const listed = listedStartsBySeries.get(seriesId);
+        const slot = RECURRENCE_ANCHOR_ID.test(event.id) ? slotOfId(event) : null;
+        const anchorDelisted =
+          listed && slot !== null && !listed.starts.some((start) => start.getTime() === slot);
+        if (!anchorDelisted) {
+          result.push(event.seriesId ? event : { ...event, seriesId });
+        }
       }
       continue;
     }
