@@ -82,3 +82,25 @@ The [pull request template](../../.github/pull_request_template.md) defines the 
 
 Never close an issue by hand when a PR resolves it. GitHub closes the issue and advances the
 epic's progress automatically as soon as the PR merges into `main`.
+
+## Merging into main
+
+`main` is protected by the `Protect main` ruleset. It is active with no bypass actors, so the same
+rules apply to the repository owner: nothing reaches `main` except through a pull request.
+
+| Rule | Effect |
+| :--- | :--- |
+| Pull request required | No direct pushes; every change lands as one PR |
+| Squash merge only | The other merge methods are disabled repository-wide |
+| Linear history | `main` stays a single line of squash commits |
+| No force push, no deletion | History cannot be rewritten or the branch removed |
+| Required check: `Detect Changes` | CI's path filter must pass |
+| Branch must be up to date | Merge `main` in before merging, as above |
+| Delete branch on merge | The head branch goes automatically |
+
+The PR title becomes the squash commit subject and the PR body becomes its message, so both are
+written for the log rather than for the reviewer mid-review. Auto-merge is enabled: a green PR can
+be queued rather than watched.
+
+No approving review is required, because the repository has one maintainer and a self-review would
+be theatre. The gate is CI plus reading your own diff before merging.
