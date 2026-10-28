@@ -63,7 +63,6 @@ export interface SourceReport {
 }
 
 export const CACHE_TRIAGE_GRACE_MS = 5000;
-export const DOM_TRIAGE_GRACE_MS = CACHE_TRIAGE_GRACE_MS;
 import {
   attachNativeToolbar,
   updateNativeToolbarAccounts,
