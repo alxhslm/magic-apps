@@ -50,6 +50,9 @@ Tag issues and PRs with at least one label from each relevant category:
 Labels are flat, with no `type:` or `area:` prefix. `dependencies` is GitHub's built-in label for
 pull requests that update a dependency file, and Dependabot applies it.
 
+`help wanted` and `good first issue` sit outside this taxonomy: they mark work you want someone
+else to pick up, rather than describing the work itself.
+
 ## Pull requests and branching
 
 Always branch off the latest `main`:
