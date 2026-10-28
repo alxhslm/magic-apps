@@ -158,8 +158,8 @@ export class RendererPool<Account, View extends WebContentsView> {
    *
    * Only the account on screen is ever a child of contentView: an account view is transparent
    * until its page paints, so two attached at once would composite together. The others come
-   * off first and start ageing towards suspension, which is also when Chromium may begin
-   * throttling their timers. Returns undefined for an account that is not configured.
+   * off first and start ageing towards suspension. Returns undefined for an account that is
+   * not configured.
    */
   public attachOnly(accountId: string): View | undefined {
     this.cancelSuspend(accountId);
@@ -173,7 +173,6 @@ export class RendererPool<Account, View extends WebContentsView> {
 
     if (view) {
       this.spec.attach(accountId, view);
-      if (viewIsAlive(view)) view.webContents.setBackgroundThrottling(false);
     }
     return view;
   }
@@ -218,10 +217,9 @@ export class RendererPool<Account, View extends WebContentsView> {
     return view;
   }
 
-  /** Takes an account's view off the window and hands its timers back to Chromium. */
+  /** Takes an account's view off the window. */
   private detachView(accountId: string, view: View): void {
     this.spec.detach(accountId, view);
-    if (viewIsAlive(view)) view.webContents.setBackgroundThrottling(true);
   }
 
   // MARK: - Suspension

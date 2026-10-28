@@ -133,9 +133,10 @@ describe('RendererPool', () => {
 
       expect(children).toHaveLength(1);
       expect(children[0]).toBe(viewOf(ACCOUNT_B));
-      // The account that left the screen is throttled; the one on it is not.
-      expect(viewOf(ACCOUNT_A).throttled.at(-1)).toBe(true);
-      expect(viewOf(ACCOUNT_B).throttled.at(-1)).toBe(false);
+      // Attaching and detaching does not toggle background throttling; views
+      // rely on their initial webPreferences instead.
+      expect(viewOf(ACCOUNT_A).throttled).toHaveLength(0);
+      expect(viewOf(ACCOUNT_B).throttled).toHaveLength(0);
     });
 
     it('reuses a live view rather than building a second one', () => {

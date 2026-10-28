@@ -16,7 +16,7 @@ flowchart TD
 
 `createMainWindowOptions` in `packages/core/src/window.ts` builds a hidden `BaseWindow` with `titleBarStyle: 'hiddenInset'` and sidebar vibrancy. It has no web engine of its own, so the shell starts no renderer where a `BrowserWindow` would.
 
-Each account's page is a `WebContentsView` on that account's partition. Only the account on screen is attached, because a view is transparent until it paints. The pool attaches one with `backgroundThrottling: false` and restores throttling when it detaches the view.
+Each account's page is a `WebContentsView` on that account's partition. Only the account on screen is attached, because a view is transparent until it paints. The views keep `backgroundThrottling: false` in their `webPreferences` so Chromium does not freeze their rendering pipelines while idle.
 
 ## Account renderer lifetime
 
