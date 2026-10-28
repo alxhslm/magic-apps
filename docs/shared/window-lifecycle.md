@@ -16,7 +16,7 @@ flowchart TD
 
 `createMainWindowOptions` in `packages/core/src/window.ts` builds a hidden `BaseWindow` with `titleBarStyle: 'hiddenInset'` and sidebar vibrancy. It has no web engine of its own, so the shell starts no renderer where a `BrowserWindow` would.
 
-Each account's page is a `WebContentsView` on that account's partition. Only the account on screen is attached, because a view is transparent until it paints. The pool attaches one with `backgroundThrottling: false` and restores throttling when it detaches the view.
+Each account's page is a `WebContentsView` on that account's partition. Only the account on screen is attached, because a view is transparent until it paints. The views keep `backgroundThrottling: false` in their `webPreferences` so Chromium does not freeze their rendering pipelines while idle.
 
 ## Account renderer lifetime
 
@@ -25,6 +25,12 @@ The pool builds a view when an account is first switched to. When an account lea
 `SUSPEND_NEVER` (`0`, the Settings "Never") arms no timer. `suspendAllAccounts` releases every view and runs on quit.
 
 The account on screen is spared the timer only while the window is visible, so a hidden or tray-only app holds no renderer. A window built hidden fires no `hide`, so the app calls `handleWindowHidden` itself.
+
+### When an account view stops presenting
+
+A `WebContentsView` on macOS can occasionally stop presenting frames to its window while its underlying renderer process continues running and handling DOM actions. Calling `webContents.reload()` reuses the same `WebContents` and compositor pipeline, leaving the window blank.
+
+Tearing down the dead `WebContents` and constructing a replacement through `RendererPool.rebuildView` (which removes the view with `rememberUrl: true` and calls `attachOnly`) rebuilds the view on a fresh compositor surface while preserving the route the user was on. In both Magimail and Magical, `reloadActiveView()` / `reloadActive()` (invoked via `Cmd+R` or the View menu) drives this rebuild.
 
 ## RendererPool and its spec
 

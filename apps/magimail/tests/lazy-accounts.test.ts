@@ -282,15 +282,11 @@ describe('lazy account views', () => {
     expect(resumed.webContents.loadURL).toHaveBeenCalledWith(threadUrl);
   });
 
-  it('throttles accounts once they leave the screen and unthrottles the active one', () => {
+  it('does not toggle background throttling when accounts switch', () => {
     manager.switchAccount(ACCOUNT_B);
 
-    expect(viewFor('persist:a')!.webContents.setBackgroundThrottling).toHaveBeenLastCalledWith(
-      true,
-    );
-    expect(viewFor('persist:b')!.webContents.setBackgroundThrottling).toHaveBeenLastCalledWith(
-      false,
-    );
+    expect(viewFor('persist:a')!.webContents.setBackgroundThrottling).not.toHaveBeenCalled();
+    expect(viewFor('persist:b')!.webContents.setBackgroundThrottling).not.toHaveBeenCalled();
   });
 
   it('ages out the visible account too once the window is hidden', () => {

@@ -1253,6 +1253,21 @@ describe('action diagnostics', () => {
     });
   });
 
+  it('rebuilds the active account view on reloadActiveView', () => {
+    const oldView = manager.getActiveWebContentsView()!;
+    const oldWc = oldView.webContents;
+    (oldWc.getURL as unknown as Mock).mockReturnValue('https://mail.google.com/mail/u/0/#starred');
+
+    manager.reloadActiveView();
+
+    const newView = manager.getActiveWebContentsView()!;
+    expect(newView).not.toBe(oldView);
+    expect(oldWc.close).toHaveBeenCalled();
+    expect(newView.webContents.loadURL).toHaveBeenCalledWith(
+      'https://mail.google.com/mail/u/0/#starred',
+    );
+  });
+
   it('wakes a suspended account to run a tray search', async () => {
     const wc = manager.getActiveWebContentsView()!.webContents;
     const load = wc.loadURL as unknown as Mock;

@@ -20,12 +20,7 @@ import {
   viewIsAlive,
 } from '@magimail/core';
 import { createLogger, redactUrl } from '@magimail/core/logger';
-import {
-  CALENDAR_APP_URL,
-  CALENDAR_BASE_URL,
-  CALENDAR_LIST_CHANNEL,
-  CALENDAR_LOGIN_URL,
-} from './constants.js';
+import { CALENDAR_BASE_URL, CALENDAR_LIST_CHANNEL, CALENDAR_LOGIN_URL } from './constants.js';
 import { layoutCalendarView } from './window-layout.js';
 import { uiString } from './strings.js';
 import { getCalendarCss, getCalendarSubframeCss } from './calendar-css.js';
@@ -671,7 +666,6 @@ export class AccountsManager {
     log.info(
       `Attached view for background action on account ${accountId} at index 0 (${this.pool.attachedSummary()})`,
     );
-    view.webContents.setBackgroundThrottling(false);
 
     return () => {
       if (!viewIsAlive(view)) return;
@@ -682,7 +676,6 @@ export class AccountsManager {
         }
         return;
       }
-      view.webContents.setBackgroundThrottling(true);
       if (this.mainWindow.contentView.children.includes(view)) {
         this.mainWindow.contentView.removeChildView(view);
         log.info(
@@ -1144,20 +1137,34 @@ export class AccountsManager {
     }
   }
 
+  /**
+   * Reloads the active account view.
+   *
+   * Rebuilds the view through the pool rather than calling `webContents.reload()`,
+   * so an account whose WebContents or compositor has stopped presenting recovers
+   * cleanly when the user hits Cmd+R or chooses Reload from the menu.
+   */
   public reloadActive(): void {
-    void this.reloadAccount(this.activeAccountId);
+    if (!this.activeAccountId) return;
+    this.rebuildAccountView(this.activeAccountId);
   }
 
-  private async reloadAccount(accountId: string): Promise<void> {
-    // The reload replaces the resume URL, so there is nothing to wait on.
-    const woken = await this.wakeAccountForAction(accountId, false);
-    if (!woken) return;
-    const { view, release } = woken;
-    try {
-      view.webContents.reload();
-    } finally {
-      release();
+  /**
+   * Rebuilds an account view from scratch through the pool.
+   *
+   * Closes the dead WebContents, creates a fresh replacement view,
+   * updates layout, and navigates it back to the route the user was on.
+   */
+  public rebuildAccountView(accountId: string): WebContentsView | undefined {
+    log.info(`Rebuilding account view for ${accountId}`);
+    const view = this.pool.rebuildView(accountId, {
+      fallbackUrl: CALENDAR_LOGIN_URL,
+      onLayout: () => this.updateLayout(),
+    });
+    if (view) {
+      this.onAccountsChanged?.();
     }
+    return view;
   }
 
   // MARK: - Importing
