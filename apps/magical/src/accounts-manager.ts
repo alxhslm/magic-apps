@@ -21,12 +21,7 @@ import {
   viewIsAlive,
 } from '@magimail/core';
 import { createLogger, redactUrl } from '@magimail/core/logger';
-import {
-  CALENDAR_APP_URL,
-  CALENDAR_BASE_URL,
-  CALENDAR_LIST_CHANNEL,
-  CALENDAR_LOGIN_URL,
-} from './constants.js';
+import { CALENDAR_BASE_URL, CALENDAR_LIST_CHANNEL, CALENDAR_LOGIN_URL } from './constants.js';
 import { layoutCalendarView } from './window-layout.js';
 import { uiString } from './strings.js';
 import { getCalendarCss, getCalendarSubframeCss } from './calendar-css.js';
