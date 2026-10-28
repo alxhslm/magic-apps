@@ -98,6 +98,8 @@ node tools/replay-calendar-wire.mjs --map /tmp/corpus/map.json --truth /tmp/corp
 
 The app does not expand recurrence rules. A recurring series carries its own **occurrence schedule**
 at `IDX.occurrenceList` slot 11, and that set — unioned across the series' `_R` anchors, plus the
-occurrences the wire materialised — is what is shown. A cancellation is an _omission_ from that
-schedule, which is why there is no cancellation field to look for and no rule to re-create it. Read
+occurrences the wire materialised — is what is shown. A cancellation is usually an _omission_ from
+that schedule, so there is no rule to re-create it. One shape defeats that: a split's `_R` anchor row
+stays live while its own deleted slot is missing from the schedule it carries. The schedule is
+authoritative for that slot, so its future starts are emitted and the row itself is dropped. Read
 [`calendar-wire-format`](../calendar-wire-format/SKILL.md) before touching the decoder.

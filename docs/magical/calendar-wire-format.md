@@ -414,12 +414,20 @@ three candidates sharing one interview slot are left alone. A meeting is reporte
 on every poll, and the warning is the signal to look for: a regression nobody predicted shows up in
 `main.log` instead of as a double on screen.
 
-**A cancelled occurrence is not an event at all: it is simply absent from the series' schedule.**
-Google removes it from the occurrence list rather than sending a deletion, which is why the ordinary
-case needs no cancellation logic — the app emits the schedule, and the cancelled slot is not in it.
-The client's own grid works the same way.
+**A cancelled occurrence is usually simply absent from the series' schedule.** Google removes it
+from the occurrence list rather than sending a deletion, which is why the ordinary case needs no
+cancellation logic — the app emits the schedule, and the cancelled slot is not in it. The client's
+own grid works the same way.
 
-What does arrive as a deletion is a tombstone — `IDX.status` (1) is `2`, usually on a short tuple with
+The exception is the live `_R` anchor row of a split. Deleting the anchor's own occurrence removes
+its slot from the schedule the row carries, but the row itself stays live and still supplies the
+schedule for the rest of the series. Emitting every live non-master row therefore puts the deleted
+occurrence back. The schedule is authoritative for the anchor's own slot too: the expander emits the
+anchor's future starts and drops the row itself when that slot is not in the schedule. The
+`sync.sync` delta carries an explicit tombstone for the deletion, `[id, 2, …]`, but the range payload
+does not.
+
+The range payload can also carry a tombstone — `IDX.status` (1) is `2`, usually on a short tuple with
 no times — and only two kinds matter:
 
 - **A tombstone for the master's own id** means the series record was removed. A "this and following"
@@ -430,8 +438,7 @@ no times — and only two kinds matter:
 - **Anything else tombstoned** — a standalone event, or one that names a slot — is dropped, and a
   tombstoned master with a slot ends its series.
 
-`expandRecurringEvents` drops the tombstones and emits the rest, which is all the cancellation
-handling there is.
+`expandRecurringEvents` drops the tombstones, drops a delisted anchor row, and emits the rest.
 
 `IDX.calendar` (34) names the calendar holding the event's canonical copy, which for an invitation is
 the organiser's. The calendar a copy sits on is the block it came back under. Read as "this event's
