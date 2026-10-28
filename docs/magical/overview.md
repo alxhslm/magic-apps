@@ -114,14 +114,7 @@ the view mode live in the path, so a resumed view still lands where the user lef
 
 ### When an account view stops presenting
 
-A `WebContentsView` can occasionally stop presenting frames to its window while its underlying renderer
-continues running and handling DOM actions. Calling `webContents.reload()` reuses the same `WebContents`
-and compositor pipeline, which leaves the window blank.
-
-`reloadActive()` (invoked via `Cmd+R` or the View menu) tears down the dead `WebContents` and builds a
-fresh replacement through `RendererPool.removeView` (with `rememberUrl: true`) and `attachOnly`. The
-current route is preserved, navigating the new view straight back to the date and view mode the user
-was on.
+A `WebContentsView` can occasionally stop presenting frames while its renderer continues running. Calling `webContents.reload()` reuses the same compositor pipeline and leaves the window blank; `reloadActive()` (`Cmd+R`) tears down the dead `WebContents` and builds a fresh replacement through `RendererPool.rebuildView`. See [`../shared/window-lifecycle.md`'s When an account view stops presenting](../shared/window-lifecycle.md#when-an-account-view-stops-presenting).
 
 ## Sessions and browser identity
 

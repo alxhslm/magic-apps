@@ -203,6 +203,33 @@ export class RendererPool<Account, View extends WebContentsView> {
     if (viewIsAlive(view)) view.webContents.close();
   }
 
+  /**
+   * Tears down an account's view and creates a fresh replacement attached to the window,
+   * preserving the route it was on so it returns to where the user left off.
+   *
+   * Recovers an account whose WebContents or compositor pipeline has stopped presenting
+   * frames without restarting the application.
+   */
+  public rebuildView(
+    accountId: string,
+    options?: {
+      fallbackUrl?: string;
+      onLayout?: (view: View) => void;
+    },
+  ): View | undefined {
+    this.removeView(accountId, { rememberUrl: true });
+    const view = this.attachOnly(accountId);
+    if (!view) return undefined;
+
+    options?.onLayout?.(view);
+
+    if (options?.fallbackUrl) {
+      const url = this.firstLoadUrl(accountId, options.fallbackUrl);
+      if (url) view.webContents.loadURL(url);
+    }
+    return view;
+  }
+
   /** The account's view, created on demand. Undefined for an account that is not configured. */
   private ensureView(accountId: string): View | undefined {
     const existing = this.views.get(accountId);

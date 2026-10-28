@@ -666,7 +666,6 @@ export class AccountsManager {
     log.info(
       `Attached view for background action on account ${accountId} at index 0 (${this.pool.attachedSummary()})`,
     );
-    view.webContents.setBackgroundThrottling(false);
 
     return () => {
       if (!viewIsAlive(view)) return;
@@ -677,7 +676,6 @@ export class AccountsManager {
         }
         return;
       }
-      view.webContents.setBackgroundThrottling(true);
       if (this.mainWindow.contentView.children.includes(view)) {
         this.mainWindow.contentView.removeChildView(view);
         log.info(
@@ -1159,16 +1157,13 @@ export class AccountsManager {
    */
   public rebuildAccountView(accountId: string): WebContentsView | undefined {
     log.info(`Rebuilding account view for ${accountId}`);
-    this.pool.removeView(accountId, { rememberUrl: true });
-    const view = this.pool.attachOnly(accountId);
-    if (!view) return undefined;
-
-    this.updateLayout();
-
-    const firstLoad = this.pool.firstLoadUrl(accountId, CALENDAR_LOGIN_URL);
-    if (firstLoad) view.webContents.loadURL(firstLoad);
-
-    this.onAccountsChanged?.();
+    const view = this.pool.rebuildView(accountId, {
+      fallbackUrl: CALENDAR_LOGIN_URL,
+      onLayout: () => this.updateLayout(),
+    });
+    if (view) {
+      this.onAccountsChanged?.();
+    }
     return view;
   }
 

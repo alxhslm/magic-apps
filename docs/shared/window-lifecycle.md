@@ -26,6 +26,12 @@ The pool builds a view when an account is first switched to. When an account lea
 
 The account on screen is spared the timer only while the window is visible, so a hidden or tray-only app holds no renderer. A window built hidden fires no `hide`, so the app calls `handleWindowHidden` itself.
 
+### When an account view stops presenting
+
+A `WebContentsView` on macOS can occasionally stop presenting frames to its window while its underlying renderer process continues running and handling DOM actions. Calling `webContents.reload()` reuses the same `WebContents` and compositor pipeline, leaving the window blank.
+
+Tearing down the dead `WebContents` and constructing a replacement through `RendererPool.rebuildView` (which removes the view with `rememberUrl: true` and calls `attachOnly`) rebuilds the view on a fresh compositor surface while preserving the route the user was on. In both Magimail and Magical, `reloadActiveView()` / `reloadActive()` (invoked via `Cmd+R` or the View menu) drives this rebuild.
+
 ## RendererPool and its spec
 
 The pool owns the views, their timers, the remembered URL and the window's visibility. It touches no DOM and imports Electron for types only, so it lives in `packages/core`. A `RendererPoolSpec` supplies the eight things it cannot read:

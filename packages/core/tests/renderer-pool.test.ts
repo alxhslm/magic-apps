@@ -491,4 +491,32 @@ describe('RendererPool', () => {
       expect(await wake('account_removed')).toBeUndefined();
     });
   });
+
+  describe('rebuildView', () => {
+    it('tears down the existing view, attaches a fresh replacement, and restores the URL', () => {
+      show(ACCOUNT_A);
+      const oldView = viewOf(ACCOUNT_A);
+      oldView.url = 'https://mail.google.com/mail/u/0/#starred';
+
+      const layoutCalls: string[] = [];
+      const newView = pool.rebuildView(ACCOUNT_A, {
+        fallbackUrl: 'https://mail.google.com/mail/u/0/',
+        onLayout: () => layoutCalls.push('layout'),
+      });
+
+      expect(oldView.closed).toBe(true);
+      expect(newView).toBeDefined();
+      expect(newView).not.toBe(oldView);
+      expect(children).toEqual([newView]);
+      expect(layoutCalls).toEqual(['layout']);
+      expect((newView as unknown as FakeView).loaded).toEqual([
+        'https://mail.google.com/mail/u/0/#starred',
+      ]);
+      expect(pool.isAccountLoaded(ACCOUNT_A)).toBe(true);
+    });
+
+    it('returns undefined when rebuilding an unknown account', () => {
+      expect(pool.rebuildView('account_removed')).toBeUndefined();
+    });
+  });
 });
