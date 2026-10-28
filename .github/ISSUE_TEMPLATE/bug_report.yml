@@ -1,7 +1,7 @@
 name: Bug Report
 description: Something isn't working or renders incorrectly.
 title: ''
-labels: ['type:bug']
+labels: ['bug']
 body:
   - type: markdown
     attributes:

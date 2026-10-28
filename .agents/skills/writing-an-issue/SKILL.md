@@ -21,8 +21,8 @@ pull request you are already writing:
   belong in the diff.
 
 Only the combination forces a ticket: big enough to need explaining, and unrelated enough
-that explaining it derails the review. Work too large for one issue becomes a `type:epic`
-parent with the pieces as children.
+that explaining it derails the review. Work too large for one issue becomes an Epic parent
+with the pieces as children.
 
 ## Title
 
@@ -119,15 +119,10 @@ better than "prior to the completion of the initial fetch".
 
 Always apply the relevant labels to the issue.
 
-- **`app:`** always: `magimail`, `magical`, `core`, or all three when the work spans the
-  repo.
-- **`priority:`** almost always: `p1-urgent`, `p2-important`, `p3-normal`.
-- **`type:`** where one fits: `bug`, `feature`, `docs`, `infra`, `ci`, `research`, `epic`.
-  Some issues carry none, so do not force it. An epic takes `type:epic` alongside the type
-  of the work it covers.
-- **`area:`** as many as genuinely apply: `css-theming`, `native-swift`, `compose`,
-  `notifications`, `security`, `distribution`, `memory-perf`, `search`, `extensions`,
-  `licensing`.
+- **`app`** always: `magimail`, `magical`, `core`, or all three when the work spans the repo.
+- **`type`** where one fits: `bug`, `enhancement`, `documentation`, `ci`, `infra`. Some issues
+  carry none, so do not force it.
+- **`area`** as many as genuinely apply: `swift`, `notifications`, `performance`, `security`.
 
 A milestone says the work is committed to a named release. Set one when the issue falls inside a milestone's
 scope and leave it empty otherwise.

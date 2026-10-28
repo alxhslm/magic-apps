@@ -1,7 +1,6 @@
 name: Epic
 description: A larger piece of work that groups related issues.
 title: ''
-labels: ['type:epic']
 body:
   - type: markdown
     attributes:

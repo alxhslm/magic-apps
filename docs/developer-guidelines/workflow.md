@@ -4,8 +4,8 @@ All work is tracked in GitHub Issues and GitHub's native sub-issues.
 
 ```mermaid
 graph TD
-    M["Milestone"] --> E1["Epic (type:epic)"]
-    M --> E2["Epic (type:epic)"]
+    M["Milestone"] --> E1["Epic"]
+    M --> E2["Epic"]
     E1 --> S1["Sub-issue"]
     E1 --> S2["Sub-issue"]
     S1 -.-> PR["Pull request: Closes #N"]
@@ -18,7 +18,8 @@ An Epic is a parent tracking issue for a large feature theme or architectural in
 code of its own; break the work into child sub-issues with GitHub's native sub-issues, and GitHub
 recalculates the epic's percentage complete as they close.
 
-- Label it `type:epic`.
+An Epic takes no label; its title and child sub-issues identify it.
+
 - Title it with the initiative's emoji and theme: `🎨 Epic: <Theme Name>`, `⚡ Epic: <Theme Name>`,
   `🍎 Epic: <Theme Name>`.
 
@@ -54,12 +55,14 @@ is rewritten into the living docs and deleted; the `writing-docs` skill defines 
 
 Tag issues and PRs with at least one label from each relevant category:
 
-| Category     | Labels                                                                                                                                                                                      | Description                           |
-| :----------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | :------------------------------------ |
-| **Type**     | `type:epic`, `type:feature`, `type:bug`, `type:infra`, `type:ci`, `type:research`, `type:docs`                                                                                              | What kind of work this is.            |
-| **Area**     | `area:css-theming`, `area:native-swift`, `area:memory-perf`, `area:extensions`, `area:compose`, `area:search`, `area:licensing`, `area:notifications`, `area:security`, `area:distribution` | Subsystem affected.                   |
-| **App**      | `app:magimail`, `app:magical`, `app:core`                                                                                                                                                   | Target application or shared package. |
-| **Priority** | `priority:p1-urgent`, `priority:p2-important`, `priority:p3-normal`                                                                                                                         | Urgency and scheduling order.         |
+| Category | Labels                                                               | Description                           |
+| :------- | :------------------------------------------------------------------- | :------------------------------------ |
+| **Type** | `bug`, `enhancement`, `documentation`, `ci`, `infra`, `dependencies` | What kind of work this is.            |
+| **Area** | `swift`, `notifications`, `performance`, `security`                  | Subsystem affected.                   |
+| **App**  | `magimail`, `magical`, `core`                                        | Target application or shared package. |
+
+Labels are flat, with no `type:` or `area:` prefix. `dependencies` is GitHub's built-in label for
+pull requests that update a dependency file, and Dependabot applies it.
 
 ## Pull requests and branching
 
