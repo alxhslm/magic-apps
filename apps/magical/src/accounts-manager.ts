@@ -12,6 +12,7 @@ import {
 import fs from 'node:fs';
 import path from 'node:path';
 import {
+  analyzeFrame,
   configureGoogleSession,
   isNetworkLoadFailure,
   offlinePageDataUrl,
@@ -130,6 +131,12 @@ export class AccountsManager {
    * it from the URL the view comes back on rather than needing its own persistence.
    */
   private viewModes = new Map<string, ViewMode>();
+  /** Views that have reported a finished page load, so a slow initial paint is not mistaken for a blank view. */
+  private finishedLoadViews = new WeakSet<WebContentsView>();
+  /** Timestamp of the last rebuild triggered by a dead frame, enforcing the cooldown. */
+  private lastRebuildTime = 0;
+  /** Timer for the follow-up presenting check scheduled after the window is shown. */
+  private presentingCheckTimer?: ReturnType<typeof setTimeout>;
 
   /** Fired whenever the list, its order or an account's fields change, so the
    *  menu and the settings window can be rebuilt from one place. */
@@ -266,6 +273,7 @@ export class AccountsManager {
         if (this.isAccountLoaded(this.activeAccountId)) return;
         this.switchAccount(this.activeAccountId);
       });
+      this.schedulePresentingChecks();
     });
     this.switchAccount(this.activeAccountId);
   }
@@ -448,6 +456,7 @@ export class AccountsManager {
     );
 
     view.webContents.on('did-finish-load', () => {
+      this.finishedLoadViews.add(view);
       setTimeout(() => {
         void this.syncCalendarMetadata(account.id);
       }, 2500);
@@ -494,6 +503,7 @@ export class AccountsManager {
 
   /** The window's `hide`, and a window built hidden, which fires no event. */
   public handleWindowHidden(): void {
+    this.cancelPresentingCheck();
     this.pool.handleWindowHidden();
   }
 
@@ -1157,6 +1167,103 @@ export class AccountsManager {
       view.webContents.reload();
     } finally {
       release();
+    }
+  }
+
+  /**
+   * Rebuilds an account view from scratch through the pool.
+   *
+   * Closes the dead WebContents, creates a fresh replacement view,
+   * updates layout, and navigates it back to the route the user was on.
+   */
+  public rebuildAccountView(accountId: string): WebContentsView | undefined {
+    log.info(`Rebuilding account view for ${accountId}`);
+    this.pool.removeView(accountId, { rememberUrl: true });
+    const view = this.pool.attachOnly(accountId);
+    if (!view) return undefined;
+
+    this.updateLayout();
+
+    const firstLoad = this.pool.firstLoadUrl(accountId, CALENDAR_LOGIN_URL);
+    if (firstLoad) view.webContents.loadURL(firstLoad);
+
+    this.onAccountsChanged?.();
+    return view;
+  }
+
+  /**
+   * Checks whether the active view on screen is presenting properly.
+   *
+   * If the view reports a loaded page but captures as a single uniform colour
+   * (transparent or blank), it has stopped presenting. We rebuild it through
+   * the pool, subject to a 1-minute cooldown to avoid mistaking slow loads for it.
+   */
+  public async checkActiveViewPresenting(): Promise<boolean> {
+    if (!this.pool.isWindowVisible()) return false;
+    if (typeof this.mainWindow.isDestroyed === 'function' && this.mainWindow.isDestroyed()) {
+      return false;
+    }
+
+    const accountId = this.activeAccountId;
+    const view = this.getActiveView();
+    if (!view || !viewIsAlive(view)) return false;
+
+    // Treat as dead only when the view reports a finished load.
+    const isLoaded = this.finishedLoadViews.has(view) && !view.webContents.isLoading();
+    if (!isLoaded) return false;
+
+    // Cooldown: at most one rebuild per minute.
+    if (Date.now() - this.lastRebuildTime < 60_000) return false;
+
+    if (typeof view.webContents.capturePage !== 'function') return false;
+
+    try {
+      const image = await view.webContents.capturePage();
+      if (!viewIsAlive(view) || !this.pool.isWindowVisible()) return false;
+
+      const captureResult = analyzeFrame(image);
+      if (!captureResult.uniform) return false;
+
+      const windowBounds =
+        typeof this.mainWindow.getBounds === 'function'
+          ? this.mainWindow.getBounds()
+          : { x: 0, y: 0, width: 0, height: 0 };
+      const viewBounds =
+        typeof view.getBounds === 'function'
+          ? view.getBounds()
+          : { x: 0, y: 0, width: 0, height: 0 };
+
+      log.warn(
+        `Account view for ${accountId} is not presenting (uniform frame); rebuilding view. ` +
+          `window bounds: ${JSON.stringify(windowBounds)}, ` +
+          `view bounds: ${JSON.stringify(viewBounds)}, ` +
+          `capture: ${JSON.stringify(captureResult)}`,
+      );
+
+      this.lastRebuildTime = Date.now();
+      this.rebuildAccountView(accountId);
+      return true;
+    } catch (err) {
+      log.warn(`Could not verify presenting state for account ${accountId}:`, err);
+      return false;
+    }
+  }
+
+  private schedulePresentingChecks(): void {
+    this.cancelPresentingCheck();
+    void this.checkActiveViewPresenting();
+    const timer = setTimeout(() => {
+      this.presentingCheckTimer = undefined;
+      void this.checkActiveViewPresenting();
+    }, 3000);
+    timer.unref?.();
+    this.presentingCheckTimer = timer;
+  }
+
+  private cancelPresentingCheck(): void {
+    if (this.presentingCheckTimer) {
+      clearTimeout(this.presentingCheckTimer);
+      this.presentingCheckTimer = undefined;
     }
   }
 

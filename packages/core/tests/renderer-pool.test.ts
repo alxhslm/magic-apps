@@ -161,6 +161,22 @@ describe('RendererPool', () => {
         'https://example.test/signin',
       );
     });
+
+    it("drops an account's view but preserves its route when rememberUrl is requested", () => {
+      show(ACCOUNT_A);
+      const view = viewOf(ACCOUNT_A);
+      view.url = 'https://example.test/inbox/thread/7';
+
+      pool.removeView(ACCOUNT_A, { rememberUrl: true });
+
+      expect(children).toHaveLength(0);
+      expect(view.closed).toBe(true);
+      expect(pool.isAccountLoaded(ACCOUNT_A)).toBe(false);
+      // The route is remembered for firstLoadUrl
+      expect(pool.firstLoadUrl(ACCOUNT_A, 'https://example.test/signin')).toBe(
+        'https://example.test/inbox/thread/7',
+      );
+    });
   });
 
   describe('ageing out an account that left the screen', () => {

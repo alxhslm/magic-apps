@@ -112,6 +112,19 @@ shows the real calendar rather than the offline page. That cache matches on the 
 leaves behind, fails. This is why a released account's remembered URL drops its query. The date and
 the view mode live in the path, so a resumed view still lands where the user left it.
 
+### When an account view stops presenting
+
+A `WebContentsView` can occasionally stop presenting frames to its window while its underlying renderer
+continues running and handling DOM actions. Reloading or re-attaching the view reuses the same
+`WebContents`, so recovering requires tearing down the view and building a fresh replacement.
+
+`AccountsManager` checks the active view whenever the window is shown and once more three seconds later.
+It captures the active view with `capturePage` and analyses the pixel buffer with `analyzeFrame` from
+`@magimail/core`. If the view reports a finished load and the captured frame is a single uniform colour,
+the view is closed and rebuilt through `RendererPool.removeView` and `attachOnly`. The previous route is
+preserved, so the new view returns to the date and view mode the user was on. Rebuilds are limited to
+at most one per minute to prevent thrashing during slow page loads.
+
 ## Sessions and browser identity
 
 Each account uses an isolated Chromium profile partition named `persist:magical_<id>`, configured via

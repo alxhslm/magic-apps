@@ -179,17 +179,23 @@ export class RendererPool<Account, View extends WebContentsView> {
   }
 
   /**
-   * Drops an account's view for good: off the window, forgotten, and closed.
+   * Drops an account's view: off the window, and closed.
    *
-   * Nothing is remembered for it. An account that is gone has no page to return to, and a
-   * remembered URL left behind would be restored if the same id were ever reused.
+   * Nothing is remembered for it by default, since an account being removed has
+   * no page to return to. Passing `options.rememberUrl: true` preserves the route
+   * the view was looking at, so `firstLoadUrl` can return it when rebuilding.
    */
-  public removeView(accountId: string): void {
+  public removeView(accountId: string, options?: { rememberUrl?: boolean }): void {
     this.cancelSuspend(accountId);
-    this.forgetSuspendedUrl(accountId);
+    const view = this.views.get(accountId);
+    if (options?.rememberUrl && viewIsAlive(view)) {
+      const remembered = this.spec.rememberUrl(view.webContents.getURL());
+      if (remembered) this.suspendedUrls.set(accountId, remembered);
+    } else {
+      this.forgetSuspendedUrl(accountId);
+    }
     this.loadedAccounts.delete(accountId);
 
-    const view = this.views.get(accountId);
     if (!view) return;
 
     this.spec.detach(accountId, view);
