@@ -21,8 +21,7 @@ pull request you are already writing:
   belong in the diff.
 
 Only the combination forces a ticket: big enough to need explaining, and unrelated enough
-that explaining it derails the review. Work too large for one issue becomes a `type:epic`
-parent with the pieces as children.
+that explaining it derails the review. Work too large for one issue becomes several issues.
 
 ## Title
 
@@ -31,7 +30,7 @@ Short, naming the problem rather than the solution, in the repo's commit style:
 
 ## Shape
 
-A bug, a feature, a chore, an epic or a research issue starts from the matching form in
+A bug, a feature, a chore or a research issue starts from the matching form in
 [`.github/ISSUE_TEMPLATE/`](../../../.github/ISSUE_TEMPLATE/). The form sets the structure
 and asks its questions plainly; the rules below set how to write each answer. The generated
 `###` headings are the form's doing, not a licence to write headings by hand.
@@ -71,10 +70,6 @@ should do, in bullets.
 > - Opens an issue when they do not.
 
 **A chore: something needs maintaining.** Supply the reason we need to change something: the duplication, the inconsistency, or the thing which is hard to maintain.
-
-**Epic: a larger piece of work.** An epic groups related issues under a common goal.
-Describe the outcome, and attach the child issues as GitHub sub-issues rather than listing
-them in the body.
 
 **Research issue: a question to answer.** A research issue tracks an investigation that
 informs a decision. State the question, and the decision it unblocks.
@@ -119,15 +114,11 @@ better than "prior to the completion of the initial fetch".
 
 Always apply the relevant labels to the issue.
 
-- **`app:`** always: `magimail`, `magical`, `core`, or all three when the work spans the
-  repo.
-- **`priority:`** almost always: `p1-urgent`, `p2-important`, `p3-normal`.
-- **`type:`** where one fits: `bug`, `feature`, `docs`, `infra`, `ci`, `research`, `epic`.
-  Some issues carry none, so do not force it. An epic takes `type:epic` alongside the type
-  of the work it covers.
-- **`area:`** as many as genuinely apply: `css-theming`, `native-swift`, `compose`,
-  `notifications`, `security`, `distribution`, `memory-perf`, `search`, `extensions`,
-  `licensing`.
+- **`app`** always: `magimail`, `magical`, `core`, `website`, or all of them when the work spans
+  the repo.
+- **`type`** where one fits: `bug`, `enhancement`, `documentation`, `ci`, `infra`. Some issues
+  carry none, so do not force it.
+- **`area`** as many as genuinely apply: `swift`, `notifications`, `performance`, `security`.
 
 A milestone says the work is committed to a named release. Set one when the issue falls inside a milestone's
 scope and leave it empty otherwise.

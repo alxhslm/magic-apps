@@ -1,7 +1,6 @@
 name: Research
 description: An investigation that informs a decision.
 title: ''
-labels: ['type:research']
 body:
   - type: markdown
     attributes:
