@@ -230,22 +230,6 @@ function claimDisclosure(toggle: Element): void {
   }
 }
 
-let lastUserInteractionAt = 0;
-window.addEventListener(
-  'click',
-  () => {
-    lastUserInteractionAt = Date.now();
-  },
-  { capture: true, passive: true },
-);
-window.addEventListener(
-  'keydown',
-  () => {
-    lastUserInteractionAt = Date.now();
-  },
-  { capture: true, passive: true },
-);
-
 function scanSidebar() {
   const nav = document.querySelector('div[role="navigation"]');
   if (!nav) return;
@@ -280,7 +264,6 @@ function scanSidebar() {
 
   const report = {
     timestamp: Date.now(),
-    lastUserInteractionAt,
     counts,
     presentCategories,
     hasCategoriesSection,

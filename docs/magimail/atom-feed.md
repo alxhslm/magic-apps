@@ -144,12 +144,14 @@ feed the rest of the time.
    badge would drop to the Primary count and climb again seconds later.
 
    **Per-Source Ledger & Anti-Bounce Grace Window.** `AccountsManager` manages unread state via a
-   per-source ledger (`dom`, `atom`, `cache`, and ready for `api`). Local DOM triage holds an
-   optimistic grace window for 5 seconds (`DOM_TRIAGE_GRACE_MS = 5000`) to shield the badge against
-   edge-cached Atom lag. After 5 seconds, server polls are fully authoritative, ensuring actions on
-   other devices (phone/web) update the desktop count without requiring a web reload. Explicitly
-   clicking **Refresh Inbox** in the tray clears the grace window immediately and dispatches an
-   in-page refresh control click (`CLICK_REFRESH_CONTROL`).
+   per-source ledger (`atom`, `cache`, and ready for `api`). The DOM acts purely as a change detector
+   (`MAILBOX_CHANGE_HINT`), triggering an immediate local cache read (`_xdb`) and Atom poll without
+   serving as an unread count authority. Local cache triage updates hold an anti-bounce grace window
+   for 5 seconds (`CACHE_TRIAGE_GRACE_MS = 5000`) to shield the badge against edge-cached Atom lag.
+   After 5 seconds, server polls are fully authoritative, ensuring actions on other devices (phone/web)
+   update the desktop count without requiring a web reload. Explicitly clicking **Refresh Inbox** in
+   the tray clears the grace window immediately and dispatches an in-page refresh control click
+   (`CLICK_REFRESH_CONTROL`).
 
 ### Decoupled from the views
 

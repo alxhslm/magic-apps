@@ -150,50 +150,40 @@ describe('DOM unread observation and adaptive polling', () => {
     }
   });
 
-  it('calculates effective unread blending DOM counts for present categories with Atom counts for absent categories', () => {
+  it('calculates effective unread from local cache with category filtering', () => {
     const onUnreadChanged = vi.fn();
     accountsManager.onUnreadChanged = onUnreadChanged;
 
-    // Atom poll reported social: 5, updates: 2
-    const atomCategoryCounts = new Map<NotificationCategory, number>([
-      ['primary', 0],
+    // Cache reports: primary 1, social 5, updates 2, promotions 10 (off in settings)
+    const cacheCounts = new Map<NotificationCategory, number>([
+      ['primary', 1],
       ['social', 5],
       ['updates', 2],
-      ['promotions', 10], // Off in settings
+      ['promotions', 10],
+      ['forums', 0],
     ]);
-    accountsManager.handleApiUnreadUpdate('account_personal', 17, atomCategoryCounts);
+    accountsManager.handleCacheCategoryCounts('account_personal', cacheCounts);
 
-    // DOM report arrives: Inbox (Primary) = 3. Social and Updates are not in sidebar.
-    accountsManager.handleDomUnreadUpdate('account_personal', {
-      timestamp: Date.now(),
-      counts: { inbox: 3 },
-      presentCategories: ['inbox'],
-    });
-
-    // Effective: Primary (3 from DOM) + Social (5 from Atom) + Updates (2 from Atom) = 10
+    // Effective: Primary (1) + Social (5) + Updates (2) = 8
     // Promotions (10) is excluded because notifications.promotions is 'off'
-    expect(accountsManager.getEffectiveUnreadForAccount('account_personal')).toBe(10);
-    expect(onUnreadChanged).toHaveBeenLastCalledWith(expect.anything(), 10);
+    expect(accountsManager.getEffectiveUnreadForAccount('account_personal')).toBe(8);
   });
 
-  it('prevents stale Atom poll from clobbering active DOM unread count (anti-bounce)', () => {
-    // 1. User sees 4 unread in DOM
-    accountsManager.handleDomUnreadUpdate('account_personal', {
-      timestamp: Date.now(),
-      counts: { inbox: 4 },
-      presentCategories: ['inbox'],
-    });
-    expect(accountsManager.getEffectiveUnreadForAccount('account_personal')).toBe(4);
-
-    // 2. User archives email -> DOM updates to 3 instantly (0ms)
-    accountsManager.handleDomUnreadUpdate('account_personal', {
-      timestamp: Date.now(),
-      counts: { inbox: 3 },
-      presentCategories: ['inbox'],
-    });
+  it('prevents stale Atom poll from clobbering active cache unread count (anti-bounce)', () => {
+    // 1. User archives email -> cache updates instantly to 3
+    accountsManager.handleCacheCategoryCounts(
+      'account_personal',
+      new Map<NotificationCategory, number>([
+        ['primary', 3],
+        ['updates', 0],
+        ['social', 0],
+        ['promotions', 0],
+        ['forums', 0],
+      ]),
+    );
     expect(accountsManager.getEffectiveUnreadForAccount('account_personal')).toBe(3);
 
-    // 3. Stale Atom poll arrives 500ms later reporting old count of 4
+    // 2. Stale Atom poll arrives 500ms later reporting old count of 4
     const atomCategoryCounts = new Map<NotificationCategory, number>([['primary', 4]]);
     accountsManager.handleApiUnreadUpdate('account_personal', 4, atomCategoryCounts);
 
@@ -436,21 +426,14 @@ describe('a sidebar count off screen', () => {
   let mainWindow: BaseWindow;
   let accountsManager: AccountsManager;
 
-  /** Fire a window event the manager subscribed to; the mock records, never emits. */
-  const fireWindowEvent = (name: string) => {
-    for (const [event, handler] of (mainWindow.on as unknown as ReturnType<typeof vi.fn>).mock
-      .calls) {
-      if (event === name) (handler as () => void)();
-    }
-  };
-
-  const report = (inbox: number) => ({
-    timestamp: Date.now(),
-    counts: { inbox },
-    presentCategories: ['inbox'],
-    hasCategoriesSection: false,
-    isLoaded: true,
-  });
+  const cacheReport = (primary: number) =>
+    new Map<NotificationCategory, number>([
+      ['primary', primary],
+      ['updates', 0],
+      ['social', 0],
+      ['promotions', 0],
+      ['forums', 0],
+    ]);
 
   beforeEach(() => {
     mockChildren.length = 0;
@@ -484,36 +467,45 @@ describe('a sidebar count off screen', () => {
   });
 
   it('counts a hidden window the same as one on screen', () => {
-    fireWindowEvent('hide');
-    accountsManager.handleDomUnreadUpdate('account_personal', report(4));
+    accountsManager.handleCacheCategoryCounts('account_personal', cacheReport(4));
     expect(accountsManager.getEffectiveUnreadForAccount('account_personal')).toBe(4);
   });
 
   it('counts an account that is not the one in front', () => {
     accountsManager.switchAccount('account_work');
-    accountsManager.handleDomUnreadUpdate('account_personal', report(2));
+    accountsManager.handleCacheCategoryCounts('account_personal', cacheReport(2));
     expect(accountsManager.getEffectiveUnreadForAccount('account_personal')).toBe(2);
   });
 
-  it('does not let a poll undo what the open page reported', () => {
-    fireWindowEvent('hide');
-    accountsManager.handleDomUnreadUpdate('account_personal', report(2));
-    // The feed still serves the count Gmail held before the page moved on.
+  it('does not let a lagging poll undo what the local cache reported during triage grace window', () => {
+    accountsManager.handleCacheCategoryCounts('account_personal', cacheReport(2));
+    // The feed still serves the count Gmail held before the action.
     accountsManager.handleApiUnreadUpdate('account_personal', 7);
     expect(accountsManager.getEffectiveUnreadForAccount('account_personal')).toBe(2);
   });
 
-  it('hands the account back to the feed once its page is gone', () => {
-    accountsManager.handleDomUnreadUpdate('account_personal', report(2));
-    accountsManager.suspendAllAccounts();
+  it('hands the account back to the feed once its grace window expires', () => {
+    vi.useFakeTimers();
+    accountsManager.handleCacheCategoryCounts('account_personal', cacheReport(2));
+    vi.advanceTimersByTime(6000);
     accountsManager.handleApiUnreadUpdate('account_personal', 7);
     expect(accountsManager.getEffectiveUnreadForAccount('account_personal')).toBe(7);
+    vi.useRealTimers();
   });
 });
 
 describe('Per-Source Ledger & Authority Resolution', () => {
   let mainWindow: BaseWindow;
   let accountsManager: AccountsManager;
+
+  const cacheReport = (primary: number) =>
+    new Map<NotificationCategory, number>([
+      ['primary', primary],
+      ['updates', 0],
+      ['social', 0],
+      ['promotions', 0],
+      ['forums', 0],
+    ]);
 
   beforeEach(() => {
     vi.useFakeTimers();
@@ -551,12 +543,8 @@ describe('Per-Source Ledger & Authority Resolution', () => {
   });
 
   it('allows Atom poll to win when outside the 5s triage grace window (external triage on phone)', () => {
-    // 1. Desktop DOM reports 4 unread messages
-    accountsManager.handleDomUnreadUpdate('account_personal', {
-      timestamp: Date.now(),
-      counts: { inbox: 4 },
-      presentCategories: ['inbox'],
-    });
+    // 1. Desktop local cache reports 4 unread messages
+    accountsManager.handleCacheCategoryCounts('account_personal', cacheReport(4));
     expect(accountsManager.getEffectiveUnreadForAccount('account_personal')).toBe(4);
 
     // 2. User marks 2 emails as read on their phone.
@@ -564,19 +552,15 @@ describe('Per-Source Ledger & Authority Resolution', () => {
     vi.advanceTimersByTime(6000);
     accountsManager.handleApiUnreadUpdate('account_personal', 2);
 
-    // Outside the 5s grace window, Atom poll wins over the stale desktop DOM!
+    // Outside the 5s grace window, Atom poll wins over the stale desktop cache!
     expect(accountsManager.getEffectiveUnreadForAccount('account_personal')).toBe(2);
     const acc = accountsManager.getAccounts().find((a) => a.id === 'account_personal');
     expect(acc?.unreadCount).toBe(2);
   });
 
   it('allows Atom poll to increment when new mail arrives externally', () => {
-    // 1. Initial DOM report has 1 unread
-    accountsManager.handleDomUnreadUpdate('account_personal', {
-      timestamp: Date.now(),
-      counts: { inbox: 1 },
-      presentCategories: ['inbox'],
-    });
+    // 1. Initial cache report has 1 unread
+    accountsManager.handleCacheCategoryCounts('account_personal', cacheReport(1));
     expect(accountsManager.getEffectiveUnreadForAccount('account_personal')).toBe(1);
 
     // 2. New emails arrive; Atom poll discovers 5 unread outside grace window
@@ -586,13 +570,9 @@ describe('Per-Source Ledger & Authority Resolution', () => {
     expect(accountsManager.getEffectiveUnreadForAccount('account_personal')).toBe(5);
   });
 
-  it('tray Refresh Inbox immediately clears DOM grace window so forced poll wins', () => {
-    // 1. User archives email in DOM -> count drops to 3
-    accountsManager.handleDomUnreadUpdate('account_personal', {
-      timestamp: Date.now(),
-      counts: { inbox: 3 },
-      presentCategories: ['inbox'],
-    });
+  it('tray Refresh Inbox immediately clears cache grace window so forced poll wins', () => {
+    // 1. User archives email in cache -> count drops to 3
+    accountsManager.handleCacheCategoryCounts('account_personal', cacheReport(3));
     expect(accountsManager.getEffectiveUnreadForAccount('account_personal')).toBe(3);
 
     // 2. Inside the grace window (only 1s elapsed), user clicks "Refresh Inbox" in tray
@@ -607,12 +587,8 @@ describe('Per-Source Ledger & Authority Resolution', () => {
   });
 
   it('multi-account isolation: local triage in Account A does not block external poll updates in Account B', () => {
-    // 1. Account Personal has fresh DOM triage (grace window active)
-    accountsManager.handleDomUnreadUpdate('account_personal', {
-      timestamp: Date.now(),
-      counts: { inbox: 3 },
-      presentCategories: ['inbox'],
-    });
+    // 1. Account Personal has fresh cache triage (grace window active)
+    accountsManager.handleCacheCategoryCounts('account_personal', cacheReport(3));
 
     // 2. Account Work receives an Atom poll 1s later reflecting 8 unread
     vi.advanceTimersByTime(1000);
@@ -640,26 +616,23 @@ describe('Per-Source Ledger & Authority Resolution', () => {
         ['social', 0],
         ['forums', 0],
       ]),
+      2000,
     );
 
     // Since cache timestamp (2000) > atom timestamp (1000), cache breakdown wins (1 primary + 1 updates = 2)
     expect(accountsManager.getEffectiveUnreadForAccount('account_personal')).toBe(2);
 
-    // 3. Next Atom poll finishes at T=3000 reporting 1
-    vi.setSystemTime(3000);
+    // 3. Next Atom poll finishes at T=8000 (outside 5s grace window) reporting 1
+    vi.setSystemTime(8000);
     accountsManager.handleApiUnreadUpdate('account_personal', 1);
 
-    // Since atom timestamp (3000) > cache timestamp (2000), Atom poll wins!
+    // Since atom timestamp (8000) > cache timestamp (2000) and > 5s elapsed, Atom poll wins!
     expect(accountsManager.getEffectiveUnreadForAccount('account_personal')).toBe(1);
   });
 
   it('drops unread cleanly to zero when mailbox is cleared', () => {
-    // Initial state: 3 unread
-    accountsManager.handleDomUnreadUpdate('account_personal', {
-      timestamp: Date.now(),
-      counts: { inbox: 3 },
-      presentCategories: ['inbox'],
-    });
+    // Initial state: 3 unread in cache
+    accountsManager.handleCacheCategoryCounts('account_personal', cacheReport(3));
     expect(accountsManager.getEffectiveUnreadForAccount('account_personal')).toBe(3);
 
     // Outside grace window, Atom poll returns 0

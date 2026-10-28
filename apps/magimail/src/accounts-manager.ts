@@ -54,7 +54,7 @@ import { clearPollerState } from './atom-poller.js';
 import { gmailSyncStateFor } from './gmail-sync-state.js';
 import { pressRefreshControl } from './thread-actions/sync-driver.js';
 
-export type UnreadSource = 'dom' | 'atom' | 'cache' | 'api';
+export type UnreadSource = 'atom' | 'cache' | 'api';
 
 export interface SourceReport {
   count: number;
@@ -62,7 +62,8 @@ export interface SourceReport {
   categoryCounts?: Map<NotificationCategory, number>;
 }
 
-export const DOM_TRIAGE_GRACE_MS = 5000;
+export const CACHE_TRIAGE_GRACE_MS = 5000;
+export const DOM_TRIAGE_GRACE_MS = CACHE_TRIAGE_GRACE_MS;
 import {
   attachNativeToolbar,
   updateNativeToolbarAccounts,
@@ -1033,7 +1034,7 @@ export class AccountsManager {
   }
 
   /**
-   * Clears any active DOM triage grace window (e.g. when the user explicitly triggers
+   * Clears any active cache triage grace window (e.g. when the user explicitly triggers
    * "Refresh Inbox" from the tray). This allows the subsequent Atom poll or server sync
    * to immediately become authoritative.
    */
@@ -1041,11 +1042,11 @@ export class AccountsManager {
     if (accountId) {
       const sources = this.accountSources.get(accountId);
       if (sources) {
-        delete sources.dom;
+        delete sources.cache;
       }
     } else {
       for (const sources of this.accountSources.values()) {
-        delete sources.dom;
+        delete sources.cache;
       }
     }
   }
@@ -1076,39 +1077,15 @@ export class AccountsManager {
       return sources.api.count;
     }
 
-    // 2. 'dom' source: transient authority during user triage (anti-bounce against edge-cache lag)
-    const dom = sources?.dom;
-    const isDomActive = dom !== undefined && now - dom.timestamp < DOM_TRIAGE_GRACE_MS;
-
-    if (isDomActive) {
-      let total = 0;
-      const allCategories: NotificationCategory[] = [
-        'primary',
-        'updates',
-        'promotions',
-        'social',
-        'forums',
-      ];
-      const knownCounts = this.lastKnownCategoryCounts.get(accountId);
-
-      for (const cat of allCategories) {
-        if (notifSettings[cat] === 'off') continue;
-        if (cat === 'primary') {
-          total += dom.count;
-        } else {
-          total += knownCounts?.get(cat) ?? 0;
-        }
-      }
-      return total;
-    }
-
-    // 3. Outside DOM grace window (or when DOM is cleared/expired):
-    // Server state is authoritative. We compare 'atom' vs 'cache' freshness timestamps.
-    const atom = sources?.atom;
     const cache = sources?.cache;
+    const atom = sources?.atom;
 
-    // If cache was captured AFTER the last atom poll, use cache category breakdown
-    if (cache && (!atom || cache.timestamp > atom.timestamp)) {
+    // 2. 'cache' source: local IndexedDB (_xdb).
+    // During the 5-second triage grace window after a local cache update,
+    // trust cache over lagging Atom edge-cache responses.
+    const isCacheInGrace = cache !== undefined && now - cache.timestamp < CACHE_TRIAGE_GRACE_MS;
+
+    if (isCacheInGrace || (cache && (!atom || cache.timestamp >= atom.timestamp))) {
       if (cache.categoryCounts) {
         let total = 0;
         const allCategories: NotificationCategory[] = [
@@ -1127,20 +1104,9 @@ export class AccountsManager {
       return cache.count;
     }
 
+    // 3. 'atom' source: server feed (authoritative for background, multi-device sync, or no cache)
     if (atom) {
       return atom.count;
-    }
-
-    // Fallback: if domReport was received (e.g. initial DOM scan before any poll), use domReport
-    const domReport = this.domReports.get(accountId);
-    if (domReport && domReport.presentCategories.includes('inbox')) {
-      const knownCounts = this.lastKnownCategoryCounts.get(accountId);
-      let total = domReport.counts['inbox'] ?? 0;
-      for (const cat of ['updates', 'promotions', 'social', 'forums'] as const) {
-        if (notifSettings[cat] === 'off') continue;
-        total += knownCounts?.get(cat) ?? 0;
-      }
-      return total;
     }
 
     const acc = this.accounts.find((a) => a.id === accountId);
@@ -1239,34 +1205,9 @@ export class AccountsManager {
   public handleDomUnreadUpdate(accountId: string, report: DomUnreadReport): void {
     this.domReports.set(accountId, report);
 
-    // Only the '#inbox' row in the sidebar is inbox-scoped; the category rows
-    // (#category/...) are label-scoped and count archived mail, so we do NOT
-    // record them into knownCounts.
-    if (report.presentCategories.includes('inbox')) {
-      const inboxCount = report.counts['inbox'] ?? 0;
-      this.reportSourceUnread(accountId, 'dom', {
-        count: inboxCount,
-        timestamp:
-          report.lastUserInteractionAt !== undefined
-            ? report.lastUserInteractionAt
-            : report.timestamp || Date.now(),
-      });
-      const domCounts = new Map<NotificationCategory, number>();
-      domCounts.set('primary', inboxCount);
-      this.recordCategoryCounts(accountId, domCounts);
-    }
-
     if (report.hasCategoriesSection) {
       this.accountsWithCategoriesObserved.add(accountId);
     }
-
-    const effectiveUnread = this.getEffectiveUnreadForAccount(accountId);
-    this.accounts = updateAccountUnread(this.accounts, accountId, effectiveUnread);
-    const focused = this.getFocusedAccounts();
-    const total = calculateAggregateUnread(focused);
-    updateDockBadge(total, this.getFocusedArrivals());
-    this.notifyToolbar();
-    this.onUnreadChanged?.(focused, total);
 
     const absent = this.getAbsentCategoriesForAccount(accountId);
     this.onAbsentCategoriesChanged?.(accountId, absent);
