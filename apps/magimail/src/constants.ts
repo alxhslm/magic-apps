@@ -51,6 +51,7 @@ export interface DomCategoryCounts {
 
 export interface DomUnreadReport {
   timestamp: number;
+  lastUserInteractionAt?: number;
   counts: DomCategoryCounts;
   presentCategories: ('inbox' | NotificationCategory)[];
   hasCategoriesSection?: boolean;

@@ -1192,12 +1192,13 @@ export class AccountsManager {
   public handleCacheCategoryCounts(
     accountId: string,
     categoryCounts: Map<NotificationCategory, number>,
+    timestamp?: number,
   ): void {
     this.recordCategoryCounts(accountId, categoryCounts, true);
 
     const account = this.accounts.find((a) => a.id === accountId);
     const syncState = account ? gmailSyncStateFor(account.partition) : null;
-    const timestamp = syncState?.capturedAt ?? Date.now();
+    const effectiveTimestamp = timestamp ?? syncState?.capturedAt ?? Date.now();
 
     const notifSettings = loadSettings().notifications || {};
     let cacheTotal = 0;
@@ -1215,7 +1216,7 @@ export class AccountsManager {
 
     this.reportSourceUnread(accountId, 'cache', {
       count: cacheTotal,
-      timestamp,
+      timestamp: effectiveTimestamp,
       categoryCounts,
     });
 
@@ -1245,7 +1246,10 @@ export class AccountsManager {
       const inboxCount = report.counts['inbox'] ?? 0;
       this.reportSourceUnread(accountId, 'dom', {
         count: inboxCount,
-        timestamp: report.timestamp || Date.now(),
+        timestamp:
+          report.lastUserInteractionAt !== undefined
+            ? report.lastUserInteractionAt
+            : report.timestamp || Date.now(),
       });
       const domCounts = new Map<NotificationCategory, number>();
       domCounts.set('primary', inboxCount);
