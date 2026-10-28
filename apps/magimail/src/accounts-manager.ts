@@ -1164,7 +1164,8 @@ export class AccountsManager {
 
     const account = this.accounts.find((a) => a.id === accountId);
     const syncState = account ? gmailSyncStateFor(account.partition) : null;
-    const effectiveTimestamp = timestamp ?? syncState?.capturedAt ?? Date.now();
+    const effectiveTimestamp =
+      timestamp ?? (syncState?.capturedAt ? syncState.capturedAt : Date.now());
 
     const notifSettings = loadSettings().notifications || {};
     let cacheTotal = 0;
@@ -1696,6 +1697,9 @@ export class AccountsManager {
     });
 
     const unreadToApply = this.getEffectiveUnreadForAccount(accountId);
+    log.info(
+      `(Accounts) handleApiUnreadUpdate for ${accountId}: totalUnread=${totalUnread}, applied=${unreadToApply}`,
+    );
 
     this.accounts = updateAccountUnread(this.accounts, accountId, unreadToApply);
     // The badge and the menu bar count what the filter includes; the switcher

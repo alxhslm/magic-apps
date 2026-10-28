@@ -266,9 +266,6 @@ async function refreshWidgetCache(accounts: AccountConfig[], totalUnread: number
         accountsManager?.handleOfflineCacheStatus(account.id, false);
       } else if (!snapshot.stats?.reason) {
         accountsManager?.handleOfflineCacheStatus(account.id, true);
-        if (snapshot.categoryCounts && accountsManager) {
-          accountsManager.handleCacheCategoryCounts(account.id, snapshot.categoryCounts);
-        }
       }
     }
     if (!messages || messages.length === 0) {
@@ -327,6 +324,7 @@ function handlePollResult(result: AtomPollResult): void {
 
   // Update unread counts for the account
   if (accountsManager) {
+    log.info(`(AtomPoller) Poll ok for ${result.accountId}: totalUnread=${result.totalUnread}`);
     restrictedAccounts.delete(result.accountId);
     accountsManager.setAccountAuthRequired(result.accountId, false);
     accountsManager.handleApiUnreadUpdate(
@@ -1367,7 +1365,11 @@ if (!hasLock) {
               } else if (!snapshot.stats?.reason) {
                 accountsManager?.handleOfflineCacheStatus(accountId, true);
                 if (snapshot.categoryCounts && accountsManager) {
-                  accountsManager.handleCacheCategoryCounts(accountId, snapshot.categoryCounts);
+                  accountsManager.handleCacheCategoryCounts(
+                    accountId,
+                    snapshot.categoryCounts,
+                    Date.now(),
+                  );
                 }
               }
             }
