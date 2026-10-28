@@ -80,15 +80,21 @@ soon as the PR merges into `main`.
 `main` is protected by the `Protect main` ruleset. It is active with no bypass actors, so the same
 rules apply to the repository owner: nothing reaches `main` except through a pull request.
 
-| Rule | Effect |
-| :--- | :--- |
-| Pull request required | No direct pushes; every change lands as one PR |
-| Squash merge only | The other merge methods are disabled repository-wide |
-| Linear history | `main` stays a single line of squash commits |
-| No force push, no deletion | History cannot be rewritten or the branch removed |
-| Required check: `Detect Changes` | CI's path filter must pass |
-| Branch must be up to date | Merge `main` in before merging, as above |
-| Delete branch on merge | The head branch goes automatically |
+| Rule                          | Effect                                                 |
+| :---------------------------- | :----------------------------------------------------- |
+| Pull request required         | No direct pushes; every change lands as one PR         |
+| Squash merge only             | The other merge methods are disabled repository-wide   |
+| Linear history                | `main` stays a single line of squash commits           |
+| No force push, no deletion    | History cannot be rewritten or the branch removed      |
+| Required check: `CI Complete` | Every CI job passed, or was skipped by its path filter |
+| Branch must be up to date     | Merge `main` in before merging, as above               |
+| Delete branch on merge        | The head branch goes automatically                     |
+
+`CI Complete` is a gate job that needs every other job in `ci.yml` and fails if any of them
+failed or was cancelled. It is the only required check because GitHub cannot require a job that a
+path filter skips: requiring `Check Swift` would block a docs-only pull request on a check that
+never starts. The gate always runs, so it reports on every pull request, and `skipped` counts as
+passing there.
 
 The PR title becomes the squash commit subject and the PR body becomes its message, so both are
 written for the log rather than for the reviewer mid-review. Auto-merge is enabled: a green PR can
@@ -96,3 +102,7 @@ be queued rather than watched.
 
 No approving review is required, because the repository has one maintainer and a self-review would
 be theatre. The gate is CI plus reading your own diff before merging.
+
+`Check formatting` carries no path filter, unlike the other jobs, because Prettier reads markdown
+too. Filtering it out of a docs-only pull request is what let an unformatted doc reach `main`, where
+it failed the first pull request that touched code.

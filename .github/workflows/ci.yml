@@ -78,6 +78,34 @@ jobs:
               - 'tools/test-focus-filter-appcontext.mjs'
               - '.github/workflows/ci.yml'
 
+  # Prettier reads every tracked file, markdown included, so this job carries no
+  # path filter. Filtered by `code`, a docs-only pull request skips the one check
+  # that looks at docs and lands green; the next pull request that touches code
+  # then fails on formatting nobody in the review could see.
+  check-format:
+    name: Check formatting (prettier)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 11.24.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check code formatting
+        run: pnpm format:check
+
   check-ts:
     name: Check TypeScript (lint, typecheck, test)
     runs-on: ubuntu-latest
@@ -100,9 +128,6 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-
-      - name: Check code formatting
-        run: pnpm format:check
 
       - name: Run ESLint
         run: pnpm lint
@@ -237,3 +262,35 @@ jobs:
       - name: Test Magical Focus Filter appContext
         if: needs.changes.outputs.magical_native == 'true' || github.event_name == 'workflow_dispatch'
         run: node tools/test-focus-filter-appcontext.mjs magical
+
+  # The single status check `main` requires. A required check has to report on
+  # every pull request, and the jobs above are path-filtered, so requiring them
+  # directly blocks a docs-only pull request on a check that never starts.
+  # This job always runs and fails if any job it needs failed or was cancelled;
+  # `skipped` is the expected result for a job the path filter ruled out.
+  ci-complete:
+    name: CI Complete
+    runs-on: ubuntu-latest
+    needs: [changes, check-format, check-ts, check-swift]
+    if: always()
+    steps:
+      - name: Fail if any job failed or was cancelled
+        env:
+          RESULTS: changes=${{ needs.changes.result }} check-format=${{ needs.check-format.result }} check-ts=${{ needs.check-ts.result }} check-swift=${{ needs.check-swift.result }}
+        run: |
+          echo "$RESULTS" | tr ' ' '\n'
+          # `changes` has its own condition and is skipped for a draft pull request,
+          # which leaves every other job skipped too. A gate that read that as a pass
+          # would report green having run nothing, so it is checked separately.
+          if [ "${{ needs.changes.result }}" != 'success' ]; then
+            echo "::error::Detect Changes did not run. CI Complete only passes when the path filter ran."
+            exit 1
+          fi
+          for result in $RESULTS; do
+            case "${result#*=}" in
+              failure | cancelled)
+                echo "::error::${result%%=*} did not pass. Every job in this workflow has to pass before merging."
+                exit 1
+                ;;
+            esac
+          done
