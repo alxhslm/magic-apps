@@ -1724,11 +1724,34 @@ export class AccountsManager {
     );
   }
 
+  /**
+   * Reloads the active account view.
+   *
+   * Rebuilds the view through the pool rather than calling `webContents.reload()`,
+   * so an account whose WebContents or compositor has stopped presenting recovers
+   * cleanly when the user hits Cmd+R or chooses Reload from the menu.
+   */
   public reloadActiveView(): void {
-    const activeView = this.pool.view(this.activeAccountId);
-    if (viewIsAlive(activeView)) {
-      activeView.webContents.reload();
+    if (!this.activeAccountId) return;
+    this.rebuildAccountView(this.activeAccountId);
+  }
+
+  /**
+   * Rebuilds an account view from scratch through the pool.
+   *
+   * Closes the dead WebContents, creates a fresh replacement view,
+   * updates layout, and navigates it back to the route the user was on.
+   */
+  public rebuildAccountView(accountId: string): WebContentsView | undefined {
+    log.info(`Rebuilding account view for ${accountId}`);
+    const view = this.pool.rebuildView(accountId, {
+      fallbackUrl: GMAIL_LOGIN_URL,
+      onLayout: () => this.updateLayout(),
+    });
+    if (view) {
+      this.onAccountsChanged?.();
     }
+    return view;
   }
 
   /**
@@ -2119,7 +2142,6 @@ export class AccountsManager {
         `Attached view for background action on account ${accountId} at index 0 (${this.pool.attachedSummary()})`,
       );
     }
-    view.webContents.setBackgroundThrottling(false);
     view.setBounds({
       x: 0,
       y: TOOLBAR_HEIGHT + bannerHeight,
@@ -2138,7 +2160,6 @@ export class AccountsManager {
         this.updateLayout();
         return;
       }
-      view.webContents.setBackgroundThrottling(true);
       if (!wasAttached && this.mainWindow.contentView.children.includes(view)) {
         this.mainWindow.contentView.removeChildView(view);
         log.info(

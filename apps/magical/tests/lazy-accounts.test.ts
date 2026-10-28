@@ -291,15 +291,15 @@ describe('lazy account views in Magical', () => {
     );
   });
 
-  it('throttles accounts once they leave the screen and unthrottles the active one', () => {
+  it('does not toggle background throttling when accounts switch', () => {
     manager.switchAccount(ACCOUNT_B);
 
     expect(
       viewFor('persist:magical_personal')!.webContents.setBackgroundThrottling,
-    ).toHaveBeenLastCalledWith(true);
+    ).not.toHaveBeenCalled();
     expect(
       viewFor('persist:magical_work')!.webContents.setBackgroundThrottling,
-    ).toHaveBeenLastCalledWith(false);
+    ).not.toHaveBeenCalled();
   });
 
   it('ages out the visible account too once the window is hidden', () => {
