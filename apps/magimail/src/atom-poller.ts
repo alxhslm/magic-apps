@@ -691,7 +691,17 @@ export class AtomFeedPoller {
       let offCategoryCount = 0;
       for (const [cat, level] of Object.entries(this.notificationSettings)) {
         if (level === 'off') {
-          offCategoryCount += subFeeds.counts.get(cat as NotificationCategory) ?? 0;
+          const subCount = subFeeds.counts.get(cat as NotificationCategory) ?? 0;
+          if (entries.length > 0 && fullCount <= entries.length) {
+            // When all inbox messages are present in entries, count how many belong to this off-category.
+            // This prevents archived unread messages in the category sub-feed from negative-clamping
+            // the inbox unread count.
+            const inEntries = entries.filter((e) => e.category === cat).length;
+            offCategoryCount += inEntries;
+          } else {
+            // When fullCount > entries.length or no entries, cap sub-feed count at fullCount.
+            offCategoryCount += Math.min(subCount, fullCount);
+          }
         }
       }
 
@@ -798,14 +808,33 @@ export class AtomFeedPoller {
     let learned = 0;
 
     for (const entry of entries) {
-      const cached = this.categoryById.get(entry.id);
-      if (cached) {
-        entry.category = cached;
-      } else if (canClassify) {
-        const resolved = resolveMessageCategory(entry.id, subFeeds.ids);
-        this.categoryById.set(entry.id, resolved);
-        entry.category = resolved;
+      let matchedCategory: NotificationCategory | null = null;
+      for (const [cat, ids] of subFeeds.ids.entries()) {
+        if (ids.has(entry.id)) {
+          matchedCategory = cat;
+          break;
+        }
+      }
+
+      if (matchedCategory) {
+        this.categoryById.set(entry.id, matchedCategory);
+        entry.category = matchedCategory;
         learned += 1;
+      } else if (canClassify) {
+        // All 4 lookup sub-feeds were fetched and none contained this message -> Primary
+        this.categoryById.set(entry.id, 'primary');
+        entry.category = 'primary';
+        learned += 1;
+      } else {
+        const cached = this.categoryById.get(entry.id);
+        // If the cached category was fetched in this round and did NOT contain
+        // the message, the message was recategorized away from it.
+        if (cached && subFeeds.ids.has(cached) && !subFeeds.ids.get(cached)?.has(entry.id)) {
+          this.categoryById.delete(entry.id);
+          entry.category = 'primary';
+        } else if (cached) {
+          entry.category = cached;
+        }
       }
     }
 

@@ -100,10 +100,11 @@ feed the rest of the time.
 
 1. **Foreground, real-time scalar badge.** A scoped `MutationObserver` in `apps/magimail/src/preload.ts`
    watches Gmail's left navigation sidebar (`div[role="navigation"]`) while the Gmail window is
-   visible and active. It reads the numbers off child badge elements or ARIA labels for `#inbox` and
-   `#category/...` (`updates`, `promotions`, `social`, `forums`), so triage updates the badge
-   synchronously, with no network request. It dispatches `IPC_CHANNELS.DOM_UNREAD_UPDATE` with the
-   category counts it found, `presentCategories`, `hasCategoriesSection` and `isLoaded`.
+   visible and active. It reads the unread count off the `#inbox` child badge element or ARIA label,
+   providing synchronous, 0ms badge updates on triage. Because Gmail's `#category/...` sidebar rows
+   are label-scoped queries that count archived unread mail, they do not provide scalar numbers for
+   inbox unread totals; instead, mutations in the sidebar and main list dispatch
+   `IPC_CHANNELS.MAILBOX_CHANGE_HINT` to nudge immediate background sync and cache checks.
 2. **Category counts and offline cache.** When offline mail is enabled in Gmail settings
    (`#settings/offline`), Gmail synchronises an IndexedDB cache (`_xdb`). Category unread counts are
    sourced directly from this cache, which counts true unread messages in the inbox (`^i` + `^u`),
@@ -142,9 +143,15 @@ feed the rest of the time.
    Categories would count every row inside it as zero until the first sub-poll came back, and the
    badge would drop to the Primary count and climb again seconds later.
 
-   **Anti-bounce rule.** A completed Atom poll leaves the DOM counts for the categories present in
-   the sidebar alone, so a stale edge-cached Atom response cannot overwrite what triage has just
-   changed.
+   **Per-Source Ledger & Anti-Bounce Grace Window.** `AccountsManager` manages unread state via a
+   per-source ledger (`atom`, `cache`, and ready for `api`). The DOM acts purely as a change detector
+   (`MAILBOX_CHANGE_HINT`), triggering an immediate local cache read (`_xdb`) and Atom poll without
+   serving as an unread count authority. Local cache triage updates hold an anti-bounce grace window
+   for 5 seconds (`CACHE_TRIAGE_GRACE_MS = 5000`) to shield the badge against edge-cached Atom lag.
+   After 5 seconds, server polls are fully authoritative, ensuring actions on other devices (phone/web)
+   update the desktop count without requiring a web reload. Explicitly clicking **Refresh Inbox** in
+   the tray clears the grace window immediately and dispatches an in-page refresh control click
+   (`CLICK_REFRESH_CONTROL`).
 
 ### Decoupled from the views
 

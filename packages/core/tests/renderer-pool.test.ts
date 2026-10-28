@@ -133,9 +133,10 @@ describe('RendererPool', () => {
 
       expect(children).toHaveLength(1);
       expect(children[0]).toBe(viewOf(ACCOUNT_B));
-      // The account that left the screen is throttled; the one on it is not.
-      expect(viewOf(ACCOUNT_A).throttled.at(-1)).toBe(true);
-      expect(viewOf(ACCOUNT_B).throttled.at(-1)).toBe(false);
+      // Attaching and detaching does not toggle background throttling; views
+      // rely on their initial webPreferences instead.
+      expect(viewOf(ACCOUNT_A).throttled).toHaveLength(0);
+      expect(viewOf(ACCOUNT_B).throttled).toHaveLength(0);
     });
 
     it('reuses a live view rather than building a second one', () => {
@@ -159,6 +160,22 @@ describe('RendererPool', () => {
       // Nothing is remembered: an account that is gone has no page to return to.
       expect(pool.firstLoadUrl(ACCOUNT_A, 'https://example.test/signin')).toBe(
         'https://example.test/signin',
+      );
+    });
+
+    it("drops an account's view but preserves its route when rememberUrl is requested", () => {
+      show(ACCOUNT_A);
+      const view = viewOf(ACCOUNT_A);
+      view.url = 'https://example.test/inbox/thread/7';
+
+      pool.removeView(ACCOUNT_A, { rememberUrl: true });
+
+      expect(children).toHaveLength(0);
+      expect(view.closed).toBe(true);
+      expect(pool.isAccountLoaded(ACCOUNT_A)).toBe(false);
+      // The route is remembered for firstLoadUrl
+      expect(pool.firstLoadUrl(ACCOUNT_A, 'https://example.test/signin')).toBe(
+        'https://example.test/inbox/thread/7',
       );
     });
   });
@@ -472,6 +489,34 @@ describe('RendererPool', () => {
 
     it('has no view to hand over for an account that is not configured', async () => {
       expect(await wake('account_removed')).toBeUndefined();
+    });
+  });
+
+  describe('rebuildView', () => {
+    it('tears down the existing view, attaches a fresh replacement, and restores the URL', () => {
+      show(ACCOUNT_A);
+      const oldView = viewOf(ACCOUNT_A);
+      oldView.url = 'https://mail.google.com/mail/u/0/#starred';
+
+      const layoutCalls: string[] = [];
+      const newView = pool.rebuildView(ACCOUNT_A, {
+        fallbackUrl: 'https://mail.google.com/mail/u/0/',
+        onLayout: () => layoutCalls.push('layout'),
+      });
+
+      expect(oldView.closed).toBe(true);
+      expect(newView).toBeDefined();
+      expect(newView).not.toBe(oldView);
+      expect(children).toEqual([newView]);
+      expect(layoutCalls).toEqual(['layout']);
+      expect((newView as unknown as FakeView).loaded).toEqual([
+        'https://mail.google.com/mail/u/0/#starred',
+      ]);
+      expect(pool.isAccountLoaded(ACCOUNT_A)).toBe(true);
+    });
+
+    it('returns undefined when rebuilding an unknown account', () => {
+      expect(pool.rebuildView('account_removed')).toBeUndefined();
     });
   });
 });
