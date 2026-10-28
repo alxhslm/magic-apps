@@ -96,7 +96,7 @@ export function buildSyncPayload(
  * prefers a drawn control over a hidden 0x0 one. The leave events and blur take off the
  * hover class and focus the sequence leaves behind.
  */
-const CLICK_REFRESH_CONTROL = `
+export const CLICK_REFRESH_CONTROL = `
 const clickRefresh = () => {
   try {
     const selector = ${JSON.stringify(REFRESH_CONTROL_SELECTOR)};
@@ -122,6 +122,22 @@ const clickRefresh = () => {
   }
 };
 `;
+
+/**
+ * Presses Gmail's toolbar refresh control in an open WebContents.
+ */
+export async function pressRefreshControl(wc: Electron.WebContents | undefined): Promise<boolean> {
+  if (!wc || wc.isDestroyed()) return false;
+  try {
+    const refreshed = await wc.executeJavaScript(
+      `(() => {\n${CLICK_REFRESH_CONTROL}\nreturn clickRefresh();\n})()`,
+    );
+    return Boolean(refreshed);
+  } catch (err) {
+    log.warn(`Could not press the refresh control: ${err}`);
+    return false;
+  }
+}
 
 export interface SyncThreadActionDriverOptions {
   /** The account's partition, where its captured `/sync/` headers live. */
@@ -229,15 +245,9 @@ export class SyncThreadActionDriver implements ThreadActionDriver {
     const wc = this.options.existingView?.(accountId)?.webContents;
     if (!wc || wc.isDestroyed()) return;
 
-    try {
-      const refreshed = await wc.executeJavaScript(
-        `(() => {\n${CLICK_REFRESH_CONTROL}\nreturn clickRefresh();\n})()`,
-      );
-      if (refreshed === false) {
-        log.warn(`Direct ${action} left the Gmail list unrefreshed: no refresh control was drawn`);
-      }
-    } catch (err) {
-      log.warn(`Direct ${action} could not press the refresh control: ${err}`);
+    const refreshed = await pressRefreshControl(wc);
+    if (refreshed === false) {
+      log.warn(`Direct ${action} left the Gmail list unrefreshed: no refresh control was drawn`);
     }
   }
 }

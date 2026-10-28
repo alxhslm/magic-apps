@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, afterAll } from 'vitest';
 import fs from 'node:fs';
 import { BaseWindow } from 'electron';
 import { AccountsManager } from '../src/accounts-manager.js';
@@ -508,5 +508,179 @@ describe('a sidebar count off screen', () => {
     accountsManager.suspendAllAccounts();
     accountsManager.handleApiUnreadUpdate('account_personal', 7);
     expect(accountsManager.getEffectiveUnreadForAccount('account_personal')).toBe(7);
+  });
+});
+
+describe('Per-Source Ledger & Authority Resolution', () => {
+  let mainWindow: BaseWindow;
+  let accountsManager: AccountsManager;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    mockChildren.length = 0;
+    mockCurrentSettings.dismissedApiPrompts = [];
+    fs.mkdirSync(TEST_USER_DATA, { recursive: true });
+    const accountsData = [
+      {
+        id: 'account_personal',
+        name: 'Personal',
+        email: 'test@example.com',
+        color: '#4285f4',
+        partition: 'persist:magimail_personal',
+        unreadCount: 0,
+      },
+      {
+        id: 'account_work',
+        name: 'Work',
+        email: 'work@example.com',
+        color: '#db4437',
+        partition: 'persist:magimail_work',
+        unreadCount: 0,
+      },
+    ];
+    fs.writeFileSync(`${TEST_USER_DATA}/accounts.json`, JSON.stringify(accountsData));
+
+    mainWindow = new BaseWindow();
+    accountsManager = new AccountsManager(mainWindow, '/mock/preload.js');
+    accountsManager.bannerSettleDelayMs = 0;
+    accountsManager.initialize();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('allows Atom poll to win when outside the 5s triage grace window (external triage on phone)', () => {
+    // 1. Desktop DOM reports 4 unread messages
+    accountsManager.handleDomUnreadUpdate('account_personal', {
+      timestamp: Date.now(),
+      counts: { inbox: 4 },
+      presentCategories: ['inbox'],
+    });
+    expect(accountsManager.getEffectiveUnreadForAccount('account_personal')).toBe(4);
+
+    // 2. User marks 2 emails as read on their phone.
+    // 6 seconds later, desktop background poller fetches feed and returns 2.
+    vi.advanceTimersByTime(6000);
+    accountsManager.handleApiUnreadUpdate('account_personal', 2);
+
+    // Outside the 5s grace window, Atom poll wins over the stale desktop DOM!
+    expect(accountsManager.getEffectiveUnreadForAccount('account_personal')).toBe(2);
+    const acc = accountsManager.getAccounts().find((a) => a.id === 'account_personal');
+    expect(acc?.unreadCount).toBe(2);
+  });
+
+  it('allows Atom poll to increment when new mail arrives externally', () => {
+    // 1. Initial DOM report has 1 unread
+    accountsManager.handleDomUnreadUpdate('account_personal', {
+      timestamp: Date.now(),
+      counts: { inbox: 1 },
+      presentCategories: ['inbox'],
+    });
+    expect(accountsManager.getEffectiveUnreadForAccount('account_personal')).toBe(1);
+
+    // 2. New emails arrive; Atom poll discovers 5 unread outside grace window
+    vi.advanceTimersByTime(6000);
+    accountsManager.handleApiUnreadUpdate('account_personal', 5);
+
+    expect(accountsManager.getEffectiveUnreadForAccount('account_personal')).toBe(5);
+  });
+
+  it('tray Refresh Inbox immediately clears DOM grace window so forced poll wins', () => {
+    // 1. User archives email in DOM -> count drops to 3
+    accountsManager.handleDomUnreadUpdate('account_personal', {
+      timestamp: Date.now(),
+      counts: { inbox: 3 },
+      presentCategories: ['inbox'],
+    });
+    expect(accountsManager.getEffectiveUnreadForAccount('account_personal')).toBe(3);
+
+    // 2. Inside the grace window (only 1s elapsed), user clicks "Refresh Inbox" in tray
+    vi.advanceTimersByTime(1000);
+    accountsManager.resetTriageGraceWindow('account_personal');
+
+    // 3. Forced poll arrives with server state 1 (external changes happened)
+    accountsManager.handleApiUnreadUpdate('account_personal', 1);
+
+    // Forced poll wins immediately without waiting out the 5s window!
+    expect(accountsManager.getEffectiveUnreadForAccount('account_personal')).toBe(1);
+  });
+
+  it('multi-account isolation: local triage in Account A does not block external poll updates in Account B', () => {
+    // 1. Account Personal has fresh DOM triage (grace window active)
+    accountsManager.handleDomUnreadUpdate('account_personal', {
+      timestamp: Date.now(),
+      counts: { inbox: 3 },
+      presentCategories: ['inbox'],
+    });
+
+    // 2. Account Work receives an Atom poll 1s later reflecting 8 unread
+    vi.advanceTimersByTime(1000);
+    accountsManager.handleApiUnreadUpdate('account_work', 8);
+
+    // Personal holds its local triage count (3), while Work immediately applies 8!
+    expect(accountsManager.getEffectiveUnreadForAccount('account_personal')).toBe(3);
+    expect(accountsManager.getEffectiveUnreadForAccount('account_work')).toBe(8);
+  });
+
+  it('cache vs atom freshness timestamp arbitration', () => {
+    // 1. Atom poll arrives at T=1000 reporting 4
+    vi.setSystemTime(1000);
+    accountsManager.handleApiUnreadUpdate('account_personal', 4);
+    expect(accountsManager.getEffectiveUnreadForAccount('account_personal')).toBe(4);
+
+    // 2. Gmail /sync/ runs at T=2000, updating local cache (_xdb)
+    vi.setSystemTime(2000);
+    accountsManager.handleCacheCategoryCounts(
+      'account_personal',
+      new Map<NotificationCategory, number>([
+        ['primary', 1],
+        ['updates', 1],
+        ['promotions', 0],
+        ['social', 0],
+        ['forums', 0],
+      ]),
+    );
+
+    // Since cache timestamp (2000) > atom timestamp (1000), cache breakdown wins (1 primary + 1 updates = 2)
+    expect(accountsManager.getEffectiveUnreadForAccount('account_personal')).toBe(2);
+
+    // 3. Next Atom poll finishes at T=3000 reporting 1
+    vi.setSystemTime(3000);
+    accountsManager.handleApiUnreadUpdate('account_personal', 1);
+
+    // Since atom timestamp (3000) > cache timestamp (2000), Atom poll wins!
+    expect(accountsManager.getEffectiveUnreadForAccount('account_personal')).toBe(1);
+  });
+
+  it('drops unread cleanly to zero when mailbox is cleared', () => {
+    // Initial state: 3 unread
+    accountsManager.handleDomUnreadUpdate('account_personal', {
+      timestamp: Date.now(),
+      counts: { inbox: 3 },
+      presentCategories: ['inbox'],
+    });
+    expect(accountsManager.getEffectiveUnreadForAccount('account_personal')).toBe(3);
+
+    // Outside grace window, Atom poll returns 0
+    vi.advanceTimersByTime(6000);
+    accountsManager.handleApiUnreadUpdate('account_personal', 0);
+
+    expect(accountsManager.getEffectiveUnreadForAccount('account_personal')).toBe(0);
+    const acc = accountsManager.getAccounts().find((a) => a.id === 'account_personal');
+    expect(acc?.unreadCount).toBe(0);
+  });
+
+  it('pressGmailRefreshControl executes refresh script on open view', async () => {
+    // Open a view for personal account
+    await accountsManager.openInAccount(
+      'account_personal',
+      'https://mail.google.com/mail/u/0/#inbox',
+    );
+    const view = accountsManager.getWebContentsViewForAccount('account_personal');
+    expect(view).toBeDefined();
+
+    await accountsManager.pressGmailRefreshControl('account_personal');
+    expect(view?.webContents.executeJavaScript).toHaveBeenCalled();
   });
 });

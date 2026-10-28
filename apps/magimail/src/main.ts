@@ -1303,14 +1303,17 @@ if (!hasLock) {
               }
             }
           },
-          pollAllNow: () =>
-            Promise.allSettled([...atomPollers.values()].map((poller) => poller.pollNow())).then(
-              () => {
-                for (const accountId of atomPollers.keys()) {
-                  sendTrayMessages(accountId);
-                }
-              },
-            ),
+          pollAllNow: () => {
+            accountsManager?.resetTriageGraceWindow();
+            void accountsManager?.pressGmailRefreshControl();
+            return Promise.allSettled(
+              [...atomPollers.values()].map((poller) => poller.pollNow()),
+            ).then(() => {
+              for (const accountId of atomPollers.keys()) {
+                sendTrayMessages(accountId);
+              }
+            });
+          },
           sendMessages: (accountId) => sendTrayMessages(accountId),
           openSettings: () => {
             // The settings pane is fed from the accounts, so a window is built for it when

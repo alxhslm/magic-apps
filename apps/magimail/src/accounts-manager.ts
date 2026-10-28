@@ -51,6 +51,18 @@ import { openDetachedThreadWindow } from './compose.js';
 import { loadAccounts, saveAccounts, createNewAccount } from './account-store.js';
 import { loadSettings, saveSetting } from './settings-store.js';
 import { clearPollerState } from './atom-poller.js';
+import { gmailSyncStateFor } from './gmail-sync-state.js';
+import { pressRefreshControl } from './thread-actions/sync-driver.js';
+
+export type UnreadSource = 'dom' | 'atom' | 'cache' | 'api';
+
+export interface SourceReport {
+  count: number;
+  timestamp: number;
+  categoryCounts?: Map<NotificationCategory, number>;
+}
+
+export const DOM_TRIAGE_GRACE_MS = 5000;
 import {
   attachNativeToolbar,
   updateNativeToolbarAccounts,
@@ -253,6 +265,7 @@ export class AccountsManager {
   private currentBannerType: 'categories' | 'offlineMail' = 'offlineMail';
   private accountsWithCategoriesObserved = new Set<string>();
   private domReports: Map<string, DomUnreadReport> = new Map();
+  private accountSources: Map<string, Partial<Record<UnreadSource, SourceReport>>> = new Map();
   /**
    * The latest count seen for each category, from the sidebar or the feed,
    * whichever reported it last. Neither covers all five on its own, so a
@@ -322,6 +335,8 @@ export class AccountsManager {
         onRelease: (accountId, view) => {
           this.earlyCssKeys.delete(view);
           this.domReports.delete(accountId);
+          this.accountSources.delete(accountId);
+          this.accountSources.delete(accountId);
         },
         rememberUrl: (url) => (url.startsWith('https://mail.google.com') ? url : undefined),
       },
@@ -1008,18 +1023,65 @@ export class AccountsManager {
     return this.missingCategoriesByAccount.get(accountId) || [];
   }
 
+  public reportSourceUnread(accountId: string, source: UnreadSource, report: SourceReport): void {
+    let sources = this.accountSources.get(accountId);
+    if (!sources) {
+      sources = {};
+      this.accountSources.set(accountId, sources);
+    }
+    sources[source] = report;
+  }
+
+  /**
+   * Clears any active DOM triage grace window (e.g. when the user explicitly triggers
+   * "Refresh Inbox" from the tray). This allows the subsequent Atom poll or server sync
+   * to immediately become authoritative.
+   */
+  public resetTriageGraceWindow(accountId?: string): void {
+    if (accountId) {
+      const sources = this.accountSources.get(accountId);
+      if (sources) {
+        delete sources.dom;
+      }
+    } else {
+      for (const sources of this.accountSources.values()) {
+        delete sources.dom;
+      }
+    }
+  }
+
+  /**
+   * Presses Gmail's toolbar refresh control in any open WebContentsView.
+   */
+  public async pressGmailRefreshControl(accountId?: string): Promise<void> {
+    if (accountId) {
+      const view = this.getWebContentsViewForAccount(accountId);
+      await pressRefreshControl(view?.webContents);
+    } else {
+      for (const account of this.accounts) {
+        const view = this.getWebContentsViewForAccount(account.id);
+        await pressRefreshControl(view?.webContents);
+      }
+    }
+  }
+
   public getEffectiveUnreadForAccount(accountId: string): number {
-    const domReport = this.domReports.get(accountId);
-    const knownCounts = this.lastKnownCategoryCounts.get(accountId);
+    const sources = this.accountSources.get(accountId);
     const settings = loadSettings();
     const notifSettings = settings.notifications || {};
+    const now = Date.now();
 
-    // The sidebar changes the moment the mailbox does; the feed lags by seconds and
-    // is edge-cached. So a report wins wherever there is one, on screen or not.
-    // `suspendAccount` drops it with the view, so none outlives its page.
-    if (domReport) {
+    // 1. Highest priority: 'api' (future BYOK / OAuth REST API) if present and valid
+    if (sources?.api) {
+      return sources.api.count;
+    }
+
+    // 2. 'dom' source: transient authority during user triage (anti-bounce against edge-cache lag)
+    const dom = sources?.dom;
+    const isDomActive = dom !== undefined && now - dom.timestamp < DOM_TRIAGE_GRACE_MS;
+
+    if (isDomActive) {
       let total = 0;
-      const present = new Set(domReport.presentCategories);
       const allCategories: NotificationCategory[] = [
         'primary',
         'updates',
@@ -1027,23 +1089,56 @@ export class AccountsManager {
         'social',
         'forums',
       ];
+      const knownCounts = this.lastKnownCategoryCounts.get(accountId);
 
       for (const cat of allCategories) {
         if (notifSettings[cat] === 'off') continue;
-
         if (cat === 'primary') {
-          // #inbox in Gmail's sidebar is the only row that is inbox-scoped.
-          if (present.has('inbox')) {
-            total += domReport.counts['inbox'] ?? 0;
-          } else {
-            total += knownCounts?.get('primary') ?? 0;
-          }
+          total += dom.count;
         } else {
-          // Category sidebar rows (#category/...) are label-scoped and include
-          // archived unread mail. Category unread must come from knownCounts
-          // (derived from local IndexedDB cache which filters for ^i + ^u).
           total += knownCounts?.get(cat) ?? 0;
         }
+      }
+      return total;
+    }
+
+    // 3. Outside DOM grace window (or when DOM is cleared/expired):
+    // Server state is authoritative. We compare 'atom' vs 'cache' freshness timestamps.
+    const atom = sources?.atom;
+    const cache = sources?.cache;
+
+    // If cache was captured AFTER the last atom poll, use cache category breakdown
+    if (cache && (!atom || cache.timestamp > atom.timestamp)) {
+      if (cache.categoryCounts) {
+        let total = 0;
+        const allCategories: NotificationCategory[] = [
+          'primary',
+          'updates',
+          'promotions',
+          'social',
+          'forums',
+        ];
+        for (const cat of allCategories) {
+          if (notifSettings[cat] === 'off') continue;
+          total += cache.categoryCounts.get(cat) ?? 0;
+        }
+        return total;
+      }
+      return cache.count;
+    }
+
+    if (atom) {
+      return atom.count;
+    }
+
+    // Fallback: if domReport was received (e.g. initial DOM scan before any poll), use domReport
+    const domReport = this.domReports.get(accountId);
+    if (domReport && domReport.presentCategories.includes('inbox')) {
+      const knownCounts = this.lastKnownCategoryCounts.get(accountId);
+      let total = domReport.counts['inbox'] ?? 0;
+      for (const cat of ['updates', 'promotions', 'social', 'forums'] as const) {
+        if (notifSettings[cat] === 'off') continue;
+        total += knownCounts?.get(cat) ?? 0;
       }
       return total;
     }
@@ -1100,6 +1195,30 @@ export class AccountsManager {
   ): void {
     this.recordCategoryCounts(accountId, categoryCounts, true);
 
+    const account = this.accounts.find((a) => a.id === accountId);
+    const syncState = account ? gmailSyncStateFor(account.partition) : null;
+    const timestamp = syncState?.capturedAt ?? Date.now();
+
+    const notifSettings = loadSettings().notifications || {};
+    let cacheTotal = 0;
+    const allCategories: NotificationCategory[] = [
+      'primary',
+      'updates',
+      'promotions',
+      'social',
+      'forums',
+    ];
+    for (const cat of allCategories) {
+      if (notifSettings[cat] === 'off') continue;
+      cacheTotal += categoryCounts.get(cat) ?? 0;
+    }
+
+    this.reportSourceUnread(accountId, 'cache', {
+      count: cacheTotal,
+      timestamp,
+      categoryCounts,
+    });
+
     // Only a changed total is worth announcing. The caller that reads the cache
     // for the widget snapshot also calls this, and `onUnreadChanged` runs that
     // same snapshot read, so announcing an unchanged total would re-enter it for
@@ -1123,8 +1242,13 @@ export class AccountsManager {
     // (#category/...) are label-scoped and count archived mail, so we do NOT
     // record them into knownCounts.
     if (report.presentCategories.includes('inbox')) {
+      const inboxCount = report.counts['inbox'] ?? 0;
+      this.reportSourceUnread(accountId, 'dom', {
+        count: inboxCount,
+        timestamp: report.timestamp || Date.now(),
+      });
       const domCounts = new Map<NotificationCategory, number>();
-      domCounts.set('primary', report.counts['inbox'] ?? 0);
+      domCounts.set('primary', inboxCount);
       this.recordCategoryCounts(accountId, domCounts);
     }
 
@@ -1620,12 +1744,13 @@ export class AccountsManager {
       else this.arrivalsIncompleteByAccount.delete(accountId);
     }
 
-    let unreadToApply = totalUnread;
-    // A feed answer landing mid-triage otherwise replaces the number the sidebar
-    // reported after the click with the one Gmail served before it.
-    if (this.domReports.has(accountId)) {
-      unreadToApply = this.getEffectiveUnreadForAccount(accountId);
-    }
+    this.reportSourceUnread(accountId, 'atom', {
+      count: totalUnread,
+      timestamp: Date.now(),
+      categoryCounts,
+    });
+
+    const unreadToApply = this.getEffectiveUnreadForAccount(accountId);
 
     this.accounts = updateAccountUnread(this.accounts, accountId, unreadToApply);
     // The badge and the menu bar count what the filter includes; the switcher
@@ -2511,6 +2636,7 @@ export class AccountsManager {
     this.offlineCacheAvailableByAccount.delete(accountId);
     this.accountsWithCategoriesObserved.delete(accountId);
     this.domReports.delete(accountId);
+    this.accountSources.delete(accountId);
     this.lastKnownCategoryCounts.delete(accountId);
     this.cacheDerivedCategories.delete(accountId);
     this.missingCategoriesByAccount.delete(accountId);
