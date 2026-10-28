@@ -1,32 +1,18 @@
 # Engineering workflow
 
-All work is tracked in GitHub Issues and GitHub's native sub-issues.
+All work is tracked in GitHub Issues.
 
 ```mermaid
 graph TD
-    M["Milestone"] --> E1["Epic"]
-    M --> E2["Epic"]
-    E1 --> S1["Sub-issue"]
-    E1 --> S2["Sub-issue"]
-    S1 -.-> PR["Pull request: Closes #N"]
-    PR == Merged ==> Done["Issue closed, epic progress updated"]
+    M["Milestone"] --> I1["Issue"]
+    M --> I2["Issue"]
+    I1 -.-> PR["Pull request: Closes #N"]
+    PR == Merged ==> Done["Issue closed automatically"]
 ```
-
-## Epics
-
-An Epic is a parent tracking issue for a large feature theme or architectural initiative. It holds no
-code of its own; break the work into child sub-issues with GitHub's native sub-issues, and GitHub
-recalculates the epic's percentage complete as they close.
-
-An Epic takes no label; its title and child sub-issues identify it.
-
-- Title it with the initiative's emoji and theme: `🎨 Epic: <Theme Name>`, `⚡ Epic: <Theme Name>`,
-  `🍎 Epic: <Theme Name>`.
 
 ## Issues
 
-A sub-issue is one executable unit of work, linked to a parent Epic. A standalone issue is a discrete
-bug or self-contained task that belongs to no Epic. Every issue carries:
+An issue is one executable unit of work. Every issue carries:
 
 1. A clear problem statement and technical acceptance criteria.
 2. A milestone naming the target phase.
@@ -83,5 +69,5 @@ Closes #<issue-number>
 
 The [pull request template](../../.github/pull_request_template.md) defines the expected format.
 
-Never close an issue by hand when a PR resolves it. GitHub closes the issue and advances the
-epic's progress automatically as soon as the PR merges into `main`.
+Never close an issue by hand when a PR resolves it. GitHub closes the issue automatically as
+soon as the PR merges into `main`.
