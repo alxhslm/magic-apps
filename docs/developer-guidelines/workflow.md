@@ -41,11 +41,11 @@ is rewritten into the living docs and deleted; the `writing-docs` skill defines 
 
 Tag issues and PRs with at least one label from each relevant category:
 
-| Category | Labels                                                               | Description                           |
-| :------- | :------------------------------------------------------------------- | :------------------------------------ |
-| **Type** | `bug`, `enhancement`, `documentation`, `ci`, `infra`, `dependencies` | What kind of work this is.            |
-| **Area** | `swift`, `notifications`, `performance`, `security`                  | Subsystem affected.                   |
-| **App**  | `magimail`, `magical`, `core`                                        | Target application or shared package. |
+| Category | Labels                                                               | Description                    |
+| :------- | :------------------------------------------------------------------- | :----------------------------- |
+| **Type** | `bug`, `enhancement`, `documentation`, `ci`, `infra`, `dependencies` | What kind of work this is.     |
+| **Area** | `swift`, `notifications`, `performance`, `security`                  | Subsystem affected.            |
+| **App**  | `magimail`, `magical`, `core`, `website`                             | Workspace the work belongs to. |
 
 Labels are flat, with no `type:` or `area:` prefix. `dependencies` is GitHub's built-in label for
 pull requests that update a dependency file, and Dependabot applies it.

@@ -114,7 +114,8 @@ better than "prior to the completion of the initial fetch".
 
 Always apply the relevant labels to the issue.
 
-- **`app`** always: `magimail`, `magical`, `core`, or all three when the work spans the repo.
+- **`app`** always: `magimail`, `magical`, `core`, `website`, or all of them when the work spans
+  the repo.
 - **`type`** where one fits: `bug`, `enhancement`, `documentation`, `ci`, `infra`. Some issues
   carry none, so do not force it.
 - **`area`** as many as genuinely apply: `swift`, `notifications`, `performance`, `security`.
