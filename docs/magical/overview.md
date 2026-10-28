@@ -112,10 +112,6 @@ shows the real calendar rather than the offline page. That cache matches on the 
 leaves behind, fails. This is why a released account's remembered URL drops its query. The date and
 the view mode live in the path, so a resumed view still lands where the user left it.
 
-### When an account view stops presenting
-
-A `WebContentsView` can occasionally stop presenting frames while its renderer continues running. Calling `webContents.reload()` reuses the same compositor pipeline and leaves the window blank; `reloadActive()` (`Cmd+R`) tears down the dead `WebContents` and builds a fresh replacement through `RendererPool.rebuildView`. See [`../shared/window-lifecycle.md`'s When an account view stops presenting](../shared/window-lifecycle.md#when-an-account-view-stops-presenting).
-
 ## Sessions and browser identity
 
 Each account uses an isolated Chromium profile partition named `persist:magical_<id>`, configured via
