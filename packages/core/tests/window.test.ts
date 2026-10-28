@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { analyzeFrame, createMainWindowOptions, viewIsAlive } from '../src/window.js';
+import { createMainWindowOptions, viewIsAlive } from '../src/window.js';
 import type { WebContentsView } from 'electron';
 
 /** A view standing in for the real one, with only the property viewIsAlive reads. */
@@ -63,55 +63,5 @@ describe('createMainWindowOptions', () => {
     expect(opts.minHeight).toBe(700);
     expect(opts.title).toBe('Custom App');
     expect(opts.vibrancy).toBe('sidebar');
-  });
-});
-
-describe('analyzeFrame', () => {
-  it('treats an empty image as uniform', () => {
-    const result = analyzeFrame({
-      isEmpty: () => true,
-      getSize: () => ({ width: 0, height: 0 }),
-      toBitmap: () => Buffer.alloc(0),
-    });
-    expect(result.uniform).toBe(true);
-    expect(result.color).toBe('#00000000');
-  });
-
-  it('treats a buffer of uniform pixels as uniform and reports its hex colour', () => {
-    // 4 pixels of transparent #00000000
-    const transparentBuf = Buffer.alloc(16, 0);
-    const resultTransparent = analyzeFrame({
-      isEmpty: () => false,
-      getSize: () => ({ width: 2, height: 2 }),
-      toBitmap: () => transparentBuf,
-    });
-    expect(resultTransparent.uniform).toBe(true);
-    expect(resultTransparent.color).toBe('#00000000');
-
-    // 4 pixels of uniform white (0xffffffff)
-    const whiteBuf = Buffer.alloc(16, 0xff);
-    const resultWhite = analyzeFrame({
-      isEmpty: () => false,
-      getSize: () => ({ width: 2, height: 2 }),
-      toBitmap: () => whiteBuf,
-    });
-    expect(resultWhite.uniform).toBe(true);
-    expect(resultWhite.color).toBe('#ffffffff');
-  });
-
-  it('detects a frame with mixed colours as non-uniform', () => {
-    const mixedBuf = Buffer.alloc(16, 0);
-    // Change the last pixel
-    mixedBuf[12] = 0x12;
-    mixedBuf[13] = 0x34;
-    mixedBuf[14] = 0x56;
-    mixedBuf[15] = 0x78;
-
-    const result = analyzeFrame({
-      isEmpty: () => false,
-      getSize: () => ({ width: 2, height: 2 }),
-      toBitmap: () => mixedBuf,
-    });
-    expect(result.uniform).toBe(false);
   });
 });

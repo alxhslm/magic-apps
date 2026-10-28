@@ -5,7 +5,7 @@ import { BaseWindow } from 'electron';
 import { AccountsManager } from '../src/accounts-manager.js';
 
 const TEST_USER_DATA = vi.hoisted(
-  () => `/tmp/magical-presenting-test-${process.pid}-${Date.now()}`,
+  () => `/tmp/magical-reload-rebuild-test-${process.pid}-${Date.now()}`,
 );
 
 interface MockWebContents {
@@ -18,7 +18,6 @@ interface MockWebContents {
   partition: string;
   handlers: Map<string, (...args: unknown[]) => void>;
   isLoading: ReturnType<typeof vi.fn>;
-  capturePage: ReturnType<typeof vi.fn>;
   emit: (event: string, ...args: unknown[]) => void;
 }
 
@@ -69,11 +68,6 @@ vi.mock('electron', () => {
         once: vi.fn(),
         off: vi.fn(),
         isLoading: vi.fn().mockReturnValue(false),
-        capturePage: vi.fn().mockResolvedValue({
-          isEmpty: () => false,
-          getSize: () => ({ width: 1200, height: 762 }),
-          toBitmap: () => Buffer.alloc(1200 * 762 * 4, 0), // Uniform transparent frame
-        }),
         insertCSS: vi.fn().mockResolvedValue(''),
         removeInsertedCSS: vi.fn().mockResolvedValue(undefined),
         setWindowOpenHandler: vi.fn(),
@@ -150,13 +144,7 @@ function seedAccounts(accounts: Array<{ id: string; name: string; partition: str
   fs.writeFileSync(path.join(TEST_USER_DATA, 'accounts.json'), JSON.stringify(accounts, null, 2));
 }
 
-function emitWindowEvent(name: string): void {
-  const handler = windowHandlers.get(name);
-  if (!handler) throw new Error(`No window handler for ${name}`);
-  handler();
-}
-
-describe('Rebuilding an account view when it stops presenting', () => {
+describe('Rebuilding an account view on reload', () => {
   let manager: AccountsManager;
   let window: BaseWindow;
 
@@ -190,165 +178,42 @@ describe('Rebuilding an account view when it stops presenting', () => {
     }
   });
 
-  it('does not rebuild if the view has not yet finished loading', async () => {
-    emitWindowEvent('show');
-    const view = constructedViews[0];
-
-    // capturePage returns a uniform frame, but did-finish-load has not fired
-    const rebuilt = await manager.checkActiveViewPresenting();
-    expect(rebuilt).toBe(false);
+  it('rebuilds the view through the pool rather than an in-place webContents.reload()', () => {
     expect(constructedViews).toHaveLength(1);
-    expect(view.webContents.close).not.toHaveBeenCalled();
+    const initialView = constructedViews[0];
+
+    manager.reloadActive();
+
+    // The old view's WebContents was closed
+    expect(initialView.webContents.close).toHaveBeenCalledTimes(1);
+
+    // A fresh WebContentsView was constructed
+    expect(constructedViews).toHaveLength(2);
+    const replacementView = constructedViews[1];
+    expect(replacementView.webContents.close).not.toHaveBeenCalled();
   });
 
-  it('does not rebuild if the view is currently loading', async () => {
-    emitWindowEvent('show');
-    const view = constructedViews[0];
-    // Emit did-finish-load once
-    view.webContents.emit('did-finish-load');
-
-    // But now it is loading again
-    view.webContents.isLoading.mockReturnValue(true);
-
-    const rebuilt = await manager.checkActiveViewPresenting();
-    expect(rebuilt).toBe(false);
-    expect(constructedViews).toHaveLength(1);
-  });
-
-  it('does not rebuild if the captured frame is non-uniform (content is presenting)', async () => {
-    emitWindowEvent('show');
-    const view = constructedViews[0];
-    view.webContents.emit('did-finish-load');
-    view.webContents.isLoading.mockReturnValue(false);
-
-    // Frame has real content (mixed pixels)
-    const contentBuffer = Buffer.alloc(1200 * 762 * 4, 0);
-    contentBuffer[100] = 0x55;
-    view.webContents.capturePage.mockResolvedValue({
-      isEmpty: () => false,
-      getSize: () => ({ width: 1200, height: 762 }),
-      toBitmap: () => contentBuffer,
-    });
-
-    const rebuilt = await manager.checkActiveViewPresenting();
-    expect(rebuilt).toBe(false);
-    expect(constructedViews).toHaveLength(1);
-  });
-
-  it('rebuilds the view when a loaded view presents a uniform frame, preserving the route', async () => {
-    emitWindowEvent('show');
+  it('preserves the user route when reloading via pool rebuild', () => {
     const initialView = constructedViews[0];
     initialView.webContents.getURL.mockReturnValue(
-      'https://calendar.google.com/calendar/u/0/r/month/2026/10/1',
+      'https://calendar.google.com/calendar/u/0/r/month/2026/11/15',
     );
-    initialView.webContents.emit('did-finish-load');
-    initialView.webContents.isLoading.mockReturnValue(false);
 
-    // Uniform transparent frame (all zeros)
-    initialView.webContents.capturePage.mockResolvedValue({
-      isEmpty: () => false,
-      getSize: () => ({ width: 1200, height: 762 }),
-      toBitmap: () => Buffer.alloc(1200 * 762 * 4, 0),
-    });
+    manager.reloadActive();
 
-    const rebuilt = await manager.checkActiveViewPresenting();
-    expect(rebuilt).toBe(true);
-
-    // Old view was closed
-    expect(initialView.webContents.close).toHaveBeenCalled();
-
-    // Fresh replacement view was built
     expect(constructedViews).toHaveLength(2);
     const replacementView = constructedViews[1];
 
-    // Replaced view loads the route the user was on
+    // The fresh view returns to the date the user was viewing
     expect(replacementView.webContents.loadURL).toHaveBeenCalledWith(
-      'https://calendar.google.com/calendar/u/0/r/month/2026/10/1',
+      'https://calendar.google.com/calendar/u/0/r/month/2026/11/15',
     );
   });
 
-  it('enforces a 1-minute cooldown before rebuilding again', async () => {
-    emitWindowEvent('show');
-    const initialView = constructedViews[0];
-    initialView.webContents.emit('did-finish-load');
-    initialView.webContents.isLoading.mockReturnValue(false);
+  it('updates layout for the replacement view', () => {
+    manager.reloadActive();
 
-    const rebuiltFirst = await manager.checkActiveViewPresenting();
-    expect(rebuiltFirst).toBe(true);
-    expect(constructedViews).toHaveLength(2);
-
-    const secondView = constructedViews[1];
-    secondView.webContents.emit('did-finish-load');
-    secondView.webContents.isLoading.mockReturnValue(false);
-
-    // Advance by 30 seconds (less than 1 minute)
-    vi.advanceTimersByTime(30_000);
-
-    const rebuiltSecond = await manager.checkActiveViewPresenting();
-    expect(rebuiltSecond).toBe(false);
-    expect(constructedViews).toHaveLength(2);
-
-    // Advance another 35 seconds (past 60s cooldown)
-    vi.advanceTimersByTime(35_000);
-
-    const rebuiltThird = await manager.checkActiveViewPresenting();
-    expect(rebuiltThird).toBe(true);
-    expect(constructedViews).toHaveLength(3);
-  });
-
-  it('schedules a check on show and once more 3 seconds later', async () => {
-    const view = constructedViews[0];
-    view.webContents.emit('did-finish-load');
-    view.webContents.isLoading.mockReturnValue(false);
-
-    // Non-uniform frame so it checks without triggering a rebuild cooldown
-    const contentBuffer = Buffer.alloc(1200 * 762 * 4, 0);
-    contentBuffer[100] = 0x55;
-    view.webContents.capturePage.mockResolvedValue({
-      isEmpty: () => false,
-      getSize: () => ({ width: 1200, height: 762 }),
-      toBitmap: () => contentBuffer,
-    });
-
-    emitWindowEvent('show');
-
-    // Immediate check ran during show
-    await Promise.resolve();
-    expect(view.webContents.capturePage).toHaveBeenCalledTimes(1);
-
-    // 3 seconds later, follow-up check runs
-    vi.advanceTimersByTime(3000);
-    await Promise.resolve();
-    expect(view.webContents.capturePage).toHaveBeenCalledTimes(2);
-  });
-
-  it('cancels the scheduled check if the window is hidden before it fires', async () => {
-    const view = constructedViews[0];
-    view.webContents.emit('did-finish-load');
-    view.webContents.isLoading.mockReturnValue(false);
-
-    // Non-uniform frame so it checks without triggering a rebuild cooldown
-    const contentBuffer = Buffer.alloc(1200 * 762 * 4, 0);
-    contentBuffer[100] = 0x55;
-    view.webContents.capturePage.mockResolvedValue({
-      isEmpty: () => false,
-      getSize: () => ({ width: 1200, height: 762 }),
-      toBitmap: () => contentBuffer,
-    });
-
-    emitWindowEvent('show');
-    await Promise.resolve();
-    expect(view.webContents.capturePage).toHaveBeenCalledTimes(1);
-
-    // Hide the window after 1 second
-    vi.advanceTimersByTime(1000);
-    emitWindowEvent('hide');
-
-    // Advance remaining 2 seconds
-    vi.advanceTimersByTime(2000);
-    await Promise.resolve();
-
-    // No second check occurred
-    expect(view.webContents.capturePage).toHaveBeenCalledTimes(1);
+    const replacementView = constructedViews[1];
+    expect(replacementView.setBounds).toHaveBeenCalled();
   });
 });

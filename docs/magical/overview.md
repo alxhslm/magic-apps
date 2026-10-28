@@ -115,15 +115,13 @@ the view mode live in the path, so a resumed view still lands where the user lef
 ### When an account view stops presenting
 
 A `WebContentsView` can occasionally stop presenting frames to its window while its underlying renderer
-continues running and handling DOM actions. Reloading or re-attaching the view reuses the same
-`WebContents`, so recovering requires tearing down the view and building a fresh replacement.
+continues running and handling DOM actions. Calling `webContents.reload()` reuses the same `WebContents`
+and compositor pipeline, which leaves the window blank.
 
-`AccountsManager` checks the active view whenever the window is shown and once more three seconds later.
-It captures the active view with `capturePage` and analyses the pixel buffer with `analyzeFrame` from
-`@magimail/core`. If the view reports a finished load and the captured frame is a single uniform colour,
-the view is closed and rebuilt through `RendererPool.removeView` and `attachOnly`. The previous route is
-preserved, so the new view returns to the date and view mode the user was on. Rebuilds are limited to
-at most one per minute to prevent thrashing during slow page loads.
+`reloadActive()` (invoked via `Cmd+R` or the View menu) tears down the dead `WebContents` and builds a
+fresh replacement through `RendererPool.removeView` (with `rememberUrl: true`) and `attachOnly`. The
+current route is preserved, navigating the new view straight back to the date and view mode the user
+was on.
 
 ## Sessions and browser identity
 
