@@ -5,8 +5,6 @@ import {
   buildSyncPayload,
   syncEndpoint,
   SyncThreadActionDriver,
-  FallbackThreadActionDriver,
-  createDefaultThreadActionDriver,
   type ThreadActionDriver,
 } from '../src/thread-actions/index.js';
 import { setGmailSyncStateForTest } from '../src/gmail-sync-state.js';
@@ -91,65 +89,6 @@ describe('buildSyncPayload', () => {
 
   it('returns null for an action with no mutation', () => {
     expect(buildSyncPayload('open' as never, threadRef, msgRef)).toBeNull();
-  });
-});
-
-describe('FallbackThreadActionDriver', () => {
-  const mockView = {} as unknown as WebContentsView;
-
-  it('returns true from the sync driver and never calls the fallback', async () => {
-    const mockSync: ThreadActionDriver = { perform: vi.fn().mockResolvedValue(true) };
-    const mockDom: ThreadActionDriver = { perform: vi.fn().mockResolvedValue(true) };
-
-    const fallback = new FallbackThreadActionDriver(mockSync, mockDom);
-    const result = await fallback.perform(mockView, 'account_personal', THREAD_HEX, 'archive');
-
-    expect(result).toBe(true);
-    expect(mockSync.perform).toHaveBeenCalledWith(
-      mockView,
-      'account_personal',
-      THREAD_HEX,
-      'archive',
-    );
-    expect(mockDom.perform).not.toHaveBeenCalled();
-  });
-
-  it('falls back to the DOM driver when the sync driver returns false', async () => {
-    const mockSync: ThreadActionDriver = { perform: vi.fn().mockResolvedValue(false) };
-    const mockDom: ThreadActionDriver = { perform: vi.fn().mockResolvedValue(true) };
-
-    const fallback = new FallbackThreadActionDriver(mockSync, mockDom);
-    const result = await fallback.perform(mockView, 'account_personal', THREAD_HEX, 'trash');
-
-    expect(result).toBe(true);
-    expect(mockDom.perform).toHaveBeenCalledWith(mockView, 'account_personal', THREAD_HEX, 'trash');
-  });
-
-  it('falls back to the DOM driver when the sync driver throws', async () => {
-    const mockSync: ThreadActionDriver = {
-      perform: vi.fn().mockRejectedValue(new Error('Network error')),
-    };
-    const mockDom: ThreadActionDriver = { perform: vi.fn().mockResolvedValue(true) };
-
-    const fallback = new FallbackThreadActionDriver(mockSync, mockDom);
-    const result = await fallback.perform(undefined, 'account_personal', THREAD_HEX, 'markRead');
-
-    expect(result).toBe(true);
-    expect(mockDom.perform).toHaveBeenCalledWith(
-      undefined,
-      'account_personal',
-      THREAD_HEX,
-      'markRead',
-    );
-  });
-
-  it('returns false when both drivers fail', async () => {
-    const mockSync: ThreadActionDriver = { perform: vi.fn().mockResolvedValue(false) };
-    const mockDom: ThreadActionDriver = { perform: vi.fn().mockResolvedValue(false) };
-
-    const fallback = new FallbackThreadActionDriver(mockSync, mockDom);
-    const result = await fallback.perform(mockView, 'account_personal', THREAD_HEX, 'markUnread');
-    expect(result).toBe(false);
   });
 });
 
@@ -258,7 +197,7 @@ describe('SyncThreadActionDriver', () => {
     setGmailSyncStateForTest(PARTITION, undefined);
   });
 
-  it('returns false when the direct write is refused, so the DOM driver can act', async () => {
+  it('returns false when the direct write is refused, so the caller can handle failure', async () => {
     const fetchImpl = vi.fn(async () => new Response('["er","x"]', { status: 403 }));
     const driver = new SyncThreadActionDriver({
       getAccountContext: () => ({ partition: PARTITION }),
@@ -275,15 +214,5 @@ describe('SyncThreadActionDriver', () => {
     expect(ok).toBe(false);
 
     setGmailSyncStateForTest(PARTITION, undefined);
-  });
-});
-
-describe('createDefaultThreadActionDriver factory', () => {
-  it('returns a FallbackThreadActionDriver instance', () => {
-    const driver = createDefaultThreadActionDriver(
-      { wake: async () => undefined },
-      { getAccountContext: () => undefined },
-    );
-    expect(driver).toBeInstanceOf(FallbackThreadActionDriver);
   });
 });
