@@ -47,7 +47,6 @@ import {
 } from './native-toolbar.js';
 import { chooseEventAccount } from './account-picker.js';
 import { CALENDAR_BASE_URL } from './constants.js';
-import { chooseReloadRecovery } from './reload-recovery.js';
 import { initDock } from './dock.js';
 import { syncExtensionLogs } from './extension-logs.js';
 import { handleCollectDiagnostics } from './diagnostics.js';
@@ -272,8 +271,6 @@ let findInPageController: FindInPageController | null = null;
 let calendarService: CalendarService | null = null;
 let accounts: AccountsManager | null = null;
 let menuBarManager: MenuBarManager | null = null;
-/** When the last reload request was served, so a second one can escalate. */
-let lastReloadRequestAt: number | undefined;
 /** Set before quitting, so the window being torn down is not rebuilt afterwards. */
 let quitting = false;
 
@@ -310,7 +307,7 @@ function applyMenu(): void {
           calendarService?.getCachedEvents(),
           accountsNeedingSignIn(),
         ),
-      onReload: () => requestReload(),
+      onReload: () => reloadCalendar(),
       onGoBack: () => manager.goBack(),
       onGoForward: () => manager.goForward(),
       canGoBack: manager.canGoBack(),
@@ -1139,50 +1136,30 @@ function handleToolbarAction(action: string, value: string): void {
 }
 
 /**
- * Serves a reload request: Cmd+R or the View menu.
+ * Serves a reload request: Cmd+R, or Reload Calendar in the View menu.
  *
- * The view rebuild comes first because it is cheap and it is what fixes a view whose
- * own compositor has died. A second request inside a minute is taken as proof that
- * the rebuild changed nothing: the window itself has stopped presenting, and only a
- * new window recovers that.
- */
-function requestReload(): void {
-  if (!accounts) return;
-  const now = Date.now();
-  const recovery = chooseReloadRecovery(lastReloadRequestAt, now);
-  lastReloadRequestAt = now;
-
-  if (recovery === 'view') {
-    accounts.reloadActive();
-    return;
-  }
-
-  recreateMainWindow();
-}
-
-/**
- * Replaces the main window with a fresh one on the same account and bounds.
+ * It rebuilds the window rather than the account view. A view rebuild is the cheaper
+ * repair, and the right one when only the view's compositor has died, but it is what
+ * failed on 29 October: twenty of them in twenty seconds, each attaching and
+ * navigating a fresh view, with the window still blank until it was closed and
+ * rebuilt. A reload request is a user asking for the calendar back, so it does the
+ * repair that works rather than one that sometimes does.
  *
- * This is the only recovery observed for a window that has stopped presenting: a
- * rebuilt account view attaches and navigates but nothing paints. The window's own
- * `closed` handler clears both handles and runs before the listener added here, so
- * the replacement is built after the old window is gone.
+ * The cost is a page reload and a blink of the window, and the route the user was on
+ * is restored from the remembered URL.
  */
-function recreateMainWindow(): void {
+function reloadCalendar(): void {
   if (!mainWindow || !accounts || quitting) return;
 
   const accountId = accounts.getActiveAccountId();
   const bounds = mainWindow.getBounds();
-  log.warn(
-    'Reload asked for twice inside a minute; recreating the window, because a rebuilt ' +
-      'account view does not recover a window that has stopped presenting',
-  );
+  log.info('Reloading the calendar by rebuilding the window');
 
+  // The window's own `closed` handler clears both handles and runs before this
+  // listener, so the replacement is built after the old window is gone.
   const previous = mainWindow;
   previous.once('closed', () => {
     if (quitting) return;
-    // The new window starts with a clean slate, so its next reload rebuilds its view.
-    lastReloadRequestAt = undefined;
     createWindow(accountId, { bounds });
   });
   previous.close();
