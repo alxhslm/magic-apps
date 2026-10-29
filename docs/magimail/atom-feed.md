@@ -143,15 +143,7 @@ feed the rest of the time.
    Categories would count every row inside it as zero until the first sub-poll came back, and the
    badge would drop to the Primary count and climb again seconds later.
 
-   **Per-Source Ledger & Anti-Bounce Grace Window.** `AccountsManager` manages unread state via a
-   per-source ledger (`atom`, `cache`, and ready for `api`). The DOM acts purely as a change detector
-   (`MAILBOX_CHANGE_HINT`), triggering an immediate local cache read (`_xdb`) and Atom poll without
-   serving as an unread count authority. Local cache triage updates hold an anti-bounce grace window
-   for 5 seconds (`CACHE_TRIAGE_GRACE_MS = 5000`) to shield the badge against edge-cached Atom lag.
-   After 5 seconds, server polls are fully authoritative, ensuring actions on other devices (phone/web)
-   update the desktop count without requiring a web reload. Explicitly clicking **Refresh Inbox** in
-   the tray clears the grace window immediately and dispatches an in-page refresh control click
-   (`CLICK_REFRESH_CONTROL`).
+   **Unified `MailboxSource` & `UnreadLedger` Reconciliation.** `AccountsManager` delegates each account's mailbox state to a `MailboxSource` (`HybridFeedSource`), which encapsulates an `UnreadLedger` deterministic state machine. The DOM acts purely as a change detector (`MAILBOX_CHANGE_HINT`), triggering an immediate local cache read (`_xdb`) and Atom poll without serving as an unread count authority. Local triage updates (from tray, notifications, or hotkeys) immediately update the ledger and hold an anti-bounce grace window for 5 seconds (`CACHE_TRIAGE_GRACE_MS = 5000`) per message to shield against edge-cached Atom lag and stale `_xdb` snapshots. Once Atom server responses confirm an item is gone, or after the grace window expires, server state is reconciled without resurrection. Clicking **Refresh Inbox** in the tray clears recently triaged state immediately and dispatches an in-page refresh control click (`pressRefreshControl`).
 
 ### Decoupled from the views
 

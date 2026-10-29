@@ -1,10 +1,32 @@
-import { session, powerMonitor, app } from 'electron';
+import * as electron from 'electron';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { DEFAULT_CLEAN_USER_AGENT, readSecretFile, writeSecretFile } from '@magimail/core';
 import { GMAIL_ATOM_FEED_URL } from './constants.js';
 import { createLogger } from '@magimail/core/logger';
 import type { TrayMessageItem } from './menubar-manager.js';
+
+function getSession(): typeof electron.session | undefined {
+  try {
+    if ('session' in electron) {
+      return (electron as unknown as { session?: typeof electron.session }).session;
+    }
+  } catch {
+    return undefined;
+  }
+  return undefined;
+}
+
+function getApp(): typeof electron.app | undefined {
+  try {
+    if ('app' in electron) {
+      return (electron as unknown as { app?: typeof electron.app }).app;
+    }
+  } catch {
+    return undefined;
+  }
+  return undefined;
+}
 
 const log = createLogger('AtomPoller');
 
@@ -68,6 +90,7 @@ export interface AtomPollResult {
    * the limit is, and if Google ever changes it.
    */
   arrivalsIncomplete: boolean;
+  rawFullCount?: number | null;
   status?: AtomPollStatus;
 }
 
@@ -207,8 +230,11 @@ export function parseAtomXml(xml: string): { fullCount: number | null; entries: 
 }
 
 function getStateDir(): string {
+  const electronApp = getApp();
   const userData =
-    typeof app?.getPath === 'function' ? app.getPath('userData') : '/tmp/magimail-atom-poller';
+    typeof electronApp?.getPath === 'function'
+      ? electronApp.getPath('userData')
+      : '/tmp/magimail-atom-poller';
   const dir = path.join(userData, 'atom-state');
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
@@ -370,8 +396,10 @@ export class AtomFeedPoller {
    */
   private categoryById = new Map<string, NotificationCategory>();
   private isWindowFocused = false;
+  private powerListenersAttached = false;
   private missingCategories = new Set<NotificationCategory>();
   private latestEntries: AtomMessage[] = [];
+  private lastFullCount: number | null = null;
 
   constructor(
     accountId: string,
@@ -531,12 +559,20 @@ export class AtomFeedPoller {
     return [...this.latestEntries];
   }
 
+  public getLastFullCount(): number | null {
+    return this.lastFullCount;
+  }
+
   public async pollNow(): Promise<void> {
     if (this.isPolling) return;
     this.isPolling = true;
 
     try {
-      const ses = session.fromPartition(this.partition);
+      const electronSession = getSession();
+      if (!electronSession || typeof electronSession.fromPartition !== 'function') {
+        return;
+      }
+      const ses = electronSession.fromPartition(this.partition);
       if (!ses || typeof ses.fetch !== 'function') {
         return;
       }
@@ -587,6 +623,7 @@ export class AtomFeedPoller {
 
       const xml = await response.text();
       const { fullCount, entries } = parseAtomXml(xml);
+      this.lastFullCount = fullCount;
 
       if (fullCount === null) {
         // A policy block page also arrives as HTML with no feed, so it is read before
@@ -720,6 +757,7 @@ export class AtomFeedPoller {
         newMessages,
         newArrivalCount: this.activeArrivals.size,
         arrivalsIncomplete: this.arrivalsIncomplete,
+        rawFullCount: fullCount,
         status: 'ok',
       });
 
@@ -758,7 +796,7 @@ export class AtomFeedPoller {
    * poll over.
    */
   private async fetchCategoryFeeds(
-    ses: ReturnType<typeof session.fromPartition>,
+    ses: electron.Session,
     categories: NotificationCategory[],
   ): Promise<SubFeedResult> {
     const counts = new Map<NotificationCategory, number>();
@@ -918,7 +956,7 @@ export class AtomFeedPoller {
    * is a fair trade for a badge that keeps up.
    */
   private async classifyRemainder(
-    ses: ReturnType<typeof session.fromPartition>,
+    ses: electron.Session,
     entries: AtomMessage[],
     already: SubFeedResult,
   ): Promise<void> {
@@ -989,30 +1027,45 @@ export class AtomFeedPoller {
   }
 
   private setupPowerMonitor(): void {
+    if (this.powerListenersAttached) return;
+    this.powerListenersAttached = true;
+
+    let pm: typeof electron.powerMonitor | undefined;
     try {
-      if (typeof powerMonitor.isOnBatteryPower === 'function') {
-        this.isOnBattery = powerMonitor.isOnBatteryPower();
+      if ('powerMonitor' in electron) {
+        pm = (electron as unknown as { powerMonitor?: typeof electron.powerMonitor }).powerMonitor;
+      }
+    } catch {
+      return;
+    }
+    if (!pm || typeof pm.on !== 'function') {
+      return;
+    }
+
+    try {
+      if (typeof pm.isOnBatteryPower === 'function') {
+        this.isOnBattery = pm.isOnBatteryPower();
       }
     } catch {
       // Fallback
     }
 
-    powerMonitor.on('on-battery', () => {
+    pm.on('on-battery', () => {
       this.isOnBattery = true;
       this.scheduleNext();
     });
-    powerMonitor.on('on-ac', () => {
+    pm.on('on-ac', () => {
       this.isOnBattery = false;
       this.scheduleNext();
     });
-    powerMonitor.on('suspend', () => {
+    pm.on('suspend', () => {
       this.isPaused = true;
       if (this.timer) {
         clearTimeout(this.timer);
         this.timer = null;
       }
     });
-    powerMonitor.on('resume', () => {
+    pm.on('resume', () => {
       this.isPaused = false;
       this.pollNow();
     });
