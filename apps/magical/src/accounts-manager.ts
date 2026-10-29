@@ -297,6 +297,11 @@ export class AccountsManager {
     return this.pool.view(this.activeAccountId);
   }
 
+  /** Whether the window is on screen, which is when a view is expected to paint. */
+  public isWindowVisible(): boolean {
+    return this.pool.isWindowVisible();
+  }
+
   public goBack(): boolean {
     const view = this.getActiveView();
     if (viewIsAlive(view) && view.webContents.canGoBack()) {

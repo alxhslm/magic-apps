@@ -34,6 +34,10 @@ Tearing down the dead `WebContents` and constructing a replacement through `Rend
 
 Magical calls it too, from the Settings toggles that change Google's own layout and from the wake-from-sleep handler, but not from `Cmd+R`. A reload request there rebuilds the whole window (`reloadCalendar` in `apps/magical/src/main.ts`), on the same account and at the same bounds. A view rebuild is the cheaper repair, and the log shows why it is not enough on its own: on 29 October twenty of them ran in twenty seconds, each detaching, creating, attaching and navigating, and the window stayed blank until it was closed and rebuilt. A reload request is a user asking for the calendar back, so it does the repair that works, at the cost of a page reload and a blink of the window.
 
+Magical also watches for this without being asked. `PresentingWatchdog` (`apps/magical/src/presenting-watchdog.ts`) captures the view on screen every ten seconds while the window is visible, and straight away when the window is shown or focused. A page that has painted a calendar is never one flat colour, so two uniform captures in a row mean the view's compositor produced nothing; the watchdog then calls the same rebuild, and leaves the fresh window alone for two minutes so a slow start is not mistaken for it. The warning it logs carries the frame's size and colour, and the log records `child-process-gone` and display changes beside it, which is what the next occurrence will need to say whether the GPU or the display was involved.
+
+The capture is read from the page's own compositor, so it answers for the view and not for the window. If a future occurrence reports a window that is blank while the watchdog stays quiet, the page is painting and the window server is the layer at fault.
+
 ## RendererPool and its spec
 
 The pool owns the views, their timers, the remembered URL and the window's visibility. It touches no DOM and imports Electron for types only, so it lives in `packages/core`. A `RendererPoolSpec` supplies the eight things it cannot read:

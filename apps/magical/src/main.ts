@@ -5,6 +5,7 @@ import {
   Menu,
   nativeTheme,
   powerMonitor,
+  screen,
   shell,
   type Rectangle,
 } from 'electron';
@@ -45,6 +46,7 @@ import {
   setNativeToolbarMode,
   updateNativeToolbarAccounts,
 } from './native-toolbar.js';
+import { PresentingWatchdog } from './presenting-watchdog.js';
 import { chooseEventAccount } from './account-picker.js';
 import { CALENDAR_BASE_URL } from './constants.js';
 import { initDock } from './dock.js';
@@ -273,6 +275,9 @@ let accounts: AccountsManager | null = null;
 let menuBarManager: MenuBarManager | null = null;
 /** Set before quitting, so the window being torn down is not rebuilt afterwards. */
 let quitting = false;
+/** Set while a replacement window is being built, so recovery cannot recurse. */
+let rebuildingWindow = false;
+let presentingWatchdog: PresentingWatchdog | null = null;
 
 /** Magical's window handles, for the shared action policy. */
 const windowActionTarget: WindowActionTarget<AccountsManager> = {
@@ -1144,21 +1149,32 @@ function handleToolbarAction(action: string, value: string): void {
  * navigating a fresh view, with the window still blank until it was closed and
  * rebuilt. A reload request is a user asking for the calendar back, so it does the
  * repair that works rather than one that sometimes does.
- *
- * The cost is a page reload and a blink of the window, and the route the user was on
- * is restored from the remembered URL.
  */
 function reloadCalendar(): void {
-  if (!mainWindow || !accounts || quitting) return;
+  rebuildWindow('reload requested');
+}
+
+/**
+ * Replaces the main window with a fresh one on the same account and bounds.
+ *
+ * The only recovery observed for a window that has stopped presenting. Both the
+ * reload request and the presenting watchdog end up here, and it costs a page
+ * reload and a blink of the window; the route the user was on is restored from the
+ * remembered URL.
+ */
+function rebuildWindow(reason: string): void {
+  if (!mainWindow || !accounts || quitting || rebuildingWindow) return;
 
   const accountId = accounts.getActiveAccountId();
   const bounds = mainWindow.getBounds();
-  log.info('Reloading the calendar by rebuilding the window');
+  rebuildingWindow = true;
+  log.info(`Rebuilding the window: ${reason}`);
 
   // The window's own `closed` handler clears both handles and runs before this
   // listener, so the replacement is built after the old window is gone.
   const previous = mainWindow;
   previous.once('closed', () => {
+    rebuildingWindow = false;
     if (quitting) return;
     createWindow(accountId, { bounds });
   });
@@ -1222,6 +1238,11 @@ function createWindow(
   });
 
   accounts = new AccountsManager(mainWindow, calendarPreloadPath(), { initialAccountId });
+
+  // Coming back to the window is when a blank one is most likely to be seen, so
+  // show and focus ask the watchdog straight away instead of waiting for its tick.
+  mainWindow.on('show', () => void presentingWatchdog?.check());
+  mainWindow.on('focus', () => void presentingWatchdog?.check());
   findInPageController = new FindInPageController(
     mainWindow,
     () => accounts?.getActiveView()?.webContents,
@@ -1302,6 +1323,17 @@ app.whenReady().then(async () => {
   if (await enforcePrereleaseBuildExpiry()) return;
   logDisplayEnvironment();
   syncExtensionLogs(logDirectory());
+  // A window that has stopped presenting leaves no trace of its own, so the events
+  // that could have caused it are recorded where the watchdog's verdict can be read
+  // beside them: a GPU process that died, and a display that came or went.
+  app.on('child-process-gone', (_event, details) => {
+    log.warn(
+      `Child process gone: ${details.type} ${details.reason} (exit code ${details.exitCode})`,
+    );
+  });
+  screen.on('display-added', () => log.info('Display added'));
+  screen.on('display-removed', () => log.info('Display removed'));
+  screen.on('display-metrics-changed', () => log.info('Display metrics changed'));
   nativeTheme.themeSource = loadSettings().theme;
   // Before the settings window can be opened: the OS owns this value, and the
   // toggle has to show what macOS actually does, not what we last stored.
@@ -1336,6 +1368,17 @@ app.whenReady().then(async () => {
     );
   }
 
+  // One watchdog for the life of the app: it reads the current window and view each
+  // time, and it has to survive a rebuild, or the quiet period after one would be
+  // lost and a slow page could trigger another rebuild straight away.
+  presentingWatchdog = new PresentingWatchdog({
+    activeView: () => accounts?.getActiveView(),
+    isWindowVisible: () =>
+      (accounts?.isWindowVisible() ?? false) && (mainWindow?.isFocused() ?? false),
+    rebuildWindow: (reason) => rebuildWindow(reason),
+    log,
+  });
+  presentingWatchdog.start();
   createWindow(startupAccountId);
 
   // After the window, because the service needs AccountsManager to navigate on a
