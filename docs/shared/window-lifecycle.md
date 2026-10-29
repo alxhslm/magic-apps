@@ -22,7 +22,7 @@ Each account's page is a `WebContentsView` on that account's partition. Only the
 
 The pool builds a view when an account is first switched to. When an account leaves the screen it arms a timer for `inactiveAccountSuspendMinutes`, 5 minutes by default; switching back before it fires cancels the timer. When it fires, the pool remembers the view's URL, detaches the view, calls the app's `onRelease`, and closes the `WebContents`. That close is the only thing that returns renderer memory ([measurements](performance-optimisation.md#what-actually-reclaims-renderer-memory-measured)).
 
-`SUSPEND_NEVER` (`0`, the Settings "Never") arms no timer. `suspendAllAccounts` releases every view and runs on quit.
+`SUSPEND_NEVER` (`0`, the Settings "Never") arms no timer. `suspendAllAccounts` releases every view; it runs on quit, and when the main window closes, so a closed window leaves no renderer per account behind and no timer to fire against a destroyed window.
 
 The account on screen is spared the timer only while the window is visible, so a hidden or tray-only app holds no renderer. A window built hidden fires no `hide`, so the app calls `handleWindowHidden` itself.
 
@@ -32,7 +32,7 @@ A `WebContentsView` on macOS can occasionally stop presenting frames to its wind
 
 Tearing down the dead `WebContents` and constructing a replacement through `RendererPool.rebuildView` (which removes the view with `rememberUrl: true` and calls `attachOnly`) rebuilds the view on a fresh compositor surface while preserving the route the user was on. In both Magimail and Magical, `reloadActiveView()` / `reloadActive()` (invoked via `Cmd+R` or the View menu) drives this rebuild.
 
-`tools/repro-view-frame.mjs` stages that state on demand: a `BaseWindow` showing one view, then hidden, the view's `WebContents` released while nothing is attached, then a fresh view attached and captured. The page is a gradient, so a capture that comes back one flat colour means the view produced no frame. Run it with `npx electron tools/repro-view-frame.mjs --cycles 10`, and with `--throttle off` for the comparison. A painted capture beside a blank window is the interesting result, because it puts the fault above the renderer, in the window server.
+The window itself can stop presenting, and that is the failure a view rebuild cannot reach. A log from 29 October records twenty rebuilds in twenty seconds, each detaching, creating, attaching and navigating, with the page still answering DOM actions and nothing painted; the window came back only when it was closed and rebuilt. Magical therefore escalates: `chooseReloadRecovery` in `apps/magical/src/reload-recovery.ts` answers a reload request with a view rebuild the first time, and with a new window when another request arrives within a minute. The replacement opens on the same account at the same bounds. Magimail has not been seen in that state and still rebuilds only its view.
 
 ## RendererPool and its spec
 

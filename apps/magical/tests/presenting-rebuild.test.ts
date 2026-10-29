@@ -216,4 +216,15 @@ describe('Rebuilding an account view on reload', () => {
     const replacementView = constructedViews[1];
     expect(replacementView.setBounds).toHaveBeenCalled();
   });
+
+  it('releases the views when the window has gone, without touching its contentView', () => {
+    const initialView = constructedViews[0];
+    const mockWindow = window as unknown as { isDestroyed: () => boolean };
+    mockWindow.isDestroyed = () => true;
+
+    expect(() => manager.suspendAllAccounts()).not.toThrow();
+
+    // The renderer is what costs memory, so it is closed even with no window to detach from.
+    expect(initialView.webContents.close).toHaveBeenCalledTimes(1);
+  });
 });

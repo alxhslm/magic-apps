@@ -179,6 +179,10 @@ export class AccountsManager {
           }
         },
         detach: (accountId, view) => {
+          // Suspending every view on window close runs after the window is gone, and
+          // its contentView throws once destroyed. The view is still closed either way;
+          // there is simply nothing left to take it off.
+          if (this.windowIsGone()) return;
           if (this.mainWindow.contentView.children.includes(view)) {
             this.mainWindow.contentView.removeChildView(view);
             log.info(`Detached view for account ${accountId} (${this.pool.attachedSummary()})`);
@@ -599,6 +603,12 @@ export class AccountsManager {
     for (const [, view] of this.pool.entries()) {
       view.setBounds(bounds);
     }
+  }
+
+  /** Whether the window the pool attaches to is gone, taking its contentView with it. */
+  private windowIsGone(): boolean {
+    if (typeof this.mainWindow.isDestroyed !== 'function') return false;
+    return this.mainWindow.isDestroyed();
   }
 
   /**

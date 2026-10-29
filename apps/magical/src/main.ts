@@ -1,4 +1,13 @@
-import { app, BaseWindow, dialog, Menu, nativeTheme, powerMonitor, shell } from 'electron';
+import {
+  app,
+  BaseWindow,
+  dialog,
+  Menu,
+  nativeTheme,
+  powerMonitor,
+  shell,
+  type Rectangle,
+} from 'electron';
 import path from 'node:path';
 import fs from 'node:fs';
 import {
@@ -38,6 +47,7 @@ import {
 } from './native-toolbar.js';
 import { chooseEventAccount } from './account-picker.js';
 import { CALENDAR_BASE_URL } from './constants.js';
+import { chooseReloadRecovery } from './reload-recovery.js';
 import { initDock } from './dock.js';
 import { syncExtensionLogs } from './extension-logs.js';
 import { handleCollectDiagnostics } from './diagnostics.js';
@@ -262,6 +272,10 @@ let findInPageController: FindInPageController | null = null;
 let calendarService: CalendarService | null = null;
 let accounts: AccountsManager | null = null;
 let menuBarManager: MenuBarManager | null = null;
+/** When the last reload request was served, so a second one can escalate. */
+let lastReloadRequestAt: number | undefined;
+/** Set before quitting, so the window being torn down is not rebuilt afterwards. */
+let quitting = false;
 
 /** Magical's window handles, for the shared action policy. */
 const windowActionTarget: WindowActionTarget<AccountsManager> = {
@@ -296,7 +310,7 @@ function applyMenu(): void {
           calendarService?.getCachedEvents(),
           accountsNeedingSignIn(),
         ),
-      onReload: () => manager.reloadActive(),
+      onReload: () => requestReload(),
       onGoBack: () => manager.goBack(),
       onGoForward: () => manager.goForward(),
       canGoBack: manager.canGoBack(),
@@ -1124,7 +1138,60 @@ function handleToolbarAction(action: string, value: string): void {
   }
 }
 
-function createWindow(initialAccountId?: string, options: { show?: boolean } = {}): void {
+/**
+ * Serves a reload request: Cmd+R or the View menu.
+ *
+ * The view rebuild comes first because it is cheap and it is what fixes a view whose
+ * own compositor has died. A second request inside a minute is taken as proof that
+ * the rebuild changed nothing: the window itself has stopped presenting, and only a
+ * new window recovers that.
+ */
+function requestReload(): void {
+  if (!accounts) return;
+  const now = Date.now();
+  const recovery = chooseReloadRecovery(lastReloadRequestAt, now);
+  lastReloadRequestAt = now;
+
+  if (recovery === 'view') {
+    accounts.reloadActive();
+    return;
+  }
+
+  recreateMainWindow();
+}
+
+/**
+ * Replaces the main window with a fresh one on the same account and bounds.
+ *
+ * This is the only recovery observed for a window that has stopped presenting: a
+ * rebuilt account view attaches and navigates but nothing paints. The window's own
+ * `closed` handler clears both handles and runs before the listener added here, so
+ * the replacement is built after the old window is gone.
+ */
+function recreateMainWindow(): void {
+  if (!mainWindow || !accounts || quitting) return;
+
+  const accountId = accounts.getActiveAccountId();
+  const bounds = mainWindow.getBounds();
+  log.warn(
+    'Reload asked for twice inside a minute; recreating the window, because a rebuilt ' +
+      'account view does not recover a window that has stopped presenting',
+  );
+
+  const previous = mainWindow;
+  previous.once('closed', () => {
+    if (quitting) return;
+    // The new window starts with a clean slate, so its next reload rebuilds its view.
+    lastReloadRequestAt = undefined;
+    createWindow(accountId, { bounds });
+  });
+  previous.close();
+}
+
+function createWindow(
+  initialAccountId?: string,
+  options: { show?: boolean; bounds?: Rectangle } = {},
+): void {
   log.info('Creating main window');
   // Built opaque from the start when transparency is off, rather than made
   // vibrant and corrected a frame later. Mirrors Magimail's createMainWindow.
@@ -1132,10 +1199,11 @@ function createWindow(initialAccountId?: string, options: { show?: boolean } = {
   mainWindow = new BaseWindow(
     createMainWindowOptions({
       title: uiString('window.main.title'),
-      width: 1280,
-      height: 820,
       minWidth: 1280,
       minHeight: 600,
+      // A window rebuilt in place returns to where the user had it, so recovering
+      // from a blank window does not also move and resize it.
+      ...(options.bounds ?? { width: 1280, height: 820 }),
       ...(settings.transparentBackground
         ? {}
         : {
@@ -1158,6 +1226,10 @@ function createWindow(initialAccountId?: string, options: { show?: boolean } = {
     // Before the manager goes, so a relaunch restores the account that was last on
     // screen.
     accounts?.persistActiveAccount();
+    // The account views outlive the window: nothing else closes them, so without
+    // this they hold a renderer each until quit, and their suspend timers fire a few
+    // minutes later against a destroyed window.
+    accounts?.suspendAllAccounts();
     if (accounts) {
       accounts.onAccountsChanged = undefined;
       accounts.onAccountSwitched = undefined;
@@ -1333,6 +1405,7 @@ app.whenReady().then(async () => {
 });
 
 app.on('before-quit', () => {
+  quitting = true;
   log.info('App shutting down; terminating helper and suspending accounts');
   calendarService?.stop();
   menuBarManager?.destroyTray();
