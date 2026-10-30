@@ -261,20 +261,11 @@ export class UnreadLedger {
         (entry.threadId ? this.recentlyTriaged.get(entry.threadId) : undefined);
 
       if (triage) {
-        const changedAt = parseModifiedMs(entry.modified);
-        if (
-          triage.acceptedAt !== undefined &&
-          changedAt !== undefined &&
-          changedAt >= triage.acceptedAt
-        ) {
-          // The thread changed on the server after the action was confirmed, so this
-          // entry is a later truth and wins immediately.
-          this.clearTriageRecord(triage);
-        } else {
-          // In flight, or the feed predates the action. Suppress until a source is
-          // fresh enough to include the action.
-          continue;
-        }
+        // A listed entry cannot confirm a reduction. It may predate the action,
+        // or its modified time may be our own label change before the read path
+        // catches up. Absence from a complete feed, a cache that says read, or
+        // the freshness boundary are the only confirmations.
+        continue;
       }
 
       const found = this.findRecent(entry.id, entry.threadId);
@@ -378,15 +369,13 @@ export class UnreadLedger {
       const sourceAsOf = cacheAsOf !== undefined && cacheAsOf > 0 ? cacheAsOf : undefined;
 
       if (triage || markRecord) {
-        const acceptedAt = triage?.acceptedAt ?? markRecord?.acceptedAt;
-        if (acceptedAt !== undefined && sourceAsOf !== undefined && sourceAsOf >= acceptedAt) {
-          // The cache is newer than the confirmed action, so it is a later truth.
-          if (triage) this.clearTriageRecord(triage);
-          if (markRecord) this.clearMarkedUnreadRecord(markRecord);
-        } else {
-          // In flight, or the row predates the action. Ignore its unread flag.
-          continue;
-        }
+        // The pending record exists because the Atom base may still count this
+        // thread. A cache read, however fresh, cannot remove that adjustment; it
+        // can only update the row's category and metadata. The record clears
+        // when the feed boundary passes, or when the feed proves the state.
+        const found = this.findRecent(msg.id, msg.threadId);
+        if (found) this.enrichFromCache(found.item, msg);
+        continue;
       }
 
       const found = this.findRecent(msg.id, msg.threadId);
@@ -551,6 +540,15 @@ export class UnreadLedger {
       offCategoryCount += Math.min(count, fullCount);
     }
     return Math.max(0, fullCount - offCategoryCount);
+  }
+
+  private enrichFromCache(item: UnreadLedgerItem, msg: TrayMessageItem): void {
+    item.category = parseCategory(msg.category) ?? item.category;
+    item.subject = msg.subject || item.subject;
+    item.from = msg.from || item.from;
+    item.snippet = msg.snippet || item.snippet;
+    const modifiedMs = parseModifiedMs(msg.modified);
+    if (modifiedMs !== undefined) item.timestampMs = modifiedMs;
   }
 
   private markedUnreadFor(id: string, threadId?: string): MarkedUnreadRecord | undefined {

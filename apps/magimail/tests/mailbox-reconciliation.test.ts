@@ -413,7 +413,7 @@ describe('Scenario 6: Preemptive Ledger Updates', () => {
     expect(ledger.getBreakdown().total).toBe(1);
   });
 
-  it('trusts a cache row whose last-sync time is at or after the local action', () => {
+  it('ignores a cache row that contradicts a confirmed mark-unread', () => {
     const ledger = new UnreadLedger();
     ledger.reconcileWithAtom([], 0, 1000);
     ledger.recordLocalTriage('th-u', 'th-u', 'markUnread', 'primary', 2000);
@@ -435,7 +435,54 @@ describe('Scenario 6: Preemptive Ledger Updates', () => {
       3500,
       3000,
     );
+    expect(ledger.getBreakdown().total).toBe(1);
+  });
+
+  it('does not let a listed entry clear a confirmed reduction before the boundary', () => {
+    const ledger = new UnreadLedger();
+    const entry = atomEntry('m1', 't1');
+
+    ledger.reconcileWithAtom([entry], 1, 1000);
+    ledger.recordLocalTriage('m1', 't1', 'archive', 'primary', 2000);
+    ledger.acceptLocalTriage('m1', 't1', 2500);
     expect(ledger.getBreakdown().total).toBe(0);
+
+    // Still listed a second later; that may be the read path lagging behind our
+    // own label change, so it is not a contradiction yet.
+    ledger.reconcileWithAtom([entry], 1, 3000, undefined, 3000);
+    expect(ledger.getBreakdown().total).toBe(0);
+
+    // Once the boundary passes the confirmation, the server wins.
+    ledger.reconcileWithAtom([entry], 1, 8000, undefined, 8000);
+    expect(ledger.getBreakdown().total).toBe(1);
+  });
+
+  it('ignores a cache row that contradicts a confirmed reduction', () => {
+    const ledger = new UnreadLedger();
+    ledger.reconcileWithAtom([atomEntry('m1', 't1')], 1, 1000);
+    ledger.recordLocalTriage('m1', 't1', 'markRead', 'primary', 2000);
+    expect(ledger.getBreakdown().total).toBe(0);
+
+    // The cache sync advanced, but its row still says unread. That is not proof
+    // the action failed; only the feed can contradict a confirmed action.
+    ledger.reconcileWithCache(
+      [
+        {
+          id: 'm1',
+          threadId: 't1',
+          from: 'someone',
+          subject: 'subject',
+          snippet: 'snippet',
+          category: 'primary',
+          unread: true,
+          modified: new Date(1000),
+        },
+      ],
+      3500,
+      3000,
+    );
+    expect(ledger.getBreakdown().total).toBe(0);
+    expect(ledger.getTrackedItems()).toHaveLength(0);
   });
 
   it('holds a marked-unread thread against a lagging empty feed until grace expires', () => {
@@ -530,6 +577,27 @@ describe('Scenario 7: Ledger-owned rows and source ordering', () => {
 
     expect(ledger.getRecentMessages(5)[0].unread).toBe(false);
     expect(ledger.getBreakdown().total).toBe(0);
+  });
+
+  it('updates category from a cache row that contradicts a pending action', () => {
+    const ledger = new UnreadLedger();
+    ledger.reconcileWithCache([cacheRow('m1', 't1', false)], 1000, 1000);
+    ledger.recordLocalTriage('m1', 't1', 'markUnread', 'primary', 2000);
+    expect(ledger.getBreakdown().total).toBe(1);
+
+    // The cache sync advanced but its row still says read, so the unread flag
+    // waits for the feed. Its category label is still newer evidence.
+    ledger.reconcileWithCache(
+      [{ ...cacheRow('m1', 't1', false), category: 'promotions' }],
+      3500,
+      3000,
+    );
+
+    expect(ledger.getBreakdown().total).toBe(1);
+    expect(ledger.getBreakdown().byCategory.get('promotions')).toBe(1);
+    const row = ledger.getRecentMessages(5)[0];
+    expect(row.category).toBe('promotions');
+    expect(row.unread).toBe(true);
   });
 
   it('does not let an older cache row overwrite a newer Atom row', () => {

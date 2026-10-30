@@ -96,8 +96,9 @@ A source may change a row only when its observation is at or after the row's own
 - **Feed.** Generated at `G`, trusted as of `G - 5s` (`ATOM_READ_PATH_GRACE_MS`). Gmail serves the feed
   no-store with no `Age`, so this bounds the read path's lag, not an HTTP cache age. An entry changed
   at or after the action's confirmation is a later truth and wins immediately.
-- **Cache.** Trusted as of its last item-sync time. A cache that predates the confirmation is ignored for
-  that thread.
+- **Cache.** A read updates the row's category and metadata, but it cannot clear a pending record.
+  The Atom base may still count the thread, so the adjustment stays until the feed boundary passes or
+  the feed proves the state.
 
 For a pending reduction, a complete feed that omits the thread confirms it. A truncated feed cannot
 confirm by omission, because the thread may have moved out of the window, so it waits for the
@@ -119,10 +120,10 @@ stateDiagram-v2
     Read --> PendingMarkUnread: local mark unread
     Unread --> PendingReduce: local archive, trash or mark read
     Unread --> Read: source says read
-    PendingReduce --> Read: source confirms
-    PendingReduce --> Unread: later source says unread
+    PendingReduce --> Read: feed confirms
+    PendingReduce --> Unread: feed boundary passes, still listed
     PendingMarkUnread --> Unread: feed lists it
-    PendingMarkUnread --> Read: source confirms
+    PendingMarkUnread --> Read: feed boundary passes, still absent
 ```
 
 A read row stays in the recent list; “Read” here means not counted, not absent from the popover.
