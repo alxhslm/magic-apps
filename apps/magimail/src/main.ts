@@ -865,7 +865,10 @@ function createMainWindow(
 
   // When tray is active, hide the window instead of closing — app stays in menu bar
   win.on('close', (event) => {
-    if (isTrayCreated() && !isQuitting) {
+    // A rebuild closes the window on purpose, so it must not be turned into a hide: a
+    // hidden window still holds the blank page the rebuild exists to replace. Any
+    // handler added here has to let `rebuildingWindow` through for the same reason.
+    if (isTrayCreated() && !isQuitting && !rebuildingWindow) {
       event.preventDefault();
       win.hide();
     }
@@ -918,15 +921,15 @@ function rebuildMainWindow(reason: string, detail?: string): void {
   rebuildingWindow = true;
   log.info(`Rebuilding the window: ${reason}${detail ? ` (${detail})` : ''}`);
 
+  // The window's own `closed` handler clears both handles and runs before this
+  // listener, so the replacement is built after the old window is gone.
   const previous = mainWindow;
   previous.once('closed', () => {
     rebuildingWindow = false;
     if (isQuitting) return;
     mainWindow = createMainWindow(accountId, { bounds });
   });
-  // Destroyed rather than closed: with the tray on, `close` is turned into a hide, and
-  // a hidden window still has the blank one in it.
-  previous.destroy();
+  previous.close();
 }
 
 // Chromium performance switches — disable unused browser subsystems
