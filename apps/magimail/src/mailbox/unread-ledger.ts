@@ -100,15 +100,21 @@ export class UnreadLedger {
       if (threadId) this.recentlyTriaged.delete(threadId);
       if (targetId) this.recentlyTriaged.delete(targetId);
 
-      this.activeUnread.set(id, {
-        id,
-        threadId: threadId || id,
+      // Keep an existing entry under the key it already has. Writing it under the
+      // thread id as well would leave the old entry counted beside the new one.
+      this.activeUnread.set(targetId, {
+        id: existing?.id ?? id,
+        threadId: threadId || existing?.threadId || id,
         category: resolvedCategory,
         unread: true,
-        observedAt: now,
+        observedAt: existing?.observedAt ?? now,
+        subject: existing?.subject,
+        from: existing?.from,
+        snippet: existing?.snippet,
+        timestampMs: existing?.timestampMs,
       });
 
-      if (this.lastFullCount !== null) {
+      if (!existing && this.lastFullCount !== null) {
         this.lastFullCount += 1;
       }
     }
@@ -127,7 +133,6 @@ export class UnreadLedger {
     const removed: string[] = [];
     const oldCount = this.getBreakdown().total;
 
-    this.lastFullCount = fullCount;
     this.pruneExpiredTriage(now);
 
     const feedIds = new Set<string>();
@@ -146,6 +151,7 @@ export class UnreadLedger {
       if (triage) {
         if (now - triage.triagedAt < CACHE_TRIAGE_GRACE_MS) {
           // Lagging edge-cache: suppress resurrection
+          triage.seenInFeed = true;
           continue;
         } else {
           // Grace expired and message is still present: evict triage record
@@ -154,8 +160,8 @@ export class UnreadLedger {
         }
       }
 
-      const existing = this.activeUnread.get(entry.id);
-      if (!existing) {
+      const found = this.findActive(entry.id, entry.threadId);
+      if (!found) {
         const item: UnreadLedgerItem = {
           id: entry.id,
           threadId: entry.threadId || entry.id,
@@ -169,22 +175,43 @@ export class UnreadLedger {
         this.activeUnread.set(entry.id, item);
         added.push(entry.id);
       } else {
-        if (entry.category && existing.category !== entry.category) {
-          existing.category = entry.category;
+        const { key, item } = found;
+        // A preemptive markUnread is keyed by thread id. Adopt the feed's id now
+        // that it knows one, so the same thread is not counted twice.
+        if (key !== entry.id) {
+          this.activeUnread.delete(key);
+          item.id = entry.id;
+          this.activeUnread.set(entry.id, item);
         }
-        if (entry.subject) existing.subject = entry.subject;
-        if (entry.from) existing.from = entry.from;
-        if (entry.snippet) existing.snippet = entry.snippet;
+        if (entry.category && item.category !== entry.category) {
+          item.category = entry.category;
+        }
+        if (entry.subject) item.subject = entry.subject;
+        if (entry.from) item.from = entry.from;
+        if (entry.snippet) item.snippet = entry.snippet;
       }
     }
 
-    // Server confirmation of local triage:
-    // If an item was in recentlyTriaged and is now NOT in feedIds, server has confirmed removal
-    for (const [triagedKey] of this.recentlyTriaged.entries()) {
-      if (!feedIds.has(triagedKey) && !feedThreadIds.has(triagedKey)) {
+    // Server confirmation of local triage: a complete feed that no longer lists
+    // the item proves the write landed, as does an item that was listed during
+    // grace and has since gone. A truncated feed proves nothing on its own, so a
+    // thread outside the 20-entry window stays pending until grace expires.
+    const feedIsComplete = fullCount !== null && fullCount <= 20 && fullCount <= entries.length;
+    for (const [triagedKey, record] of this.recentlyTriaged.entries()) {
+      const absent = !feedIds.has(triagedKey) && !feedThreadIds.has(triagedKey);
+      if (absent && (feedIsComplete || record.seenInFeed)) {
         this.recentlyTriaged.delete(triagedKey);
       }
     }
+
+    // Atom's fullcount is authoritative, less the local triages the server has
+    // not yet propagated. Counting unique triage records rather than feed entries
+    // keeps a backlog decrement when the thread sits outside the 20-entry window.
+    const pendingTriage = new Set<TriagedRecord>();
+    for (const record of this.recentlyTriaged.values()) {
+      if (now - record.triagedAt < CACHE_TRIAGE_GRACE_MS) pendingTriage.add(record);
+    }
+    this.lastFullCount = fullCount === null ? null : Math.max(0, fullCount - pendingTriage.size);
 
     // Small inbox reconciliation: <= 20 unread (or fullCount <= entries.length)
     // The feed returned every unread item in existence. Any item in activeUnread
@@ -230,17 +257,19 @@ export class UnreadLedger {
         continue;
       }
 
+      const found = this.findActive(msg.id, msg.threadId);
+
       if (!msg.unread) {
         // If cache explicitly says read and we have it as active unread,
         // remove it (unless it was just marked unread)
-        if (this.activeUnread.has(msg.id) && triage?.action !== 'markUnread') {
-          this.activeUnread.delete(msg.id);
+        if (found && triage?.action !== 'markUnread') {
+          this.activeUnread.delete(found.key);
         }
         continue;
       }
 
       // If it's unread in cache:
-      const existing = this.activeUnread.get(msg.id);
+      const existing = found?.item;
       const parsedCat = parseCategory(msg.category);
       const modifiedMs = parseModifiedMs(msg.modified);
       if (existing) {
@@ -339,6 +368,22 @@ export class UnreadLedger {
 
   public clearRecentlyTriaged(): void {
     this.recentlyTriaged.clear();
+  }
+
+  /** Finds a tracked item by message id, then by thread id. */
+  private findActive(
+    id: string,
+    threadId?: string,
+  ): { key: string; item: UnreadLedgerItem } | undefined {
+    const direct = this.activeUnread.get(id);
+    if (direct) return { key: id, item: direct };
+    if (!threadId) return undefined;
+    for (const [key, item] of this.activeUnread.entries()) {
+      if (item.threadId === threadId || item.id === threadId) {
+        return { key, item };
+      }
+    }
+    return undefined;
   }
 
   private pruneExpiredTriage(now: number): void {

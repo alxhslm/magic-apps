@@ -359,12 +359,10 @@ export class AccountsManager {
         });
       },
       onPollResult: (result) => {
-        this.onPollResult?.(result);
         if (result.status === 'ok') {
           this.setAccountAuthRequired(result.accountId, false);
-          this.handleApiUnreadUpdate(
+          this.handlePollMetadata(
             result.accountId,
-            result.totalUnread,
             result.categoryCounts,
             result.newArrivalCount,
             result.arrivalsIncomplete,
@@ -372,6 +370,7 @@ export class AccountsManager {
         } else if (result.status === 'auth_required') {
           this.setAccountAuthRequired(result.accountId, true);
         }
+        this.onPollResult?.(result);
       },
     });
 
@@ -1658,9 +1657,15 @@ export class AccountsManager {
 </html>`;
   }
 
-  public handleApiUnreadUpdate(
+  /**
+   * Records what a poll learned about a mailbox, without touching its unread count.
+   *
+   * The count comes from the account's `MailboxSource` and nowhere else. `AtomFeedPoller`
+   * reports `<fullcount>` lagging behind a local triage, so applying it here would undo
+   * the preemptive decrement during the grace window.
+   */
+  public handlePollMetadata(
     accountId: string,
-    totalUnread: number,
     categoryCounts?: Map<NotificationCategory, number>,
     newArrivalCount?: number,
     arrivalsIncomplete?: boolean,
@@ -1675,6 +1680,22 @@ export class AccountsManager {
       if (arrivalsIncomplete) this.arrivalsIncompleteByAccount.add(accountId);
       else this.arrivalsIncompleteByAccount.delete(accountId);
     }
+  }
+
+  /**
+   * Applies an Atom report directly to an account's count.
+   *
+   * Kept for callers that have no `MailboxSource`; the poll path uses
+   * `handlePollMetadata` and lets the source's ledger own the number.
+   */
+  public handleApiUnreadUpdate(
+    accountId: string,
+    totalUnread: number,
+    categoryCounts?: Map<NotificationCategory, number>,
+    newArrivalCount?: number,
+    arrivalsIncomplete?: boolean,
+  ): void {
+    this.handlePollMetadata(accountId, categoryCounts, newArrivalCount, arrivalsIncomplete);
 
     const source = this.mailboxSources.get(accountId);
     let unreadToApply = this.getEffectiveUnreadForAccount(accountId);

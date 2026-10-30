@@ -57,6 +57,12 @@ export interface TriagedRecord {
   action: TriageAction;
   /** Category of the message before triage. */
   category: NotificationCategory;
+  /**
+   * True once a feed entry for this message has been seen during the grace window.
+   * A later absence then proves the server applied the write; absence alone does not,
+   * because a backlog feed only lists its first twenty entries.
+   */
+  seenInFeed?: boolean;
 }
 
 /**

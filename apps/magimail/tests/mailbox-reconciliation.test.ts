@@ -243,6 +243,99 @@ describe('UnreadLedger State Machine', () => {
   });
 });
 
+describe('Scenario 6: Preemptive Ledger Updates', () => {
+  const atomEntry = (id: string, threadId: string) => ({
+    id,
+    threadId,
+    from: 'someone',
+    subject: 'subject',
+    snippet: 'snippet',
+    link: '',
+    issued: new Date(1000).toISOString(),
+    modified: new Date(1000).toISOString(),
+    category: 'primary' as const,
+  });
+
+  it('counts a thread marked unread once, even after Atom reports it', () => {
+    const ledger = new UnreadLedger();
+
+    ledger.recordLocalTriage('th-1', 'th-1', 'markUnread', 'primary', 1000);
+    expect(ledger.getBreakdown().total).toBe(1);
+
+    ledger.reconcileWithAtom([atomEntry('atom-1', 'th-1')], 1, 2000);
+
+    expect(ledger.getBreakdown().total).toBe(1);
+    expect(ledger.getTrackedItems()).toHaveLength(1);
+    expect(ledger.getTrackedItems()[0].id).toBe('atom-1');
+  });
+
+  it('holds a local triage below the backlog fullcount while Atom lags', () => {
+    const ledger = new UnreadLedger();
+    const entries = Array.from({ length: 20 }, (_, i) => atomEntry(`m${i}`, `t${i}`));
+
+    ledger.reconcileWithAtom(entries, 50, 1000);
+    expect(ledger.getBreakdown().total).toBe(50);
+
+    ledger.recordLocalTriage('m0', 't0', 'archive', 'primary', 2000);
+    expect(ledger.getBreakdown().total).toBe(49);
+
+    // Atom still reports the archived message and the old fullcount.
+    ledger.reconcileWithAtom(entries, 50, 2500);
+    expect(ledger.getBreakdown().total).toBe(49);
+    expect(ledger.getTrackedItems().some((item) => item.id === 'm0')).toBe(false);
+
+    // Once the grace expires, a server that still asserts the message wins.
+    ledger.reconcileWithAtom(entries, 50, 2000 + CACHE_TRIAGE_GRACE_MS + 100);
+    expect(ledger.getBreakdown().total).toBe(50);
+    expect(ledger.getTrackedItems().some((item) => item.id === 'm0')).toBe(true);
+  });
+
+  it('does not subtract again once a lagging feed has confirmed the triage', () => {
+    const ledger = new UnreadLedger();
+    const entries = Array.from({ length: 20 }, (_, i) => atomEntry(`m${i}`, `t${i}`));
+
+    ledger.reconcileWithAtom(entries, 50, 1000);
+    ledger.recordLocalTriage('m0', 't0', 'archive', 'primary', 2000);
+    // The message is still listed, which marks the record as seen in the feed.
+    ledger.reconcileWithAtom(entries, 50, 2500);
+    expect(ledger.getBreakdown().total).toBe(49);
+
+    // The server applies the write: the feed shortens and drops the message.
+    ledger.reconcileWithAtom(entries.slice(1), 49, 3000);
+    expect(ledger.getBreakdown().total).toBe(49);
+  });
+
+  it('keeps a backlog decrement for a thread outside the entry window', () => {
+    const ledger = new UnreadLedger();
+    const entries = Array.from({ length: 20 }, (_, i) => atomEntry(`m${i}`, `t${i}`));
+
+    ledger.reconcileWithAtom(entries, 50, 1000);
+    ledger.reconcileWithCache(
+      [
+        {
+          id: 'm30',
+          threadId: 't30',
+          from: 'someone',
+          subject: 'outside the window',
+          snippet: 'snippet',
+          category: 'primary',
+          unread: true,
+          modified: new Date(1000),
+        },
+      ],
+      1500,
+    );
+    expect(ledger.getBreakdown().total).toBe(50);
+
+    ledger.recordLocalTriage('m30', 't30', 'archive', 'primary', 2000);
+    expect(ledger.getBreakdown().total).toBe(49);
+
+    // Atom still reports 50 and never lists m30, because it is the 31st unread.
+    ledger.reconcileWithAtom(entries, 50, 2500);
+    expect(ledger.getBreakdown().total).toBe(49);
+  });
+});
+
 describe('Scenario 5: Universal Sync Nudge Dispatch', () => {
   let pressRefreshSpy: ReturnType<typeof vi.spyOn>;
 

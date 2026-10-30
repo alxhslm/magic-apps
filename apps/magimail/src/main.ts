@@ -295,18 +295,11 @@ function handlePollResult(result: AtomPollResult): void {
     return;
   }
 
-  // Update unread counts for the account
+  // The account's MailboxSource has already applied the ledger's count. This
+  // refreshes the surfaces that also show arrivals and message lists.
   if (accountsManager) {
     log.info(`(AtomPoller) Poll ok for ${result.accountId}: totalUnread=${result.totalUnread}`);
     restrictedAccounts.delete(result.accountId);
-    accountsManager.setAccountAuthRequired(result.accountId, false);
-    accountsManager.handleApiUnreadUpdate(
-      result.accountId,
-      result.totalUnread,
-      result.categoryCounts,
-      result.newArrivalCount,
-      result.arrivalsIncomplete,
-    );
 
     // Menu bar and widgets show only what the Focus Filter includes -- their
     // job is to pull attention, which is the thing a filter is suppressing.
