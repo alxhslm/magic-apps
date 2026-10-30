@@ -37,16 +37,9 @@ event, so a delivery failure can be told from an unrecognised identifier.
 
 ## Only the helper posts notifications
 
-The shared session configuration denies the web `Notification` API on every Google partition, both
-when a page asks and when Chromium checks a grant already stored there. Without this, Gmail posts its
-own banner for the same message under the same bundle identity the helper uses: two banners for the
-user, and two processes claiming one identity.
-
-That second claim is the one that loses responses. The Electron main process is the LaunchServices
-instance for the bundle, so once Chromium posts a web notification it becomes the UserNotifications
-client and `usernoted` hands every response, including the helper's, to it. The helper is a bare
-Mach-O under `Contents/MacOS` with no LaunchServices identity, so it never gets them. Denying the web
-channel leaves the helper as the client that posted the banner.
+The shared session configuration denies the web `Notification` API on every Google partition. That
+stops Electron posting its own copy and becoming the notification client, which would take the
+helper's responses.
 
 ## Clearing on removal
 
