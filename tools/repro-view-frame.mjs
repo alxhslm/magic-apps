@@ -129,12 +129,28 @@ function measure(image) {
   };
 }
 
+/**
+ * Captures the view's own compositor.
+ *
+ * A view whose renderer never produced a frame has no display surface at all, and
+ * `capturePage` rejects with "Current display surface not available for capture"
+ * rather than returning a blank image. That rejection is the blank window, so it is
+ * reported as a frame with no colours rather than allowed to end the run.
+ */
+async function capture(webContents) {
+  try {
+    return measure(await webContents.capturePage());
+  } catch (error) {
+    return { size: 'no surface', colours: 0, dominantShare: 1, empty: true, error: error.message };
+  }
+}
+
 async function runCycle(index) {
   view = createView();
   attach(view);
   await sleep(settleMs);
 
-  const before = measure(await view.webContents.capturePage());
+  const before = await capture(view.webContents);
   window.hide();
 
   // The app releases every view five minutes after the window goes away. This is that
@@ -147,7 +163,7 @@ async function runCycle(index) {
   window.show();
   await sleep(settleMs);
 
-  const after = measure(await view.webContents.capturePage());
+  const after = await capture(view.webContents);
   const flat = after.colours <= 1 || after.dominantShare > 0.999;
   console.log(
     `cycle ${index + 1}: before ${before.size} ${before.colours} colour(s); ` +
@@ -158,22 +174,24 @@ async function runCycle(index) {
   return flat;
 }
 
-await app.whenReady();
+// Ready is a callback, not a top-level await: Electron fires it only after the
+// main script has finished evaluating, so awaiting it here never returns.
+app.whenReady().then(async () => {
+  // Opaque, and a colour the page never uses, so a region the page cannot fill is obvious.
+  window = new BaseWindow({ width: 1000, height: 700, show: false, backgroundColor: '#00ff00' });
 
-// Opaque, and a colour the page never uses, so a region the page cannot fill is obvious.
-window = new BaseWindow({ width: 1000, height: 700, show: false, backgroundColor: '#00ff00' });
+  console.log(
+    `backgroundThrottling ${backgroundThrottling ? 'on (default)' : 'off'}, ` +
+      `${cycles} cycle(s), ${hiddenMs} ms hidden with nothing attached`,
+  );
 
-console.log(
-  `backgroundThrottling ${backgroundThrottling ? 'on (default)' : 'off'}, ` +
-    `${cycles} cycle(s), ${hiddenMs} ms hidden with nothing attached`,
-);
+  let blanks = 0;
+  for (let i = 0; i < cycles; i += 1) {
+    if (await runCycle(i)) blanks += 1;
+  }
 
-let blanks = 0;
-for (let i = 0; i < cycles; i += 1) {
-  if (await runCycle(i)) blanks += 1;
-}
-
-console.log(`${blanks} of ${cycles} cycle(s) produced no frame`);
-release();
-window.destroy();
-app.quit();
+  console.log(`${blanks} of ${cycles} cycle(s) produced no frame`);
+  release();
+  window.destroy();
+  app.quit();
+});
