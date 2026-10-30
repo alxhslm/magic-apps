@@ -40,9 +40,13 @@ event, so a delivery failure can be told from an unrecognised identifier.
 The app log says whether `didReceive` fired, not whether macOS received the click. Read the system
 side with `tools/notification-response-trace.sh` while reproducing: it prints the app and helper
 identities and processes, then streams `usernoted` and `usernotificationsd` lines for the bundle.
-`Received response` and `Bringing app … front for response` mean macOS got it; `activating
-connection … delegate.<bundle>` names the process it handed it to. `--past` reads the last 30
-minutes instead of waiting for the next click.
+`Received response` means macOS got it; `Notifying UserNotifications client <bundle>:<pid>` names the
+process it handed the response to.
+
+Pass a duration to capture without an interactive prompt:
+`tools/notification-response-trace.sh com.alexhaslam.magimail 240`. There is no retrospective mode:
+`usernoted`'s response lines are debug-level and are not written to the log store, so a `log show`
+query returns an empty result that looks like "no response was received".
 
 If the system log shows the response but the helper logs no `Response received`, the break is between
 `usernoted` and the helper. If neither appears, the click never reached the system.
@@ -53,6 +57,12 @@ The shared session configuration denies the web `Notification` API on every Goog
 when a page asks and when Chromium checks a grant already stored there. Without this, Gmail posts its
 own banner for the same message under the same bundle identity the helper uses: two banners for the
 user, and two processes claiming one identity.
+
+That second claim is the one that loses responses. The Electron main process is the LaunchServices
+instance for the bundle, so once Chromium posts a web notification it becomes the UserNotifications
+client and `usernoted` hands every response, including the helper's, to it. The helper is a bare
+Mach-O under `Contents/MacOS` with no LaunchServices identity, so it never gets them. Denying the web
+channel leaves the helper as the client that posted the banner.
 
 ## Clearing on removal
 
