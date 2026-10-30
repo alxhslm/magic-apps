@@ -69,9 +69,14 @@ export function dispatchNotifications(accountId: string, newMessages: AtomMessag
  */
 export function handleNotificationEvent(method: string, params: Record<string, unknown>): boolean {
   if (method === 'notify.click') {
+    const accountId = params.accountId as string;
+    const messageId = params.messageId as string;
+    // Logged on arrival, not only on the action that follows: a click the helper
+    // never sends and one that arrives but opens nothing look identical otherwise.
+    log.info(`Received notify.click: account=${accountId} message=${messageId}`);
     onClickCallback?.({
-      accountId: params.accountId as string,
-      messageId: params.messageId as string,
+      accountId,
+      messageId,
       action: 'open',
     });
     return true;
@@ -82,6 +87,7 @@ export function handleNotificationEvent(method: string, params: Record<string, u
     const messageId = params.messageId as string;
     const action = params.action as 'archive' | 'trash' | 'markRead';
 
+    log.info(`Received notify.action: account=${accountId} message=${messageId} action=${action}`);
     onActionCallback?.({
       accountId,
       messageId,

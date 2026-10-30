@@ -32,6 +32,15 @@ action categories and requests authorization. Left to the first dispatch, macOS 
 about the app until a notification arrived: there would be no row in System Settings to grant
 beforehand, and the first notification would necessarily be missed.
 
+Every response is logged with its raw action identifier and message id, including one that maps to no
+event, so a delivery failure can be told from an unrecognised identifier.
+
+## Only the helper posts notifications
+
+The shared session configuration denies the web `Notification` API on every Google partition. That
+stops Electron posting its own copy and becoming the notification client, which would take the
+helper's responses.
+
 ## Clearing on removal
 
 **Remove All App Data and Quit…** sends `notify.clearAll` as its first step, before anything is

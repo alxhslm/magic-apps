@@ -310,13 +310,19 @@ export function handleNotificationEvent(method: string, params: Record<string, u
   if (method !== 'alert.action') return false;
 
   const conferenceUrl = typeof params.conferenceUrl === 'string' ? params.conferenceUrl : '';
+  const key = String(params.key ?? '');
+  const accountId = String(params.accountId ?? '');
+  const action = (params.action as AlertActionKind) ?? 'open';
+  // Logged on arrival, not only on the action that follows: a response the helper
+  // never sends and one that arrives but opens nothing look identical otherwise.
+  log.info(`Received alert.action: key=${key} account=${accountId} action=${action}`);
   onAction?.({
-    key: String(params.key ?? ''),
-    accountId: String(params.accountId ?? ''),
+    key,
+    accountId,
     eventId: String(params.eventId ?? ''),
     deepLink: String(params.deepLink ?? ''),
     conferenceUrl: conferenceUrl || undefined,
-    action: (params.action as AlertActionKind) ?? 'open',
+    action,
   });
   return true;
 }
