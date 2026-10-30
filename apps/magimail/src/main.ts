@@ -31,6 +31,7 @@ import {
   type AccountConfig,
   type WindowActionTarget,
   viewIsAlive,
+  WindowRebuilder,
 } from '@magimail/core';
 import { DEFAULT_PARTITION, IPC_CHANNELS } from './constants.js';
 import {
@@ -201,8 +202,20 @@ import {
 let mainWindow: BaseWindow | null = null;
 let findInPageController: FindInPageController | null = null;
 let isQuitting = false;
-/** Set while a replacement window is being built, so recovery cannot recurse. */
-let rebuildingWindow = false;
+/**
+ * The window rebuild both apps share. It reads the handles below rather than capturing
+ * them, so it survives a window being replaced.
+ */
+const windowRebuilder = new WindowRebuilder<AccountsManager>({
+  window: () => mainWindow,
+  manager: () => accountsManager,
+  accountId: (manager) => manager.getActiveAccountId(),
+  quitting: () => isQuitting,
+  build: (accountId, bounds) => {
+    mainWindow = createMainWindow(accountId, { bounds });
+  },
+  log,
+});
 /**
  * Whether the launch pass has finished building the window, the tray and the pollers.
  *
@@ -672,11 +685,12 @@ function createMainWindow(
   const settings = loadSettings();
   const options = createMainWindowOptions({
     title: uiString('window.main.title'),
+    width: 1280,
+    height: 850,
     minWidth: 960,
     minHeight: 600,
-    // A window rebuilt in place returns to where the user had it, so recovering
-    // from a blank window does not also move and resize it.
-    ...(bounds ?? { width: 1280, height: 850 }),
+    // Set when this window is a replacement, so it returns to where the user had it.
+    bounds,
     ...(settings.transparentBackground
       ? {}
       : {
@@ -867,8 +881,8 @@ function createMainWindow(
   win.on('close', (event) => {
     // A rebuild closes the window on purpose, so it must not be turned into a hide: a
     // hidden window still holds the blank page the rebuild exists to replace. Any
-    // handler added here has to let `rebuildingWindow` through for the same reason.
-    if (isTrayCreated() && !isQuitting && !rebuildingWindow) {
+    // handler added here has to let `isRebuilding()` through for the same reason.
+    if (isTrayCreated() && !isQuitting && !windowRebuilder.isRebuilding()) {
       event.preventDefault();
       win.hide();
     }
@@ -904,32 +918,7 @@ function createMainWindow(
  * request is a user asking for their mail back, so it does the repair that works.
  */
 function reloadMailbox(): void {
-  rebuildMainWindow('reload requested');
-}
-
-/**
- * Replaces the main window with a fresh one on the same account and bounds.
- *
- * The only recovery observed for a window that has stopped presenting. It costs a
- * Gmail load and a blink of the window.
- */
-function rebuildMainWindow(reason: string, detail?: string): void {
-  if (!mainWindow || !accountsManager || isQuitting || rebuildingWindow) return;
-
-  const accountId = accountsManager.getActiveAccountId();
-  const bounds = mainWindow.getBounds();
-  rebuildingWindow = true;
-  log.info(`Rebuilding the window: ${reason}${detail ? ` (${detail})` : ''}`);
-
-  // The window's own `closed` handler clears both handles and runs before this
-  // listener, so the replacement is built after the old window is gone.
-  const previous = mainWindow;
-  previous.once('closed', () => {
-    rebuildingWindow = false;
-    if (isQuitting) return;
-    mainWindow = createMainWindow(accountId, { bounds });
-  });
-  previous.close();
+  windowRebuilder.rebuild('reload requested');
 }
 
 // Chromium performance switches — disable unused browser subsystems

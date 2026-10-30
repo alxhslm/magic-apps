@@ -25,6 +25,7 @@ import {
   WEBSITE_URL,
   type WindowActionTarget,
   viewIsAlive,
+  WindowRebuilder,
 } from '@magimail/core';
 import { localCacheKey } from './native-addon.js';
 import { AccountsManager, calendarPreloadPath } from './accounts-manager.js';
@@ -274,8 +275,18 @@ let accounts: AccountsManager | null = null;
 let menuBarManager: MenuBarManager | null = null;
 /** Set before quitting, so the window being torn down is not rebuilt afterwards. */
 let quitting = false;
-/** Set while a replacement window is being built, so recovery cannot recurse. */
-let rebuildingWindow = false;
+/**
+ * The window rebuild both apps share. It reads the handles below rather than capturing
+ * them, so it survives a window being replaced.
+ */
+const windowRebuilder = new WindowRebuilder<AccountsManager>({
+  window: () => mainWindow,
+  manager: () => accounts,
+  accountId: (manager) => manager.getActiveAccountId(),
+  quitting: () => quitting,
+  build: (accountId, bounds) => createWindow(accountId, { bounds }),
+  log,
+});
 
 /** Magical's window handles, for the shared action policy. */
 const windowActionTarget: WindowActionTarget<AccountsManager> = {
@@ -1149,33 +1160,7 @@ function handleToolbarAction(action: string, value: string): void {
  * repair that works rather than one that sometimes does.
  */
 function reloadCalendar(): void {
-  rebuildWindow('reload requested');
-}
-
-/**
- * Replaces the main window with a fresh one on the same account and bounds.
- *
- * The only recovery observed for a window that has stopped presenting. It costs a
- * page reload and a blink of the window; the route the user was on is restored from
- * the remembered URL.
- */
-function rebuildWindow(reason: string, detail?: string): void {
-  if (!mainWindow || !accounts || quitting || rebuildingWindow) return;
-
-  const accountId = accounts.getActiveAccountId();
-  const bounds = mainWindow.getBounds();
-  rebuildingWindow = true;
-  log.info(`Rebuilding the window: ${reason}${detail ? ` (${detail})` : ''}`);
-
-  // The window's own `closed` handler clears both handles and runs before this
-  // listener, so the replacement is built after the old window is gone.
-  const previous = mainWindow;
-  previous.once('closed', () => {
-    rebuildingWindow = false;
-    if (quitting) return;
-    createWindow(accountId, { bounds });
-  });
-  previous.close();
+  windowRebuilder.rebuild('reload requested');
 }
 
 function createWindow(
@@ -1189,11 +1174,12 @@ function createWindow(
   mainWindow = new BaseWindow(
     createMainWindowOptions({
       title: uiString('window.main.title'),
+      width: 1280,
+      height: 820,
       minWidth: 1280,
       minHeight: 600,
-      // A window rebuilt in place returns to where the user had it, so recovering
-      // from a blank window does not also move and resize it.
-      ...(options.bounds ?? { width: 1280, height: 820 }),
+      // Set when this window is a replacement, so it returns to where the user had it.
+      bounds: options.bounds,
       ...(settings.transparentBackground
         ? {}
         : {
