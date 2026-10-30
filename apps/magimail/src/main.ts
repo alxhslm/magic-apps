@@ -7,7 +7,6 @@ import {
   Menu,
   net,
   powerMonitor,
-  screen,
   session,
   shell,
   type Rectangle,
@@ -1018,18 +1017,6 @@ if (!hasLock) {
     // 1b. Spawn Swift helper for native UI
     spawnHelper();
     syncExtensionLogs(logDirectory());
-
-    // A window that has stopped presenting leaves no trace of its own, so the events
-    // that could have caused it are recorded beside the show and hide lines: a GPU
-    // process that died, and a display that came or went.
-    app.on('child-process-gone', (_event, details) => {
-      log.warn(
-        `Child process gone: ${details.type} ${details.reason} (exit code ${details.exitCode})`,
-      );
-    });
-    screen.on('display-added', () => log.info('Display added'));
-    screen.on('display-removed', () => log.info('Display removed'));
-    screen.on('display-metrics-changed', () => log.info('Display metrics changed'));
 
     // Takes back staging that earlier runs, or a crash mid-share, left on disk.
     sweepAbandonedShareStaging();

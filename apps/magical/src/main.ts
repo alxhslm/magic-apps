@@ -5,7 +5,6 @@ import {
   Menu,
   nativeTheme,
   powerMonitor,
-  screen,
   shell,
   type Rectangle,
 } from 'electron';
@@ -1306,17 +1305,6 @@ app.whenReady().then(async () => {
   if (await enforcePrereleaseBuildExpiry()) return;
   logDisplayEnvironment();
   syncExtensionLogs(logDirectory());
-  // A window that has stopped presenting leaves no trace of its own, so the events
-  // that could have caused it are recorded beside the show and hide lines: a GPU
-  // process that died, and a display that came or went.
-  app.on('child-process-gone', (_event, details) => {
-    log.warn(
-      `Child process gone: ${details.type} ${details.reason} (exit code ${details.exitCode})`,
-    );
-  });
-  screen.on('display-added', () => log.info('Display added'));
-  screen.on('display-removed', () => log.info('Display removed'));
-  screen.on('display-metrics-changed', () => log.info('Display metrics changed'));
   nativeTheme.themeSource = loadSettings().theme;
   // Before the settings window can be opened: the OS owns this value, and the
   // toggle has to show what macOS actually does, not what we last stored.
