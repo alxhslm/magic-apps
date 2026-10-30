@@ -174,8 +174,9 @@ var { resolveOrdered, waitUntil, clickAndConfirm, findAction } = (() => {
         check();
       });
 
-      // The document element, not the body: `document.title` lives in the head,
-      // and a route change is often only visible there.
+      // The document element, not the body: document.title lives in the head, and
+      // a route change is often only visible there. No backticks in here: this whole
+      // preamble is a template literal.
       observer.observe(document.documentElement || document.body || document, {
         subtree: true,
         childList: true,
