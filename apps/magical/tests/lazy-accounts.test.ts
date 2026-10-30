@@ -826,3 +826,74 @@ describe('lazy account views in Magical', () => {
     });
   });
 });
+
+/**
+ * The view rebuild, which is the repair a reload request used to ask for.
+ *
+ * `Cmd+R` now rebuilds the window instead — twenty of these in twenty seconds on 29
+ * October left the window blank — so this path serves the Settings toggles that change
+ * Google's own layout and the wake-from-sleep handler.
+ */
+describe('rebuilding an account view', () => {
+  let manager: AccountsManager;
+  let win: InstanceType<typeof BaseWindow>;
+
+  afterAll(() => {
+    fs.rmSync(TEST_USER_DATA, { recursive: true, force: true });
+  });
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    constructedViews.length = 0;
+    seedTwoAccounts();
+    saveSetting('lastActiveAccountId', '');
+    win = new BaseWindow();
+    win.contentView.children.length = 0;
+    manager = new AccountsManager(win, '/preload.js');
+  });
+
+  afterEach(() => {
+    vi.clearAllTimers();
+    vi.useRealTimers();
+  });
+
+  it('rebuilds the view through the pool rather than an in-place webContents.reload()', () => {
+    const initialView = constructedViews[0];
+
+    manager.reloadActive();
+
+    // The old view's WebContents was closed, and a fresh view was constructed.
+    expect(initialView.webContents.close).toHaveBeenCalledTimes(1);
+    expect(constructedViews).toHaveLength(2);
+    expect(constructedViews[1].webContents.close).not.toHaveBeenCalled();
+  });
+
+  it('returns the replacement to the route the user was on', () => {
+    constructedViews[0].webContents.getURL.mockReturnValue(
+      'https://calendar.google.com/calendar/u/0/r/month/2026/11/15',
+    );
+
+    manager.reloadActive();
+
+    expect(constructedViews[1].webContents.loadURL).toHaveBeenCalledWith(
+      'https://calendar.google.com/calendar/u/0/r/month/2026/11/15',
+    );
+  });
+
+  it('lays the replacement out', () => {
+    manager.reloadActive();
+
+    expect(constructedViews[1].setBounds).toHaveBeenCalled();
+  });
+
+  it('releases the views when the window has gone, without touching its contentView', () => {
+    const initialView = constructedViews[0];
+    // The state a suspend timer fires in five minutes after the window closed.
+    (win as unknown as { isDestroyed: () => boolean }).isDestroyed = () => true;
+
+    expect(() => manager.suspendAllAccounts()).not.toThrow();
+
+    // The renderer is what costs memory, so it is closed even with no window to detach from.
+    expect(initialView.webContents.close).toHaveBeenCalledTimes(1);
+  });
+});

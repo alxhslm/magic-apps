@@ -1150,11 +1150,12 @@ export class AccountsManager {
   }
 
   /**
-   * Reloads the active account view.
+   * Rebuilds the active account view through the pool, rather than calling
+   * `webContents.reload()`.
    *
-   * Rebuilds the view through the pool rather than calling `webContents.reload()`,
-   * so an account whose WebContents or compositor has stopped presenting recovers
-   * cleanly when the user hits Cmd+R or chooses Reload from the menu.
+   * Serves the Settings toggles that change Google's own layout and the
+   * wake-from-sleep handler. A reload request does not come here: `Cmd+R` rebuilds
+   * the window, because a view rebuild is what failed to clear a blank one.
    */
   public reloadActive(): void {
     if (!this.activeAccountId) return;
