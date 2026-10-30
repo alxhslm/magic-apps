@@ -1,4 +1,3 @@
-import AppKit
 import Foundation
 import HelperRPC
 import UserNotifications
@@ -19,7 +18,6 @@ open class NotificationControllerBase: NSObject {
     private let appName: String
     private var transport: StdioTransport?
     private var didSetup = false
-    private var wakeObserver: NSObjectProtocol?
 
     public init(appName: String) {
         self.appName = appName
@@ -110,7 +108,6 @@ open class NotificationControllerBase: NSObject {
         let center = UNUserNotificationCenter.current()
         center.delegate = self
         applyCategories(Set(categories()))
-        observeWake()
 
         center.requestAuthorization(options: [.alert, .sound, .badge]) { [weak self] granted, error in
             if let error {
@@ -120,35 +117,6 @@ open class NotificationControllerBase: NSObject {
             }
             Task { @MainActor in
                 self?.authorizationResolved(granted: granted, error: error)
-            }
-        }
-    }
-
-    /// Claims the delegate and re-registers the categories after a wake.
-    ///
-    /// Re-asserting on every wake keeps the notification centre connection in place for
-    /// the life of the process. It is one delegate assignment and one category
-    /// registration, not a per-banner cost, and the log line makes it visible.
-    public func reassertRegistration(after reason: String) {
-        guard didSetup, hasBundleIdentity else { return }
-        let center = UNUserNotificationCenter.current()
-        center.delegate = self
-        applyCategories(Set(categories()))
-        HelperLog.info(
-            "Notifications",
-            "Re-asserted delegate and \(registeredCategories.count) category set(s) after \(reason)"
-        )
-    }
-
-    private func observeWake() {
-        guard wakeObserver == nil else { return }
-        wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
-            forName: NSWorkspace.didWakeNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor in
-                self?.reassertRegistration(after: "system wake")
             }
         }
     }

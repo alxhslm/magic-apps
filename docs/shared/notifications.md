@@ -32,12 +32,20 @@ action categories and requests authorization. Left to the first dispatch, macOS 
 about the app until a notification arrived: there would be no row in System Settings to grant
 beforehand, and the first notification would necessarily be missed.
 
-The helper re-claims the delegate and re-registers its categories on every system wake, which keeps
-the notification centre connection asserted for the life of the process. It logs when it does. This
-is one delegate assignment and one category registration per wake, not per banner.
-
 Every response is logged with its raw action identifier and message id, including one that maps to no
 event, so a delivery failure can be told from an unrecognised identifier.
+
+## Diagnosing a missing response
+
+The app log says whether `didReceive` fired, not whether macOS received the click. Read the system
+side with `tools/notification-response-trace.sh` while reproducing: it prints the app and helper
+identities and processes, then streams `usernoted` and `usernotificationsd` lines for the bundle.
+`Received response` and `Bringing app … front for response` mean macOS got it; `activating
+connection … delegate.<bundle>` names the process it handed it to. `--past` reads the last 30
+minutes instead of waiting for the next click.
+
+If the system log shows the response but the helper logs no `Response received`, the break is between
+`usernoted` and the helper. If neither appears, the click never reached the system.
 
 ## Only the helper posts notifications
 
