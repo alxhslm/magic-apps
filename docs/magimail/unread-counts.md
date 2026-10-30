@@ -17,7 +17,7 @@ popover and widgets all read the source.
 
 ### Feed
 
-The feed is Gmail's Atom endpoint, fetched with `ses.fetch` on the account's partition. It carries
+The feed is Gmail's unread endpoint, fetched with `ses.fetch` on the account's partition. It carries
 `<fullcount>`, the whole unread total, and `<entry>` blocks, the newest unread threads. The feed lists
 only unread mail, so an id leaving it was read, archived or deleted, and the feed cannot say which.
 

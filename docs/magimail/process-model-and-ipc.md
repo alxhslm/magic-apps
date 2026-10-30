@@ -11,11 +11,11 @@ widget extension and the App Intents extension.
 `MutationObserver`, so triage in the sidebar reaches the badge without waiting for a network round
 trip. This is the only conventional Electron IPC in the app.
 
-| Channel                     | Direction       | Payload                                                                    | Consumer                                               |
-| --------------------------- | --------------- | -------------------------------------------------------------------------- | ------------------------------------------------------ |
-| `DOM_UNREAD_UPDATE`         | Renderer → Main | `{ timestamp, counts, presentCategories, hasCategoriesSection, isLoaded }` | `AccountsManager.handleDomUnreadUpdate`                |
-| `MAILBOX_CHANGE_HINT`       | Renderer → Main | _(none)_                                                                   | `AtomFeedPoller.requestImmediatePoll` for that account |
-| `UPDATE_MISSING_CATEGORIES` | Main → Renderer | `NotificationCategory[]`                                                   | The in-page setup banner                               |
+| Channel                     | Direction       | Payload                                                                    | Consumer                                              |
+| --------------------------- | --------------- | -------------------------------------------------------------------------- | ----------------------------------------------------- |
+| `DOM_UNREAD_UPDATE`         | Renderer → Main | `{ timestamp, counts, presentCategories, hasCategoriesSection, isLoaded }` | `AccountsManager.handleDomUnreadUpdate`               |
+| `MAILBOX_CHANGE_HINT`       | Renderer → Main | _(none)_                                                                   | `MailboxSource.requestImmediatePoll` for that account |
+| `UPDATE_MISSING_CATEGORIES` | Main → Renderer | `NotificationCategory[]`                                                   | The in-page setup banner                              |
 
 **The sender is identified, never asserted.** Neither renderer channel carries an account id.
 `event.sender.id` is resolved through `getAccountIdForWebContentsId`, so a view can only report about
@@ -136,7 +136,7 @@ leaves a snapshot where the extension can find it, and pokes WidgetKit to come a
 ```mermaid
 sequenceDiagram
     autonumber
-    participant Poller as AtomFeedPoller
+    participant Poller as Mailbox poller
     participant Main as Electron Main
     participant Addon as Native Addon (Dylib)
     participant Chrono as chronod (WidgetKit host)
@@ -160,7 +160,7 @@ Two things here are easy to get wrong, and each one fails silently:
    directory the sandboxed extension can open. That call reads the code signature's entitlements and
    team prefix, unlike the reload above, so it does not care which executable makes it. The extension
    is sandboxed, and the group is the shared location it and the app are both entitled for.
-2. **Ids are converted on the way in.** The Atom feed reports message ids in decimal, and every
+2. **Ids are converted on the way in.** Gmail reports message ids in decimal, and every
    Gmail URL that opens a message wants the same 64-bit value in hex. `toGmailUrlId` converts once
    into `threadId`, which the widgets, the tray and notifications all build their URLs from. `id`
    stays decimal; it is the feed's identity, persisted to decide what is new.
@@ -223,7 +223,7 @@ app does with the filter: which surfaces drop an excluded account, and which onl
 1. **The Swift binary is missing, or the helper crashes.** `isHelperAvailable()` returns `false` and
    `isHelperRunning()` gates every call site, so nothing throws. Nothing takes its place either: the
    menu bar item, the settings window and notifications are absent for that run. Mail itself is
-   unaffected, because it lives entirely in the Chromium views and the Atom poller.
+   unaffected, because it lives entirely in the Chromium views and the mailbox poller.
 2. **The widget snapshot is missing or unreadable.** `WidgetCache.load()` returns `.empty`, so a
    widget renders its "Open Magimail to sync" placeholder rather than failing to load. The 15-minute
    timeline policy keeps widgets refreshing even when the app is not running to poke them.

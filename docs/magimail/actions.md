@@ -55,7 +55,7 @@ For triage actions (`archive`, `trash`, `markRead`, `markUnread`), it delegates 
 the direct driver and the DOM driver, tried in order.
 
 1. **Primary (`SyncThreadActionDriver`)**: Posts the mutation to Gmail's internal `/sync/u/<n>/i/s`
-   from the main process, mapping the Atom feed's hex thread id onto the decimal reference that
+   from the main process, mapping Gmail's legacy hex thread id onto the decimal reference that
    protocol names. It needs no renderer: the partition's cookies authenticate the request and the
    headers Gmail's own `/sync/` traffic carried are replayed from `gmail-sync-state.ts`. The thread
    changes without routing the viewport or flashing the UI.
@@ -165,7 +165,7 @@ autosave debounce.
 
 ### Detecting arrival
 
-The Atom feed's legacy hex thread id cannot confirm arrival. Gmail resolves the id and rewrites the
+Gmail's legacy hex thread id cannot confirm arrival. Gmail resolves the id and rewrites the
 hash to its own canonical form (`#inbox/FMfcgz…`) about 100ms later, so the id asked for stops
 appearing in the URL at precisely the moment the thread appears on screen; a gate waiting for that id
 never fires, times out, skips the action, and leaves the thread it opened marked read.

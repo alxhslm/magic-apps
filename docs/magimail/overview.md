@@ -20,7 +20,7 @@ runs in a Chromium renderer, one per account partition. The shared mechanism is 
 flowchart TD
     subgraph Main["Electron main process"]
         Orchestration["Window, session and routing"]
-        Pollers["Atom feed pollers"]
+        Pollers["Mailbox pollers"]
         AddonBridge["Native addon bridge"]
     end
 
@@ -147,7 +147,7 @@ Three actions take data back, and each sits where the scope it clears is visible
 - **Reset Session…** in **Settings → Accounts** signs the selected account out of Google and clears
   its cookies and storage. The account, its caches and the app's settings stay.
 - **Remove Account…** beside it drops the selected account's record, clears the stored data and
-  cache of its Chromium session, and deletes the poller state in `atom-state/<accountId>.json`, so no
+  cache of its Chromium session, and deletes the account's persisted poller state, so no
   seen-message record outlives the mailbox it describes. Other accounts and the global settings stay.
 - **Remove All App Data and Quit…**, on its own above Quit in the app menu, removes everything the
   install wrote and then quits. It is the only one of the three that leaves nothing behind, and the

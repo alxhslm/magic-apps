@@ -12,14 +12,14 @@ on a thread, in [`actions.md`](actions.md).
 ```mermaid
 graph TD
     A["Timer / Wakeup"] --> B["Poll the mailbox source"]
-    B --> C["New unread entries and counts"]
+    B --> C["New unread messages and counts"]
 
     C --> D["Update Dock Badge & Menu Bar Item"]
-    C --> E["Compare entry IDs against seenMessageIds Set"]
+    C --> E["Compare message IDs against the seen set"]
 
     E -->|New Message ID| F["Construct Native Notification"]
     F --> G["Dispatch via Swift Helper (UNUserNotificationCenter)"]
-    G --> H["Add Message ID to seenMessageIds Cache & Persist"]
+    G --> H["Record message ID in the seen set and persist"]
 
     E -->|Already Seen| I["Skip Banner (No duplicate)"]
 ```
@@ -33,7 +33,7 @@ A message is announced only if it passes both:
 | Id        | `seenIds`, capped at 500 | Has this id ever appeared in a poll? |
 | Watermark | `lastIssuedAt`, epoch ms | Did it arrive at or after the mark?  |
 
-Both are persisted per account in `atom-state/<accountId>.json`. Every unseen id is recorded whether
+Both are persisted per account in the poller's state file. Every unseen id is recorded whether
 or not it is announced, so a message the watermark holds back cannot resurface later if the mark
 falls behind it. The watermark only ever subtracts from what the id gate admits, so a mistake in it
 can cost a notification but never produce a duplicate.
@@ -47,7 +47,7 @@ polls so no poll ever saw it, and ids evicted by the 500 cap.
 
 A banner is an event, _this arrived_, while the badge, the menu bar count and the widgets are state,
 _this is unread right now_. The ledger owns the state; banners are dispatched from the poll's new
-entries. The tray and widgets read the ledger, so a message marked unread reappears in both. The dock
+messages. The tray and widgets read the ledger, so a message marked unread reappears in both. The dock
 badge reads one or the other by mode; see [what the dock badge counts](#what-the-dock-badge-counts).
 
 ### Dedup window
@@ -61,13 +61,13 @@ realistic delay and skew while staying far short of the timescale on which peopl
 to unread; the id gate is unaffected, so the triage case is still suppressed, and a message the
 tolerance re-admits is announced once, because announcing it records its id.
 
-The mark advances to the newest arrival across every entry in the poll, not only the announced ones,
+The mark advances to the newest arrival across every message in the poll, not only the announced ones,
 so it tracks the mailbox rather than the notifications. However long the app was shut, mail that
 arrived after the mark still announces. Four edge cases:
 
 - The mark is capped at now, so a message dated in the future (spam routinely is) cannot drag it past
   every genuine arrival.
-- The comparison is `>=`, because entry timestamps have one-second resolution.
+- The comparison is `>=`, because message timestamps have one-second resolution.
 - A message whose date cannot be parsed is announced, and does not move the mark.
 - State written before the watermark existed reads `lastIssuedAt` as 0, so the first poll announces
   on id alone.
@@ -137,7 +137,7 @@ Arriving and being read between two polls therefore nets to nothing.
 
 ### Persisted set
 
-`activeArrivals` is written to `atom-state/<accountId>.json` alongside `seenIds` and `lastIssuedAt`,
+`activeArrivals` is written to the poller's state file alongside `seenIds` and `lastIssuedAt`,
 because quitting with two unhandled arrivals must still read 2 on the next launch: by the time a
 fresh set is built, every listed message is merely unread, and nothing distinguishes the two
 that arrived. Only ids are stored; nothing downstream needs a time.
@@ -152,7 +152,7 @@ whatever it was at the last rename or sign-in.
 `newArrivals` cannot use the sidebar DOM observer, which knows what is unread, not what arrived, so
 the count comes from the mailbox source and moves at poll cadence. A mailbox change hint re-polls
 within about a second of the click, so reading a new message clears it promptly. The poll intervals
-are in [`unread-counts.md`](unread-counts.md#feed).
+are in [`unread-counts.md`](unread-counts.md#inputs).
 
 ## Process identity
 

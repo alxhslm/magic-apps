@@ -7,7 +7,7 @@ widgets.
 
 Magimail signs in with the existing web session cookies, so it holds no Google Cloud project, no
 OAuth scope and no CASA audit. Unread counts come from the mailbox source, which reads Gmail's
-authenticated Atom feed and local cache rather than an API.
+authenticated feed and local cache rather than an API.
 
 ## What's in this folder
 
