@@ -305,6 +305,60 @@ describe('Scenario 6: Preemptive Ledger Updates', () => {
     expect(ledger.getBreakdown().total).toBe(49);
   });
 
+  it('holds a marked-unread thread against a stale cache that says read', () => {
+    const ledger = new UnreadLedger();
+    ledger.reconcileWithAtom([], 0, 1000);
+
+    ledger.recordLocalTriage('th-u', 'th-u', 'markUnread', 'primary', 2000);
+    expect(ledger.getBreakdown().total).toBe(1);
+
+    ledger.reconcileWithCache(
+      [
+        {
+          id: 'th-u',
+          threadId: 'th-u',
+          from: 'someone',
+          subject: 'just marked unread',
+          snippet: 'snippet',
+          category: 'primary',
+          unread: false,
+          modified: new Date(1000),
+        },
+      ],
+      2500,
+    );
+    expect(ledger.getBreakdown().total).toBe(1);
+  });
+
+  it('holds a marked-unread thread against a lagging empty feed until grace expires', () => {
+    const ledger = new UnreadLedger();
+    ledger.reconcileWithAtom([], 0, 1000);
+
+    ledger.recordLocalTriage('th-u', 'th-u', 'markUnread', 'primary', 2000);
+    expect(ledger.getBreakdown().total).toBe(1);
+
+    // The feed has not propagated the change yet.
+    ledger.reconcileWithAtom([], 0, 2500);
+    expect(ledger.getBreakdown().total).toBe(1);
+
+    // Once grace expires, a server that still does not list it wins.
+    ledger.reconcileWithAtom([], 0, 2000 + CACHE_TRIAGE_GRACE_MS + 100);
+    expect(ledger.getBreakdown().total).toBe(0);
+  });
+
+  it('raises a backlog by one when a thread is marked unread', () => {
+    const ledger = new UnreadLedger();
+    const entries = Array.from({ length: 20 }, (_, i) => atomEntry(`m${i}`, `t${i}`));
+
+    ledger.reconcileWithAtom(entries, 50, 1000);
+    ledger.recordLocalTriage('m30', 't30', 'markUnread', 'primary', 2000);
+    expect(ledger.getBreakdown().total).toBe(51);
+
+    // Atom still reports the old fullcount.
+    ledger.reconcileWithAtom(entries, 50, 2500);
+    expect(ledger.getBreakdown().total).toBe(51);
+  });
+
   it('keeps a backlog decrement for a thread outside the entry window', () => {
     const ledger = new UnreadLedger();
     const entries = Array.from({ length: 20 }, (_, i) => atomEntry(`m${i}`, `t${i}`));

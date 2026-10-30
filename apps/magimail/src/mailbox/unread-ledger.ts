@@ -39,6 +39,7 @@ function parseModifiedMs(modified?: string | Date): number | undefined {
 export class UnreadLedger {
   private activeUnread = new Map<string, UnreadLedgerItem>();
   private recentlyTriaged = new Map<string, TriagedRecord>();
+  private recentlyMarkedUnread = new Map<string, { markedAt: number }>();
   private lastFullCount: number | null = null;
   private notificationSettings: Record<string, string> = {};
   private watermark = 0;
@@ -114,6 +115,15 @@ export class UnreadLedger {
         timestampMs: existing?.timestampMs,
       });
 
+      // A stale cache read and a lagging feed both still say read. Hold the local
+      // intent until the feed lists the thread or the grace window expires.
+      const markRecord = { markedAt: now };
+      this.recentlyMarkedUnread.set(id, markRecord);
+      if (threadId && threadId !== id) this.recentlyMarkedUnread.set(threadId, markRecord);
+      if (targetId && targetId !== id && targetId !== threadId) {
+        this.recentlyMarkedUnread.set(targetId, markRecord);
+      }
+
       if (!existing && this.lastFullCount !== null) {
         this.lastFullCount += 1;
       }
@@ -142,6 +152,10 @@ export class UnreadLedger {
       if (!entry.id) continue;
       feedIds.add(entry.id);
       if (entry.threadId) feedThreadIds.add(entry.threadId);
+
+      // The feed listing a locally marked-unread thread is its confirmation.
+      const markRecord = this.markedUnreadFor(entry.id, entry.threadId);
+      if (markRecord) this.clearMarkedUnread(markRecord);
 
       // Check if message is currently suppressed by local triage grace window
       const triage =
@@ -211,7 +225,14 @@ export class UnreadLedger {
     for (const record of this.recentlyTriaged.values()) {
       if (now - record.triagedAt < CACHE_TRIAGE_GRACE_MS) pendingTriage.add(record);
     }
-    this.lastFullCount = fullCount === null ? null : Math.max(0, fullCount - pendingTriage.size);
+    const pendingMarkUnread = new Set<{ markedAt: number }>();
+    for (const record of this.recentlyMarkedUnread.values()) {
+      if (now - record.markedAt < CACHE_TRIAGE_GRACE_MS) pendingMarkUnread.add(record);
+    }
+    this.lastFullCount =
+      fullCount === null
+        ? null
+        : Math.max(0, fullCount + pendingMarkUnread.size - pendingTriage.size);
 
     // Small inbox reconciliation: <= 20 unread (or fullCount <= entries.length)
     // The feed returned every unread item in existence. Any item in activeUnread
@@ -219,6 +240,7 @@ export class UnreadLedger {
     const isSmallInbox = fullCount !== null && (fullCount <= entries.length || fullCount <= 20);
     if (isSmallInbox) {
       for (const [activeId, item] of this.activeUnread.entries()) {
+        if (this.markedUnreadFor(activeId, item.threadId)) continue;
         if (!feedIds.has(activeId) && !feedThreadIds.has(item.threadId)) {
           this.activeUnread.delete(activeId);
           removed.push(activeId);
@@ -258,8 +280,11 @@ export class UnreadLedger {
       }
 
       const found = this.findActive(msg.id, msg.threadId);
+      const markRecord = this.markedUnreadFor(msg.id, msg.threadId);
 
       if (!msg.unread) {
+        // A cache that still says read has not seen a local mark-unread yet.
+        if (markRecord) continue;
         // If cache explicitly says read and we have it as active unread,
         // remove it (unless it was just marked unread)
         if (found && triage?.action !== 'markUnread') {
@@ -368,6 +393,20 @@ export class UnreadLedger {
 
   public clearRecentlyTriaged(): void {
     this.recentlyTriaged.clear();
+    this.recentlyMarkedUnread.clear();
+  }
+
+  private markedUnreadFor(id: string, threadId?: string): { markedAt: number } | undefined {
+    return (
+      this.recentlyMarkedUnread.get(id) ??
+      (threadId ? this.recentlyMarkedUnread.get(threadId) : undefined)
+    );
+  }
+
+  private clearMarkedUnread(record: { markedAt: number }): void {
+    for (const [key, candidate] of this.recentlyMarkedUnread.entries()) {
+      if (candidate === record) this.recentlyMarkedUnread.delete(key);
+    }
   }
 
   /** Finds a tracked item by message id, then by thread id. */
@@ -390,6 +429,11 @@ export class UnreadLedger {
     for (const [id, record] of this.recentlyTriaged.entries()) {
       if (now - record.triagedAt >= CACHE_TRIAGE_GRACE_MS) {
         this.recentlyTriaged.delete(id);
+      }
+    }
+    for (const [id, record] of this.recentlyMarkedUnread.entries()) {
+      if (now - record.markedAt >= CACHE_TRIAGE_GRACE_MS) {
+        this.recentlyMarkedUnread.delete(id);
       }
     }
   }
