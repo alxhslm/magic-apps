@@ -31,6 +31,10 @@ export interface HybridFeedSourceOptions {
   getAccountContext?: (accountId: string) => { partition: string } | undefined;
   partition?: string;
   notificationSettings?: Record<string, string>;
+  /** Configured mains-power poll interval, in seconds. */
+  pollIntervalSeconds?: number;
+  /** Configured battery poll interval, in seconds. */
+  pollIntervalBatterySeconds?: number;
   /** Overrides the direct-then-DOM driver, used by tests. */
   threadActionDriver?: ThreadActionDriver;
   /** Wakes the account's view for the DOM fallback. */
@@ -101,8 +105,12 @@ export class HybridFeedSource implements MailboxSource {
         this.handlePollResult(res),
       );
     } else {
-      this.poller = new AtomFeedPoller(accountId, partition, 30, (res) =>
-        this.handlePollResult(res),
+      this.poller = new AtomFeedPoller(
+        accountId,
+        partition,
+        options.pollIntervalSeconds ?? 60,
+        options.pollIntervalBatterySeconds ?? 180,
+        (res) => this.handlePollResult(res),
       );
       if (options.notificationSettings) {
         this.poller.updateNotificationSettings(options.notificationSettings);

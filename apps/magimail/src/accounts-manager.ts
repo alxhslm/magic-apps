@@ -351,6 +351,8 @@ export class AccountsManager {
       },
       partition: account.partition,
       notificationSettings: settings.notifications || {},
+      pollIntervalSeconds: settings.pollIntervalSeconds,
+      pollIntervalBatterySeconds: settings.pollIntervalBatterySeconds,
       threadActionDriver: this.threadActionDriver,
       wake: (accId) => this.wakeAccountForAction(accId),
       onActionHeld: (accId, threadId, action) => {
