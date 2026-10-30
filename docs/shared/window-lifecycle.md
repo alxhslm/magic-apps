@@ -32,6 +32,8 @@ A `WebContentsView` on macOS can occasionally stop presenting frames to its wind
 
 Tearing down the dead `WebContents` and constructing a replacement through `RendererPool.rebuildView` (which removes the view with `rememberUrl: true` and calls `attachOnly`) rebuilds the view on a fresh compositor surface while preserving the route the user was on. In both Magimail and Magical, `reloadActiveView()` / `reloadActive()` (invoked via `Cmd+R` or the View menu) drives this rebuild.
 
+`tools/repro-view-frame.mjs` stages that state on demand: a `BaseWindow` showing one view, then hidden, the view's `WebContents` released while nothing is attached, then a fresh view attached and captured. The page is a gradient, so a capture that comes back one flat colour means the view produced no frame. Run it with `npx electron tools/repro-view-frame.mjs --cycles 10`, and with `--throttle off` for the comparison. A painted capture beside a blank window is the interesting result, because it puts the fault above the renderer, in the window server.
+
 ## RendererPool and its spec
 
 The pool owns the views, their timers, the remembered URL and the window's visibility. It touches no DOM and imports Electron for types only, so it lives in `packages/core`. A `RendererPoolSpec` supplies the eight things it cannot read:
