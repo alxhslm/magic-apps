@@ -115,7 +115,7 @@ That covers cache-only startup and the first poll after launch.
 | :--------------------------------------------------- | :------------------------------------ | :----------------------------------------- |
 | Atom entry changed at or after the action            | Clear the record; the entry wins.     | Clear the record; the feed lists it.       |
 | Atom entry older than the action, boundary behind it | Suppress the entry; keep the record.  | Clear the record; the feed lists it.       |
-| Atom boundary passes the action                      | Clear the record; the Atom base wins. | Clear the record; the Atom base wins.      |
+| Atom freshness passes the action                     | Clear the record; the Atom base wins. | Clear the record; the Atom base wins.      |
 | Complete feed omits the thread                       | Clear the record early.               | Keep the record until the boundary passes. |
 | Truncated feed omits the thread                      | Keep until the boundary passes.       | Keep until the boundary passes.            |
 | Cache update time at or after the action             | Clear the record; the cache wins.     | Clear the record; the cache wins.          |

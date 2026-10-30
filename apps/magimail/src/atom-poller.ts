@@ -91,6 +91,11 @@ export interface AtomPollResult {
    */
   arrivalsIncomplete: boolean;
   rawFullCount?: number | null;
+  /**
+   * The mailbox time this response is known to describe, from the HTTP `Age`
+   * header. Undefined when the response carried no age.
+   */
+  sourceAsOf?: number;
   status?: AtomPollStatus;
 }
 
@@ -582,6 +587,14 @@ export class AtomFeedPoller {
         },
       });
 
+      // An edge cache states how long it has held the response. `Age: 0` is a
+      // fresh response; a larger value is how far behind the mailbox it may be.
+      const ageHeader = response.headers?.get?.('age') ?? null;
+      const ageSeconds = ageHeader === null ? NaN : Number(ageHeader);
+      const sourceAsOf = Number.isFinite(ageSeconds)
+        ? Date.now() - Math.max(0, ageSeconds) * 1000
+        : undefined;
+
       if (!response.ok) {
         // Status 401 or redirect to login means account is not signed in yet
         if (response.status === 401) {
@@ -758,6 +771,7 @@ export class AtomFeedPoller {
         newArrivalCount: this.activeArrivals.size,
         arrivalsIncomplete: this.arrivalsIncomplete,
         rawFullCount: fullCount,
+        sourceAsOf,
         status: 'ok',
       });
 

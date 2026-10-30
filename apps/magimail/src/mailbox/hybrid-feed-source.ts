@@ -250,6 +250,7 @@ export class HybridFeedSource implements MailboxSource {
         rawFullCount,
         Date.now(),
         result.totalUnread,
+        result.sourceAsOf,
       );
 
       if (delta.countChanged || delta.added.length > 0 || delta.removed.length > 0) {

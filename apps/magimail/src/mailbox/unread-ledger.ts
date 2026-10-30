@@ -9,9 +9,8 @@ import type {
 } from './types.js';
 
 /**
- * How stale an Atom response may be. The feed is served through an edge cache, so a
- * response at time P describes the mailbox as of roughly P - 5s. A local action newer
- * than that is not yet represented by the feed and must not be overwritten by it.
+ * Fallback only. A response's HTTP `Age` header says how old it actually is; this
+ * value is used when the response carries no age at all.
  */
 export const ATOM_SOURCE_STALENESS_MS = 5000;
 
@@ -20,7 +19,8 @@ export const ATOM_SOURCE_STALENESS_MS = 5000;
  *
  * Each source carries its own freshness:
  *
- * - Atom is trusted as of `poll time - ATOM_SOURCE_STALENESS_MS`.
+ * - Atom is trusted as of its response `Age`, falling back to five seconds when the
+ *   response carries no age.
  * - A cache row is trusted for a thread when the row's own modified time is at or
  *   after the local action. Gmail's cache has no global last-sync timestamp exposed
  *   by the reader, so the per-thread timestamp is the strongest signal available.
@@ -154,13 +154,14 @@ export class UnreadLedger {
     fullCount: number | null,
     now: number = Date.now(),
     displayedUnread?: number | null,
+    sourceAsOf?: number,
   ): { added: string[]; removed: string[]; countChanged: boolean } {
     const added: string[] = [];
     const removed: string[] = [];
     const oldCount = this.getBreakdown().total;
 
-    // The response describes the mailbox as of this time, not as of `now`.
-    const atomAsOf = now - ATOM_SOURCE_STALENESS_MS;
+    // The response describes the mailbox as of its own age, not as of `now`.
+    const atomAsOf = sourceAsOf ?? now - ATOM_SOURCE_STALENESS_MS;
     this.atomAsOf = atomAsOf;
     this.pruneRecordsBefore(atomAsOf);
 

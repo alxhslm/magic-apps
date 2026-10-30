@@ -285,6 +285,32 @@ describe('Scenario 6: Preemptive Ledger Updates', () => {
     expect(ledger.getBreakdown().total).toBe(1);
   });
 
+  it('lets a measured Atom boundary at or after the action win immediately', () => {
+    const ledger = new UnreadLedger();
+    const entry = atomEntry('m1', 't1');
+
+    ledger.reconcileWithAtom([entry], 1, 1000);
+    ledger.recordLocalTriage('m1', 't1', 'archive', 'primary', 2000);
+    expect(ledger.getBreakdown().total).toBe(0);
+
+    // The response says it is fresh as of 2500, after the action.
+    ledger.reconcileWithAtom([entry], 1, 2100, 1, 2500);
+    expect(ledger.getBreakdown().total).toBe(1);
+  });
+
+  it('keeps the local action when the measured Atom boundary predates it', () => {
+    const ledger = new UnreadLedger();
+    const entry = atomEntry('m1', 't1');
+
+    ledger.reconcileWithAtom([entry], 1, 1000);
+    ledger.recordLocalTriage('m1', 't1', 'archive', 'primary', 2000);
+    expect(ledger.getBreakdown().total).toBe(0);
+
+    // The response says it is only current as of 1500, before the action.
+    ledger.reconcileWithAtom([entry], 1, 2100, 1, 1500);
+    expect(ledger.getBreakdown().total).toBe(0);
+  });
+
   it('counts a thread marked unread once, even after Atom reports it', () => {
     const ledger = new UnreadLedger();
 
