@@ -370,7 +370,9 @@ export class AccountsManager {
         nodeIntegration: false,
         sandbox: false,
         spellcheck: true,
-        backgroundThrottling: false,
+        // `backgroundThrottling` stays at its default. Disabling it stops
+        // Electron's hidden-view patch from reaching `DelegatedFrameHost::WasShown`,
+        // so a view shown after a spell with nothing attached can produce no frame.
       },
     });
     view.setBackgroundColor('#00000000');

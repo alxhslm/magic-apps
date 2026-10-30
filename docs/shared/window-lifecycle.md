@@ -16,7 +16,7 @@ flowchart TD
 
 `createMainWindowOptions` in `packages/core/src/window.ts` builds a hidden `BaseWindow` with `titleBarStyle: 'hiddenInset'` and sidebar vibrancy. It has no web engine of its own, so the shell starts no renderer where a `BrowserWindow` would.
 
-Each account's page is a `WebContentsView` on that account's partition. Only the account on screen is attached, because a view is transparent until it paints. The views keep `backgroundThrottling: false` in their `webPreferences` so Chromium does not freeze their rendering pipelines while idle.
+Each account's page is a `WebContentsView` on that account's partition. Only the account on screen is attached, because a view is transparent until it paints. Both apps leave `backgroundThrottling` at its default: turning it off stops Electron's hidden-view patch from reaching `DelegatedFrameHost::WasShown`, so a view shown into a window that has been hidden with nothing attached can produce no frame at all ([#41276](https://github.com/electron/electron/issues/41276)). The cost is throttled timers in a view that is off screen or covered, which the pool only keeps for the five minutes before it releases them; the view on screen is never throttled.
 
 ## Account renderer lifetime
 

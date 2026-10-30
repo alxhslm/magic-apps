@@ -760,13 +760,13 @@ export class AccountsManager {
         nodeIntegration: false,
         sandbox: false,
         spellcheck: true,
-        // A view is only ever created for the account being switched to, so it
-        // starts unthrottled. switchAccount re-enables throttling once the
-        // account is detached: its mailbox-change hints only ever accelerated
-        // the badge for the mailbox on screen, and the mailbox poller — which owns
-        // the count outright — keeps running against the partition session
+        // `backgroundThrottling` stays at its default. Disabling it stops
+        // Electron's hidden-view patch from reaching `DelegatedFrameHost::WasShown`,
+        // so a view shown after a spell with nothing attached can produce no frame.
+        // The mailbox-change hints a detached view used to keep warm only ever
+        // accelerated the badge for the mailbox on screen, and the mailbox poller,
+        // which owns the count outright, keeps running against the partition session
         // regardless of whether a renderer exists.
-        backgroundThrottling: false,
       },
     });
     view.setBackgroundColor('#00000000');
@@ -2211,8 +2211,9 @@ export class AccountsManager {
    * transparent before its first paint. Placing it beside the window instead does not
    * work; bounds outside the parent are clipped back to nothing.
    *
-   * Throttling is lifted too, so the render is not paced like a background tab while
-   * the action waits on it.
+   * The view stays hidden while the action runs, so the page throttles as a
+   * background tab does; the waits in `packages/core/src/dom.ts` lean on a
+   * MutationObserver and a 50 ms poll, which is the part that slows down.
    */
   private sizeForBackgroundAction(view: WebContentsView, accountId: string): () => void {
     // The account on screen is normally already attached and sized, so there is
