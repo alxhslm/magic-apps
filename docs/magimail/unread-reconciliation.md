@@ -36,6 +36,10 @@ no `Age`, and a root `<modified>` equal to the response `Date`. That timestamp i
 not a data-correctness window, so the read-path grace is the remaining assumption. It bounds how
 long Gmail's read path may still show a state the mutation path has already changed.
 
+A local record is timestamped when the action is dispatched, not when the server acknowledges it.
+That is conservative: the source must be at least as fresh as the dispatch, so the hold can be
+slightly longer than necessary but never shorter.
+
 The consequence is the one that matters: a local action followed by a refresh is not undone when
 Atom returns its pre-action state, because that response's freshness boundary is still behind the
 action. Refresh changes when the sources are asked, never what the ledger already knows.
@@ -154,11 +158,19 @@ the feed's message id. That is what stops a thread marked unread from being coun
 - Until that boundary passes, the local record adjusts the total even though the thread is not in
   the entry list. That is what makes the action visible immediately.
 
+## Current limits
+
+- Local records use dispatch time, not the server's acknowledgement time. The badge is safe but the
+  hold can last slightly longer than the server actually needs.
+- Atom and cache are ordered against local records, not against each other for the tracked set. The
+  badge base is Atom, so the total is unaffected, but a stale cache row can still change category
+  counts or the popover list until the next Atom poll corrects it.
+
 ## Invariants
 
 - One account count writer: `MailboxSource.getUnreadCounts()`. Accounts and the poller never apply
   Atom's number directly.
-- A local record is cleared only by a source fresh enough to include the action, or by an explicit
-  later observation of that thread.
+- A local record is cleared only by an observation that proves the action, or by the source
+  boundary passing the action.
 - Refresh changes when the sources are asked, never what the ledger already knows.
 - Every pending record carries a category and is counted only when that category is enabled.

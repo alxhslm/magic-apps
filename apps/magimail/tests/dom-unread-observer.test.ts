@@ -391,7 +391,7 @@ describe('DOM unread observation and adaptive polling', () => {
 /**
  * A count read off an open Gmail page is the best guess available: it is the
  * sidebar Gmail itself renders, and it moves the instant the mailbox does, where
- * the Atom feed lags by seconds and is edge-cached besides.
+ * the Atom feed's read path lags by seconds.
  *
  * These cover the cases where that guess exists but nothing on screen shows it.
  * Menu bar triage is the one that bites: it acts on a hidden window, on an account

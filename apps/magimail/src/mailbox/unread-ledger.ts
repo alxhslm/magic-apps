@@ -9,7 +9,7 @@ import type {
 } from './types.js';
 
 /**
- * How long Gmail's read path may lag behind a mutation the server has accepted.
+ * How long Gmail's read path may lag behind a mutation the app has dispatched.
  * The feed is served no-store with no Age, so this is not an HTTP cache age: it is
  * the bound on how long a generated feed may still show the pre-mutation state.
  */
@@ -22,9 +22,8 @@ export const ATOM_READ_PATH_GRACE_MS = 5000;
  *
  * - Atom is trusted as of its response generation time minus the read-path grace.
  *   The grace is a bound on backend propagation, not an HTTP cache age.
- * - A cache row is trusted for a thread when the row's own modified time is at or
- *   after the local action. Gmail's cache has no global last-sync timestamp exposed
- *   by the reader, so the per-thread timestamp is the strongest signal available.
+ * - The cache's own last item-sync time is its boundary; a row's modified time is
+ *   the fallback when the schema does not expose it.
  *
  * A local action is a record, never an edit to the Atom base. The base is replaced on
  * every poll; records adjust it until a source fresh enough to include the action

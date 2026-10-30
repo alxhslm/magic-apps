@@ -92,8 +92,9 @@ export interface AtomPollResult {
   arrivalsIncomplete: boolean;
   rawFullCount?: number | null;
   /**
-   * When the response was generated, from its HTTP `Date` header. The ledger
-   * subtracts its read-path grace from this; it is not a data-correctness time.
+   * When the response was generated, from its HTTP `Date` header or the feed's
+   * root modified time. The ledger subtracts its read-path grace from this; it
+   * is not a data-correctness time.
    */
   sourceAsOf?: number;
   status?: AtomPollStatus;
