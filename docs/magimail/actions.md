@@ -306,7 +306,7 @@ sequenceDiagram
 Acting on a thread moves an unread count, a changed count pushes fresh tray data, and
 `MenuBarController.updateData` answers that by asking for messages again while the popover is open.
 Electron serves that from the account's `UnreadLedger` when the popover asks. The ledger refreshes
-its rows from Gmail's local `_xdb` cache, then keeps the optimistic triage state over them until a
+its rows from Gmail's local cache, then keeps the optimistic triage state over them until a
 source fresh enough to include the action confirms or contradicts it. The row therefore reads the way
 the user acted on it, not the way a lagging cache still reports it.
 

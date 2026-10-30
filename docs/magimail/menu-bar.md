@@ -104,8 +104,8 @@ menu here.
 
 ## Getting a newer list
 
-The Atom poller runs on its configured interval (see [`atom-feed.md`](atom-feed.md)), so what the
-popover shows on opening is as old as the last tick. Two things shorten that.
+The Atom poller runs on its configured interval (see [`unread-counts.md`](unread-counts.md)), so what
+the popover shows on opening is as old as the last tick. Two things shorten that.
 
 Opening the popover sends `tray.popoverOpened`, and every poller takes it as a hint. Hints are
 rate-limited inside `AtomFeedPoller.requestImmediatePoll()` rather than obeyed, so opening the
@@ -124,13 +124,13 @@ newer.
 
 ### The ledger's rows, fed by Gmail's cache
 
-The Atom feed ([`atom-feed.md`](atom-feed.md)) only returns unread messages, so a thread dropping out
-of it is indistinguishable from one that was read, archived or deleted. `HybridFeedSource` therefore
-reads Gmail's own `_xdb` IndexedDB cache into the `UnreadLedger`, and the popover draws its threads
-from the ledger. Gmail's data worker keeps that cache synchronised, so every row carries the thread's
-real read state, labels and category, and a deleted thread disappears rather than lingering as a
-muted row. Local triage changes the ledger row immediately, so the popover and the badge cannot
-disagree about a thread the user just acted on.
+The Atom feed ([`unread-counts.md`](unread-counts.md)) only returns unread messages, so a thread
+dropping out of it is indistinguishable from one that was read, archived or deleted.
+`HybridFeedSource` therefore reads Gmail's own local cache into the `UnreadLedger`, and the
+popover draws its threads from the ledger. Gmail's data worker keeps that cache synchronised, so every
+row carries the thread's real read state, labels and category, and a deleted thread disappears rather
+than lingering as a muted row. Local triage changes the ledger row immediately, so the popover and the
+badge cannot disagree about a thread the user just acted on.
 
 `TrayModel` keeps its own copy of the threads it was last handed, replacing the account's whole list
 on each payload:

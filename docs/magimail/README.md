@@ -15,8 +15,7 @@ feed rather than an API.
 | :----------------------------------------------------- | :------------------------------------------------------------------------ |
 | [`overview.md`](overview.md)                           | The tree, window architecture, sessions and styling                       |
 | [`process-model-and-ipc.md`](process-model-and-ipc.md) | Magimail's channels on top of the shared process model                    |
-| [`atom-feed.md`](atom-feed.md)                         | The Atom feed, its payload, and the poller                                |
-| [`unread-reconciliation.md`](unread-reconciliation.md) | Ledger states, local triage grace, and how the badge number is composed   |
+| [`unread-counts.md`](unread-counts.md)                 | The unread count, its inputs, and how the badge total is composed         |
 | [`notifications.md`](notifications.md)                 | Notification dispatch, categories, and the dock badge                     |
 | [`actions.md`](actions.md)                             | Acting on a message or thread, the two dispatch paths, and read state     |
 | [`widgets.md`](widgets.md)                             | WidgetKit families, the snapshot cache, and the timeline reloader         |

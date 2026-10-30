@@ -177,7 +177,7 @@ When it polls:
 | :----------- | :------------------------------------------------------------------------------------- |
 | AC power     | 60 s by default, configurable as `pollIntervalSeconds`                                 |
 | Battery      | 180 s by default (`pollIntervalBatterySeconds`), via `powerMonitor.isOnBatteryPower()` |
-| Window focus | Deliberately ignored: the interval is applied literally (`atom-poller.ts`)             |
+| Window focus | 5 s on AC, 8 s on battery for the focused account (`atom-poller.ts`)                   |
 | Suspended    | Paused on suspend, with an immediate fetch on resume                                   |
 
 The poller is decoupled from the renderers. Polling runs directly in the Node.js main process using

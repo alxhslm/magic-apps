@@ -4,7 +4,7 @@ How an unread becomes a native banner, which category its thread is in, and what
 counts. Banners are delivered by the shared
 [`NotificationControllerBase`](../../packages/swift-notifications/Sources/HelperNotifications/NotificationControllerBase.swift),
 whose contract is in [`../shared/notifications.md`](../shared/notifications.md). The feed and the
-poller are in [`atom-feed.md`](atom-feed.md); a banner's buttons, and every other way Magimail acts
+poller are in [`unread-counts.md`](unread-counts.md); a banner's buttons, and every other way Magimail acts
 on a thread, in [`actions.md`](actions.md).
 
 ## What makes a notification
@@ -47,8 +47,8 @@ polls so no poll ever saw it, and ids evicted by the 500 cap.
 
 A banner is an event, _this arrived_, while the badge, the menu bar count and the widgets are state,
 _this is unread right now_. The feed exposes only the second, so the two are separated. The tray and
-the widgets take `fullcount` for the count and Gmail's own `_xdb` cache for the list, so a message
-marked unread reappears in both.
+the widgets take both the count and the rows from the account's `MailboxSource` ledger, which is fed
+by the feed and Gmail's local cache, so a message marked unread reappears in both.
 The dock badge reads one or the other by mode; see [what the dock badge counts](#what-the-dock-badge-counts).
 
 ### Dedup window
@@ -108,8 +108,7 @@ needed before `onPoll` is classified afterwards, in `classifyRemainder`. The mem
 feed itself: a thread that leaves the unread-only feed is neither counted nor announced, so its
 verdict is dropped and re-classified if the thread returns. It is not
 persisted, because the sub-feeds can always be asked again. The tray and the widget do not read this
-memo: they take each thread's category from Gmail's own `_xdb` cache, where the label is already
-stored.
+memo: they take each thread's category from the ledger's rows, which Gmail's local cache fills.
 
 A sub-feed that failed classifies nothing: a refused fetch is indistinguishable from an empty one,
 and reading "in no sub-feed" as `primary` would file an update under primary for as long as the
@@ -126,11 +125,11 @@ extension vends no notification predicate, as [`focus-filters.md`](focus-filters
 
 The badge has three modes, set in Settings → Appearance → Dock & Menu Bar and stored as `dockBadgeMode`:
 
-| Mode          | Counts                                    | Source                                         |
-| ------------- | ----------------------------------------- | ---------------------------------------------- |
-| `allUnread`   | Everything unread right now (the default) | `fullcount`, blended with the sidebar observer |
-| `newArrivals` | Mail that arrived and is still waiting    | `activeArrivals`                               |
-| `off`         | Nothing                                   | None                                           |
+| Mode          | Counts                                    | Source                               |
+| ------------- | ----------------------------------------- | ------------------------------------ |
+| `allUnread`   | Everything unread right now (the default) | The account's `MailboxSource` ledger |
+| `newArrivals` | Mail that arrived and is still waiting    | `activeArrivals`                     |
+| `off`         | Nothing                                   | None                                 |
 
 The switcher and the menu bar ignore the setting and always show the unread count per account,
 because both answer what state each inbox is in, and only the backlog answers that.
