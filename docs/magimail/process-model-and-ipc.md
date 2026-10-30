@@ -27,19 +27,19 @@ comparison and no IPC.
 
 **The two say different things and are trusted differently:**
 
-- `DOM_UNREAD_UPDATE` carries counts, which the main process blends with the feed: the DOM is
-  authoritative for the rows it can see, and the Atom sub-feeds cover the categories it cannot (see
-  [`notifications.md`](notifications.md) and `AccountsManager.getAbsentCategoriesForAccount`). The
-  report also says whether a Categories section exists at all and whether the sidebar has finished
-  loading; `isLoaded: false` suppresses evaluation entirely, so a half-rendered sidebar never
-  registers as an account without categories.
+- `DOM_UNREAD_UPDATE` carries the sidebar's category counts. The DOM is a change detector, not a
+  count authority: the ledger owns the badge total, and the sidebar report tells the poller which
+  categories the page can see (see [`unread-counts.md`](unread-counts.md) and
+  `AccountsManager.getAbsentCategoriesForAccount`). The report also says whether a Categories section
+  exists at all and whether the sidebar has finished loading; `isLoaded: false` suppresses evaluation
+  entirely, so a half-rendered sidebar never registers as an account without categories.
 - `MAILBOX_CHANGE_HINT` carries nothing. It is a _trigger_, not a value: it only changes _when_ the
-  feed is asked, never what the answer is. Hints are cheap and may be spurious (editing a draft
+  source is asked, never what the answer is. Hints are cheap and may be spurious (editing a draft
   mutates the same subtree), so the poller rate-limits them rather than trusting them.
 
 That split is the invariant `tests/badge-source-of-truth.test.ts` defends: a hint may cross the
-boundary, but a count may only cross from the scoped navigation rows, never from `document.title`,
-which carries drafts as well as unread mail.
+boundary, but the badge count is read from the ledger, never from `document.title`, which carries
+drafts as well as unread mail.
 
 ## Native addon
 
@@ -227,9 +227,9 @@ app does with the filter: which surfaces drop an excluded account, and which onl
 2. **The widget snapshot is missing or unreadable.** `WidgetCache.load()` returns `.empty`, so a
    widget renders its "Open Magimail to sync" placeholder rather than failing to load. The 15-minute
    timeline policy keeps widgets refreshing even when the app is not running to poke them.
-3. **The machine sleeps and wakes.** `powerMonitor.on('suspend')` pauses the background Atom feed
+3. **The machine sleeps and wakes.** `powerMonitor.on('suspend')` pauses the background mailbox poller
    polling loops and timers; `powerMonitor.on('resume')` refreshes every account view at once, wakes
-   the Swift helper and syncs the Atom feed straight away.
+   the Swift helper and polls the mailbox straight away.
 
 A failure is recorded through `@magimail/core/logger` into `~/Library/Logs/<AppName>/main.log`, and
 helper-side diagnostics go to stderr rather than the JSON-RPC stdout. What is captured, at what

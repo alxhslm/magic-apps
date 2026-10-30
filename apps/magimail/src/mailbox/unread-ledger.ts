@@ -354,7 +354,7 @@ export class UnreadLedger {
 
   /**
    * 3. Reconcile with IndexedDB Cache Snapshot
-   * Invoked after readCachedInboxData reads _xdb.
+   * Invoked after readCachedInboxData reads the local cache.
    *
    * A row is trusted for a thread only when the cache's update time is at or after
    * the local action. Otherwise the row predates the action and is ignored for that

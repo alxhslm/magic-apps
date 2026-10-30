@@ -45,7 +45,7 @@ describe('UnreadLedger State Machine', () => {
       expect(ledger.getBreakdown().total).toBe(0);
 
       // 5. 10 minutes later (triageTime + 600_000), user opens window.
-      // _xdb is read and contains stale record msg-1 marked unread.
+      // The local cache is read and contains a stale unread row for msg-1.
       const staleCacheItem: TrayMessageItem = {
         id: 'msg-1',
         threadId: 'th-1',

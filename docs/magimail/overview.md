@@ -119,7 +119,7 @@ go. The mechanism, and which inputs each app answers, are in
 ## Menu bar
 
 The status item and its popover run in the Swift helper; the mechanism is in
-[`../shared/menu-bar.md`](../shared/menu-bar.md). Magimail's glyph, unread feed aging and SwiftUI
+[`../shared/menu-bar.md`](../shared/menu-bar.md). Magimail's glyph, list aging and SwiftUI
 popover layout are in [`menu-bar.md`](menu-bar.md), and every row action is in
 [`actions.md`](actions.md).
 

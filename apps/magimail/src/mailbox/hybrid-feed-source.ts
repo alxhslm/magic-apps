@@ -59,7 +59,7 @@ export interface HybridFeedSourceOptions {
 }
 
 /**
- * Mailbox source orchestrating the Atom feed, offline IndexedDB cache (_xdb),
+ * Mailbox source orchestrating the feed, the local cache,
  * direct sync mutations, and universal sync nudges.
  */
 export class HybridFeedSource implements MailboxSource {

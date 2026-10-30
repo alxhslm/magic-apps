@@ -361,7 +361,7 @@ describe('injected Gmail cache decoder', () => {
     expect(result.stats.inbox).toBe(2);
   });
 
-  it('reports reason no-db with found databases and href when _xdb is absent', async () => {
+  it('reports reason no-db with found databases and href when the cache database is absent', async () => {
     (globalThis as { indexedDB?: unknown }).indexedDB = {
       databases: async () => [{ name: 'some_other_storage' }],
     };

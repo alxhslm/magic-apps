@@ -6,8 +6,8 @@ bar popover, `UNUserNotificationCenter` banners, a Share Sheet in both direction
 widgets.
 
 Magimail signs in with the existing web session cookies, so it holds no Google Cloud project, no
-OAuth scope and no CASA audit. Unread counts and notifications come from Gmail's authenticated Atom
-feed rather than an API.
+OAuth scope and no CASA audit. Unread counts come from the mailbox source, which reads Gmail's
+authenticated Atom feed and local cache rather than an API.
 
 ## What's in this folder
 
@@ -20,7 +20,7 @@ feed rather than an API.
 | [`actions.md`](actions.md)                             | Acting on a message or thread, the two dispatch paths, and read state     |
 | [`widgets.md`](widgets.md)                             | WidgetKit families, the snapshot cache, and the timeline reloader         |
 | [`dark-mode.md`](dark-mode.md)                         | The page-invert filter and every selector it exempts                      |
-| [`menu-bar.md`](menu-bar.md)                           | Menu bar glyph, SwiftUI popover, and unread feed aging                    |
+| [`menu-bar.md`](menu-bar.md)                           | Menu bar glyph, SwiftUI popover, and list aging                           |
 | [`share-and-handlers.md`](share-and-handlers.md)       | Inbound Share Sheet, synthesised drag, PDF export, and `mailto:` handling |
 | [`deep-links.md`](deep-links.md)                       | `magimail://` route taxonomy, thread triage, search and parameters        |
 | [`focus-filters.md`](focus-filters.md)                 | App Intents Focus Filters, account suppression, and dimming               |

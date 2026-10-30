@@ -6,7 +6,7 @@ import type { NotificationCategory } from './atom-poller.js';
 const log = createLogger('GmailCacheReader');
 
 /**
- * Reads Gmail's local IndexedDB cache (`<account>_xdb`) from inside the
+ * Reads Gmail's local cache from inside the
  * account's renderer process and returns the most recent Inbox threads.
  *
  * The cache is Gmail's own offline data layer; it is kept synchronised by
@@ -32,7 +32,7 @@ const log = createLogger('GmailCacheReader');
  * Verified against live Gmail data; see the spike notes in the session summary.
  */
 
-/** Category label strings as Gmail stores them in the `_xdb` `items` store. */
+/** Category label strings as Gmail stores them in the cache's `items` store. */
 const CATEGORY_LABELS: Record<string, NotificationCategory> = {
   '^smartlabel_personal': 'primary',
   '^smartlabel_notification': 'updates',
@@ -51,7 +51,7 @@ const CATEGORY_LABELS: Record<string, NotificationCategory> = {
  * The script injected into the Gmail renderer.
  *
  * It is a self-contained IIFE that:
- * 1. Finds the `<account>_xdb` IndexedDB database.
+ * 1. Finds the account's cache database.
  * 2. Opens the `items` object store.
  * 3. Decodes the protobuf `d` field for each row.
  * 4. Filters for Inbox (has `^i`, lacks `^k`).

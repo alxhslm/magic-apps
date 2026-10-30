@@ -102,7 +102,7 @@ asks to look at the message.
 ### A menu bar popover row
 
 Right-clicking a row archives, trashes, marks read or marks unread without opening the thread, so the
-three newsletters at the top of the feed can be cleared from the popover. Left-click still opens, and
+three newsletters at the top of the list can be cleared from the popover. Left-click still opens, and
 the menu leads with that. The row sends `tray.threadAction`.
 
 ### A `magimail://thread/<id>` link
@@ -271,20 +271,18 @@ letting overlapping operations collide.
 Unlike every other row action, triage does not dismiss the popover. Triage comes in runs, and closing
 after each action would mean reopening it to reach the next row.
 
-`TrayModel.apply` marks the row read in the helper's own cache as the action is sent, rather than
+`TrayModel.apply` marks the row read in the helper's own row state as the action is sent, rather than
 waiting for the poll that will confirm it. A poll is far enough away that a row left unread reads as
-the click having missed. An archived or trashed row stays in the feed as read rather than
-disappearing, which is what a thread dropping out of the unread-only Atom feed already does (see
-[Gmail's cache, not the feed](menu-bar.md#gmails-cache-not-the-feed)); the list does not
-reshuffle under the pointer mid-triage.
+the click having missed. An archived or trashed row stays in the list as read rather than
+disappearing, matching how the ledger treats a reduced thread; the list does not reshuffle under the
+pointer mid-triage. See [`unread-counts.md`](unread-counts.md#local-triage-and-freshness).
 
 The count follows on its own. Acting on the thread routes the account's live view to it, and the
-status item counts on the same terms as the account switcher: `getEffectiveUnreadForAccount` reads
-Gmail's sidebar wherever the page is alive and falls back to the feed where it is not. A background
-account is no exception, so triage from a hidden window lands straight away, and a thread marked read
-in the main window counts on the same terms. `tray.threadAction` still nudges that account's poller
-once the action has run, for the categories Gmail is not showing: the sidebar can only report the
-rows it renders.
+status item counts on the same terms as the account switcher: both read the account's ledger, so a
+background account and a thread marked read in the main window count the same way. See
+[`unread-counts.md`](unread-counts.md). `tray.threadAction` still nudges that account's poller once
+the action has run, for the categories Gmail is not showing: the sidebar can only report the rows it
+renders.
 
 `apply` records the state as well as showing it, and `setMessages` re-applies the record over every
 list that arrives:
@@ -305,10 +303,10 @@ sequenceDiagram
 
 Acting on a thread moves an unread count, a changed count pushes fresh tray data, and
 `MenuBarController.updateData` answers that by asking for messages again while the popover is open.
-Electron serves that from the account's `UnreadLedger` when the popover asks. The ledger refreshes
-its rows from Gmail's local cache, then keeps the optimistic triage state over them until a
-source fresh enough to include the action confirms or contradicts it. The row therefore reads the way
-the user acted on it, not the way a lagging cache still reports it.
+Electron serves that from the account's `UnreadLedger` when the popover asks. The ledger keeps the
+optimistic triage state over its rows until a source fresh enough to include the action confirms or
+contradicts it. The row therefore reads the way the user acted on it, not the way a lagging source
+still reports it.
 
 A record settles as soon as the incoming list says the same thing: a thread marked read is settled once it
 drops out, one marked unread once it is listed again. Anything still waiting after

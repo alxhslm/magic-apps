@@ -1145,7 +1145,7 @@ export class AccountsManager {
   }
 
   /**
-   * Updates category counts derived from the local IndexedDB cache (_xdb).
+   * Updates category counts derived from the local cache.
    *
    * Unlike the DOM sidebar links and Atom sub-feeds which include archived mail,
    * the local cache query specifically filters for items that are both unread (^u)
@@ -1211,7 +1211,7 @@ export class AccountsManager {
   /**
    * Categories that are enabled in user notification settings but currently absent
    * from the DOM report (e.g. folded under Categories, collapsed under More, or missing),
-   * or absent from local cache (_xdb missing).
+   * or absent from the local cache.
    * These categories require Atom feed sub-polling to ensure accurate unread totals.
    */
   public getAbsentCategoriesForAccount(accountId: string): NotificationCategory[] {
@@ -1225,8 +1225,8 @@ export class AccountsManager {
 
     for (const cat of lookupCategories) {
       if (notifSettings[cat] && notifSettings[cat] !== 'off') {
-        // When offline cache is absent, non-primary categories cannot be read from _xdb and require Atom sub-polling.
-        // When offline cache is confirmed available, _xdb provides all category unreads so sub-polling is not needed.
+        // When the local cache is absent, non-primary categories require sub-polling.
+        // When the local cache is available, it provides all category unreads so sub-polling is not needed.
         if (hasCache !== true && (hasCache === false || !present.has(cat))) {
           absent.push(cat);
         }
@@ -1264,7 +1264,7 @@ export class AccountsManager {
       return;
     }
 
-    // Category counts are sourced directly from Gmail's local IndexedDB cache (_xdb),
+    // Category counts are sourced directly from Gmail's local cache,
     // which accurately computes true unread inbox items (^i + ^u) without needing
     // categories pinned or unfolded in the sidebar. We no longer prompt the user with
     // a configuration banner to force categories into the sidebar.
