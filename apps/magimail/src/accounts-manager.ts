@@ -348,6 +348,16 @@ export class AccountsManager {
       },
       partition: account.partition,
       notificationSettings: settings.notifications || {},
+      threadActionDriver: this.threadActionDriver,
+      wake: (accId) => this.wakeAccountForAction(accId),
+      onActionHeld: (accId, threadId, action) => {
+        this.queueMailAction({
+          accountId: accId,
+          messageId: threadId,
+          action,
+          queuedAt: Date.now(),
+        });
+      },
       onPollResult: (result) => {
         this.onPollResult?.(result);
         if (result.status === 'ok') {

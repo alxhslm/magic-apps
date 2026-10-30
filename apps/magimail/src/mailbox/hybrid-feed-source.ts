@@ -9,7 +9,10 @@ import {
   type NotificationCategory,
 } from '../atom-poller.js';
 import { readCachedInboxData } from '../gmail-cache-reader.js';
+import { DomThreadActionDriver } from '../thread-actions/dom-driver.js';
+import { FallbackThreadActionDriver } from '../thread-actions/fallback-driver.js';
 import { pressRefreshControl, SyncThreadActionDriver } from '../thread-actions/sync-driver.js';
+import type { ThreadActionDriver } from '../thread-actions/types.js';
 import type {
   MailboxChangeEvent,
   MailboxSource,
@@ -26,6 +29,12 @@ export interface HybridFeedSourceOptions {
   getAccountContext?: (accountId: string) => { partition: string } | undefined;
   partition?: string;
   notificationSettings?: Record<string, string>;
+  /** Overrides the direct-then-DOM driver, used by tests. */
+  threadActionDriver?: ThreadActionDriver;
+  /** Wakes the account's view for the DOM fallback. */
+  wake?: (accountId: string) => Promise<{ view: WebContentsView; release: () => void } | undefined>;
+  /** A press the view refused, to retry once the editor is free. */
+  onActionHeld?: (accountId: string, threadId: string, action: TriageAction) => void;
   fetchImpl?: (partition: string, url: string, init: RequestInit) => Promise<Response>;
   pollerFactory?: (
     accountId: string,
@@ -44,7 +53,7 @@ export class HybridFeedSource implements MailboxSource {
   private readonly options: HybridFeedSourceOptions;
   private readonly ledger: UnreadLedger;
   private readonly poller: AtomFeedPoller;
-  private readonly syncDriver: SyncThreadActionDriver;
+  private readonly threadDriver: ThreadActionDriver;
   private readonly changeListeners = new Set<(event: MailboxChangeEvent) => void>();
   private lastKnownRecent: TrayMessageItem[] = [];
 
@@ -58,13 +67,25 @@ export class HybridFeedSource implements MailboxSource {
       options.getAccountContext?.(accountId)?.partition ??
       `persist:magimail_account_${accountId}`;
 
-    this.syncDriver = new SyncThreadActionDriver({
+    const syncDriver = new SyncThreadActionDriver({
       getAccountContext: (accId) =>
         this.options.getAccountContext?.(accId) ??
         (this.options.partition ? { partition: this.options.partition } : undefined),
       existingView: (accId) => this.options.getView?.(accId),
       fetchImpl: this.options.fetchImpl,
     });
+    const domDriver = new DomThreadActionDriver({
+      wake:
+        this.options.wake ??
+        (async (accId) => {
+          const view = this.options.getView?.(accId);
+          if (!view || view.webContents.isDestroyed()) return undefined;
+          return { view, release: () => {} };
+        }),
+      onActionHeld: this.options.onActionHeld,
+    });
+    this.threadDriver =
+      this.options.threadActionDriver ?? new FallbackThreadActionDriver(syncDriver, domDriver);
 
     if (options.pollerFactory) {
       this.poller = options.pollerFactory(accountId, partition, (res) =>
@@ -119,7 +140,7 @@ export class HybridFeedSource implements MailboxSource {
       countChanged: true,
     });
 
-    const success = await this.syncDriver.perform(undefined, this.accountId, threadId, action);
+    const success = await this.threadDriver.perform(undefined, this.accountId, threadId, action);
     if (success) {
       await this.dispatchUniversalSyncNudge();
     }

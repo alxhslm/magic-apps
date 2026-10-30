@@ -50,9 +50,9 @@ own control.
 
 `performThreadAction(accountId, threadId, action)` takes a thread id. If `action === 'open'`, it
 raises the window, switches to the account, routes the view to the thread, and brings it into focus.
-For triage actions (`archive`, `trash`, `markRead`, `markUnread`), it dispatches through a pluggable
-`ThreadActionDriver` (`createDefaultThreadActionDriver`): a DOM host plus the direct driver's own
-options, tried in order.
+For triage actions (`archive`, `trash`, `markRead`, `markUnread`), it delegates to the account's
+`MailboxSource`, whose `ThreadActionDriver` is the fallback stack (`createDefaultThreadActionDriver`):
+the direct driver and the DOM driver, tried in order.
 
 1. **Primary (`SyncThreadActionDriver`)**: Posts the mutation to Gmail's internal `/sync/u/<n>/i/s`
    from the main process, mapping the Atom feed's hex thread id onto the decimal reference that
@@ -75,10 +75,9 @@ are replayed verbatim, which is what makes a main-process fetch match the page's
 keyed by partition, so it outlives the page. Measured on a live account: the XSRF token did not change
 across a page reload, so it is scoped to the session rather than the page load.
 
-A notification's buttons, a `magimail://thread/<id>` triage link and `tray.threadAction` all route
-through `routeAcrossWindow`, whose three paths are in
-[`window-lifecycle.md`'s Routing an action across the window boundary](../shared/window-lifecycle.md#routing-an-action-across-the-window-boundary).
-`THREAD_ACTIONS` names the set once for all of them (open, archive, trash, mark read, mark unread),
+A notification's buttons, a `magimail://thread/<id>` triage link and `tray.threadAction` all reach
+the account's `MailboxSource`, which runs this driver stack. `THREAD_ACTIONS` names the set once for
+all of them (open, archive, trash, mark read, mark unread),
 and `TRIAGE_ACTIONS` is that set without open. Only open asks to look at something: it raises the
 window and changes the account on screen, while triage must not — and does not need a renderer to not
 do it.
@@ -97,8 +96,8 @@ open thread actually renders.
 A banner carries three actions from `UNUserNotificationCenter`: Archive, Mark Read, and Delete, which
 is marked destructive. Tapping the banner itself opens the thread. The helper sends `notify.action`
 (or `notify.click` for the tap) with the account and message id, and the main process routes it
-through `routeAcrossWindow` — for the tap that means building the window, because opening asks to
-look at the message.
+through the account's `MailboxSource` — for the tap that means building the window, because opening
+asks to look at the message.
 
 ### A menu bar popover row
 
@@ -121,14 +120,13 @@ the window that scheduled it, and with the menu bar tray off, closing the window
 returning early on the null — a press that silently did nothing is the same class of failure as an
 alert that never fires.
 
-Triage is routed through `routeAcrossWindow`, which holds the rule for a notification button, a
-`magimail://thread/` triage link and `tray.threadAction` (see
-[`window-lifecycle.md`'s Routing an action across the window boundary](../shared/window-lifecycle.md#routing-an-action-across-the-window-boundary)).
-Magimail's `direct` path is the `/sync/` write, which needs no view, so a triage that lands costs one
-POST and nothing appears. A write the direct driver cannot do, because the partition has no captured
-`/sync/` headers or Gmail refused the mutation, reaches the window the policy builds in the
-background through `openWindowForAction(windowActionTarget, accountId, { show: false })`, so the page
-can be driven without being looked at.
+Triage is routed to the account's `HybridFeedSource` for a notification button, a
+`magimail://thread/` triage link and `tray.threadAction`. Its driver tries the direct `/sync/` write
+first, which needs no view, so a triage that lands costs one POST and nothing appears. A write the
+direct driver cannot do, because the partition has no captured `/sync/` headers or Gmail refused the
+mutation, wakes the account's view through the renderer pool (`wakeAccountForAction`) and drives the
+DOM, so the page can be driven without being looked at. A view that never becomes ready fails the
+action rather than being raised.
 
 Triage never raises one. `performThreadAction` raises the window itself for `open`, and everything
 that asks to look at something — an open, an account row, a compose, a search, a triage link that

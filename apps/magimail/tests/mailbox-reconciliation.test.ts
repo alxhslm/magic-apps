@@ -388,4 +388,54 @@ describe('Scenario 5: Universal Sync Nudge Dispatch', () => {
     unsubscribe();
     source.destroy();
   });
+
+  it('routes triage through the configured thread action driver', async () => {
+    const perform = vi.fn().mockResolvedValue(true);
+    const mockPoller = {
+      pollNow: vi.fn().mockResolvedValue(undefined),
+      stop: vi.fn(),
+      destroy: vi.fn(),
+      updateNotificationSettings: vi.fn(),
+      setFocusAndMissingCategories: vi.fn(),
+      getLatestEntries: vi.fn().mockReturnValue([]),
+    };
+
+    const source = new HybridFeedSource('acc-driver', {
+      partition: 'persist:acc-driver',
+      threadActionDriver: { perform },
+      pollerFactory: () => mockPoller as any,
+    });
+
+    const ok = await source.triageThread('th-1', 'archive');
+
+    expect(ok).toBe(true);
+    expect(perform).toHaveBeenCalledWith(undefined, 'acc-driver', 'th-1', 'archive');
+    source.destroy();
+  });
+
+  it('wakes a view for the DOM fallback when the direct write cannot land', async () => {
+    const wake = vi.fn().mockResolvedValue(undefined);
+    const mockPoller = {
+      pollNow: vi.fn().mockResolvedValue(undefined),
+      stop: vi.fn(),
+      destroy: vi.fn(),
+      updateNotificationSettings: vi.fn(),
+      setFocusAndMissingCategories: vi.fn(),
+      getLatestEntries: vi.fn().mockReturnValue([]),
+    };
+
+    const source = new HybridFeedSource('acc-fallback', {
+      partition: 'persist:acc-fallback',
+      wake,
+      fetchImpl: vi.fn(async () => new Response('[]', { status: 200 })),
+      pollerFactory: () => mockPoller as any,
+    });
+
+    // No captured /sync/ headers for the partition, so the direct write returns false.
+    const ok = await source.triageThread('th-1', 'archive');
+
+    expect(wake).toHaveBeenCalledWith('acc-fallback');
+    expect(ok).toBe(false);
+    source.destroy();
+  });
 });

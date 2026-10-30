@@ -543,7 +543,10 @@ describe('AccountsManager', () => {
 
     run.mockClear();
     await accountsManager.performThreadAction('account_personal', 'msg_already_there', 'markRead');
-    expect(run).not.toHaveBeenCalled();
+    // A successful action may press the refresh control; it must not route the thread.
+    const triageScripts = run.mock.calls.map(([s]) => String(s));
+    expect(triageScripts.some((s) => s.includes('location.hash ='))).toBe(false);
+    expect(triageScripts.some((s) => s.includes('__magimailPrevHash'))).toBe(false);
   });
 
   it('refuses to route away when in-page editor or dialog guard rejects', async () => {
