@@ -140,7 +140,7 @@ single-sided assertion catches.
 
 The apps use no OAuth:
 
-- **Magimail** reads unread counts and snippets from the authenticated Atom feed
+- **Magimail** reads unread counts and snippets from the authenticated feed
   (`/mail/u/X/feed/atom`) and triggers mutations through page actions.
 - **Magical** reads events from the authenticated web endpoint (`sync.prefetcheventrange`) and
   dispatches RSVPs through response URLs.
@@ -154,7 +154,7 @@ Using standard web sign-in aligns the client directly with standard web browser 
 
 ### What having no contract costs
 
-If embedded sign-in is blocked, or the Atom feed is retired, every install stops working at once and
+If embedded sign-in is blocked, or the feed is retired, every install stops working at once and
 there is nobody to appeal to. The only mitigation is speed: the User-Agent and partition strategy
 stay documented where they can be changed quickly.
 

@@ -230,8 +230,8 @@ describe('AccountsManager Focus Filter Integration', () => {
     const all = accountsManager.getAccounts();
     const [acc1, acc2] = all;
 
-    accountsManager.handleApiUnreadUpdate(acc1.id, 5);
-    accountsManager.handleApiUnreadUpdate(acc2.id, 10);
+    accountsManager.handleExternalUnreadUpdate(acc1.id, 5);
+    accountsManager.handleExternalUnreadUpdate(acc2.id, 10);
     expect(updateDockBadge).toHaveBeenLastCalledWith(15, { count: 0, incomplete: false });
 
     // Excluding acc2 drops it from the badge even though it stays in the UI,
@@ -242,7 +242,7 @@ describe('AccountsManager Focus Filter Integration', () => {
     });
     expect(updateDockBadge).toHaveBeenLastCalledWith(5, { count: 0, incomplete: false });
 
-    accountsManager.handleApiUnreadUpdate(acc2.id, 20);
+    accountsManager.handleExternalUnreadUpdate(acc2.id, 20);
     expect(updateDockBadge).toHaveBeenLastCalledWith(5, { count: 0, incomplete: false });
 
     accountsManager.setFocusFilter(null);
@@ -252,8 +252,8 @@ describe('AccountsManager Focus Filter Integration', () => {
   it('marks the badge a floor when any focused account had its feed cut short', () => {
     const [acc1, acc2] = accountsManager.getAccounts();
 
-    accountsManager.handleApiUnreadUpdate(acc1.id, 5, undefined, 2, false);
-    accountsManager.handleApiUnreadUpdate(acc2.id, 400, undefined, 6, true);
+    accountsManager.handleExternalUnreadUpdate(acc1.id, 5, undefined, 2, false);
+    accountsManager.handleExternalUnreadUpdate(acc2.id, 400, undefined, 6, true);
     // One account short of the truth makes the sum short of the truth.
     expect(updateDockBadge).toHaveBeenLastCalledWith(405, { count: 8, incomplete: true });
 
@@ -266,15 +266,15 @@ describe('AccountsManager Focus Filter Integration', () => {
 
     // And it clears once that account's feed comes back whole.
     accountsManager.setFocusFilter(null);
-    accountsManager.handleApiUnreadUpdate(acc2.id, 12, undefined, 6, false);
+    accountsManager.handleExternalUnreadUpdate(acc2.id, 12, undefined, 6, false);
     expect(updateDockBadge).toHaveBeenLastCalledWith(17, { count: 8, incomplete: false });
   });
 
   it('filters new arrivals by focus alongside the unread total', () => {
     const [acc1, acc2] = accountsManager.getAccounts();
 
-    accountsManager.handleApiUnreadUpdate(acc1.id, 5, undefined, 2, false);
-    accountsManager.handleApiUnreadUpdate(acc2.id, 10, undefined, 3, false);
+    accountsManager.handleExternalUnreadUpdate(acc1.id, 5, undefined, 2, false);
+    accountsManager.handleExternalUnreadUpdate(acc2.id, 10, undefined, 3, false);
     expect(updateDockBadge).toHaveBeenLastCalledWith(15, { count: 5, incomplete: false });
 
     accountsManager.setFocusFilter({

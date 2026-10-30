@@ -1,10 +1,32 @@
-import { session, powerMonitor, app } from 'electron';
+import * as electron from 'electron';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { DEFAULT_CLEAN_USER_AGENT, readSecretFile, writeSecretFile } from '@magimail/core';
 import { GMAIL_ATOM_FEED_URL } from './constants.js';
 import { createLogger } from '@magimail/core/logger';
 import type { TrayMessageItem } from './menubar-manager.js';
+
+function getSession(): typeof electron.session | undefined {
+  try {
+    if ('session' in electron) {
+      return (electron as unknown as { session?: typeof electron.session }).session;
+    }
+  } catch {
+    return undefined;
+  }
+  return undefined;
+}
+
+function getApp(): typeof electron.app | undefined {
+  try {
+    if ('app' in electron) {
+      return (electron as unknown as { app?: typeof electron.app }).app;
+    }
+  } catch {
+    return undefined;
+  }
+  return undefined;
+}
 
 const log = createLogger('AtomPoller');
 
@@ -50,13 +72,12 @@ function isPolicyBlockPage(text: string): boolean {
 
 export interface AtomPollResult {
   accountId: string;
-  totalUnread: number;
   categoryCounts?: Map<NotificationCategory, number>;
   newMessages: AtomMessage[];
   /**
    * Mail that arrived since the last poll and has not been dealt with yet —
-   * the count behind the badge's `newArrivals` mode. Unlike `totalUnread` this
-   * never includes the backlog: see `trackArrivals`.
+   * the count behind the badge's `newArrivals` mode. It never includes the
+   * backlog: see `trackArrivals`.
    */
   newArrivalCount: number;
   /**
@@ -68,6 +89,13 @@ export interface AtomPollResult {
    * the limit is, and if Google ever changes it.
    */
   arrivalsIncomplete: boolean;
+  rawFullCount?: number | null;
+  /**
+   * When the response was generated, from its HTTP `Date` header or the feed's
+   * root modified time. The ledger subtracts its read-path grace from this; it
+   * is not a data-correctness time.
+   */
+  sourceAsOf?: number;
   status?: AtomPollStatus;
 }
 
@@ -151,9 +179,18 @@ export function toGmailUrlId(messageId: string): string {
   }
 }
 
-export function parseAtomXml(xml: string): { fullCount: number | null; entries: AtomMessage[] } {
+export function parseAtomXml(xml: string): {
+  fullCount: number | null;
+  entries: AtomMessage[];
+  feedModified?: string;
+} {
   const fullCountMatch = xml.match(/<fullcount>(\d+)<\/fullcount>/i);
   const fullCount = fullCountMatch ? parseInt(fullCountMatch[1], 10) : null;
+
+  // The root feed carries its own last-change time, before the first entry.
+  const feedHeader = xml.split(/<entry>/i)[0] ?? '';
+  const feedModifiedMatch = feedHeader.match(/<modified>([\s\S]*?)<\/modified>/i);
+  const feedModified = feedModifiedMatch ? feedModifiedMatch[1].trim() : undefined;
 
   const entries: AtomMessage[] = [];
   const entryRegex = /<entry>([\s\S]*?)<\/entry>/gi;
@@ -203,12 +240,15 @@ export function parseAtomXml(xml: string): { fullCount: number | null; entries: 
     });
   }
 
-  return { fullCount, entries };
+  return { fullCount, entries, feedModified };
 }
 
 function getStateDir(): string {
+  const electronApp = getApp();
   const userData =
-    typeof app?.getPath === 'function' ? app.getPath('userData') : '/tmp/magimail-atom-poller';
+    typeof electronApp?.getPath === 'function'
+      ? electronApp.getPath('userData')
+      : '/tmp/magimail-atom-poller';
   const dir = path.join(userData, 'atom-state');
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
@@ -360,7 +400,6 @@ export class AtomFeedPoller {
   private hintTimer: ReturnType<typeof setTimeout> | null = null;
   private lastHintPollAt = 0;
   private notificationSettings: Record<string, string> = {};
-  private lastReportedUnread = 0;
   /**
    * Category per message id, for as long as the feed still lists it.
    *
@@ -370,8 +409,10 @@ export class AtomFeedPoller {
    */
   private categoryById = new Map<string, NotificationCategory>();
   private isWindowFocused = false;
+  private powerListenersAttached = false;
   private missingCategories = new Set<NotificationCategory>();
   private latestEntries: AtomMessage[] = [];
+  private lastFullCount: number | null = null;
 
   constructor(
     accountId: string,
@@ -531,12 +572,20 @@ export class AtomFeedPoller {
     return [...this.latestEntries];
   }
 
+  public getLastFullCount(): number | null {
+    return this.lastFullCount;
+  }
+
   public async pollNow(): Promise<void> {
     if (this.isPolling) return;
     this.isPolling = true;
 
     try {
-      const ses = session.fromPartition(this.partition);
+      const electronSession = getSession();
+      if (!electronSession || typeof electronSession.fromPartition !== 'function') {
+        return;
+      }
+      const ses = electronSession.fromPartition(this.partition);
       if (!ses || typeof ses.fetch !== 'function') {
         return;
       }
@@ -546,13 +595,19 @@ export class AtomFeedPoller {
         },
       });
 
+      // Gmail serves the feed with no-store and no Age, so the response is not
+      // HTTP-cached. `Date` is the generation time; a skewed future value is
+      // capped at receipt.
+      const dateHeader = response.headers?.get?.('date') ?? null;
+      const dateMs = dateHeader ? Date.parse(dateHeader) : NaN;
+      const generatedAt = Number.isFinite(dateMs) ? Math.min(Date.now(), dateMs) : undefined;
+
       if (!response.ok) {
         // Status 401 or redirect to login means account is not signed in yet
         if (response.status === 401) {
           log.info(`Partition ${this.partition} not authenticated yet`);
           this.onPoll({
             accountId: this.accountId,
-            totalUnread: this.lastReportedUnread,
             newMessages: [],
             newArrivalCount: this.activeArrivals.size,
             arrivalsIncomplete: this.arrivalsIncomplete,
@@ -565,7 +620,6 @@ export class AtomFeedPoller {
           log.warn(`Feed fetch refused by policy for ${this.accountId}`);
           this.onPoll({
             accountId: this.accountId,
-            totalUnread: this.lastReportedUnread,
             newMessages: [],
             newArrivalCount: this.activeArrivals.size,
             arrivalsIncomplete: this.arrivalsIncomplete,
@@ -575,7 +629,6 @@ export class AtomFeedPoller {
           log.error(`Feed fetch failed with status: ${response.status}`);
           this.onPoll({
             accountId: this.accountId,
-            totalUnread: this.lastReportedUnread,
             newMessages: [],
             newArrivalCount: this.activeArrivals.size,
             arrivalsIncomplete: this.arrivalsIncomplete,
@@ -586,7 +639,14 @@ export class AtomFeedPoller {
       }
 
       const xml = await response.text();
-      const { fullCount, entries } = parseAtomXml(xml);
+      const { fullCount, entries, feedModified } = parseAtomXml(xml);
+      this.lastFullCount = fullCount;
+
+      // Prefer the response generation time; the feed's own modified time is a
+      // fallback for a response with no usable Date header.
+      const feedModifiedMs = feedModified ? Date.parse(feedModified) : NaN;
+      const sourceAsOf =
+        generatedAt ?? (Number.isFinite(feedModifiedMs) ? feedModifiedMs : undefined);
 
       if (fullCount === null) {
         // A policy block page also arrives as HTML with no feed, so it is read before
@@ -595,7 +655,6 @@ export class AtomFeedPoller {
           log.warn(`Partition ${this.partition} returned an administrator policy block`);
           this.onPoll({
             accountId: this.accountId,
-            totalUnread: this.lastReportedUnread,
             newMessages: [],
             newArrivalCount: this.activeArrivals.size,
             arrivalsIncomplete: this.arrivalsIncomplete,
@@ -606,7 +665,6 @@ export class AtomFeedPoller {
         log.info(`Partition ${this.partition} returned non-feed response (auth required)`);
         this.onPoll({
           accountId: this.accountId,
-          totalUnread: this.lastReportedUnread,
           newMessages: [],
           newArrivalCount: this.activeArrivals.size,
           arrivalsIncomplete: this.arrivalsIncomplete,
@@ -688,26 +746,6 @@ export class AtomFeedPoller {
       this.arrivalsIncomplete = fullCount > entries.length || entries.some((entry) => !entry.id);
       this.trackArrivals(entries, newMessages);
 
-      let offCategoryCount = 0;
-      for (const [cat, level] of Object.entries(this.notificationSettings)) {
-        if (level === 'off') {
-          const subCount = subFeeds.counts.get(cat as NotificationCategory) ?? 0;
-          if (entries.length > 0 && fullCount <= entries.length) {
-            // When all inbox messages are present in entries, count how many belong to this off-category.
-            // This prevents archived unread messages in the category sub-feed from negative-clamping
-            // the inbox unread count.
-            const inEntries = entries.filter((e) => e.category === cat).length;
-            offCategoryCount += inEntries;
-          } else {
-            // When fullCount > entries.length or no entries, cap sub-feed count at fullCount.
-            offCategoryCount += Math.min(subCount, fullCount);
-          }
-        }
-      }
-
-      const displayedUnread = Math.max(0, fullCount - offCategoryCount);
-      this.lastReportedUnread = displayedUnread;
-
       const categoryCounts = new Map<NotificationCategory, number>();
       for (const [cat, count] of subFeeds.counts.entries()) {
         categoryCounts.set(cat, count);
@@ -715,11 +753,12 @@ export class AtomFeedPoller {
 
       this.onPoll({
         accountId: this.accountId,
-        totalUnread: displayedUnread,
         categoryCounts,
         newMessages,
         newArrivalCount: this.activeArrivals.size,
         arrivalsIncomplete: this.arrivalsIncomplete,
+        rawFullCount: fullCount,
+        sourceAsOf,
         status: 'ok',
       });
 
@@ -735,7 +774,6 @@ export class AtomFeedPoller {
       log.error(`Poll error for ${this.accountId}:`, err);
       this.onPoll({
         accountId: this.accountId,
-        totalUnread: this.lastReportedUnread,
         newMessages: [],
         newArrivalCount: this.activeArrivals.size,
         arrivalsIncomplete: this.arrivalsIncomplete,
@@ -758,7 +796,7 @@ export class AtomFeedPoller {
    * poll over.
    */
   private async fetchCategoryFeeds(
-    ses: ReturnType<typeof session.fromPartition>,
+    ses: electron.Session,
     categories: NotificationCategory[],
   ): Promise<SubFeedResult> {
     const counts = new Map<NotificationCategory, number>();
@@ -866,7 +904,7 @@ export class AtomFeedPoller {
    *
    * A silenced category is excluded on the way in *and* on the way out, so
    * turning one off retires the arrivals already counted for it rather than
-   * stranding them on the badge. This matches `displayedUnread`, which
+   * stranding them on the badge. This matches the ledger's displayed count, which
    * subtracts the same categories: whichever mode the badge is in, the number
    * counts the same mail.
    *
@@ -918,7 +956,7 @@ export class AtomFeedPoller {
    * is a fair trade for a badge that keeps up.
    */
   private async classifyRemainder(
-    ses: ReturnType<typeof session.fromPartition>,
+    ses: electron.Session,
     entries: AtomMessage[],
     already: SubFeedResult,
   ): Promise<void> {
@@ -989,30 +1027,45 @@ export class AtomFeedPoller {
   }
 
   private setupPowerMonitor(): void {
+    if (this.powerListenersAttached) return;
+    this.powerListenersAttached = true;
+
+    let pm: typeof electron.powerMonitor | undefined;
     try {
-      if (typeof powerMonitor.isOnBatteryPower === 'function') {
-        this.isOnBattery = powerMonitor.isOnBatteryPower();
+      if ('powerMonitor' in electron) {
+        pm = (electron as unknown as { powerMonitor?: typeof electron.powerMonitor }).powerMonitor;
+      }
+    } catch {
+      return;
+    }
+    if (!pm || typeof pm.on !== 'function') {
+      return;
+    }
+
+    try {
+      if (typeof pm.isOnBatteryPower === 'function') {
+        this.isOnBattery = pm.isOnBatteryPower();
       }
     } catch {
       // Fallback
     }
 
-    powerMonitor.on('on-battery', () => {
+    pm.on('on-battery', () => {
       this.isOnBattery = true;
       this.scheduleNext();
     });
-    powerMonitor.on('on-ac', () => {
+    pm.on('on-ac', () => {
       this.isOnBattery = false;
       this.scheduleNext();
     });
-    powerMonitor.on('suspend', () => {
+    pm.on('suspend', () => {
       this.isPaused = true;
       if (this.timer) {
         clearTimeout(this.timer);
         this.timer = null;
       }
     });
-    powerMonitor.on('resume', () => {
+    pm.on('resume', () => {
       this.isPaused = false;
       this.pollNow();
     });

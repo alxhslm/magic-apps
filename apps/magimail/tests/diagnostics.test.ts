@@ -103,20 +103,10 @@ describe('Magimail Diagnostics', () => {
       const fakeAccountsManager = {
         getAccounts: () => [{ id: 'acc_1', name: 'Work' }],
         getActiveAccount: () => ({ id: 'acc_1', name: 'Work' }),
+        getMailboxSources: () => new Map([['acc_1', {}]]),
       } as unknown as Parameters<typeof collectMagimailDiagnostics>[0];
 
-      const fakePollers = new Map([
-        [
-          'acc_1',
-          { getArrivalCount: () => 5 } as unknown as Parameters<
-            typeof collectMagimailDiagnostics
-          >[1] extends Map<string, infer P> | undefined
-            ? P
-            : never,
-        ],
-      ]);
-
-      const result = await collectMagimailDiagnostics(fakeAccountsManager, fakePollers);
+      const result = await collectMagimailDiagnostics(fakeAccountsManager);
 
       expect(syncExtensionLogs).toHaveBeenCalledWith('/fake/logs');
       expect(collectDiagnosticBundle).toHaveBeenCalledWith(
@@ -206,6 +196,7 @@ describe('Magimail Diagnostics', () => {
 
     it('catches collection failures and shows error dialog', async () => {
       collectDiagnosticBundle.mockRejectedValueOnce(new Error('Disk full'));
+      showMessageBox.mockResolvedValueOnce({ response: 0 });
 
       await handleCollectDiagnostics(undefined);
 

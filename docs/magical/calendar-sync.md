@@ -31,7 +31,7 @@ forbids.
 
 ## Poller
 
-`CalendarPoller` mirrors Magimail's `atom-poller.ts`: it polls Google Calendar's internal web
+`CalendarPoller` mirrors Magimail's mailbox poller: it polls Google Calendar's internal web
 endpoint from the Electron main process, one loop per account partition.
 
 ```mermaid

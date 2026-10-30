@@ -253,7 +253,7 @@ describe('AccountsManager', () => {
   it('updates unread count from an Atom poll result', () => {
     // The Atom poller is the only source of unread counts; there is no
     // renderer/title-driven path.
-    accountsManager.handleApiUnreadUpdate('account_personal', 5);
+    accountsManager.handleExternalUnreadUpdate('account_personal', 5);
     expect(accountsManager.getAccounts()[0].unreadCount).toBe(5);
   });
 
@@ -392,100 +392,26 @@ describe('AccountsManager', () => {
     expect(script).toContain('location.hash');
   });
 
-  it('treats a rendered thread as displayed even once Gmail has rewritten the hash', async () => {
+  it('delegates triage actions directly to the mailbox source without DOM routing', async () => {
+    const source = accountsManager.getMailboxSource('account_personal');
+    expect(source).toBeDefined();
+    const triageSpy = vi.spyOn(source!, 'triageThread').mockResolvedValue(true);
+
     const wc = accountsManager.getActiveWebContentsView()!.webContents;
     const run = wc.executeJavaScript as unknown as Mock;
-
-    // The view is on the thread the notification names, but the hash carries Gmail's
-    // canonical id rather than the Atom feed's legacy one. Only the DOM still says
-    // which thread this is.
-    (wc.getURL as unknown as Mock).mockReturnValue(
-      'https://mail.google.com/mail/u/0/#inbox/FMfcgzGmockThreadId00000000000001',
-    );
-    (wc.getTitle as unknown as Mock).mockReturnValue('A Thread');
     run.mockClear();
-    run.mockImplementation((script: string) =>
-      Promise.resolve(String(script).includes('data-legacy-thread-id')),
-    );
 
-    vi.useFakeTimers();
-    await runWithClock(
-      accountsManager.performThreadAction('account_personal', 'msg_123', 'archive'),
+    const result = await accountsManager.performThreadAction(
+      'account_personal',
+      'msg_123',
+      'archive',
     );
-    vi.useRealTimers();
+    expect(result).toBe(true);
+    expect(triageSpy).toHaveBeenCalledWith('msg_123', 'archive');
 
     const scripts = run.mock.calls.map(([s]) => String(s));
-    // Archive is clicked where the thread already is. Routing to it and back would
-    // reload a view the user is looking at, to arrive where it already was.
     expect(scripts.some((s) => s.includes('location.hash ='))).toBe(false);
-    expect(scripts.some((s) => /act=\\?"7\\?"/.test(s))).toBe(true);
-  });
-
-  it('routes rather than trusting the ids the inbox list carries for every row', async () => {
-    const wc = accountsManager.getActiveWebContentsView()!.webContents;
-    const run = wc.executeJavaScript as unknown as Mock;
-
-    // A message listed in the inbox carries the same legacy ids on its row as the
-    // open thread does. Reading them off a list and concluding the thread is open
-    // sends the action hunting for a thread toolbar that a list does not have.
-    let routed = false;
-    run.mockClear();
-    run.mockImplementation((script: string) => {
-      const s = String(script);
-      if (s.includes('data-legacy-thread-id')) return Promise.resolve(true);
-      if (s.includes('location.hash =')) routed = true;
-      return Promise.resolve(undefined);
-    });
-    (wc.getURL as unknown as Mock).mockImplementation(() =>
-      routed
-        ? 'https://mail.google.com/mail/u/0/#inbox/FMfcgzGmockThreadId00000000000001'
-        : 'https://mail.google.com/mail/u/0/?pli=1#inbox',
-    );
-    (wc.getTitle as unknown as Mock).mockImplementation(() => (routed ? 'A Thread' : 'Inbox'));
-
-    vi.useFakeTimers();
-    await runWithClock(
-      accountsManager.performThreadAction('account_personal', 'msg_123', 'archive'),
-    );
-    vi.useRealTimers();
-
-    const scripts = run.mock.calls.map(([s]) => String(s));
-    expect(scripts.some((s) => s.includes('location.hash ='))).toBe(true);
-  });
-
-  it('waits for Gmail to say something new before restoring the route', async () => {
-    const wc = accountsManager.getActiveWebContentsView()!.webContents;
-    const run = wc.executeJavaScript as unknown as Mock;
-
-    let routed = false;
-    run.mockClear();
-    run.mockImplementation((script: string) => {
-      const s = String(script);
-      if (s.includes('data-legacy-thread-id')) return Promise.resolve(routed);
-      if (s.includes('location.hash =')) routed = true;
-      return Promise.resolve(undefined);
-    });
-    (wc.getURL as unknown as Mock).mockImplementation(() =>
-      routed
-        ? 'https://mail.google.com/mail/u/0/#inbox/FMfcgzGmockThreadId00000000000001'
-        : 'https://mail.google.com/mail/u/0/?pli=1#inbox',
-    );
-    (wc.getTitle as unknown as Mock).mockImplementation(() => (routed ? 'A Thread' : 'Inbox'));
-
-    vi.useFakeTimers();
-    await runWithClock(
-      accountsManager.performThreadAction('account_personal', 'msg_123', 'archive'),
-    );
-    vi.useRealTimers();
-
-    const click = run.mock.calls.map(([s]) => String(s)).find((s) => s.includes('act='));
-    expect(click).toBeDefined();
-    // Gmail keeps empty live regions in the document permanently, so their presence
-    // proves nothing; what moves when it acts is their combined text.
-    expect(click).toContain('announcement()');
-    // Only the app-authored body is under this test. The shared preamble defines its
-    // own layout test for findAction, and matching it here says nothing about the click.
-    expect(String(click).replace(DOM_DRIVE_PREAMBLE, '')).not.toContain('offsetParent !== null ||');
+    expect(scripts.some((s) => s.includes('act='))).toBe(false);
   });
 
   it('never shows or focuses the window for an action button', async () => {
@@ -531,93 +457,22 @@ describe('AccountsManager', () => {
     expect(show).toHaveBeenCalled();
   });
 
-  it('marks a named thread unread by clicking the thread toolbar control', async () => {
-    const wc = accountsManager.getActiveWebContentsView()!.webContents;
-    const run = wc.executeJavaScript as unknown as Mock;
+  it('delegates markUnread and markRead directly to mailbox source', async () => {
+    const source = accountsManager.getMailboxSource('account_personal');
+    expect(source).toBeDefined();
+    const triageSpy = vi.spyOn(source!, 'triageThread').mockResolvedValue(true);
 
-    let routed = false;
-    run.mockImplementation((script: string) => {
-      const s = String(script);
-      // Gmail only carries the id we were handed once the thread has rendered.
-      if (s.includes('data-legacy-thread-id')) return Promise.resolve(routed);
-      if (s.includes('location.hash =')) routed = true;
-      return Promise.resolve(true);
-    });
-    (wc.getURL as unknown as Mock).mockImplementation(() =>
-      routed
-        ? 'https://mail.google.com/mail/u/0/#inbox/FMfcgzGmockThreadId00000000000001'
-        : 'https://mail.google.com/mail/u/0/?pli=1#inbox',
+    let result = await accountsManager.performThreadAction(
+      'account_personal',
+      'msg_123',
+      'markUnread',
     );
-    (wc.getTitle as unknown as Mock).mockImplementation(() => (routed ? 'A Thread' : 'Inbox'));
-    run.mockClear();
+    expect(result).toBe(true);
+    expect(triageSpy).toHaveBeenCalledWith('msg_123', 'markUnread');
 
-    vi.useFakeTimers();
-    await runWithClock(
-      accountsManager.performThreadAction('account_personal', 'msg_123', 'markUnread'),
-    );
-    vi.useRealTimers();
-
-    const scripts = run.mock.calls.map(([s]) => String(s));
-    // Routing to a thread marks it read, so unlike mark-as-read this one has
-    // to click something to put the state back.
-    const act = (n: number) => new RegExp(`act=\\\\?"${n}\\\\?"`);
-    expect(scripts.some((s) => act(2).test(s))).toBe(true);
-    expect(scripts.some((s) => act(1).test(s))).toBe(false);
-    // And it goes back where it interrupted, as the other triage actions do.
-    expect(scripts[scripts.length - 1]).toContain('__magimailPrevHash');
-  });
-
-  it('leaves marking read to the route rather than clicking a control', async () => {
-    const wc = accountsManager.getActiveWebContentsView()!.webContents;
-    const run = wc.executeJavaScript as unknown as Mock;
-
-    let routed = false;
-    run.mockImplementation((script: string) => {
-      if (String(script).includes('location.hash =')) routed = true;
-      return Promise.resolve(true);
-    });
-    (wc.getURL as unknown as Mock).mockImplementation(() =>
-      routed
-        ? 'https://mail.google.com/mail/u/0/#inbox/FMfcgzGmockThreadId00000000000001'
-        : 'https://mail.google.com/mail/u/0/?pli=1#inbox',
-    );
-    (wc.getTitle as unknown as Mock).mockImplementation(() => (routed ? 'A Thread' : 'Inbox'));
-    run.mockClear();
-
-    vi.useFakeTimers();
-    await runWithClock(
-      accountsManager.performThreadAction('account_personal', 'msg_123', 'markRead'),
-    );
-    vi.useRealTimers();
-
-    // An open thread has no mark-as-read control at all, so reaching for one
-    // would click whatever else carried that act number.
-    const scripts = run.mock.calls.map(([s]) => String(s));
-    expect(scripts.every((s) => !s.includes('act='))).toBe(true);
-  });
-
-  it('does not act when the thread route never lands', async () => {
-    const activeView = accountsManager.getActiveWebContentsView();
-    const wc = activeView!.webContents;
-    const run = wc.executeJavaScript as unknown as Mock;
-    run.mockResolvedValue(false);
-    // Gmail refuses to leave a settings page holding unsaved edits: it takes the
-    // hash but never renders the thread, so the title never moves.
-    (wc.getURL as unknown as Mock).mockReturnValue(
-      'https://mail.google.com/mail/u/0/#settings/general',
-    );
-    (wc.getTitle as unknown as Mock).mockReturnValue('Settings');
-    run.mockClear();
-
-    vi.useFakeTimers();
-    await runWithClock(accountsManager.performThreadAction('account_personal', 'msg_123', 'trash'));
-    vi.useRealTimers();
-
-    const scripts = run.mock.calls.map(([s]) => String(s));
-    // Clicking Delete after a failed route would trash whichever thread happened to
-    // be on screen, so nothing is clicked at all.
-    expect(scripts.every((s) => !s.includes('act='))).toBe(true);
-    expect(scripts[scripts.length - 1]).toContain('__magimailPrevHash');
+    result = await accountsManager.performThreadAction('account_personal', 'msg_123', 'markRead');
+    expect(result).toBe(true);
+    expect(triageSpy).toHaveBeenCalledWith('msg_123', 'markRead');
   });
 
   it('wakes a sleeping account, loads Gmail, and runs action in background', async () => {
@@ -672,27 +527,6 @@ describe('AccountsManager', () => {
     expect(accountsManager.getActiveAccountId()).toBe('account_personal');
   });
 
-  it('skips routing when the target thread is already displayed', async () => {
-    const activeView = accountsManager.getActiveWebContentsView();
-    const wc = activeView!.webContents;
-    const run = wc.executeJavaScript as unknown as Mock;
-    run.mockClear();
-    (wc.getURL as unknown as Mock).mockReturnValue(
-      'https://mail.google.com/mail/u/0/#inbox/msg_already_there',
-    );
-
-    vi.useFakeTimers();
-    await runWithClock(
-      accountsManager.performThreadAction('account_personal', 'msg_already_there', 'archive'),
-    );
-    vi.useRealTimers();
-
-    const scripts = run.mock.calls.map(([s]) => String(s));
-    expect(scripts.some((s) => s.includes('location.hash ='))).toBe(false);
-    expect(scripts.some((s) => s.includes('act='))).toBe(true);
-    expect(scripts.some((s) => s.includes('__magimailPrevHash'))).toBe(false);
-  });
-
   it('skips routing when open or markRead is invoked on an already-open thread', async () => {
     const activeView = accountsManager.getActiveWebContentsView();
     const wc = activeView!.webContents;
@@ -709,7 +543,10 @@ describe('AccountsManager', () => {
 
     run.mockClear();
     await accountsManager.performThreadAction('account_personal', 'msg_already_there', 'markRead');
-    expect(run).not.toHaveBeenCalled();
+    // A successful action may press the refresh control; it must not route the thread.
+    const triageScripts = run.mock.calls.map(([s]) => String(s));
+    expect(triageScripts.some((s) => s.includes('location.hash ='))).toBe(false);
+    expect(triageScripts.some((s) => s.includes('__magimailPrevHash'))).toBe(false);
   });
 
   it('refuses to route away when in-page editor or dialog guard rejects', async () => {
@@ -1116,7 +953,7 @@ describe('the verdict performThreadAction reports', () => {
     await expect(manager.performThreadAction('account_personal', 'msg_1', 'archive')).resolves.toBe(
       true,
     );
-    expect(perform).toHaveBeenCalledWith(expect.anything(), 'account_personal', 'msg_1', 'archive');
+    expect(perform).toHaveBeenCalledWith(undefined, 'account_personal', 'msg_1', 'archive');
   });
 
   it('reports triage that did not', async () => {
@@ -1364,24 +1201,17 @@ describe('holding triage while the view is busy', () => {
     return run;
   }
 
-  it('retries a refused archive once the editor closes', async () => {
+  it('executes background triage immediately via mailbox source without being blocked by open compose editor', async () => {
     const run = view();
-    vi.useFakeTimers();
+    const source = manager.getMailboxSource('account_personal');
+    expect(source).toBeDefined();
+    const triageSpy = vi.spyOn(source!, 'triageThread').mockResolvedValue(true);
 
-    await manager.performThreadAction('account_personal', 'msg_1', 'archive');
-    const refused = routeAttempts(run);
-    expect(refused).toBeGreaterThan(0);
-
-    // Still busy: the press is held rather than run against a view mid-compose.
-    await vi.advanceTimersByTimeAsync(6_000);
-    expect(routeAttempts(run)).toBe(refused);
-
-    // The editor closes. The next drain runs what was held.
-    run.mockImplementation(() => Promise.resolve(false));
-    await vi.advanceTimersByTimeAsync(6_000);
-    vi.useRealTimers();
-
-    expect(routeAttempts(run)).toBeGreaterThan(refused);
+    const result = await manager.performThreadAction('account_personal', 'msg_1', 'archive');
+    expect(result).toBe(true);
+    expect(triageSpy).toHaveBeenCalledWith('msg_1', 'archive');
+    // Background triage does not attempt to route the view
+    expect(routeAttempts(run)).toBe(0);
   });
 
   it('drops a refused open rather than raising the window later', async () => {
