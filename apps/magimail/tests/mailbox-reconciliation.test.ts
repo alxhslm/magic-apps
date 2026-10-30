@@ -270,6 +270,100 @@ describe('Scenario 6: Preemptive Ledger Updates', () => {
     expect(ledger.getTrackedItems().map((item) => item.id)).toEqual(['m1']);
   });
 
+  const cacheRow = (id: string, threadId: string, unread: boolean): TrayMessageItem => ({
+    id,
+    threadId,
+    from: 'someone',
+    subject: 'subject',
+    snippet: 'snippet',
+    category: 'primary',
+    unread,
+    modified: new Date(1000),
+  });
+
+  it('hides a deleted unread row immediately and keeps the count down', () => {
+    const ledger = new UnreadLedger();
+    ledger.reconcileWithAtom([atomEntry('m1', 't1')], 1, 1000);
+    expect(ledger.getBreakdown().total).toBe(1);
+
+    ledger.recordLocalTriage('m1', 't1', 'trash', 'primary', 2000);
+
+    expect(ledger.getBreakdown().total).toBe(0);
+    expect(ledger.getRecentMessages().map((item) => item.id)).not.toContain('m1');
+
+    ledger.reconcileWithCache([cacheRow('m1', 't1', true)], 3000, 3000);
+
+    expect(ledger.getBreakdown().total).toBe(0);
+    expect(ledger.getRecentMessages().map((item) => item.id)).not.toContain('m1');
+  });
+
+  it('hides a deleted read row immediately without moving the count', () => {
+    const ledger = new UnreadLedger();
+    ledger.reconcileWithAtom([atomEntry('m1', 't1')], 1, 1000);
+    ledger.reconcileWithCache([cacheRow('m2', 't2', false)], 1000, 1000);
+    expect(ledger.getBreakdown().total).toBe(1);
+    expect(ledger.getRecentMessages().map((item) => item.id)).toContain('m2');
+
+    ledger.recordLocalTriage('m2', 't2', 'trash', 'primary', 2000);
+
+    expect(ledger.getBreakdown().total).toBe(1);
+    expect(ledger.getRecentMessages().map((item) => item.id)).not.toContain('m2');
+  });
+
+  it('does not hide a read row when markRead is repeated', () => {
+    const ledger = new UnreadLedger();
+    ledger.reconcileWithAtom([atomEntry('m1', 't1')], 1, 1000);
+    ledger.reconcileWithCache([cacheRow('m2', 't2', false)], 1000, 1000);
+
+    ledger.recordLocalTriage('m2', 't2', 'markRead', 'primary', 2000);
+
+    expect(ledger.getBreakdown().total).toBe(1);
+    expect(ledger.getRecentMessages().map((item) => item.id)).toContain('m2');
+  });
+
+  it('keeps a deleted read row hidden when a stale cache says unread', () => {
+    const ledger = new UnreadLedger();
+    ledger.reconcileWithAtom([atomEntry('m1', 't1')], 1, 1000);
+    ledger.reconcileWithCache([cacheRow('m2', 't2', false)], 1000, 1000);
+    ledger.recordLocalTriage('m2', 't2', 'trash', 'primary', 2000);
+
+    ledger.reconcileWithCache([cacheRow('m2', 't2', true)], 3000, 3000);
+
+    expect(ledger.getBreakdown().total).toBe(1);
+    expect(ledger.getRecentMessages().map((item) => item.id)).not.toContain('m2');
+  });
+
+  it('restores a deleted read row when the driver fails', () => {
+    const ledger = new UnreadLedger();
+    ledger.reconcileWithAtom([atomEntry('m1', 't1')], 1, 1000);
+    ledger.reconcileWithCache([cacheRow('m2', 't2', false)], 1000, 1000);
+    ledger.recordLocalTriage('m2', 't2', 'trash', 'primary', 2000);
+
+    expect(ledger.rollbackLocalTriage('m2', 't2')).toBe(true);
+
+    expect(ledger.getBreakdown().total).toBe(1);
+    expect(ledger.getRecentMessages().map((item) => item.id)).toContain('m2');
+  });
+
+  it('does not let a stale cache add a thread a complete feed omitted', () => {
+    const ledger = new UnreadLedger();
+    ledger.reconcileWithAtom([atomEntry('m1', 't1')], 1, 1000);
+
+    ledger.reconcileWithCache([cacheRow('deleted', 't2', true)], 2000, 2000);
+
+    expect(ledger.getBreakdown().total).toBe(1);
+    expect(ledger.getTrackedItems().map((item) => item.id)).toEqual(['m1']);
+  });
+
+  it('still lets a stale cache add an off-window thread when the feed is truncated', () => {
+    const ledger = new UnreadLedger();
+    ledger.reconcileWithAtom([atomEntry('m1', 't1')], 21, 1000);
+
+    ledger.reconcileWithCache([cacheRow('m2', 't2', true)], 2000, 2000);
+
+    expect(ledger.getTrackedItems().map((item) => item.id)).toContain('m2');
+  });
+
   it('does not subtract a triaged category the user has turned off', () => {
     const ledger = new UnreadLedger();
     ledger.updateNotificationSettings({ promotions: 'off' });
@@ -577,6 +671,64 @@ describe('Scenario 7: Ledger-owned rows and source ordering', () => {
 
     expect(ledger.getRecentMessages(5)[0].unread).toBe(false);
     expect(ledger.getBreakdown().total).toBe(0);
+  });
+
+  it('keeps a locally read row when a stale cache says unread after the feed confirms', () => {
+    const ledger = new UnreadLedger();
+    ledger.reconcileWithAtom([atomEntry('m1', 't1')], 1, 1000);
+    ledger.recordLocalTriage('m1', 't1', 'archive', 'primary', 2000);
+    ledger.acceptLocalTriage('m1', 't1', 2500);
+
+    // Complete feed omits it, so the pending record clears. The row stays read.
+    ledger.reconcileWithAtom([], 0, 3000, undefined, 3000);
+    expect(ledger.getBreakdown().total).toBe(0);
+
+    // A stale cache still says unread. It must not undo the local delete.
+    ledger.reconcileWithCache([cacheRow('m1', 't1', true)], 4000, 3500);
+    expect(ledger.getBreakdown().total).toBe(0);
+    expect(ledger.getTrackedItems()).toHaveLength(0);
+
+    // Once the cache catches up, it confirms read and the intent clears.
+    ledger.reconcileWithCache([cacheRow('m1', 't1', false)], 5000, 4500);
+    expect(ledger.getBreakdown().total).toBe(0);
+  });
+
+  it('drops read rows the cache no longer lists', () => {
+    const ledger = new UnreadLedger();
+    ledger.reconcileWithCache(
+      [{ ...cacheRow('m1', 't1', false), modified: new Date(3000) }],
+      1000,
+      1000,
+    );
+    expect(ledger.getRecentMessages(5).map((row) => row.id)).toEqual(['m1']);
+
+    // m1 is newer than the oldest returned row but absent, so it left the Inbox.
+    ledger.reconcileWithCache(
+      [{ ...cacheRow('m2', 't2', false), modified: new Date(2000) }],
+      2000,
+      2000,
+    );
+
+    expect(ledger.getRecentMessages(5).map((row) => row.id)).toEqual(['m2']);
+  });
+
+  it('keeps a pending read row the cache has not listed yet', () => {
+    const ledger = new UnreadLedger();
+    ledger.reconcileWithCache(
+      [{ ...cacheRow('m1', 't1', true), modified: new Date(3000) }],
+      1000,
+      1000,
+    );
+    ledger.recordLocalTriage('m1', 't1', 'archive', 'primary', 2000);
+
+    ledger.reconcileWithCache(
+      [{ ...cacheRow('m2', 't2', false), modified: new Date(2000) }],
+      3000,
+      3000,
+    );
+
+    const row = ledger.getRecentMessages(5).find((candidate) => candidate.id === 'm1');
+    expect(row?.unread).toBe(false);
   });
 
   it('updates category from a cache row that contradicts a pending action', () => {

@@ -8,8 +8,8 @@ popover and widgets all read the source.
 ## What the ledger owns
 
 - **Recent rows.** Read and unread threads with category, subject, sender, snippet, message time and
-  the source time that last set the row. Newest first, 20 returned by default, 200 kept; read rows
-  stay in the list so a triaged thread remains visible.
+  the source time that last set the row. Newest first, 20 returned by default, 200 kept. Read rows
+  stay in the list so a triaged thread remains visible; a removed row is hidden at once.
 - **The count.** Total, per-category counts, raw `fullcount`, `activeCount` and `hasState`. In a
   backlog the tracked rows are the newest slice; the total is the whole mailbox.
 
@@ -52,6 +52,12 @@ For a row the ledger already has, only a snapshot with a sync time can change it
 snapshot without one fills in metadata only. A thread the ledger has not seen is added with the
 cache's read state. A cache read runs when the popover pulls rows, on refresh, on a mailbox change
 hint, and when the window wakes.
+
+A complete feed is authoritative for unread membership. A cache row for a thread the complete feed
+omitted cannot be unread; the cache may enrich its metadata but not add it back. A truncated feed
+cannot prove absence, so the cache may still add an off-window unread thread. A fresh snapshot that
+no longer lists a read row drops it. Unread rows and rows with a pending action stay: absence from a
+cache read is not proof that an unread thread is gone.
 
 ## How the total is composed
 
@@ -103,8 +109,10 @@ A source may change a row only when its observation is at or after the row's own
 For a pending reduction, a complete feed that omits the thread confirms it. A truncated feed cannot
 confirm by omission, because the thread may have moved out of the window, so it waits for the
 freshness boundary. For a pending mark-unread, the feed listing the thread confirms it at once;
-absence waits. A reduction of an already-read row writes no record, and marking an already-unread
-thread unread writes none either.
+absence waits. Archiving or deleting an already-read row hides it at once and writes a record that
+does not move the count, so a failed action can restore it; a stale cache cannot unhide it. Deleting
+an unread row hides it at once and keeps its counting record. Repeating mark-read on a read row, or
+marking an already-unread thread unread, writes no record.
 
 ## Per-thread states
 
@@ -114,21 +122,28 @@ stateDiagram-v2
     state "Unread" as Unread
     state "Pending reduction" as PendingReduce
     state "Pending mark unread" as PendingMarkUnread
+    state "Removed (hidden)" as Removed
 
     [*] --> Read
     Read --> Unread: feed or cache says unread
     Read --> PendingMarkUnread: local mark unread
-    Unread --> PendingReduce: local archive, trash or mark read
+    Read --> Removed: local archive or trash
+    Unread --> PendingReduce: local archive or mark read
+    Unread --> Removed: local trash
     Unread --> Read: source says read
     PendingReduce --> Read: feed confirms
     PendingReduce --> Unread: feed boundary passes, still listed
     PendingMarkUnread --> Unread: feed lists it
     PendingMarkUnread --> Read: feed boundary passes, still absent
+    Removed --> Read: action fails on a read row
+    Removed --> Unread: action fails on an unread row
+    Removed --> [*]: cache no longer lists it
 ```
 
-A read row stays in the recent list; “Read” here means not counted, not absent from the popover.
-Reduction and addition are mirrors: presence confirms unread, absence confirms not-unread, and the
-opposite observation waits for the freshness boundary.
+A read row stays in the recent list until it is archived or deleted; “Read” here means not counted,
+not absent from the popover. A removed row is hidden at once and is dropped when the cache no longer
+lists it. Reduction and addition are mirrors: presence confirms unread, absence confirms not-unread,
+and the opposite observation waits for the freshness boundary.
 
 ## Refresh
 

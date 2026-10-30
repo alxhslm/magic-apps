@@ -1,3 +1,4 @@
+import { createLogger } from '@magimail/core/logger';
 import type {
   AtomMessage,
   NotificationCategory,
@@ -7,6 +8,8 @@ import type {
   UnreadBreakdown,
   UnreadLedgerItem,
 } from './types.js';
+
+const log = createLogger('UnreadLedger');
 
 /**
  * How long Gmail's read path may lag behind a mutation the app has dispatched.
@@ -76,6 +79,10 @@ export class UnreadLedger {
   private lastDisplayedUnread: number | null = null;
   /** The mailbox time the last Atom response is trusted as of. */
   private atomAsOf = 0;
+  /** Whether the last feed listed every unread thread. */
+  private lastFeedComplete = false;
+  /** Every id and thread id the last feed listed. */
+  private lastFeedIds = new Set<string>();
   private notificationSettings: Record<string, string> = {};
 
   constructor(initialSettings: Record<string, string> = {}) {
@@ -102,6 +109,9 @@ export class UnreadLedger {
     const targetId = found?.key ?? id;
     const item = found?.item;
     const resolvedCategory = item?.category ?? category;
+    log.info(
+      `Local ${action} id=${id} thread=${threadId} found=${Boolean(item)} unread=${item?.unread ?? 'none'}`,
+    );
 
     if (action === 'markUnread') {
       // A mark-unread supersedes a reducing triage on the same thread, and vice versa.
@@ -115,6 +125,8 @@ export class UnreadLedger {
       if (item) {
         item.unread = true;
         item.category = resolvedCategory;
+        item.localIntent = 'unread';
+        item.localIntentAt = now;
       } else {
         this.recent.set(targetId, {
           id,
@@ -122,6 +134,8 @@ export class UnreadLedger {
           category: resolvedCategory,
           unread: true,
           observedAt: now,
+          localIntent: 'unread',
+          localIntentAt: now,
         });
       }
 
@@ -141,21 +155,27 @@ export class UnreadLedger {
       return;
     }
 
-    // A read row can be archived from the popover. It was never counted, so it must
-    // not move the badge and must not leave a record that subtracts from the feed.
-    if (!item || !item.unread) return;
+    // A read row can be deleted from the popover. It was never counted, so it must
+    // not move the badge, but it must leave the list immediately.
+    if (!item) return;
 
     this.clearMarkedUnreadFor(id, threadId, targetId);
 
+    const wasUnread = item.unread;
+    if (!wasUnread && action === 'markRead') return;
     const record: TriagedRecord = {
       triagedAt: now,
       acceptedAt: now,
       action,
       category: item.category,
-      previousUnread: item.unread,
+      previousUnread: wasUnread,
       previousSourceAsOf: item.sourceAsOf,
+      countsInTotal: wasUnread,
     };
     item.unread = false;
+    item.localIntent = action === 'trash' || !wasUnread ? 'removed' : 'read';
+    item.localIntentAt = now;
+    if (item.localIntent === 'removed') log.info(`Local ${action} hid row id=${id}`);
 
     this.recentlyTriaged.set(id, record);
     if (threadId && threadId !== id) this.recentlyTriaged.set(threadId, record);
@@ -173,6 +193,8 @@ export class UnreadLedger {
     if (triage) triage.acceptedAt = acceptedAt;
     const mark = this.findMarkRecord(id, threadId);
     if (mark) mark.acceptedAt = acceptedAt;
+    const row = this.findRecent(id, threadId);
+    if (row?.item.localIntent) row.item.localIntentAt = acceptedAt;
   }
 
   /** Clears the confirmation time until the driver answers. */
@@ -196,6 +218,8 @@ export class UnreadLedger {
       if (row) {
         row.item.unread = triage.previousUnread ?? true;
         row.item.sourceAsOf = triage.previousSourceAsOf;
+        row.item.localIntent = undefined;
+        row.item.localIntentAt = undefined;
       }
       this.clearTriageRecord(triage);
       changed = true;
@@ -211,6 +235,8 @@ export class UnreadLedger {
         if (row) {
           row.item.unread = mark.previousUnread ?? false;
           row.item.sourceAsOf = mark.previousSourceAsOf;
+          row.item.localIntent = undefined;
+          row.item.localIntentAt = undefined;
         }
       }
       this.clearMarkedUnreadRecord(mark);
@@ -279,9 +305,14 @@ export class UnreadLedger {
           // A newer cache row already set this row's state.
           continue;
         }
-        if (!found.item.unread) added.push(entry.id);
+        if (!found.item.unread) {
+          added.push(entry.id);
+          log.info(`Feed set unread id=${entry.id}`);
+        }
         found.item.unread = true;
         found.item.sourceAsOf = atomAsOf;
+        found.item.localIntent = undefined;
+        found.item.localIntentAt = undefined;
         found.item.category = entry.category ?? found.item.category;
         found.item.subject = entry.subject || found.item.subject;
         found.item.from = entry.from || found.item.from;
@@ -310,6 +341,8 @@ export class UnreadLedger {
     // reduction by omission. A truncated feed may simply have pushed the thread
     // out of its twenty-entry window, so absence there proves nothing.
     const feedIsComplete = fullCount !== null && fullCount <= 20 && fullCount <= entries.length;
+    this.lastFeedComplete = feedIsComplete;
+    this.lastFeedIds = new Set([...feedIds, ...feedThreadIds]);
     if (feedIsComplete) {
       for (const record of new Set(this.recentlyTriaged.values())) {
         if (!this.triageRecordInFeed(record, feedIds, feedThreadIds)) {
@@ -327,6 +360,8 @@ export class UnreadLedger {
         if (item.sourceAsOf !== undefined && atomAsOf < item.sourceAsOf) continue;
         item.unread = false;
         item.sourceAsOf = atomAsOf;
+        item.localIntent = undefined;
+        item.localIntentAt = undefined;
         removed.push(key);
       }
     }
@@ -357,10 +392,19 @@ export class UnreadLedger {
     cacheAsOf?: number,
   ): { enriched: string[] } {
     const enriched: string[] = [];
+    const snapshotKeys = new Set<string>();
+    let oldestSnapshotTs: number | undefined;
     this.pruneRecordsBefore(this.atomAsOf);
 
     for (const msg of snapshotMessages) {
       if (!msg.id) continue;
+      snapshotKeys.add(msg.id);
+      if (msg.threadId) snapshotKeys.add(msg.threadId);
+      const snapshotTs = parseModifiedMs(msg.modified);
+      if (snapshotTs !== undefined) {
+        oldestSnapshotTs =
+          oldestSnapshotTs === undefined ? snapshotTs : Math.min(oldestSnapshotTs, snapshotTs);
+      }
 
       const triage =
         this.recentlyTriaged.get(msg.id) ??
@@ -378,8 +422,40 @@ export class UnreadLedger {
         continue;
       }
 
+      const feedSaysNotUnread =
+        this.lastFeedComplete &&
+        msg.unread &&
+        !this.lastFeedIds.has(msg.id) &&
+        !(msg.threadId && this.lastFeedIds.has(msg.threadId));
+
       const found = this.findRecent(msg.id, msg.threadId);
+      if (found?.item.localIntent === 'removed') {
+        this.enrichFromCache(found.item, msg);
+        continue;
+      }
+      if (feedSaysNotUnread) {
+        if (found) {
+          if (found.item.unread) log.info(`Complete feed marked read id=${found.item.id}`);
+          this.enrichFromCache(found.item, msg);
+          found.item.unread = false;
+          found.item.sourceAsOf = this.atomAsOf;
+          found.item.localIntent = undefined;
+          found.item.localIntentAt = undefined;
+        }
+        continue;
+      }
       if (found) {
+        if (found.item.localIntent) {
+          const confirmed =
+            (found.item.localIntent === 'read' && !msg.unread) ||
+            (found.item.localIntent === 'unread' && msg.unread);
+          if (!confirmed) {
+            this.enrichFromCache(found.item, msg);
+            continue;
+          }
+          found.item.localIntent = undefined;
+          found.item.localIntentAt = undefined;
+        }
         if (
           sourceAsOf !== undefined &&
           found.item.sourceAsOf !== undefined &&
@@ -395,6 +471,9 @@ export class UnreadLedger {
         const modifiedMs = parseModifiedMs(msg.modified);
         if (modifiedMs !== undefined) found.item.timestampMs = modifiedMs;
         if (sourceAsOf !== undefined) {
+          if (!found.item.unread && msg.unread) {
+            log.info(`Cache set unread id=${msg.id} asOf=${sourceAsOf}`);
+          }
           found.item.unread = Boolean(msg.unread);
           found.item.sourceAsOf = sourceAsOf;
         }
@@ -416,6 +495,7 @@ export class UnreadLedger {
       }
     }
 
+    this.pruneAbsentFromCache(snapshotKeys, oldestSnapshotTs);
     this.pruneRecent();
     return { enriched };
   }
@@ -471,6 +551,7 @@ export class UnreadLedger {
   /** The recent rows, read and unread, newest first. */
   public getRecentMessages(limit = 20): TrayMessageItem[] {
     return [...this.recent.values()]
+      .filter((item) => item.localIntent !== 'removed')
       .sort((a, b) => (b.timestampMs ?? b.observedAt) - (a.timestampMs ?? a.observedAt))
       .slice(0, limit)
       .map((item) => ({
@@ -502,6 +583,7 @@ export class UnreadLedger {
   private countPendingTriaged(): number {
     const records = new Set<TriagedRecord>();
     for (const record of this.recentlyTriaged.values()) {
+      if (record.countsInTotal === false) continue;
       if (this.isCategoryEnabled(record.category)) records.add(record);
     }
     return records.size;
@@ -540,6 +622,25 @@ export class UnreadLedger {
       offCategoryCount += Math.min(count, fullCount);
     }
     return Math.max(0, fullCount - offCategoryCount);
+  }
+
+  /**
+   * Drops read rows the cache no longer lists. The cache returns the newest
+   * Inbox rows, so absence above the oldest returned row means the thread was
+   * read, archived or deleted. Unread and pending rows are kept.
+   */
+  private pruneAbsentFromCache(keys: Set<string>, oldestTs?: number): void {
+    if (keys.size === 0) return;
+    for (const [key, item] of this.recent) {
+      if (keys.has(key) || keys.has(item.id) || keys.has(item.threadId)) continue;
+      if (item.unread) continue;
+      if (this.recentlyTriaged.get(key) || this.recentlyTriaged.get(item.id)) continue;
+      if (this.recentlyMarkedUnread.get(key) || this.recentlyMarkedUnread.get(item.id)) continue;
+      const timestamp = item.timestampMs ?? item.observedAt;
+      if (oldestTs !== undefined && timestamp < oldestTs) continue;
+      log.info(`Cache dropped absent row id=${item.id}`);
+      this.recent.delete(key);
+    }
   }
 
   private enrichFromCache(item: UnreadLedgerItem, msg: TrayMessageItem): void {

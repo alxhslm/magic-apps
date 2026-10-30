@@ -63,6 +63,10 @@ export interface UnreadLedgerItem {
   snippet?: string;
   /** Source observation time that last set this row's state (epoch ms). */
   sourceAsOf?: number;
+  /** A local triage intent the cache has not confirmed yet. */
+  localIntent?: 'read' | 'unread' | 'removed';
+  /** When that intent was dispatched or confirmed (epoch ms). */
+  localIntentAt?: number;
 }
 
 /**
@@ -81,6 +85,8 @@ export interface TriagedRecord {
   previousUnread?: boolean;
   /** The row's source watermark before the optimistic change. */
   previousSourceAsOf?: number;
+  /** False when the row was already read, so the action must not move the count. */
+  countsInTotal?: boolean;
 }
 
 /**
