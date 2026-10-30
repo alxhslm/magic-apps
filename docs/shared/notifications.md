@@ -35,22 +35,6 @@ beforehand, and the first notification would necessarily be missed.
 Every response is logged with its raw action identifier and message id, including one that maps to no
 event, so a delivery failure can be told from an unrecognised identifier.
 
-## Diagnosing a missing response
-
-The app log says whether `didReceive` fired, not whether macOS received the click. Read the system
-side with `tools/notification-response-trace.sh` while reproducing: it prints the app and helper
-identities and processes, then streams `usernoted` and `usernotificationsd` lines for the bundle.
-`Received response` means macOS got it; `Notifying UserNotifications client <bundle>:<pid>` names the
-process it handed the response to.
-
-Pass a duration to capture without an interactive prompt:
-`tools/notification-response-trace.sh com.alexhaslam.magimail 240`. There is no retrospective mode:
-`usernoted`'s response lines are debug-level and are not written to the log store, so a `log show`
-query returns an empty result that looks like "no response was received".
-
-If the system log shows the response but the helper logs no `Response received`, the break is between
-`usernoted` and the helper. If neither appears, the click never reached the system.
-
 ## Only the helper posts notifications
 
 The shared session configuration denies the web `Notification` API on every Google partition, both
