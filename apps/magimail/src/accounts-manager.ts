@@ -315,6 +315,10 @@ export class AccountsManager {
           }
         },
         detach: (accountId, view) => {
+          // Suspending every view on window close runs after the window is gone, and
+          // its contentView throws once destroyed. The view is still closed either way;
+          // there is simply nothing left to take it off.
+          if (this.windowIsGone()) return;
           if (this.mainWindow.contentView.children.includes(view)) {
             this.mainWindow.contentView.removeChildView(view);
             log.info(`Detached view for account ${accountId} (${this.pool.attachedSummary()})`);
@@ -984,7 +988,12 @@ export class AccountsManager {
     // they are released here, once, whether or not any account view is still open.
     this.clearBannerTimer();
     if (this.categoryBannerView) {
-      if (this.mainWindow.contentView.children.includes(this.categoryBannerView)) {
+      // The banner's view is a child of a window that may already be gone, by the same
+      // route as an account view: suspend timers outlive the window that armed them.
+      if (
+        !this.windowIsGone() &&
+        this.mainWindow.contentView.children.includes(this.categoryBannerView)
+      ) {
         this.mainWindow.contentView.removeChildView(this.categoryBannerView);
         log.info(`Detached category banner on suspend all (${this.pool.attachedSummary()})`);
       }
@@ -1001,6 +1010,12 @@ export class AccountsManager {
     this.mailActionQueue.clear();
 
     this.pool.suspendAllAccounts();
+  }
+
+  /** Whether the window the pool attaches to is gone, taking its contentView with it. */
+  private windowIsGone(): boolean {
+    if (typeof this.mainWindow.isDestroyed !== 'function') return false;
+    return this.mainWindow.isDestroyed();
   }
 
   /** Whether an account currently has a live renderer. */

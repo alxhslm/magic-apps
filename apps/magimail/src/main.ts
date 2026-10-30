@@ -7,8 +7,10 @@ import {
   Menu,
   net,
   powerMonitor,
+  screen,
   session,
   shell,
+  type Rectangle,
 } from 'electron';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
@@ -199,6 +201,8 @@ import {
 let mainWindow: BaseWindow | null = null;
 let findInPageController: FindInPageController | null = null;
 let isQuitting = false;
+/** Set while a replacement window is being built, so recovery cannot recurse. */
+let rebuildingWindow = false;
 /**
  * Whether the launch pass has finished building the window, the tray and the pollers.
  *
@@ -359,7 +363,7 @@ function updateApplicationMenu(preloadPath: string, isThreadSelected?: boolean):
       accountsManager?.switchToIndex(index);
     },
     onReloadActive: () => {
-      accountsManager?.reloadActiveView();
+      reloadMailbox();
     },
     onFindInPage: () => {
       findInPageController?.show();
@@ -660,7 +664,7 @@ async function routeThreadAction(
 
 function createMainWindow(
   initialAccountId?: string,
-  { show = true }: { show?: boolean } = {},
+  { show = true, bounds }: { show?: boolean; bounds?: Rectangle } = {},
 ): BaseWindow {
   log.info('Creating main window');
   const preloadPath = getPreloadPath();
@@ -668,10 +672,11 @@ function createMainWindow(
   const settings = loadSettings();
   const options = createMainWindowOptions({
     title: uiString('window.main.title'),
-    width: 1280,
-    height: 850,
     minWidth: 960,
     minHeight: 600,
+    // A window rebuilt in place returns to where the user had it, so recovering
+    // from a blank window does not also move and resize it.
+    ...(bounds ?? { width: 1280, height: 850 }),
     ...(settings.transparentBackground
       ? {}
       : {
@@ -688,6 +693,11 @@ function createMainWindow(
 
   // Initialize multi-account manager with WebContentsViews and ThemeManager
   accountsManager = new AccountsManager(win, preloadPath, themeManager || undefined);
+
+  // Coming back to the window is when a blank one is most likely to be seen, so the
+  // pair is logged: it dates the failure against the suspension that preceded it.
+  win.on('show', () => log.info('Main window shown'));
+  win.on('hide', () => log.info('Main window hidden'));
   // The helper forwards the filter as soon as it reads it, which can be before the first window,
   // and so before the manager the filter is applied to. Without this a filter that arrived with
   // the window closed would be lost when the next window is built.
@@ -865,6 +875,10 @@ function createMainWindow(
     // Before the manager goes, so a relaunch restores the account that was last on
     // screen.
     accountsManager?.persistActiveAccount();
+    // The account views outlive the window: nothing else closes them, so without
+    // this they hold a renderer each until quit, and their suspend timers fire a few
+    // minutes later against a destroyed window.
+    accountsManager?.suspendAllAccounts();
     // Release the native toolbar with the window it was attached to, so a
     // window recreated from the dock gets a fresh one.
     detachNativeToolbar();
@@ -875,6 +889,44 @@ function createMainWindow(
   });
 
   return win;
+}
+
+/**
+ * Serves a reload request: Cmd+R, or Reload in the View menu.
+ *
+ * It rebuilds the window rather than the account view, for the same reason Magical
+ * does. A view rebuild is the cheaper repair, and the right one when only the view's
+ * compositor has died, but on 29 October twenty of them ran in twenty seconds in
+ * Magical with the window still blank until it was closed and rebuilt. A reload
+ * request is a user asking for their mail back, so it does the repair that works.
+ */
+function reloadMailbox(): void {
+  rebuildMainWindow('reload requested');
+}
+
+/**
+ * Replaces the main window with a fresh one on the same account and bounds.
+ *
+ * The only recovery observed for a window that has stopped presenting. It costs a
+ * Gmail load and a blink of the window.
+ */
+function rebuildMainWindow(reason: string, detail?: string): void {
+  if (!mainWindow || !accountsManager || isQuitting || rebuildingWindow) return;
+
+  const accountId = accountsManager.getActiveAccountId();
+  const bounds = mainWindow.getBounds();
+  rebuildingWindow = true;
+  log.info(`Rebuilding the window: ${reason}${detail ? ` (${detail})` : ''}`);
+
+  const previous = mainWindow;
+  previous.once('closed', () => {
+    rebuildingWindow = false;
+    if (isQuitting) return;
+    mainWindow = createMainWindow(accountId, { bounds });
+  });
+  // Destroyed rather than closed: with the tray on, `close` is turned into a hide, and
+  // a hidden window still has the blank one in it.
+  previous.destroy();
 }
 
 // Chromium performance switches — disable unused browser subsystems
@@ -974,6 +1026,18 @@ if (!hasLock) {
     // 1b. Spawn Swift helper for native UI
     spawnHelper();
     syncExtensionLogs(logDirectory());
+
+    // A window that has stopped presenting leaves no trace of its own, so the events
+    // that could have caused it are recorded beside the show and hide lines: a GPU
+    // process that died, and a display that came or went.
+    app.on('child-process-gone', (_event, details) => {
+      log.warn(
+        `Child process gone: ${details.type} ${details.reason} (exit code ${details.exitCode})`,
+      );
+    });
+    screen.on('display-added', () => log.info('Display added'));
+    screen.on('display-removed', () => log.info('Display removed'));
+    screen.on('display-metrics-changed', () => log.info('Display metrics changed'));
 
     // Takes back staging that earlier runs, or a crash mid-share, left on disk.
     sweepAbandonedShareStaging();
