@@ -30,6 +30,8 @@ vi.mock('electron', () => ({
     fromPartition: vi.fn(() => ({
       webRequest: { onBeforeSendHeaders: vi.fn(), onBeforeRequest: vi.fn() },
       setUserAgent: vi.fn(),
+      setPermissionRequestHandler: vi.fn(),
+      setPermissionCheckHandler: vi.fn(),
     })),
   },
   ipcMain: { on: vi.fn() },
