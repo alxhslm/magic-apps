@@ -9,18 +9,19 @@ import type {
 } from './types.js';
 
 /**
- * Fallback only. A response's HTTP `Age` header says how old it actually is; this
- * value is used when the response carries no age at all.
+ * How long Gmail's read path may lag behind a mutation the server has accepted.
+ * The feed is served no-store with no Age, so this is not an HTTP cache age: it is
+ * the bound on how long a generated feed may still show the pre-mutation state.
  */
-export const ATOM_SOURCE_STALENESS_MS = 5000;
+export const ATOM_READ_PATH_GRACE_MS = 5000;
 
 /**
  * Pure, deterministic state machine for unread email reconciliation.
  *
  * Each source carries its own freshness:
  *
- * - Atom is trusted as of its response `Age`, falling back to five seconds when the
- *   response carries no age.
+ * - Atom is trusted as of its response generation time minus the read-path grace.
+ *   The grace is a bound on backend propagation, not an HTTP cache age.
  * - A cache row is trusted for a thread when the row's own modified time is at or
  *   after the local action. Gmail's cache has no global last-sync timestamp exposed
  *   by the reader, so the per-thread timestamp is the strongest signal available.
@@ -160,8 +161,8 @@ export class UnreadLedger {
     const removed: string[] = [];
     const oldCount = this.getBreakdown().total;
 
-    // The response describes the mailbox as of its own age, not as of `now`.
-    const atomAsOf = sourceAsOf ?? now - ATOM_SOURCE_STALENESS_MS;
+    // A response generated at G may still be showing the mailbox from G - grace.
+    const atomAsOf = (sourceAsOf ?? now) - ATOM_READ_PATH_GRACE_MS;
     this.atomAsOf = atomAsOf;
     this.pruneRecordsBefore(atomAsOf);
 

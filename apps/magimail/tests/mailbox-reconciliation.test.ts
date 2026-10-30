@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { UnreadLedger, ATOM_SOURCE_STALENESS_MS } from '../src/mailbox/unread-ledger.js';
+import { UnreadLedger, ATOM_READ_PATH_GRACE_MS } from '../src/mailbox/unread-ledger.js';
 import type { AtomMessage, TrayMessageItem } from '../src/mailbox/types.js';
 import { HybridFeedSource } from '../src/mailbox/hybrid-feed-source.js';
 import * as syncDriverModule from '../src/thread-actions/sync-driver.js';
@@ -128,7 +128,7 @@ describe('UnreadLedger State Machine', () => {
       expect(ledger.getBreakdown().total).toBe(0);
 
       // After grace window (>= 5000ms), if Atom STILL returns msg-fail, edge recovery re-adds it
-      const expiredTime = triageTime + ATOM_SOURCE_STALENESS_MS + 100;
+      const expiredTime = triageTime + ATOM_READ_PATH_GRACE_MS + 100;
       const recoveryReconcile = ledger.reconcileWithAtom([msg], 1, expiredTime);
       expect(recoveryReconcile.added).toContain('msg-fail');
       expect(ledger.getBreakdown().total).toBe(1);
@@ -285,7 +285,7 @@ describe('Scenario 6: Preemptive Ledger Updates', () => {
     expect(ledger.getBreakdown().total).toBe(1);
   });
 
-  it('lets a measured Atom boundary at or after the action win immediately', () => {
+  it('lets a response generated at least the read-path grace after the action win', () => {
     const ledger = new UnreadLedger();
     const entry = atomEntry('m1', 't1');
 
@@ -293,12 +293,12 @@ describe('Scenario 6: Preemptive Ledger Updates', () => {
     ledger.recordLocalTriage('m1', 't1', 'archive', 'primary', 2000);
     expect(ledger.getBreakdown().total).toBe(0);
 
-    // The response says it is fresh as of 2500, after the action.
-    ledger.reconcileWithAtom([entry], 1, 2100, 1, 2500);
+    // Generated at 8000, so the read path has had until 3000 to catch up.
+    ledger.reconcileWithAtom([entry], 1, 2100, 1, 8000);
     expect(ledger.getBreakdown().total).toBe(1);
   });
 
-  it('keeps the local action when the measured Atom boundary predates it', () => {
+  it('keeps the local action when the response generation is still inside the grace', () => {
     const ledger = new UnreadLedger();
     const entry = atomEntry('m1', 't1');
 
@@ -306,8 +306,8 @@ describe('Scenario 6: Preemptive Ledger Updates', () => {
     ledger.recordLocalTriage('m1', 't1', 'archive', 'primary', 2000);
     expect(ledger.getBreakdown().total).toBe(0);
 
-    // The response says it is only current as of 1500, before the action.
-    ledger.reconcileWithAtom([entry], 1, 2100, 1, 1500);
+    // Generated at 5000, so the read path is only trusted as of 0.
+    ledger.reconcileWithAtom([entry], 1, 2100, 1, 5000);
     expect(ledger.getBreakdown().total).toBe(0);
   });
 
@@ -340,7 +340,7 @@ describe('Scenario 6: Preemptive Ledger Updates', () => {
     expect(ledger.getTrackedItems().some((item) => item.id === 'm0')).toBe(false);
 
     // Once the grace expires, a server that still asserts the message wins.
-    ledger.reconcileWithAtom(entries, 50, 2000 + ATOM_SOURCE_STALENESS_MS + 100);
+    ledger.reconcileWithAtom(entries, 50, 2000 + ATOM_READ_PATH_GRACE_MS + 100);
     expect(ledger.getBreakdown().total).toBe(50);
     expect(ledger.getTrackedItems().some((item) => item.id === 'm0')).toBe(true);
   });
@@ -447,7 +447,7 @@ describe('Scenario 6: Preemptive Ledger Updates', () => {
     expect(ledger.getBreakdown().total).toBe(1);
 
     // Once grace expires, a server that still does not list it wins.
-    ledger.reconcileWithAtom([], 0, 2000 + ATOM_SOURCE_STALENESS_MS + 100);
+    ledger.reconcileWithAtom([], 0, 2000 + ATOM_READ_PATH_GRACE_MS + 100);
     expect(ledger.getBreakdown().total).toBe(0);
   });
 

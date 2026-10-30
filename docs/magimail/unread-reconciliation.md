@@ -19,17 +19,22 @@ tracked set is a sample while the badge is a total.
 A local action is held against a source only while that source may predate the action. There is no
 per-action grace state; there is a freshness boundary per source.
 
-| Source                  | Freshness boundary                                               | Effect                                                                                                                               |
-| :---------------------- | :--------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------- |
-| Atom                    | `poll time - ATOM_SOURCE_STALENESS_MS` (5s)                      | A response at `P` describes the mailbox as of `P - 5s`. A local action newer than that is not overwritten by the feed.               |
-| Atom entry              | the entry's `modified` time                                      | An entry changed at or after the action is a later truth and wins immediately, even inside the 5s window.                            |
-| Cache                   | the cache update time, falling back to the row's `modified` time | A cache updated at or after the action wins immediately. A cache that predates the action is ignored for pending threads.            |
-| Cache with no timestamp | none                                                             | The row cannot prove it postdates the action, so it is ignored for a pending thread. Atom's boundary eventually releases the action. |
+| Source                  | Freshness boundary                                               | Effect                                                                                                                                                            |
+| :---------------------- | :--------------------------------------------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Atom                    | response generation time minus `ATOM_READ_PATH_GRACE_MS` (5s)    | Gmail serves the feed no-store with no `Age`. A response generated at `G` is trusted as of `G - 5s`, a bound on how long its read path may lag a server mutation. |
+| Atom entry              | the entry's `modified` time                                      | An entry changed at or after the action is a later truth and wins immediately, even inside the 5s window.                                                         |
+| Cache                   | the cache update time, falling back to the row's `modified` time | A cache updated at or after the action wins immediately. A cache that predates the action is ignored for pending threads.                                         |
+| Cache with no timestamp | none                                                             | The row cannot prove it postdates the action, so it is ignored for a pending thread. Atom's boundary eventually releases the action.                              |
 
 Gmail's `_xdb` records when its item sync last completed. The reader returns that as
 `CachedInboxSnapshot.asOf`, and that is the cache boundary. When the metadata is missing, as it is
 on an older schema, the row's `modified` time is the fallback. The source was verified against a
 live profile rather than guessed from Gmail's JavaScript.
+
+The Atom feed was also probed live. It returns `Cache-Control: no-cache, no-store, must-revalidate`,
+no `Age`, and a root `<modified>` equal to the response `Date`. That timestamp is generation time,
+not a data-correctness window, so the read-path grace is the remaining assumption. It bounds how
+long Gmail's read path may still show a state the mutation path has already changed.
 
 The consequence is the one that matters: a local action followed by a refresh is not undone when
 Atom returns its pre-action state, because that response's freshness boundary is still behind the

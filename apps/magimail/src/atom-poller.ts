@@ -92,8 +92,8 @@ export interface AtomPollResult {
   arrivalsIncomplete: boolean;
   rawFullCount?: number | null;
   /**
-   * The mailbox time this response is known to describe, from the HTTP `Age`
-   * header. Undefined when the response carried no age.
+   * When the response was generated, from its HTTP `Date` header. The ledger
+   * subtracts its read-path grace from this; it is not a data-correctness time.
    */
   sourceAsOf?: number;
   status?: AtomPollStatus;
@@ -179,9 +179,18 @@ export function toGmailUrlId(messageId: string): string {
   }
 }
 
-export function parseAtomXml(xml: string): { fullCount: number | null; entries: AtomMessage[] } {
+export function parseAtomXml(xml: string): {
+  fullCount: number | null;
+  entries: AtomMessage[];
+  feedModified?: string;
+} {
   const fullCountMatch = xml.match(/<fullcount>(\d+)<\/fullcount>/i);
   const fullCount = fullCountMatch ? parseInt(fullCountMatch[1], 10) : null;
+
+  // The root feed carries its own last-change time, before the first entry.
+  const feedHeader = xml.split(/<entry>/i)[0] ?? '';
+  const feedModifiedMatch = feedHeader.match(/<modified>([\s\S]*?)<\/modified>/i);
+  const feedModified = feedModifiedMatch ? feedModifiedMatch[1].trim() : undefined;
 
   const entries: AtomMessage[] = [];
   const entryRegex = /<entry>([\s\S]*?)<\/entry>/gi;
@@ -231,7 +240,7 @@ export function parseAtomXml(xml: string): { fullCount: number | null; entries: 
     });
   }
 
-  return { fullCount, entries };
+  return { fullCount, entries, feedModified };
 }
 
 function getStateDir(): string {
@@ -587,13 +596,12 @@ export class AtomFeedPoller {
         },
       });
 
-      // An edge cache states how long it has held the response. `Age: 0` is a
-      // fresh response; a larger value is how far behind the mailbox it may be.
-      const ageHeader = response.headers?.get?.('age') ?? null;
-      const ageSeconds = ageHeader === null ? NaN : Number(ageHeader);
-      const sourceAsOf = Number.isFinite(ageSeconds)
-        ? Date.now() - Math.max(0, ageSeconds) * 1000
-        : undefined;
+      // Gmail serves the feed with no-store and no Age, so the response is not
+      // HTTP-cached. `Date` is the generation time; a skewed future value is
+      // capped at receipt.
+      const dateHeader = response.headers?.get?.('date') ?? null;
+      const dateMs = dateHeader ? Date.parse(dateHeader) : NaN;
+      const generatedAt = Number.isFinite(dateMs) ? Math.min(Date.now(), dateMs) : undefined;
 
       if (!response.ok) {
         // Status 401 or redirect to login means account is not signed in yet
@@ -635,8 +643,14 @@ export class AtomFeedPoller {
       }
 
       const xml = await response.text();
-      const { fullCount, entries } = parseAtomXml(xml);
+      const { fullCount, entries, feedModified } = parseAtomXml(xml);
       this.lastFullCount = fullCount;
+
+      // Prefer the response generation time; the feed's own modified time is a
+      // fallback for a response with no usable Date header.
+      const feedModifiedMs = feedModified ? Date.parse(feedModified) : NaN;
+      const sourceAsOf =
+        generatedAt ?? (Number.isFinite(feedModifiedMs) ? feedModifiedMs : undefined);
 
       if (fullCount === null) {
         // A policy block page also arrives as HTML with no feed, so it is read before

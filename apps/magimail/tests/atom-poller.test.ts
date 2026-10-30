@@ -148,6 +148,17 @@ describe('Atom XML Parser', () => {
     expect(entries[1].from).toBe('John Connor <john@resistance.org>');
   });
 
+  it('reads the root feed modified time as the data boundary', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://purl.org/atom/ns#" version="0.3">
+  <fullcount>0</fullcount>
+  <modified>2026-09-05T11:40:00Z</modified>
+</feed>`;
+
+    const { feedModified } = parseAtomXml(xml);
+    expect(feedModified).toBe('2026-09-05T11:40:00Z');
+  });
+
   it('handles empty feed with 0 count', () => {
     const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <feed xmlns="http://purl.org/atom/ns#" version="0.3">
