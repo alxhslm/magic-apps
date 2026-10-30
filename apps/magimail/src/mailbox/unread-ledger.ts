@@ -191,7 +191,6 @@ export class UnreadLedger {
         } else {
           // The feed predates the action, or carries no timestamp to prove otherwise.
           // Suppress it until the source is fresh enough to include the action.
-          triage.seenInFeed = true;
           continue;
         }
       }
@@ -228,15 +227,15 @@ export class UnreadLedger {
       }
     }
 
-    // Server confirmation of local triage: a complete feed that no longer lists
-    // the item proves the write landed, as does a record that was listed during
-    // grace and has since gone. A truncated feed proves nothing on its own; the
-    // source-freshness cutoff below is what eventually releases it.
+    // Server confirmation of local triage: only a complete feed can confirm a
+    // reduction by omission. A truncated feed may simply have pushed the thread
+    // out of its twenty-entry window, so absence there proves nothing.
     const feedIsComplete = fullCount !== null && fullCount <= 20 && fullCount <= entries.length;
-    for (const record of new Set(this.recentlyTriaged.values())) {
-      const present = this.triageRecordInFeed(record, feedIds, feedThreadIds);
-      if (!present && (feedIsComplete || record.seenInFeed)) {
-        this.clearTriageRecord(record);
+    if (feedIsComplete) {
+      for (const record of new Set(this.recentlyTriaged.values())) {
+        if (!this.triageRecordInFeed(record, feedIds, feedThreadIds)) {
+          this.clearTriageRecord(record);
+        }
       }
     }
 

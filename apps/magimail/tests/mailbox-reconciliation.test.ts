@@ -345,18 +345,21 @@ describe('Scenario 6: Preemptive Ledger Updates', () => {
     expect(ledger.getTrackedItems().some((item) => item.id === 'm0')).toBe(true);
   });
 
-  it('does not subtract again once a lagging feed has confirmed the triage', () => {
+  it('does not treat omission from a truncated feed as confirmation', () => {
     const ledger = new UnreadLedger();
     const entries = Array.from({ length: 20 }, (_, i) => atomEntry(`m${i}`, `t${i}`));
 
     ledger.reconcileWithAtom(entries, 50, 1000);
     ledger.recordLocalTriage('m0', 't0', 'archive', 'primary', 2000);
-    // The message is still listed, which marks the record as seen in the feed.
     ledger.reconcileWithAtom(entries, 50, 2500);
     expect(ledger.getBreakdown().total).toBe(49);
 
-    // The server applies the write: the feed shortens and drops the message.
+    // The feed shortens, but a truncated feed could have pushed m0 out of its
+    // window rather than removed it. Hold the decrement until the boundary.
     ledger.reconcileWithAtom(entries.slice(1), 49, 3000);
+    expect(ledger.getBreakdown().total).toBe(48);
+
+    ledger.reconcileWithAtom(entries.slice(1), 49, 2000 + ATOM_READ_PATH_GRACE_MS + 100);
     expect(ledger.getBreakdown().total).toBe(49);
   });
 

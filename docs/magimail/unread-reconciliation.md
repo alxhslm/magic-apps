@@ -127,6 +127,14 @@ That covers cache-only startup and the first poll after launch.
 | Cache update time older than the action              | Ignore the row for that thread.       | Ignore the row for that thread.            |
 | Cache timestamp unknown                              | Ignore for a pending thread.          | Ignore for a pending thread.               |
 
+Reduction and addition are not special-cased. The confirming observation is the desired state:
+presence for unread, absence for not-unread. A complete feed enumerates the whole unread set, so
+absence is positive evidence that a reduced thread is no longer unread; a read path that had not yet
+seen the mutation would still list it. A truncated feed cannot prove absence, because the thread may
+have been pushed out of its twenty-entry window. That is why a backlog reduction waits for the
+read-path grace even when the thread disappears, while a complete-feed reduction confirms
+immediately. Addition is the mirror: presence confirms at once, absence waits.
+
 A source boundary is not a timer. It is evaluated when that source is reconciled, so the record
 persists between events and no code path can shorten it.
 
