@@ -112,7 +112,7 @@ export class HybridFeedSource implements MailboxSource {
       try {
         const snapshot = await readCachedInboxData(view.webContents, limit);
         if (snapshot && snapshot.messages && snapshot.messages.length > 0) {
-          this.ledger.reconcileWithCache(snapshot.messages);
+          this.ledger.reconcileWithCache(snapshot.messages, Date.now(), snapshot.asOf);
           this.lastKnownRecent = snapshot.messages.slice(0, limit);
           return this.lastKnownRecent;
         }
@@ -148,7 +148,6 @@ export class HybridFeedSource implements MailboxSource {
   }
 
   public async refresh(): Promise<void> {
-    this.ledger.clearRecentlyTriaged();
     await this.poller.pollNow();
 
     const view = this.options.getView?.(this.accountId);
@@ -156,7 +155,7 @@ export class HybridFeedSource implements MailboxSource {
       try {
         const snapshot = await readCachedInboxData(view.webContents, 20);
         if (snapshot?.messages) {
-          this.ledger.reconcileWithCache(snapshot.messages);
+          this.ledger.reconcileWithCache(snapshot.messages, Date.now(), snapshot.asOf);
         }
       } catch (err) {
         log.warn(`Cache refresh failed for ${this.accountId}:`, err);
@@ -201,7 +200,7 @@ export class HybridFeedSource implements MailboxSource {
       try {
         const snapshot = await readCachedInboxData(view.webContents, 20);
         if (snapshot?.messages) {
-          this.ledger.reconcileWithCache(snapshot.messages);
+          this.ledger.reconcileWithCache(snapshot.messages, Date.now(), snapshot.asOf);
         }
       } catch {
         // Ignore cache failure
@@ -246,7 +245,12 @@ export class HybridFeedSource implements MailboxSource {
           : null) ??
         result.totalUnread;
 
-      const delta = this.ledger.reconcileWithAtom(entries, rawFullCount);
+      const delta = this.ledger.reconcileWithAtom(
+        entries,
+        rawFullCount,
+        Date.now(),
+        result.totalUnread,
+      );
 
       if (delta.countChanged || delta.added.length > 0 || delta.removed.length > 0) {
         await this.dispatchUniversalSyncNudge();

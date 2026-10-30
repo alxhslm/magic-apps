@@ -8,14 +8,33 @@ import type {
   UnreadLedgerItem,
 } from './types.js';
 
-export const CACHE_TRIAGE_GRACE_MS = 5000;
+/**
+ * How stale an Atom response may be. The feed is served through an edge cache, so a
+ * response at time P describes the mailbox as of roughly P - 5s. A local action newer
+ * than that is not yet represented by the feed and must not be overwritten by it.
+ */
+export const ATOM_SOURCE_STALENESS_MS = 5000;
 
 /**
  * Pure, deterministic state machine for unread email reconciliation.
  *
- * Reconciles Atom feed reports, local IndexedDB (_xdb) cache reads, and local triage
- * mutations without race conditions, state bounce, or email resurrection.
+ * Each source carries its own freshness:
+ *
+ * - Atom is trusted as of `poll time - ATOM_SOURCE_STALENESS_MS`.
+ * - A cache row is trusted for a thread when the row's own modified time is at or
+ *   after the local action. Gmail's cache has no global last-sync timestamp exposed
+ *   by the reader, so the per-thread timestamp is the strongest signal available.
+ *
+ * A local action is a record, never an edit to the Atom base. The base is replaced on
+ * every poll; records adjust it until a source fresh enough to include the action
+ * confirms or contradicts it.
  */
+
+interface MarkedUnreadRecord {
+  markedAt: number;
+  category: NotificationCategory;
+}
+
 function parseCategory(cat?: string): NotificationCategory | undefined {
   if (
     cat === 'primary' ||
@@ -39,10 +58,14 @@ function parseModifiedMs(modified?: string | Date): number | undefined {
 export class UnreadLedger {
   private activeUnread = new Map<string, UnreadLedgerItem>();
   private recentlyTriaged = new Map<string, TriagedRecord>();
-  private recentlyMarkedUnread = new Map<string, { markedAt: number }>();
+  private recentlyMarkedUnread = new Map<string, MarkedUnreadRecord>();
+  /** Raw <fullcount> from the last feed. */
   private lastFullCount: number | null = null;
+  /** Feed count after disabled categories were removed. */
+  private lastDisplayedUnread: number | null = null;
+  /** The mailbox time the last Atom response is trusted as of. */
+  private atomAsOf = 0;
   private notificationSettings: Record<string, string> = {};
-  private watermark = 0;
 
   constructor(initialSettings: Record<string, string> = {}) {
     this.notificationSettings = { ...initialSettings };
@@ -59,47 +82,17 @@ export class UnreadLedger {
     category: NotificationCategory = 'primary',
     now: number = Date.now(),
   ): void {
-    let targetId = id;
-    let existing = this.activeUnread.get(id);
-    if (!existing && threadId) {
-      for (const [key, item] of this.activeUnread.entries()) {
-        if (item.threadId === threadId || item.id === threadId) {
-          existing = item;
-          targetId = key;
-          break;
-        }
-      }
-    }
+    this.pruneRecordsBefore(this.atomAsOf);
 
+    const found = this.findActive(id, threadId);
+    const targetId = found?.key ?? id;
+    const existing = found?.item;
     const resolvedCategory = existing?.category ?? category;
 
-    if (action === 'archive' || action === 'trash' || action === 'markRead') {
-      this.activeUnread.delete(targetId);
-      if (id !== targetId) {
-        this.activeUnread.delete(id);
-      }
-
-      const record: TriagedRecord = {
-        triagedAt: now,
-        action,
-        category: resolvedCategory,
-      };
-
-      this.recentlyTriaged.set(id, record);
-      if (threadId && threadId !== id) {
-        this.recentlyTriaged.set(threadId, record);
-      }
-      if (targetId && targetId !== id && targetId !== threadId) {
-        this.recentlyTriaged.set(targetId, record);
-      }
-
-      if (this.lastFullCount !== null && this.lastFullCount > 0) {
-        this.lastFullCount = Math.max(0, this.lastFullCount - 1);
-      }
-    } else if (action === 'markUnread') {
-      this.recentlyTriaged.delete(id);
-      if (threadId) this.recentlyTriaged.delete(threadId);
-      if (targetId) this.recentlyTriaged.delete(targetId);
+    if (action === 'markUnread') {
+      // A mark-unread supersedes a reducing triage on the same thread, and vice versa.
+      this.clearTriageFor(id, threadId, targetId);
+      this.clearMarkedUnreadFor(id, threadId, targetId);
 
       // Keep an existing entry under the key it already has. Writing it under the
       // thread id as well would leave the old entry counted beside the new one.
@@ -115,35 +108,61 @@ export class UnreadLedger {
         timestampMs: existing?.timestampMs,
       });
 
-      // A stale cache read and a lagging feed both still say read. Hold the local
-      // intent until the feed lists the thread or the grace window expires.
-      const markRecord = { markedAt: now };
-      this.recentlyMarkedUnread.set(id, markRecord);
-      if (threadId && threadId !== id) this.recentlyMarkedUnread.set(threadId, markRecord);
-      if (targetId && targetId !== id && targetId !== threadId) {
-        this.recentlyMarkedUnread.set(targetId, markRecord);
+      // An already-unread thread is already counted. Only a thread that was not
+      // counted needs a pending addition against the feed.
+      if (!existing) {
+        const markRecord: MarkedUnreadRecord = { markedAt: now, category: resolvedCategory };
+        this.recentlyMarkedUnread.set(id, markRecord);
+        if (threadId && threadId !== id) this.recentlyMarkedUnread.set(threadId, markRecord);
+        if (targetId && targetId !== id && targetId !== threadId) {
+          this.recentlyMarkedUnread.set(targetId, markRecord);
+        }
       }
+      return;
+    }
 
-      if (!existing && this.lastFullCount !== null) {
-        this.lastFullCount += 1;
-      }
+    // A read row can be archived from the popover. It was never counted, so it must
+    // not move the badge and must not leave a record that subtracts from the feed.
+    if (!existing) return;
+
+    this.activeUnread.delete(targetId);
+    if (id !== targetId) this.activeUnread.delete(id);
+    this.clearMarkedUnreadFor(id, threadId, targetId);
+
+    const record: TriagedRecord = {
+      triagedAt: now,
+      action,
+      category: resolvedCategory,
+    };
+    this.recentlyTriaged.set(id, record);
+    if (threadId && threadId !== id) this.recentlyTriaged.set(threadId, record);
+    if (targetId && targetId !== id && targetId !== threadId) {
+      this.recentlyTriaged.set(targetId, record);
     }
   }
 
   /**
    * 2. Reconcile with Atom Feed
    * Invoked when AtomFeedPoller returns parsed XML (<fullcount> and <entry>[]).
+   *
+   * `displayedUnread` is the feed's count after disabled categories were removed.
+   * When omitted, it is derived from the entries for a complete feed and from the
+   * raw fullcount for a backlog.
    */
   public reconcileWithAtom(
     entries: AtomMessage[],
     fullCount: number | null,
     now: number = Date.now(),
+    displayedUnread?: number | null,
   ): { added: string[]; removed: string[]; countChanged: boolean } {
     const added: string[] = [];
     const removed: string[] = [];
     const oldCount = this.getBreakdown().total;
 
-    this.pruneExpiredTriage(now);
+    // The response describes the mailbox as of this time, not as of `now`.
+    const atomAsOf = now - ATOM_SOURCE_STALENESS_MS;
+    this.atomAsOf = atomAsOf;
+    this.pruneRecordsBefore(atomAsOf);
 
     const feedIds = new Set<string>();
     const feedThreadIds = new Set<string>();
@@ -155,22 +174,23 @@ export class UnreadLedger {
 
       // The feed listing a locally marked-unread thread is its confirmation.
       const markRecord = this.markedUnreadFor(entry.id, entry.threadId);
-      if (markRecord) this.clearMarkedUnread(markRecord);
+      if (markRecord) this.clearMarkedUnreadRecord(markRecord);
 
-      // Check if message is currently suppressed by local triage grace window
       const triage =
         this.recentlyTriaged.get(entry.id) ??
         (entry.threadId ? this.recentlyTriaged.get(entry.threadId) : undefined);
 
       if (triage) {
-        if (now - triage.triagedAt < CACHE_TRIAGE_GRACE_MS) {
-          // Lagging edge-cache: suppress resurrection
+        const changedAt = parseModifiedMs(entry.modified);
+        if (changedAt !== undefined && changedAt >= triage.triagedAt) {
+          // The thread changed on the server after the local action, so this entry
+          // is a later truth and wins immediately.
+          this.clearTriageRecord(triage);
+        } else {
+          // The feed predates the action, or carries no timestamp to prove otherwise.
+          // Suppress it until the source is fresh enough to include the action.
           triage.seenInFeed = true;
           continue;
-        } else {
-          // Grace expired and message is still present: evict triage record
-          this.recentlyTriaged.delete(entry.id);
-          if (entry.threadId) this.recentlyTriaged.delete(entry.threadId);
         }
       }
 
@@ -207,32 +227,22 @@ export class UnreadLedger {
     }
 
     // Server confirmation of local triage: a complete feed that no longer lists
-    // the item proves the write landed, as does an item that was listed during
-    // grace and has since gone. A truncated feed proves nothing on its own, so a
-    // thread outside the 20-entry window stays pending until grace expires.
+    // the item proves the write landed, as does a record that was listed during
+    // grace and has since gone. A truncated feed proves nothing on its own; the
+    // source-freshness cutoff below is what eventually releases it.
     const feedIsComplete = fullCount !== null && fullCount <= 20 && fullCount <= entries.length;
-    for (const [triagedKey, record] of this.recentlyTriaged.entries()) {
-      const absent = !feedIds.has(triagedKey) && !feedThreadIds.has(triagedKey);
-      if (absent && (feedIsComplete || record.seenInFeed)) {
-        this.recentlyTriaged.delete(triagedKey);
+    for (const record of new Set(this.recentlyTriaged.values())) {
+      const present = this.triageRecordInFeed(record, feedIds, feedThreadIds);
+      if (!present && (feedIsComplete || record.seenInFeed)) {
+        this.clearTriageRecord(record);
       }
     }
 
-    // Atom's fullcount is authoritative, less the local triages the server has
-    // not yet propagated. Counting unique triage records rather than feed entries
-    // keeps a backlog decrement when the thread sits outside the 20-entry window.
-    const pendingTriage = new Set<TriagedRecord>();
-    for (const record of this.recentlyTriaged.values()) {
-      if (now - record.triagedAt < CACHE_TRIAGE_GRACE_MS) pendingTriage.add(record);
-    }
-    const pendingMarkUnread = new Set<{ markedAt: number }>();
-    for (const record of this.recentlyMarkedUnread.values()) {
-      if (now - record.markedAt < CACHE_TRIAGE_GRACE_MS) pendingMarkUnread.add(record);
-    }
-    this.lastFullCount =
-      fullCount === null
-        ? null
-        : Math.max(0, fullCount + pendingMarkUnread.size - pendingTriage.size);
+    this.lastFullCount = fullCount;
+    this.lastDisplayedUnread =
+      displayedUnread !== undefined
+        ? displayedUnread
+        : this.deriveDisplayedUnread(fullCount, entries);
 
     // Small inbox reconciliation: <= 20 unread (or fullCount <= entries.length)
     // The feed returned every unread item in existence. Any item in activeUnread
@@ -259,35 +269,49 @@ export class UnreadLedger {
   /**
    * 3. Reconcile with IndexedDB Cache Snapshot
    * Invoked after readCachedInboxData reads _xdb.
+   *
+   * A row is trusted for a thread only when the row's modified time is at or after
+   * the local action. Otherwise the row predates the action and is ignored for that
+   * thread; Atom's freshness cutoff eventually releases the action.
    */
   public reconcileWithCache(
     snapshotMessages: TrayMessageItem[],
     now: number = Date.now(),
+    cacheAsOf?: number,
   ): { enriched: string[] } {
     const enriched: string[] = [];
-    this.pruneExpiredTriage(now);
+    this.pruneRecordsBefore(this.atomAsOf);
 
     for (const msg of snapshotMessages) {
       if (!msg.id) continue;
 
-      // Protection against stale cache resurrection:
       const triage =
         this.recentlyTriaged.get(msg.id) ??
         (msg.threadId ? this.recentlyTriaged.get(msg.threadId) : undefined);
+      const markRecord = this.markedUnreadFor(msg.id, msg.threadId);
+      // The cache's own last-sync time is the boundary. A per-row timestamp is a
+      // fallback for schemas that do not expose it.
+      const rowAsOf =
+        cacheAsOf !== undefined && cacheAsOf > 0 ? cacheAsOf : parseModifiedMs(msg.modified);
 
-      if (triage && now - triage.triagedAt < CACHE_TRIAGE_GRACE_MS) {
-        continue;
+      if (triage || markRecord) {
+        const actionAt = triage?.triagedAt ?? markRecord!.markedAt;
+        if (rowAsOf !== undefined && rowAsOf >= actionAt) {
+          // The row changed after the action, so it is a later truth.
+          if (triage) this.clearTriageRecord(triage);
+          if (markRecord) this.clearMarkedUnreadRecord(markRecord);
+        } else {
+          // The row predates the action (or cannot prove otherwise). Ignore its
+          // read/unread assertion for this thread.
+          continue;
+        }
       }
 
       const found = this.findActive(msg.id, msg.threadId);
-      const markRecord = this.markedUnreadFor(msg.id, msg.threadId);
 
       if (!msg.unread) {
-        // A cache that still says read has not seen a local mark-unread yet.
-        if (markRecord) continue;
-        // If cache explicitly says read and we have it as active unread,
-        // remove it (unless it was just marked unread)
-        if (found && triage?.action !== 'markUnread') {
+        // If cache explicitly says read and we have it as active unread, remove it.
+        if (found) {
           this.activeUnread.delete(found.key);
         }
         continue;
@@ -348,31 +372,18 @@ export class UnreadLedger {
 
     let activeDisplayed = 0;
     for (const [cat, count] of byCategory.entries()) {
-      if (this.notificationSettings[cat] !== 'off') {
-        activeDisplayed += count;
-      }
+      if (this.isCategoryEnabled(cat)) activeDisplayed += count;
     }
 
     let total = activeDisplayed;
+    if (this.lastDisplayedUnread !== null) {
+      total =
+        this.lastDisplayedUnread - this.countPendingTriaged() + this.countPendingMarkedUnread();
+    }
+
     const arrivalsIncomplete =
       this.lastFullCount !== null &&
       (this.lastFullCount > 20 || this.lastFullCount > this.activeUnread.size);
-
-    // Backlog mathematical ceiling:
-    // If fullCount > 20, the server fullCount is the absolute ceiling.
-    if (this.lastFullCount !== null) {
-      if (this.lastFullCount <= 20) {
-        total = activeDisplayed;
-      } else {
-        const totalActive = this.activeUnread.size;
-        if (totalActive > 0) {
-          const enabledRatio = activeDisplayed / totalActive;
-          total = Math.round(this.lastFullCount * enabledRatio);
-        } else {
-          total = this.lastFullCount;
-        }
-      }
-    }
 
     return {
       total: Math.max(0, total),
@@ -391,22 +402,88 @@ export class UnreadLedger {
     return Array.from(this.activeUnread.values());
   }
 
-  public clearRecentlyTriaged(): void {
-    this.recentlyTriaged.clear();
-    this.recentlyMarkedUnread.clear();
+  private isCategoryEnabled(category: NotificationCategory): boolean {
+    return this.notificationSettings[category] !== 'off';
   }
 
-  private markedUnreadFor(id: string, threadId?: string): { markedAt: number } | undefined {
+  /** Unique reducing triages that still apply to a counted category. */
+  private countPendingTriaged(): number {
+    const records = new Set<TriagedRecord>();
+    for (const record of this.recentlyTriaged.values()) {
+      if (this.isCategoryEnabled(record.category)) records.add(record);
+    }
+    return records.size;
+  }
+
+  /** Unique mark-unread records that still apply to a counted category. */
+  private countPendingMarkedUnread(): number {
+    const records = new Set<MarkedUnreadRecord>();
+    for (const record of this.recentlyMarkedUnread.values()) {
+      if (this.isCategoryEnabled(record.category)) records.add(record);
+    }
+    return records.size;
+  }
+
+  private deriveDisplayedUnread(fullCount: number | null, entries: AtomMessage[]): number | null {
+    if (fullCount === null) return null;
+    // The feed is complete, so its entries are the exact counted set.
+    if (fullCount <= entries.length) {
+      let displayed = 0;
+      for (const entry of entries) {
+        if (this.isCategoryEnabled(entry.category ?? 'primary')) displayed += 1;
+      }
+      return displayed;
+    }
+    // A backlog only exposes its first twenty entries, so the raw ceiling is the
+    // best available base. Production passes Atom's own filtered count instead.
+    return fullCount;
+  }
+
+  private markedUnreadFor(id: string, threadId?: string): MarkedUnreadRecord | undefined {
     return (
       this.recentlyMarkedUnread.get(id) ??
       (threadId ? this.recentlyMarkedUnread.get(threadId) : undefined)
     );
   }
 
-  private clearMarkedUnread(record: { markedAt: number }): void {
+  private clearMarkedUnreadRecord(record: MarkedUnreadRecord): void {
     for (const [key, candidate] of this.recentlyMarkedUnread.entries()) {
       if (candidate === record) this.recentlyMarkedUnread.delete(key);
     }
+  }
+
+  private clearMarkedUnreadFor(id: string, threadId?: string, targetId?: string): void {
+    const record =
+      this.recentlyMarkedUnread.get(id) ??
+      (threadId ? this.recentlyMarkedUnread.get(threadId) : undefined) ??
+      (targetId ? this.recentlyMarkedUnread.get(targetId) : undefined);
+    if (record) this.clearMarkedUnreadRecord(record);
+  }
+
+  private clearTriageRecord(record: TriagedRecord): void {
+    for (const [key, candidate] of this.recentlyTriaged.entries()) {
+      if (candidate === record) this.recentlyTriaged.delete(key);
+    }
+  }
+
+  private clearTriageFor(id: string, threadId?: string, targetId?: string): void {
+    const record =
+      this.recentlyTriaged.get(id) ??
+      (threadId ? this.recentlyTriaged.get(threadId) : undefined) ??
+      (targetId ? this.recentlyTriaged.get(targetId) : undefined);
+    if (record) this.clearTriageRecord(record);
+  }
+
+  private triageRecordInFeed(
+    record: TriagedRecord,
+    feedIds: Set<string>,
+    feedThreadIds: Set<string>,
+  ): boolean {
+    for (const [key, candidate] of this.recentlyTriaged.entries()) {
+      if (candidate !== record) continue;
+      if (feedIds.has(key) || feedThreadIds.has(key)) return true;
+    }
+    return false;
   }
 
   /** Finds a tracked item by message id, then by thread id. */
@@ -425,16 +502,13 @@ export class UnreadLedger {
     return undefined;
   }
 
-  private pruneExpiredTriage(now: number): void {
+  /** Drops records the feed is now fresh enough to have represented. */
+  private pruneRecordsBefore(asOf: number): void {
     for (const [id, record] of this.recentlyTriaged.entries()) {
-      if (now - record.triagedAt >= CACHE_TRIAGE_GRACE_MS) {
-        this.recentlyTriaged.delete(id);
-      }
+      if (record.triagedAt <= asOf) this.recentlyTriaged.delete(id);
     }
     for (const [id, record] of this.recentlyMarkedUnread.entries()) {
-      if (now - record.markedAt >= CACHE_TRIAGE_GRACE_MS) {
-        this.recentlyMarkedUnread.delete(id);
-      }
+      if (record.markedAt <= asOf) this.recentlyMarkedUnread.delete(id);
     }
   }
 }

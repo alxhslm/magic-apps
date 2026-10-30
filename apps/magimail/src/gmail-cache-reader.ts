@@ -200,6 +200,25 @@ export function buildInjectedScript(maxResults: number): string {
         req.onerror = () => reject(req.error);
       });
 
+      // Gmail records its last item sync as an epoch-ms field on this store.
+      // It is the cache's own freshness boundary: rows written before a local
+      // action may still show the pre-action state.
+      let cacheUpdatedAt = 0;
+      try {
+        const syncRows = await new Promise((resolve, reject) => {
+          const tx = db.transaction('items_sync_state', 'readonly');
+          const req = tx.objectStore('items_sync_state').getAll();
+          req.onsuccess = () => resolve(req.result);
+          req.onerror = () => reject(req.error);
+        });
+        for (const row of syncRows) {
+          const ms = Number(row && row.c);
+          if (Number.isFinite(ms) && ms > cacheUpdatedAt) cacheUpdatedAt = ms;
+        }
+      } catch {
+        // Older schemas may not have the store; callers fall back to per-row times.
+      }
+
       db.close();
 
       const messages = [];
@@ -250,6 +269,7 @@ export function buildInjectedScript(maxResults: number): string {
         stats: { scanned, inbox: inInbox },
         categoryCounts,
         inboxUnreadTotal,
+        cacheUpdatedAt,
       };
     } catch (err) {
       return { __error: String(err) };
@@ -272,6 +292,8 @@ export interface CachedInboxSnapshot {
   messages: TrayMessageItem[];
   categoryCounts: Map<NotificationCategory, number>;
   inboxUnreadTotal: number;
+  /** Gmail's last item-sync time (epoch ms), when the schema exposes it. */
+  asOf?: number;
   stats: {
     scanned?: number;
     inbox?: number;
@@ -331,6 +353,7 @@ export async function readCachedInboxData(
     };
     categoryCounts?: Record<string, number>;
     inboxUnreadTotal?: number;
+    cacheUpdatedAt?: number;
   };
   if (!payload || !Array.isArray(payload.messages)) {
     log.warn('IndexedDB read returned an unexpected shape:', typeof raw);
@@ -387,6 +410,7 @@ export async function readCachedInboxData(
     messages: items,
     categoryCounts,
     inboxUnreadTotal: payload.inboxUnreadTotal ?? 0,
+    asOf: payload.cacheUpdatedAt && payload.cacheUpdatedAt > 0 ? payload.cacheUpdatedAt : undefined,
     stats,
   };
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { UnreadLedger, CACHE_TRIAGE_GRACE_MS } from '../src/mailbox/unread-ledger.js';
+import { UnreadLedger, ATOM_SOURCE_STALENESS_MS } from '../src/mailbox/unread-ledger.js';
 import type { AtomMessage, TrayMessageItem } from '../src/mailbox/types.js';
 import { HybridFeedSource } from '../src/mailbox/hybrid-feed-source.js';
 import * as syncDriverModule from '../src/thread-actions/sync-driver.js';
@@ -128,7 +128,7 @@ describe('UnreadLedger State Machine', () => {
       expect(ledger.getBreakdown().total).toBe(0);
 
       // After grace window (>= 5000ms), if Atom STILL returns msg-fail, edge recovery re-adds it
-      const expiredTime = triageTime + CACHE_TRIAGE_GRACE_MS + 100;
+      const expiredTime = triageTime + ATOM_SOURCE_STALENESS_MS + 100;
       const recoveryReconcile = ledger.reconcileWithAtom([msg], 1, expiredTime);
       expect(recoveryReconcile.added).toContain('msg-fail');
       expect(ledger.getBreakdown().total).toBe(1);
@@ -256,6 +256,35 @@ describe('Scenario 6: Preemptive Ledger Updates', () => {
     category: 'primary' as const,
   });
 
+  it('does not move the count when a read row is archived', () => {
+    const ledger = new UnreadLedger();
+    const unread = atomEntry('m1', 't1');
+
+    ledger.reconcileWithAtom([unread], 1, 1000);
+    expect(ledger.getBreakdown().total).toBe(1);
+
+    // The popover lists read threads too. Archiving one changes no unread count.
+    ledger.recordLocalTriage('read-thread', 'read-thread', 'archive', 'primary', 2000);
+
+    expect(ledger.getBreakdown().total).toBe(1);
+    expect(ledger.getTrackedItems().map((item) => item.id)).toEqual(['m1']);
+  });
+
+  it('does not subtract a triaged category the user has turned off', () => {
+    const ledger = new UnreadLedger();
+    ledger.updateNotificationSettings({ promotions: 'off' });
+
+    const primary = atomEntry('m1', 't1');
+    const promo = { ...atomEntry('m2', 't2'), category: 'promotions' as const };
+    // Atom already filtered promotions out, so its displayed count is 1.
+    ledger.reconcileWithAtom([primary, promo], 2, 1000, 1);
+    expect(ledger.getBreakdown().total).toBe(1);
+
+    ledger.recordLocalTriage('m2', 't2', 'archive', 'promotions', 2000);
+
+    expect(ledger.getBreakdown().total).toBe(1);
+  });
+
   it('counts a thread marked unread once, even after Atom reports it', () => {
     const ledger = new UnreadLedger();
 
@@ -285,7 +314,7 @@ describe('Scenario 6: Preemptive Ledger Updates', () => {
     expect(ledger.getTrackedItems().some((item) => item.id === 'm0')).toBe(false);
 
     // Once the grace expires, a server that still asserts the message wins.
-    ledger.reconcileWithAtom(entries, 50, 2000 + CACHE_TRIAGE_GRACE_MS + 100);
+    ledger.reconcileWithAtom(entries, 50, 2000 + ATOM_SOURCE_STALENESS_MS + 100);
     expect(ledger.getBreakdown().total).toBe(50);
     expect(ledger.getTrackedItems().some((item) => item.id === 'm0')).toBe(true);
   });
@@ -330,6 +359,56 @@ describe('Scenario 6: Preemptive Ledger Updates', () => {
     expect(ledger.getBreakdown().total).toBe(1);
   });
 
+  it('ignores a cache row whose last-sync time predates the local action', () => {
+    const ledger = new UnreadLedger();
+    ledger.reconcileWithAtom([], 0, 1000);
+    ledger.recordLocalTriage('th-u', 'th-u', 'markUnread', 'primary', 2000);
+    expect(ledger.getBreakdown().total).toBe(1);
+
+    ledger.reconcileWithCache(
+      [
+        {
+          id: 'th-u',
+          threadId: 'th-u',
+          from: 'someone',
+          subject: 'marked unread',
+          snippet: 'snippet',
+          category: 'primary',
+          unread: false,
+          modified: new Date(1000),
+        },
+      ],
+      2500,
+      1500,
+    );
+    expect(ledger.getBreakdown().total).toBe(1);
+  });
+
+  it('trusts a cache row whose last-sync time is at or after the local action', () => {
+    const ledger = new UnreadLedger();
+    ledger.reconcileWithAtom([], 0, 1000);
+    ledger.recordLocalTriage('th-u', 'th-u', 'markUnread', 'primary', 2000);
+    expect(ledger.getBreakdown().total).toBe(1);
+
+    ledger.reconcileWithCache(
+      [
+        {
+          id: 'th-u',
+          threadId: 'th-u',
+          from: 'someone',
+          subject: 'marked unread',
+          snippet: 'snippet',
+          category: 'primary',
+          unread: false,
+          modified: new Date(1000),
+        },
+      ],
+      3500,
+      3000,
+    );
+    expect(ledger.getBreakdown().total).toBe(0);
+  });
+
   it('holds a marked-unread thread against a lagging empty feed until grace expires', () => {
     const ledger = new UnreadLedger();
     ledger.reconcileWithAtom([], 0, 1000);
@@ -342,7 +421,7 @@ describe('Scenario 6: Preemptive Ledger Updates', () => {
     expect(ledger.getBreakdown().total).toBe(1);
 
     // Once grace expires, a server that still does not list it wins.
-    ledger.reconcileWithAtom([], 0, 2000 + CACHE_TRIAGE_GRACE_MS + 100);
+    ledger.reconcileWithAtom([], 0, 2000 + ATOM_SOURCE_STALENESS_MS + 100);
     expect(ledger.getBreakdown().total).toBe(0);
   });
 
@@ -533,6 +612,119 @@ describe('Scenario 5: Universal Sync Nudge Dispatch', () => {
     expect(source.getUnreadCounts().total).toBe(0);
 
     unsubscribe();
+    source.destroy();
+  });
+
+  it('does not discard a local triage when the user refreshes', async () => {
+    let pollCallback: (result: any) => void = () => {};
+    const mockPoller = {
+      pollNow: vi.fn().mockResolvedValue(undefined),
+      stop: vi.fn(),
+      destroy: vi.fn(),
+      updateNotificationSettings: vi.fn(),
+      setFocusAndMissingCategories: vi.fn(),
+      getLatestEntries: vi.fn().mockReturnValue([
+        {
+          id: 'm1',
+          threadId: 't1',
+          from: 'someone',
+          subject: 'hello',
+          snippet: 'hi',
+          link: '',
+          issued: new Date().toISOString(),
+          modified: new Date().toISOString(),
+          category: 'primary',
+        },
+      ]),
+    };
+
+    const source = new HybridFeedSource('acc-refresh', {
+      partition: 'persist:acc-refresh',
+      pollerFactory: (_accId, _part, cb) => {
+        pollCallback = cb;
+        return mockPoller as any;
+      },
+    });
+
+    pollCallback({
+      accountId: 'acc-refresh',
+      totalUnread: 1,
+      newMessages: [],
+      newArrivalCount: 1,
+      arrivalsIncomplete: false,
+      status: 'ok',
+    });
+    expect(source.getUnreadCounts().total).toBe(1);
+
+    await source.triageThread('t1', 'archive');
+    expect(source.getUnreadCounts().total).toBe(0);
+
+    // Refresh asks the server again; it must not forget the local decision.
+    await source.refresh();
+    expect(source.getUnreadCounts().total).toBe(0);
+
+    source.destroy();
+  });
+
+  it('does not let a stale Atom response after refresh undo a local triage', async () => {
+    const staleEntry = {
+      id: 'm1',
+      threadId: 't1',
+      from: 'someone',
+      subject: 'hello',
+      snippet: 'hi',
+      link: '',
+      issued: new Date(1000).toISOString(),
+      modified: new Date(1000).toISOString(),
+      category: 'primary',
+    };
+    let pollCallback: (result: any) => void = () => {};
+    const mockPoller = {
+      // A refresh asks Atom again, and Atom returns the pre-action state.
+      pollNow: vi.fn(async () => {
+        pollCallback({
+          accountId: 'acc-stale-refresh',
+          totalUnread: 1,
+          newMessages: [],
+          newArrivalCount: 1,
+          arrivalsIncomplete: false,
+          rawFullCount: 1,
+          status: 'ok',
+        });
+      }),
+      stop: vi.fn(),
+      destroy: vi.fn(),
+      updateNotificationSettings: vi.fn(),
+      setFocusAndMissingCategories: vi.fn(),
+      getLatestEntries: vi.fn().mockReturnValue([staleEntry]),
+    };
+
+    const source = new HybridFeedSource('acc-stale-refresh', {
+      partition: 'persist:acc-stale-refresh',
+      pollerFactory: (_accId, _part, cb) => {
+        pollCallback = cb;
+        return mockPoller as any;
+      },
+    });
+
+    pollCallback({
+      accountId: 'acc-stale-refresh',
+      totalUnread: 1,
+      newMessages: [],
+      newArrivalCount: 1,
+      arrivalsIncomplete: false,
+      rawFullCount: 1,
+      status: 'ok',
+    });
+    expect(source.getUnreadCounts().total).toBe(1);
+
+    await source.triageThread('t1', 'archive');
+    expect(source.getUnreadCounts().total).toBe(0);
+
+    // Refresh does not discard the triage record, and the stale feed cannot either.
+    await source.refresh();
+    expect(source.getUnreadCounts().total).toBe(0);
+
     source.destroy();
   });
 
