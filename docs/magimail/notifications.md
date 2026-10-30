@@ -95,31 +95,15 @@ promotions can be cleared without disturbing the rest.
 
 ## Which category a thread is in
 
-The Atom feed carries no label per entry, so category is resolved by fetching the four lookup
-sub-feeds and asking which one contains the id. `primary` has no sub-feed of its own: Gmail's tabs
-are mutually exclusive, so it is the residue.
-
-Resolution covers the whole feed, not only the announced messages, because the badge and the
-silenced-category filter need a verdict for every thread still waiting, not only the ones announced
-this poll. Each verdict is memoised by message id, so a poll that adds no unclassified id fetches
-nothing. Marking a message unread returns it to the feed with its verdict pruned, so classifying in
-front of the callback would put four sub-feed fetches between the click and the badge; everything not
-needed before `onPoll` is classified afterwards, in `classifyRemainder`. The memo is bounded by the
-feed itself: a thread that leaves the unread-only feed is neither counted nor announced, so its
-verdict is dropped and re-classified if the thread returns. It is not
-persisted, because the sub-feeds can always be asked again. The tray and the widget do not read this
-memo: they take each thread's category from the ledger's rows, which Gmail's local cache fills.
-
-A sub-feed that failed classifies nothing: a refused fetch is indistinguishable from an empty one,
-and reading "in no sub-feed" as `primary` would file an update under primary for as long as the
-thread stayed in the feed. An entry left unclassified is read as `primary` for that poll only.
-`dispatchNotifications` applies the same fallback, because the helper needs some row of the settings
-matrix and primary is the row least likely to be silenced.
-
-The category and action contract, and the rule that sound belongs to the category level rather than
-a global switch, are in [`../shared/notifications.md`](../shared/notifications.md). The helper checks
-`isAccountMuted` before posting and the main process does not filter a Focus-muted account itself; the
-extension vends no notification predicate, as [`focus-filters.md`](focus-filters.md) records.
+The feed carries no label per entry, so the poller resolves each id from the four category sub-feeds
+and memoises the verdict; the resolution, the primary residue and the failed-fetch fallback are in
+[`unread-counts.md`](unread-counts.md#categories). `dispatchNotifications` applies the same primary
+fallback, because the helper needs a row of the settings matrix and primary is least likely to be
+silenced. The category and action contract, and the rule that sound belongs to the category level
+rather than a global switch, are in [`../shared/notifications.md`](../shared/notifications.md). The
+helper checks `isAccountMuted` before posting and the main process does not filter a Focus-muted
+account itself; the extension vends no notification predicate, as
+[`focus-filters.md`](focus-filters.md) records.
 
 ## What the dock badge counts
 
@@ -149,36 +133,20 @@ and clearing would lose the mark on mail you have not looked at. The set of unha
 2. Everything that has left the feed leaves the set; the feed lists only unread mail, so a dropped
    id was read, archived or deleted.
 3. Arrivals in a category set to `off` are excluded on the way in and on the way out alike, the same
-   categories `displayedUnread` subtracts, so both modes count the same mail.
+   categories the ledger's displayed base subtracts, so both modes count the same mail.
 
 Arriving and being read between two polls therefore nets to nothing.
 
 ### Paged feed
 
-The feed pages its entry list: `<fullcount>` is the whole unread total, while the `<entry>` blocks
-are only the newest slice. How large that slice is has not been measured: it is not documented, the
-feed is unversioned, and no mailbox to hand carries enough unread to observe the cut. Nothing here
-depends on the number.
+`allUnread` is exact because it comes from `fullcount`; `newArrivals` is built from the entry list, so
+it can be short when the feed is truncated. `arrivalsIncomplete` marks that, and the badge renders
+`12+`; across accounts any short account makes the total a `+`. The paging rules are in
+[`unread-counts.md`](unread-counts.md#paging-and-arrivals).
 
-Only the arrival count is exposed to this. The unread total is read straight off `<fullcount>`, a
-figure in its own right and not derived from the listing, so `allUnread` is exact however few entries
-come back; silenced categories are subtracted from their sub-feeds' `<fullcount>` for the same
-reason. It is `newArrivals` alone that is built from the entries, because identifying which messages
-are new is only possible from the messages themselves.
-
-Absence is treated as conclusive: an arrival the feed stops listing is pruned. Below the page size
-that is right, since every unread message is listed and absence can only mean the mail was handled;
-above it the count can fall short, never overshoot. `arrivalsIncomplete` is set when `<fullcount>`
-exceeds the number of entries returned, and the badge then renders `12+` instead of `12`, the same
-"at least this many" claim it already makes at the top end with `999+`. The comparison reads the
-answer off the response, so it needs no page size and survives Google changing the limit. Across
-accounts the flag is a disjunction: one account short of the truth makes the sum short of the truth,
-so any `+` is a `+` on the total.
-
-A message that falls off the listing before it has ever been seen is not lost, because it was never
-recorded in `seenIds`; it is picked up as new when reading the mail above it brings it into view,
-subject to the usual tolerance. Only an arrival that was counted and then pushed out of sight is
-gone for good.
+An arrival that was counted and then pushed out of sight is gone for good. One that fell off before it
+was ever seen is picked up when reading the mail above it brings it into view, subject to the usual
+tolerance.
 
 ### Persisted set
 
@@ -195,9 +163,9 @@ whatever it was at the last rename or sign-in.
 ### Poll cadence
 
 `newArrivals` cannot use the sidebar DOM observer, which knows what is unread, not what arrived, so
-the count comes from the feed alone and moves at poll cadence rather than the observer's 0 ms. A
-mailbox change hint re-polls within about a second of the click, so reading a new message clears it
-promptly, just not synchronously. `allUnread` keeps the instant path.
+the count comes from the feed and moves at poll cadence. A mailbox change hint re-polls within about
+a second of the click, so reading a new message clears it promptly. The feed intervals are in
+[`unread-counts.md`](unread-counts.md#feed).
 
 ## Process identity
 
