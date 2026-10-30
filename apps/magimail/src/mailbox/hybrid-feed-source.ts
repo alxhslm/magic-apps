@@ -304,14 +304,13 @@ export class HybridFeedSource implements MailboxSource {
         result.rawFullCount ??
         (typeof this.poller.getLastFullCount === 'function'
           ? this.poller.getLastFullCount()
-          : null) ??
-        result.totalUnread;
+          : null);
 
       const delta = this.ledger.reconcileWithAtom(
         entries,
         rawFullCount,
         Date.now(),
-        result.totalUnread,
+        result.categoryCounts,
         result.sourceAsOf,
       );
 
@@ -328,7 +327,6 @@ export class HybridFeedSource implements MailboxSource {
     this.options.onPollResult?.({
       accountId: result.accountId,
       status: result.status ?? 'ok',
-      totalUnread: result.totalUnread,
       categoryCounts: result.categoryCounts,
       newMessages: result.newMessages,
       newArrivalCount: result.newArrivalCount,

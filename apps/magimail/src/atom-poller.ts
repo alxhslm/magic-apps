@@ -72,13 +72,12 @@ function isPolicyBlockPage(text: string): boolean {
 
 export interface AtomPollResult {
   accountId: string;
-  totalUnread: number;
   categoryCounts?: Map<NotificationCategory, number>;
   newMessages: AtomMessage[];
   /**
    * Mail that arrived since the last poll and has not been dealt with yet —
-   * the count behind the badge's `newArrivals` mode. Unlike `totalUnread` this
-   * never includes the backlog: see `trackArrivals`.
+   * the count behind the badge's `newArrivals` mode. It never includes the
+   * backlog: see `trackArrivals`.
    */
   newArrivalCount: number;
   /**
@@ -401,7 +400,6 @@ export class AtomFeedPoller {
   private hintTimer: ReturnType<typeof setTimeout> | null = null;
   private lastHintPollAt = 0;
   private notificationSettings: Record<string, string> = {};
-  private lastReportedUnread = 0;
   /**
    * Category per message id, for as long as the feed still lists it.
    *
@@ -610,7 +608,6 @@ export class AtomFeedPoller {
           log.info(`Partition ${this.partition} not authenticated yet`);
           this.onPoll({
             accountId: this.accountId,
-            totalUnread: this.lastReportedUnread,
             newMessages: [],
             newArrivalCount: this.activeArrivals.size,
             arrivalsIncomplete: this.arrivalsIncomplete,
@@ -623,7 +620,6 @@ export class AtomFeedPoller {
           log.warn(`Feed fetch refused by policy for ${this.accountId}`);
           this.onPoll({
             accountId: this.accountId,
-            totalUnread: this.lastReportedUnread,
             newMessages: [],
             newArrivalCount: this.activeArrivals.size,
             arrivalsIncomplete: this.arrivalsIncomplete,
@@ -633,7 +629,6 @@ export class AtomFeedPoller {
           log.error(`Feed fetch failed with status: ${response.status}`);
           this.onPoll({
             accountId: this.accountId,
-            totalUnread: this.lastReportedUnread,
             newMessages: [],
             newArrivalCount: this.activeArrivals.size,
             arrivalsIncomplete: this.arrivalsIncomplete,
@@ -660,7 +655,6 @@ export class AtomFeedPoller {
           log.warn(`Partition ${this.partition} returned an administrator policy block`);
           this.onPoll({
             accountId: this.accountId,
-            totalUnread: this.lastReportedUnread,
             newMessages: [],
             newArrivalCount: this.activeArrivals.size,
             arrivalsIncomplete: this.arrivalsIncomplete,
@@ -671,7 +665,6 @@ export class AtomFeedPoller {
         log.info(`Partition ${this.partition} returned non-feed response (auth required)`);
         this.onPoll({
           accountId: this.accountId,
-          totalUnread: this.lastReportedUnread,
           newMessages: [],
           newArrivalCount: this.activeArrivals.size,
           arrivalsIncomplete: this.arrivalsIncomplete,
@@ -753,26 +746,6 @@ export class AtomFeedPoller {
       this.arrivalsIncomplete = fullCount > entries.length || entries.some((entry) => !entry.id);
       this.trackArrivals(entries, newMessages);
 
-      let offCategoryCount = 0;
-      for (const [cat, level] of Object.entries(this.notificationSettings)) {
-        if (level === 'off') {
-          const subCount = subFeeds.counts.get(cat as NotificationCategory) ?? 0;
-          if (entries.length > 0 && fullCount <= entries.length) {
-            // When all inbox messages are present in entries, count how many belong to this off-category.
-            // This prevents archived unread messages in the category sub-feed from negative-clamping
-            // the inbox unread count.
-            const inEntries = entries.filter((e) => e.category === cat).length;
-            offCategoryCount += inEntries;
-          } else {
-            // When fullCount > entries.length or no entries, cap sub-feed count at fullCount.
-            offCategoryCount += Math.min(subCount, fullCount);
-          }
-        }
-      }
-
-      const displayedUnread = Math.max(0, fullCount - offCategoryCount);
-      this.lastReportedUnread = displayedUnread;
-
       const categoryCounts = new Map<NotificationCategory, number>();
       for (const [cat, count] of subFeeds.counts.entries()) {
         categoryCounts.set(cat, count);
@@ -780,7 +753,6 @@ export class AtomFeedPoller {
 
       this.onPoll({
         accountId: this.accountId,
-        totalUnread: displayedUnread,
         categoryCounts,
         newMessages,
         newArrivalCount: this.activeArrivals.size,
@@ -802,7 +774,6 @@ export class AtomFeedPoller {
       log.error(`Poll error for ${this.accountId}:`, err);
       this.onPoll({
         accountId: this.accountId,
-        totalUnread: this.lastReportedUnread,
         newMessages: [],
         newArrivalCount: this.activeArrivals.size,
         arrivalsIncomplete: this.arrivalsIncomplete,
@@ -933,7 +904,7 @@ export class AtomFeedPoller {
    *
    * A silenced category is excluded on the way in *and* on the way out, so
    * turning one off retires the arrivals already counted for it rather than
-   * stranding them on the badge. This matches `displayedUnread`, which
+   * stranding them on the badge. This matches the ledger's displayed count, which
    * subtracts the same categories: whichever mode the badge is in, the number
    * counts the same mail.
    *

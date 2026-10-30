@@ -295,7 +295,7 @@ function handlePollResult(result: MailboxPollEvent): void {
   // The account's MailboxSource has already applied the ledger's count. This
   // refreshes the surfaces that also show arrivals and message lists.
   if (accountsManager) {
-    log.info(`(AtomPoller) Poll ok for ${result.accountId}: totalUnread=${result.totalUnread}`);
+    log.info(`(AtomPoller) Poll ok for ${result.accountId}`);
     restrictedAccounts.delete(result.accountId);
 
     // Menu bar and widgets show only what the Focus Filter includes -- their

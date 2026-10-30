@@ -12,7 +12,6 @@ export type MailboxPollStatus = 'ok' | 'auth_required' | 'restricted' | 'network
 export interface MailboxPollEvent {
   accountId: string;
   status: MailboxPollStatus;
-  totalUnread: number;
   categoryCounts?: Map<NotificationCategory, number>;
   newMessages: AtomMessage[];
   newArrivalCount: number;

@@ -387,18 +387,14 @@ export class AccountsManager {
   }
 
   private handleMailboxChange(event: MailboxChangeEvent): void {
-    const accountId = event.accountId;
-    const effectiveUnread = event.unread.total;
-    const currentUnread = this.accounts.find((a) => a.id === accountId)?.unreadCount ?? 0;
-
-    if (effectiveUnread !== currentUnread) {
-      this.accounts = updateAccountUnread(this.accounts, accountId, effectiveUnread);
-      const focused = this.getFocusedAccounts();
-      const total = calculateAggregateUnread(focused);
-      updateDockBadge(total, this.getFocusedArrivals());
-      this.notifyToolbar();
-      this.onUnreadChanged?.(focused, total);
-    }
+    // The source emits only when the mailbox changed. Do not second-guess it with
+    // a count comparison: a row can change while the total stays the same.
+    this.accounts = updateAccountUnread(this.accounts, event.accountId, event.unread.total);
+    const focused = this.getFocusedAccounts();
+    const total = calculateAggregateUnread(focused);
+    updateDockBadge(total, this.getFocusedArrivals());
+    this.notifyToolbar();
+    this.onUnreadChanged?.(focused, total);
   }
 
   public getMailboxSource(accountId: string): MailboxSource | undefined {

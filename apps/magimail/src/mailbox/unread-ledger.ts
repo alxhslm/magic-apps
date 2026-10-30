@@ -232,7 +232,7 @@ export class UnreadLedger {
     entries: AtomMessage[],
     fullCount: number | null,
     now: number = Date.now(),
-    displayedUnread?: number | null,
+    categoryCounts?: Map<NotificationCategory, number>,
     sourceAsOf?: number,
   ): { added: string[]; removed: string[]; countChanged: boolean } {
     const added: string[] = [];
@@ -341,10 +341,7 @@ export class UnreadLedger {
     }
 
     this.lastFullCount = fullCount;
-    this.lastDisplayedUnread =
-      displayedUnread !== undefined
-        ? displayedUnread
-        : this.deriveDisplayedUnread(fullCount, entries);
+    this.lastDisplayedUnread = this.deriveDisplayedUnread(fullCount, entries, categoryCounts);
     this.pruneRecent();
 
     const newCount = this.getBreakdown().total;
@@ -530,8 +527,13 @@ export class UnreadLedger {
     return records.size;
   }
 
-  private deriveDisplayedUnread(fullCount: number | null, entries: AtomMessage[]): number | null {
+  private deriveDisplayedUnread(
+    fullCount: number | null,
+    entries: AtomMessage[],
+    categoryCounts?: Map<NotificationCategory, number>,
+  ): number | null {
     if (fullCount === null) return null;
+
     // The feed is complete, so its entries are the exact counted set.
     if (fullCount <= entries.length) {
       let displayed = 0;
@@ -540,9 +542,15 @@ export class UnreadLedger {
       }
       return displayed;
     }
-    // A backlog only exposes its first twenty entries, so the raw ceiling is the
-    // best available base. Production passes Atom's own filtered count instead.
-    return fullCount;
+
+    // A backlog only exposes its first twenty entries. Subtract the sub-feed
+    // counts for disabled categories, capped at the total, as Atom reports them.
+    let offCategoryCount = 0;
+    for (const [category, count] of categoryCounts ?? []) {
+      if (this.isCategoryEnabled(category)) continue;
+      offCategoryCount += Math.min(count, fullCount);
+    }
+    return Math.max(0, fullCount - offCategoryCount);
   }
 
   private markedUnreadFor(id: string, threadId?: string): MarkedUnreadRecord | undefined {
