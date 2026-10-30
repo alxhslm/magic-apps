@@ -22,6 +22,22 @@ function setHeader(headers: Record<string, string>, name: string, value: string)
 }
 
 /**
+ * Refuses the page's own `Notification` API.
+ *
+ * Chromium would deliver a Gmail or Calendar web notification as an OS notification under the
+ * same bundle identity the Swift helper uses, next to the native banner for the same message.
+ * Both processes then hold a claim on one identity, which is the ambiguity that stops a banner
+ * response reaching the helper. The native surfaces own notifications, so the web channel is
+ * refused both when a page asks and when Chromium checks a grant already stored in the partition.
+ */
+function denyWebNotifications(ses: Session): void {
+  ses.setPermissionRequestHandler((_webContents, permission, callback) => {
+    callback(permission !== 'notifications');
+  });
+  ses.setPermissionCheckHandler((_webContents, permission) => permission !== 'notifications');
+}
+
+/**
  * Configures an isolated Google session partition with a single Chrome identity:
  * headers, Client Hints and the page's own `navigator` all name the Chromium
  * actually running. There is no auth-endpoint branching — see
@@ -33,6 +49,8 @@ export function configureGoogleSession(
 ): Session {
   const ses = partitionName ? session.fromPartition(partitionName) : session.defaultSession;
   const cleanUA = sanitizeUserAgent(customUA);
+
+  denyWebNotifications(ses);
 
   // Governs `navigator.userAgent` in the page as well as the default header.
   ses.setUserAgent(cleanUA);

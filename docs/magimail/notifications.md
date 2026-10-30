@@ -48,7 +48,9 @@ polls so no poll ever saw it, and ids evicted by the 500 cap.
 A banner is an event, _this arrived_, while the badge, the menu bar count and the widgets are state,
 _this is unread right now_. The feed exposes only the second, so the two are separated. The tray and
 the widgets take `fullcount` for the count and Gmail's own `_xdb` cache for the list, so a message
-marked unread reappears in both.
+marked unread reappears in both. Gmail's own web notifications are refused at the session, so a
+message produces one banner rather than one from the page and one from the helper; see
+[`../shared/notifications.md`](../shared/notifications.md#the-page-cannot-post-notifications).
 The dock badge reads one or the other by mode; see [what the dock badge counts](#what-the-dock-badge-counts).
 
 ### Dedup window
