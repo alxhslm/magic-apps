@@ -28,10 +28,6 @@ export interface WaitUntilOptions {
    */
   timeoutMs?: number;
   /**
-   * Polling check interval in milliseconds. Defaults to 50 ms.
-   */
-  pollIntervalMs?: number;
-  /**
    * Optional human-readable action label included in diagnostic log messages.
    */
   label?: string;
@@ -93,41 +89,48 @@ var { resolveOrdered, waitUntil, clickAndConfirm, findAction } = (() => {
   function waitUntil(predicate, options = {}) {
     const quietMs = typeof options.quietMs === 'number' ? options.quietMs : 0;
     const timeoutMs = typeof options.timeoutMs === 'number' ? options.timeoutMs : 10000;
-    const pollIntervalMs = typeof options.pollIntervalMs === 'number' ? options.pollIntervalMs : 50;
     const label = typeof options.label === 'string' ? options.label + ' ' : '';
     const startTime = Date.now();
 
     domLog('debug', 'waitUntil ' + label + 'started (timeout=' + timeoutMs + 'ms, quiet=' + quietMs + 'ms)');
 
     return new Promise((resolve) => {
-      const deadline = Date.now() + timeoutMs;
-      let lastMutation = Date.now();
+      const deadline = startTime + timeoutMs;
+      let lastMutation = startTime;
       let matchedResult = null;
       let matchedAt = 0;
+      let settled = false;
+      let quietTimer = null;
+      let deadlineTimer = null;
 
-      const observer = new MutationObserver(() => {
-        lastMutation = Date.now();
-      });
-
-      if (document.body) {
-        observer.observe(document.body, {
-          subtree: true,
-          childList: true,
-          attributes: true,
-          characterData: true,
-        });
-      }
-
-      const cleanup = () => {
+      const stopListening = () => {
         observer.disconnect();
+        if (typeof window.removeEventListener === 'function') {
+          window.removeEventListener('hashchange', check);
+          window.removeEventListener('popstate', check);
+        }
       };
 
-      const check = () => {
+      const finish = (value) => {
+        if (settled) return;
+        settled = true;
+        stopListening();
+        if (quietTimer !== null) clearTimeout(quietTimer);
+        if (deadlineTimer !== null) clearTimeout(deadlineTimer);
+        if (value === false) {
+          domLog('warn', 'waitUntil ' + label + 'timed out after ' + timeoutMs + 'ms');
+        } else {
+          domLog('debug', 'waitUntil ' + label + 'settled after ' + (Date.now() - startTime) + 'ms');
+        }
+        resolve(value);
+      };
+
+      function check() {
+        if (settled) return;
         const now = Date.now();
         if (now > deadline) {
-          cleanup();
-          domLog('warn', 'waitUntil ' + label + 'timed out after ' + timeoutMs + 'ms');
-          return resolve(false);
+          finish(false);
+          return;
         }
 
         if (matchedResult === null) {
@@ -143,19 +146,51 @@ var { resolveOrdered, waitUntil, clickAndConfirm, findAction } = (() => {
           }
         }
 
-        if (matchedResult !== null) {
-          const quietFor = now - lastMutation;
-          const matchedFor = now - matchedAt;
-          if (quietMs <= 0 || (quietFor >= quietMs && matchedFor >= quietMs)) {
-            cleanup();
-            domLog('debug', 'waitUntil ' + label + 'settled after ' + (now - startTime) + 'ms');
-            return resolve(matchedResult);
-          }
+        if (matchedResult === null) return;
+
+        const quietFor = now - lastMutation;
+        const matchedFor = now - matchedAt;
+        if (quietMs <= 0 || (quietFor >= quietMs && matchedFor >= quietMs)) {
+          finish(matchedResult);
+          return;
         }
 
-        setTimeout(check, pollIntervalMs);
-      };
+        // A match waiting out quietMs needs one timer: a page that stops
+        // changing emits no further mutation to re-check on.
+        if (quietTimer === null) {
+          quietTimer = setTimeout(() => {
+            quietTimer = null;
+            check();
+          }, Math.max(0, Math.min(quietMs - quietFor, quietMs - matchedFor)));
+        }
+      }
 
+      const observer = new MutationObserver(() => {
+        lastMutation = Date.now();
+        if (quietTimer !== null) {
+          clearTimeout(quietTimer);
+          quietTimer = null;
+        }
+        check();
+      });
+
+      // The document element, not the body: `document.title` lives in the head,
+      // and a route change is often only visible there.
+      observer.observe(document.documentElement || document.body || document, {
+        subtree: true,
+        childList: true,
+        attributes: true,
+        characterData: true,
+      });
+
+      // A single-page app can change route without touching the DOM the wait is
+      // looking at, and a hash change produces no mutation at all.
+      if (typeof window.addEventListener === 'function') {
+        window.addEventListener('hashchange', check);
+        window.addEventListener('popstate', check);
+      }
+
+      deadlineTimer = setTimeout(() => finish(false), timeoutMs);
       check();
     });
   }
