@@ -126,10 +126,9 @@ open class NotificationControllerBase: NSObject {
 
     /// Claims the delegate and re-registers the categories after a wake.
     ///
-    /// Sleep can invalidate the helper's connection to the notification centre, and
-    /// nothing throws or surfaces when it does: banners keep posting while responses
-    /// silently stop arriving. Re-asserting on the way back is the only thing that
-    /// distinguishes the two, so it is logged rather than left invisible.
+    /// Re-asserting on every wake keeps the notification centre connection in place for
+    /// the life of the process. It is one delegate assignment and one category
+    /// registration, not a per-banner cost, and the log line makes it visible.
     public func reassertRegistration(after reason: String) {
         guard didSetup, hasBundleIdentity else { return }
         let center = UNUserNotificationCenter.current()

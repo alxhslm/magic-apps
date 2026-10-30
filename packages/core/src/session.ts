@@ -26,8 +26,7 @@ function setHeader(headers: Record<string, string>, name: string, value: string)
  *
  * Chromium would deliver a Gmail or Calendar web notification as an OS notification under the
  * same bundle identity the Swift helper uses, next to the native banner for the same message.
- * Both processes then hold a claim on one identity, which is the ambiguity that stops a banner
- * response reaching the helper. The native surfaces own notifications, so the web channel is
+ * That gives the user two banners and two processes claiming one identity, so the web channel is
  * refused both when a page asks and when Chromium checks a grant already stored in the partition.
  */
 function denyWebNotifications(ses: Session): void {
