@@ -47,7 +47,6 @@ Options:
   --skip-notarize         Skip notarytool and stapler
   --skip-upload           Skip the bucket upload
   --skip-github-release   Skip creating the GitHub Release
-  --skip-homebrew         Skip triggering the Homebrew tap update
   --bucket <name>         Override the R2 bucket (e.g. magic-apps-releases)
   -h, --help              Show this message
 
@@ -72,7 +71,6 @@ release_parse_args() {
     TAG_ONLY=0
     SKIP_UPLOAD=0
     SKIP_GH_RELEASE=0
-    SKIP_HOMEBREW=0
     CLI_BUCKET=""
 
     # On a runner the checkout is already at the ref being released, and on a
@@ -99,7 +97,6 @@ release_parse_args() {
         --tag) TAG_ONLY=1 ;;
         --skip-upload) SKIP_UPLOAD=1 ;;
         --skip-github-release) SKIP_GH_RELEASE=1 ;;
-        --skip-homebrew) SKIP_HOMEBREW=1 ;;
         --bucket)
             CLI_BUCKET="${2:?--bucket requires an R2 bucket name}"
             shift
@@ -495,37 +492,6 @@ release_github_release() {
     ok "GitHub Release $TARGET_TAG published"
 }
 
-release_update_homebrew() {
-    if [ "$SKIP_HOMEBREW" = "1" ]; then
-        warn "Skipping Homebrew tap update as requested (--skip-homebrew)"
-        return 0
-    fi
-    if ! command -v gh >/dev/null 2>&1; then
-        warn "gh CLI not found. Skipping Homebrew tap update."
-        return 0
-    fi
-
-    step "Triggering Homebrew tap update (alxhslm/homebrew-magic-apps)"
-    local sha=""
-    if [ -f "$DMG_FILE" ]; then
-        sha="$(shasum -a 256 "$DMG_FILE" | awk '{print $1}')"
-    fi
-
-    local gh_args=(
-        workflow run bump-cask.yml
-        --repo alxhslm/homebrew-magic-apps
-        -f "app=${RELEASE_APP_ID}"
-        -f "version=${TARGET_VERSION}"
-    )
-    [ -n "$sha" ] && gh_args+=(-f "sha256=${sha}")
-
-    if gh "${gh_args[@]}"; then
-        ok "Homebrew tap update workflow triggered for ${RELEASE_APP_ID} ${TARGET_VERSION}"
-    else
-        warn "Failed to trigger Homebrew tap update workflow. You can trigger it manually via: gh workflow run bump-cask.yml --repo alxhslm/homebrew-magic-apps -f app=${RELEASE_APP_ID} -f version=${TARGET_VERSION}"
-    fi
-}
-
 release_summary() {
     printf '\n\033[1;32m════════════════════════════════════════════════════════════════════\033[0m\n'
     printf '\033[1;32m✓ %s %s released\033[0m\n' "$RELEASE_APP_NAME" "$TARGET_VERSION"
@@ -572,7 +538,6 @@ release_main() {
 
     release_upload
     release_github_release
-    release_update_homebrew
     git checkout "$APP_DIR/package.json" 2>/dev/null || true
     release_summary
 }
