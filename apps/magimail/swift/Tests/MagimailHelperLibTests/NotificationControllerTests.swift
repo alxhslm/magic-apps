@@ -89,6 +89,36 @@ struct NotificationControllerTests {
         #expect(content.body == "(no subject)")
     }
 
+    @Test func everyRegisteredActionHasAnEventMapping() {
+        let registered = NotificationController.makeCategories()
+            .flatMap(\.actions)
+            .map(\.identifier)
+        #expect(Set(registered) == Set([
+            NotificationController.archiveAction,
+            NotificationController.markReadAction,
+            NotificationController.trashAction,
+        ]))
+
+        let userInfo: [String: Any] = [
+            "accountId": "acc_1",
+            "messageId": "msg_123",
+        ]
+        for identifier in registered {
+            #expect(
+                NotificationController.makeActionPayload(
+                    actionIdentifier: identifier,
+                    userInfo: userInfo
+                ) != nil
+            )
+        }
+        #expect(
+            NotificationController.makeActionPayload(
+                actionIdentifier: UNNotificationDefaultActionIdentifier,
+                userInfo: userInfo
+            ) != nil
+        )
+    }
+
     @Test func makeActionPayloadMapsIdentifiersAndExtractsUserInfo() throws {
         let userInfo: [String: Any] = [
             "accountId": "acc_1",

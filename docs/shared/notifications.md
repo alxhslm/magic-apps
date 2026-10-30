@@ -32,6 +32,21 @@ action categories and requests authorization. Left to the first dispatch, macOS 
 about the app until a notification arrived: there would be no row in System Settings to grant
 beforehand, and the first notification would necessarily be missed.
 
+Sleep can invalidate the helper's connection to the notification centre without an error or a
+restart: banners keep posting while clicks and action buttons stop arriving. The helper therefore
+re-claims the delegate and re-registers its categories when the system wakes, and logs that it did.
+Every response is logged with its raw action identifier and message id, including one that maps to no
+event, so a delivery failure can be told from an unrecognised identifier.
+
+## The page cannot post notifications
+
+The shared session configuration refuses the web `Notification` API on every Google partition, both
+when a page asks and when Chromium checks a grant already stored there. Gmail would otherwise deliver
+its own banner for the same message under the same bundle identity the helper uses, giving the user
+two notifications and two processes claiming one identity. The second claim is the ambiguity that can
+stop a response reaching the helper; the duplicate banner is the visible half of it. Native
+notifications are the app's only notification channel, and only the surfaces above post them.
+
 ## Clearing on removal
 
 **Remove All App Data and Quit…** sends `notify.clearAll` as its first step, before anything is

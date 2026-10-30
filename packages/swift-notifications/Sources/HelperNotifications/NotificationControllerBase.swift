@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import HelperRPC
 import UserNotifications
@@ -18,6 +19,7 @@ open class NotificationControllerBase: NSObject {
     private let appName: String
     private var transport: StdioTransport?
     private var didSetup = false
+    private var wakeObserver: NSObjectProtocol?
 
     public init(appName: String) {
         self.appName = appName
@@ -108,6 +110,7 @@ open class NotificationControllerBase: NSObject {
         let center = UNUserNotificationCenter.current()
         center.delegate = self
         applyCategories(Set(categories()))
+        observeWake()
 
         center.requestAuthorization(options: [.alert, .sound, .badge]) { [weak self] granted, error in
             if let error {
@@ -117,6 +120,36 @@ open class NotificationControllerBase: NSObject {
             }
             Task { @MainActor in
                 self?.authorizationResolved(granted: granted, error: error)
+            }
+        }
+    }
+
+    /// Claims the delegate and re-registers the categories after a wake.
+    ///
+    /// Sleep can invalidate the helper's connection to the notification centre, and
+    /// nothing throws or surfaces when it does: banners keep posting while responses
+    /// silently stop arriving. Re-asserting on the way back is the only thing that
+    /// distinguishes the two, so it is logged rather than left invisible.
+    public func reassertRegistration(after reason: String) {
+        guard didSetup, hasBundleIdentity else { return }
+        let center = UNUserNotificationCenter.current()
+        center.delegate = self
+        applyCategories(Set(categories()))
+        HelperLog.info(
+            "Notifications",
+            "Re-asserted delegate and \(registeredCategories.count) category set(s) after \(reason)"
+        )
+    }
+
+    private func observeWake() {
+        guard wakeObserver == nil else { return }
+        wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.reassertRegistration(after: "system wake")
             }
         }
     }
@@ -197,9 +230,21 @@ extension NotificationControllerBase: UNUserNotificationCenterDelegate {
     ) {
         let userInfo = response.notification.request.content.userInfo
         let actionIdentifier = response.actionIdentifier
+        let messageId = userInfo["messageId"] as? String
+            ?? userInfo["key"] as? String
+            ?? ""
+
+        HelperLog.info(
+            "Notifications",
+            "Response received: action=\(actionIdentifier) id=\(messageId)"
+        )
 
         Task { @MainActor in
             guard let event = notificationEvent(actionIdentifier: actionIdentifier, userInfo: userInfo) else {
+                HelperLog.warn(
+                    "Notifications",
+                    "No event for action=\(actionIdentifier) id=\(messageId); response dropped"
+                )
                 return
             }
             sendEvent(method: event.method, params: event.params)
