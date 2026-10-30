@@ -253,7 +253,7 @@ describe('AccountsManager', () => {
   it('updates unread count from an Atom poll result', () => {
     // The Atom poller is the only source of unread counts; there is no
     // renderer/title-driven path.
-    accountsManager.handleApiUnreadUpdate('account_personal', 5);
+    accountsManager.handleExternalUnreadUpdate('account_personal', 5);
     expect(accountsManager.getAccounts()[0].unreadCount).toBe(5);
   });
 
@@ -953,7 +953,7 @@ describe('the verdict performThreadAction reports', () => {
     await expect(manager.performThreadAction('account_personal', 'msg_1', 'archive')).resolves.toBe(
       true,
     );
-    expect(perform).toHaveBeenCalledWith(expect.anything(), 'account_personal', 'msg_1', 'archive');
+    expect(perform).toHaveBeenCalledWith(undefined, 'account_personal', 'msg_1', 'archive');
   });
 
   it('reports triage that did not', async () => {

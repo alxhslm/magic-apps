@@ -11,7 +11,6 @@ import { syncExtensionLogs } from './extension-logs.js';
 import { isHelperRunning, getHelperPid } from './swift-helper.js';
 import { isTrayCreated } from './menubar-manager.js';
 import type { AccountsManager } from './accounts-manager.js';
-import type { AtomFeedPoller } from './atom-poller.js';
 import { uiString } from './strings.js';
 
 const log = createLogger('Diagnostics');
@@ -22,7 +21,6 @@ const log = createLogger('Diagnostics');
  */
 export async function collectMagimailDiagnostics(
   accountsManager?: AccountsManager | null,
-  pollers?: Map<string, AtomFeedPoller>,
 ): Promise<DiagnosticBundleResult> {
   const dir = logDirectory();
   syncExtensionLogs(dir);
@@ -43,7 +41,7 @@ export async function collectMagimailDiagnostics(
         pid: getHelperPid(),
       },
       trayCreated: isTrayCreated(),
-      pollersCount: pollers?.size ?? 0,
+      pollersCount: accountsManager?.getMailboxSources().size ?? 0,
     },
   });
 }
@@ -93,10 +91,9 @@ export async function presentDiagnosticsDialog(
 export async function handleCollectDiagnostics(
   parentWindow?: BaseWindow | null,
   accountsManager?: AccountsManager | null,
-  pollers?: Map<string, AtomFeedPoller>,
 ): Promise<void> {
   try {
-    const result = await collectMagimailDiagnostics(accountsManager, pollers);
+    const result = await collectMagimailDiagnostics(accountsManager);
     await presentDiagnosticsDialog(parentWindow, result);
   } catch (error) {
     log.error('Failed to collect diagnostics:', error);

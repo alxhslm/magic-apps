@@ -299,7 +299,7 @@ describe('DOM unread observation and adaptive polling', () => {
       ['social', 1],
       ['updates', 0],
     ]);
-    accountsManager.handleApiUnreadUpdate('account_personal', 3, atomCounts);
+    accountsManager.handleExternalUnreadUpdate('account_personal', 3, atomCounts);
 
     // 3. Effective unread must be 2 (DOM inbox) + 1 (Atom social) = 3!
     const effective = accountsManager.getEffectiveUnreadForAccount('account_personal');
@@ -331,7 +331,7 @@ describe('DOM unread observation and adaptive polling', () => {
     // 2. A poll lands while the section is open. Nothing is absent from the
     //    sidebar, so the poller fetches only the sub-feeds it must -- the
     //    silenced ones -- and reports no count for Updates or Social.
-    accountsManager.handleApiUnreadUpdate(
+    accountsManager.handleExternalUnreadUpdate(
       'account_personal',
       1,
       new Map<NotificationCategory, number>([
@@ -374,7 +374,7 @@ describe('DOM unread observation and adaptive polling', () => {
 
     // 2. Routine Atom poller sub-feed reports social: 1 (because Google's ^smartlabel_social feed
     // includes archived mail account-wide).
-    accountsManager.handleApiUnreadUpdate(
+    accountsManager.handleExternalUnreadUpdate(
       'account_personal',
       1,
       new Map<NotificationCategory, number>([

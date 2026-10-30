@@ -50,9 +50,13 @@ import { updateDockBadge, type ArrivalBadgeState } from './dock.js';
 import { openDetachedThreadWindow } from './compose.js';
 import { loadAccounts, saveAccounts, createNewAccount } from './account-store.js';
 import { loadSettings, saveSetting } from './settings-store.js';
-import { clearPollerState, type AtomFeedPoller, type AtomPollResult } from './atom-poller.js';
 import { pressRefreshControl } from './thread-actions/sync-driver.js';
-import { type MailboxSource, HybridFeedSource, type MailboxChangeEvent } from './mailbox/index.js';
+import {
+  type MailboxSource,
+  type MailboxChangeEvent,
+  type MailboxPollEvent,
+  HybridFeedSource,
+} from './mailbox/index.js';
 import {
   attachNativeToolbar,
   updateNativeToolbarAccounts,
@@ -252,7 +256,7 @@ export class AccountsManager {
   private accountsWithCategoriesObserved = new Set<string>();
   private domReports: Map<string, DomUnreadReport> = new Map();
   private mailboxSources: Map<string, MailboxSource> = new Map();
-  public onPollResult?: (result: AtomPollResult) => void;
+  public onPollResult?: (event: MailboxPollEvent) => void;
   /**
    * The latest count seen for each category, from the sidebar or the feed,
    * whichever reported it last. Neither covers all five on its own, so a
@@ -405,14 +409,22 @@ export class AccountsManager {
     return this.mailboxSources;
   }
 
-  public getPollers(): Map<string, AtomFeedPoller> {
-    const map = new Map<string, AtomFeedPoller>();
-    for (const [id, source] of this.mailboxSources.entries()) {
-      if (source instanceof HybridFeedSource) {
-        map.set(id, source.getPoller());
-      }
+  public setPollIntervals(acSeconds: number, batterySeconds: number): void {
+    for (const source of this.mailboxSources.values()) {
+      source.setPollIntervals(acSeconds, batterySeconds);
     }
-    return map;
+  }
+
+  public requestImmediatePoll(): void {
+    for (const source of this.mailboxSources.values()) {
+      source.requestImmediatePoll();
+    }
+  }
+
+  public stopMailboxSources(): void {
+    for (const source of this.mailboxSources.values()) {
+      source.stop();
+    }
   }
 
   public updateNotificationSettings(settings: Record<string, string>): void {
@@ -595,7 +607,7 @@ export class AccountsManager {
 
     // Configure every account's partition, not only the ones that get a view.
     //
-    // This is load-bearing for background notifications. AtomFeedPoller fetches
+    // This is load-bearing for background notifications. The mailbox poller fetches
     // the feed through session.fromPartition() from the main process, so an
     // account that is never opened still needs its clean User-Agent and header
     // sanitisation installed — otherwise Google sees an Electron client on the
@@ -753,7 +765,7 @@ export class AccountsManager {
         // A view is only ever created for the account being switched to, so it
         // starts unthrottled. switchAccount re-enables throttling once the
         // account is detached: its mailbox-change hints only ever accelerated
-        // the badge for the mailbox on screen, and the Atom poller — which owns
+        // the badge for the mailbox on screen, and the mailbox poller — which owns
         // the count outright — keeps running against the partition session
         // regardless of whether a renderer exists.
         backgroundThrottling: false,
@@ -1657,9 +1669,9 @@ export class AccountsManager {
   /**
    * Records what a poll learned about a mailbox, without touching its unread count.
    *
-   * The count comes from the account's `MailboxSource` and nowhere else. `AtomFeedPoller`
-   * reports `<fullcount>` lagging behind a local triage, so applying it here would undo
-   * the preemptive decrement during the grace window.
+   * The count comes from the account's `MailboxSource` and nowhere else. A source's
+   * base count may lag behind a local triage, so applying it here would undo the
+   * preemptive change during the read-path grace.
    */
   public handlePollMetadata(
     accountId: string,
@@ -1680,12 +1692,12 @@ export class AccountsManager {
   }
 
   /**
-   * Applies an Atom report directly to an account's count.
+   * Applies an externally reported count directly.
    *
-   * Kept for callers that have no `MailboxSource`; the poll path uses
+   * Kept for callers with no `MailboxSource`; the poll path uses
    * `handlePollMetadata` and lets the source's ledger own the number.
    */
-  public handleApiUnreadUpdate(
+  public handleExternalUnreadUpdate(
     accountId: string,
     totalUnread: number,
     categoryCounts?: Map<NotificationCategory, number>,
@@ -1709,7 +1721,7 @@ export class AccountsManager {
       unreadToApply = totalUnread;
     }
     log.info(
-      `(Accounts) handleApiUnreadUpdate for ${accountId}: totalUnread=${totalUnread}, applied=${unreadToApply}`,
+      `(Accounts) handleExternalUnreadUpdate for ${accountId}: totalUnread=${totalUnread}, applied=${unreadToApply}`,
     );
 
     this.accounts = updateAccountUnread(this.accounts, accountId, unreadToApply);
@@ -2178,16 +2190,7 @@ export class AccountsManager {
       }
     }
 
-    // Triage does not wake the account: delegate directly to the mailbox source.
-    if (this.threadActionDriver) {
-      return this.threadActionDriver.perform(
-        this.pool.view(accountId),
-        accountId,
-        messageId,
-        action as TriageAction,
-      );
-    }
-
+    // Triage does not wake the account: the mailbox source owns the action.
     const source = this.mailboxSources.get(accountId);
     if (source) {
       return source.triageThread(messageId, action as TriageAction);
@@ -2603,7 +2606,7 @@ export class AccountsManager {
     log.info(`Removing account ${accountId}`);
     const source = this.mailboxSources.get(accountId);
     if (source) {
-      source.destroy();
+      source.forget();
       this.mailboxSources.delete(accountId);
     }
     // A filter that still names the account would leave the switcher and the badge
@@ -2636,11 +2639,6 @@ export class AccountsManager {
     for (const key of [...this.mailActionQueue.keys()]) {
       if (key.startsWith(`${accountId}:`)) this.mailActionQueue.delete(key);
     }
-    // The persisted poller state is deleted here rather than at the call sites in main.ts,
-    // which could be skipped: the file is named after the account, so one that is gone
-    // would keep a record of seen messages for a mailbox nobody has.
-    clearPollerState(accountId);
-
     // The account id is a timestamp, so the partition it used is never signed in to again:
     // its cookies are a Google session left on disk for the life of the install. Clearing
     // removes the credential now; the directory itself is swept on the next launch.

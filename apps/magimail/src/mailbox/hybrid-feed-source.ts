@@ -3,6 +3,7 @@ import { createLogger } from '@magimail/core/logger';
 import {
   AtomFeedPoller,
   atomMessageToTrayMessageItem,
+  clearPollerState,
   type AtomMessage,
   type AtomPollCallback,
   type AtomPollResult,
@@ -15,6 +16,7 @@ import { pressRefreshControl, SyncThreadActionDriver } from '../thread-actions/s
 import type { ThreadActionDriver } from '../thread-actions/types.js';
 import type {
   MailboxChangeEvent,
+  MailboxPollEvent,
   MailboxSource,
   TrayMessageItem,
   TriageAction,
@@ -49,7 +51,7 @@ export interface HybridFeedSourceOptions {
     partition: string,
     callback: AtomPollCallback,
   ) => AtomFeedPoller;
-  onPollResult?: (result: AtomPollResult) => void;
+  onPollResult?: (event: MailboxPollEvent) => void;
 }
 
 /**
@@ -199,6 +201,23 @@ export class HybridFeedSource implements MailboxSource {
     return this.poller;
   }
 
+  public setPollIntervals(acSeconds: number, batterySeconds: number): void {
+    this.poller.setIntervals(acSeconds, batterySeconds);
+  }
+
+  public requestImmediatePoll(): void {
+    this.poller.requestImmediatePoll();
+  }
+
+  public stop(): void {
+    this.poller.stop();
+  }
+
+  public forget(): void {
+    this.destroy();
+    clearPollerState(this.accountId);
+  }
+
   public getArrivalCount(): number {
     return this.poller.getArrivalCount();
   }
@@ -306,7 +325,15 @@ export class HybridFeedSource implements MailboxSource {
       }
     }
 
-    this.options.onPollResult?.(result);
+    this.options.onPollResult?.({
+      accountId: result.accountId,
+      status: result.status ?? 'ok',
+      totalUnread: result.totalUnread,
+      categoryCounts: result.categoryCounts,
+      newMessages: result.newMessages,
+      newArrivalCount: result.newArrivalCount,
+      arrivalsIncomplete: result.arrivalsIncomplete,
+    });
   }
 
   private emitChange(delta: {

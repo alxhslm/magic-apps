@@ -160,7 +160,7 @@ import {
   onHelperSpawned,
   killHelper,
 } from './swift-helper.js';
-import { type AtomPollResult } from './atom-poller.js';
+import type { MailboxPollEvent } from './mailbox/types.js';
 import {
   dispatchNotifications,
   setNotificationClickHandler,
@@ -260,7 +260,7 @@ async function refreshWidgetCache(accounts: AccountConfig[], totalUnread: number
   if (wrote) reloadNativeWidgets();
 }
 
-function handlePollResult(result: AtomPollResult): void {
+function handlePollResult(result: MailboxPollEvent): void {
   if (result.status === 'auth_required') {
     restrictedAccounts.delete(result.accountId);
     accountsManager?.setAccountAuthRequired(result.accountId, true);
@@ -408,7 +408,7 @@ function updateApplicationMenu(preloadPath: string, isThreadSelected?: boolean):
     },
     onRemoveAllData,
     onCollectDiagnostics: () => {
-      void handleCollectDiagnostics(mainWindow, accountsManager, accountsManager?.getPollers());
+      void handleCollectDiagnostics(mainWindow, accountsManager);
     },
     onRevealLogs: () => {
       const dir = logDirectory();
@@ -774,8 +774,8 @@ function createMainWindow(
   accountsManager.initialize();
   if (process.env.DEBUG || process.env.NODE_ENV !== 'production') {
     (globalThis as unknown as { __accountsManager: unknown }).__accountsManager = accountsManager;
-    (globalThis as unknown as { __atomPollers: unknown }).__atomPollers =
-      accountsManager?.getPollers();
+    (globalThis as unknown as { __mailboxSources: unknown }).__mailboxSources =
+      accountsManager?.getMailboxSources();
   }
 
   // Handle actions from the native SwiftUI toolbar
@@ -1005,21 +1005,17 @@ if (!hasLock) {
           themeManager?.setTheme(value as 'system' | 'light' | 'dark');
           updateApplicationMenu(preloadPath);
         } else if (key === 'collectDiagnostics') {
-          void handleCollectDiagnostics(mainWindow, accountsManager, accountsManager?.getPollers());
+          void handleCollectDiagnostics(mainWindow, accountsManager);
         } else {
           saveSetting(key, value);
           // Trigger side effects for specific settings
           if (key === 'pollIntervalSeconds' && typeof value === 'number') {
             const current = loadSettings();
-            for (const poller of accountsManager?.getPollers().values() ?? []) {
-              poller.setIntervals(value, current.pollIntervalBatterySeconds);
-            }
+            accountsManager?.setPollIntervals(value, current.pollIntervalBatterySeconds);
           }
           if (key === 'pollIntervalBatterySeconds' && typeof value === 'number') {
             const current = loadSettings();
-            for (const poller of accountsManager?.getPollers().values() ?? []) {
-              poller.setIntervals(current.pollIntervalSeconds, value);
-            }
+            accountsManager?.setPollIntervals(current.pollIntervalSeconds, value);
           }
           if (key === 'inactiveAccountSuspendMinutes' && typeof value === 'number') {
             accountsManager?.setSuspendDelayMinutes(value);
@@ -1075,9 +1071,7 @@ if (!hasLock) {
             accountsManager?.recalculateMissingCategories();
             const updatedNotifications = loadSettings().notifications;
             accountsManager?.updateNotificationSettings(updatedNotifications);
-            for (const poller of accountsManager?.getPollers().values() ?? []) {
-              void poller.pollNow();
-            }
+            accountsManager?.requestImmediatePoll();
           }
         }
       } else if (method === 'account.add') {
@@ -1211,9 +1205,7 @@ if (!hasLock) {
     ipcMain.on(IPC_CHANNELS.NETWORK_STATUS_CHANGED, (_event, isOnline: boolean) => {
       if (isOnline) {
         accountsManager?.handleNetworkStatusChange(true);
-        for (const poller of accountsManager?.getPollers().values() ?? []) {
-          poller.requestImmediatePoll();
-        }
+        accountsManager?.requestImmediatePoll();
       }
       const accounts = accountsManager?.getFocusedAccounts() || [];
       const total = calculateAggregateUnread(accounts);
@@ -1353,15 +1345,11 @@ if (!hasLock) {
       saveSetting(key, value);
       if (key === 'pollIntervalSeconds' && typeof value === 'number') {
         const current = loadSettings();
-        for (const poller of accountsManager?.getPollers().values() ?? []) {
-          poller.setIntervals(value, current.pollIntervalBatterySeconds);
-        }
+        accountsManager?.setPollIntervals(value, current.pollIntervalBatterySeconds);
       }
       if (key === 'pollIntervalBatterySeconds' && typeof value === 'number') {
         const current = loadSettings();
-        for (const poller of accountsManager?.getPollers().values() ?? []) {
-          poller.setIntervals(current.pollIntervalSeconds, value);
-        }
+        accountsManager?.setPollIntervals(current.pollIntervalSeconds, value);
       }
       if (key === 'inactiveAccountSuspendMinutes' && typeof value === 'number') {
         accountsManager?.setSuspendDelayMinutes(value);
@@ -1408,9 +1396,7 @@ if (!hasLock) {
         accountsManager?.recalculateMissingCategories();
         const updatedNotifications = loadSettings().notifications;
         accountsManager?.updateNotificationSettings(updatedNotifications);
-        for (const poller of accountsManager?.getPollers().values() ?? []) {
-          void poller.pollNow();
-        }
+        accountsManager?.requestImmediatePoll();
       }
       return true;
     });
@@ -1508,11 +1494,7 @@ if (!hasLock) {
       releaseQuickComposeShortcut();
       destroyTray();
       killHelper();
-      if (accountsManager) {
-        for (const poller of accountsManager.getPollers().values()) {
-          poller.stop();
-        }
-      }
+      accountsManager?.stopMailboxSources();
       accountsManager?.persistActiveAccount();
       accountsManager?.suspendAllAccounts();
       try {

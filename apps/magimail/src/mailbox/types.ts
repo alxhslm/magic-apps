@@ -4,6 +4,21 @@ import type { TriageAction } from '../thread-actions/types.js';
 
 export type { TriageAction, NotificationCategory, TrayMessageItem, AtomMessage };
 
+export type MailboxPollStatus = 'ok' | 'auth_required' | 'restricted' | 'network_error';
+
+/**
+ * A poll result in mailbox terms, so callers above the source do not import Atom.
+ */
+export interface MailboxPollEvent {
+  accountId: string;
+  status: MailboxPollStatus;
+  totalUnread: number;
+  categoryCounts?: Map<NotificationCategory, number>;
+  newMessages: AtomMessage[];
+  newArrivalCount: number;
+  arrivalsIncomplete: boolean;
+}
+
 /**
  * Detailed breakdown of unread mail for an account, filtered by user notification preferences.
  */
@@ -113,6 +128,18 @@ export interface MailboxSource {
 
   /** The renderer noticed a mailbox change; refresh cache and poll. */
   handleMailboxChangeHint(): Promise<void>;
+
+  /** Changes the configured poll intervals. */
+  setPollIntervals(acSeconds: number, batterySeconds: number): void;
+
+  /** Asks for a poll now, without waiting for the next interval. */
+  requestImmediatePoll(): void;
+
+  /** Stops the source without clearing its persisted seen state. */
+  stop(): void;
+
+  /** Stops and clears persisted state for an account that is being removed. */
+  forget(): void;
 
   /** The window woke or was unhidden. */
   handleWindowWakeOrUnhide(): Promise<void>;
