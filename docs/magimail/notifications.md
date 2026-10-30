@@ -155,7 +155,7 @@ whatever it was at the last rename or sign-in.
 `newArrivals` cannot use the sidebar DOM observer, which knows what is unread, not what arrived, so
 the count comes from the mailbox source and moves at poll cadence. A mailbox change hint re-polls
 within about a second of the click, so reading a new message clears it promptly. The poll intervals
-are in [`unread-counts.md`](unread-counts.md#inputs).
+are in [`unread-counts.md`](unread-counts.md#feed).
 
 ## Process identity
 

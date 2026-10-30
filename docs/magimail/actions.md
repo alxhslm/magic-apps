@@ -275,7 +275,7 @@ after each action would mean reopening it to reach the next row.
 waiting for the poll that will confirm it. A poll is far enough away that a row left unread reads as
 the click having missed. An archived or trashed row stays in the list as read rather than
 disappearing, matching how the ledger treats a reduced thread; the list does not reshuffle under the
-pointer mid-triage. See [`unread-counts.md`](unread-counts.md#local-triage-and-freshness).
+pointer mid-triage. See [`unread-counts.md`](unread-counts.md#local-actions-and-grace).
 
 The count follows on its own. Acting on the thread routes the account's live view to it, and the
 status item counts on the same terms as the account switcher: both read the account's ledger, so a

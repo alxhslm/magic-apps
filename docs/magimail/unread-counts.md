@@ -1,32 +1,32 @@
 # Unread counts
 
-Magimail keeps one unread count per account, and the recent rows behind it, in that account's
-`MailboxSource` (`HybridFeedSource`) and its `UnreadLedger`. The feed and Gmail's local cache observe
-the mailbox; the ledger decides what an observation means. The dock badge, menu bar, toolbar switcher,
-popover and widgets all read the source.
+Each account has one unread count and a list of recent rows. `MailboxSource` (`HybridFeedSource`)
+owns both. `UnreadLedger` is the part that turns a feed or cache read into a change. The dock badge,
+menu bar, toolbar switcher, popover and widgets all read the source.
 
-## What the ledger owns
+## What the ledger keeps
 
-- **Recent rows.** Read and unread threads with category, subject, sender, snippet, message time and
-  the source time that last set the row. Newest first, 20 returned by default, 200 kept. Read rows
-  stay in the list so a triaged thread remains visible; a removed row is hidden at once.
+- **Rows.** Read and unread threads with category, subject, sender, snippet, message time and the
+  source time that last set the row. Newest first, 20 returned by default, 200 kept. Read rows stay
+  in the list until they are archived or deleted; then they are hidden at once.
 - **The count.** Total, per-category counts, raw `fullcount`, `activeCount` and `hasState`. In a
   backlog the tracked rows are the newest slice; the total is the whole mailbox.
 
-## Inputs
+## Where the inputs come from
 
 ### Feed
 
 The feed is Gmail's unread endpoint, fetched with `ses.fetch` on the account's partition. It carries
-`<fullcount>`, the whole unread total, and `<entry>` blocks, the newest unread threads. The feed lists
-only unread mail, so an id leaving it was read, archived or deleted, and the feed cannot say which.
+`<fullcount>`, the whole unread total, and `<entry>` blocks, the newest unread threads. The feed
+lists only unread mail, so an id leaving it was read, archived or deleted; the feed cannot say
+which.
 
-A complete feed has `fullcount` no larger than the entry count, so the entries are the whole unread
-set and absence is evidence. A truncated feed has a larger `fullcount`, so entries are only the newest
-slice and absence proves nothing.
+A complete feed has a `fullcount` no larger than its entry count, so a thread missing from the
+entries is not unread. A truncated feed has a larger `fullcount`, so the entries are only the newest
+slice. A thread missing from a truncated feed may simply be outside the window.
 
-`sourceAsOf` is the response's `Date`, capped at receipt, falling back to the feed's root `<modified>`.
-It is the generation time; the ledger subtracts the read-path grace from it.
+`sourceAsOf` is the response's `Date`, capped at receipt and falling back to the feed's root
+`<modified>`. It is the generation time. The ledger subtracts the read-path grace from it.
 
 | Poll state                    | Interval                                      |
 | :---------------------------- | :-------------------------------------------- |
@@ -36,119 +36,111 @@ It is the generation time; the ledger subtracts the read-path grace from it.
 | Mailbox change hint           | 750 ms after the hint, at most once every 3 s |
 | Suspended                     | Paused, then an immediate poll on resume      |
 
-A poll reports `ok`, `auth_required`, `restricted` or `network_error`. Only `ok` reconciles the
-ledger. A failed poll is an absence of news, not news that the mail has gone, so it leaves the count
-where it was. A response with no `<fullcount>` is not a feed; the policy-block page is tested first
-because it is HTML too.
+A poll reports `ok`, `auth_required`, `restricted` or `network_error`. Only `ok` changes the ledger.
+A failed poll tells the ledger nothing, so the count stays where it was. A response with no
+`<fullcount>` is not a feed. The policy-block page is checked first because it is HTML too.
 
 ### Local cache
 
 Gmail's local cache supplies the read state the feed lacks. The reader runs in the account's
 renderer, decodes Inbox rows that are not in Trash, and returns the newest ones with their real read
-flag, category, subject, sender, snippet and time. It also returns the cache's last item-sync time as
-`CachedInboxSnapshot.asOf`.
+flag, category, subject, sender, snippet and time. It also returns the cache's last item-sync time
+as `CachedInboxSnapshot.asOf`.
 
 For a row the ledger already has, only a snapshot with a sync time can change its unread flag; a
 snapshot without one fills in metadata only. A thread the ledger has not seen is added with the
 cache's read state. A cache read runs when the popover pulls rows, on refresh, on a mailbox change
 hint, and when the window wakes.
 
-A complete feed is authoritative for unread membership. A cache row for a thread the complete feed
-omitted cannot be unread; the cache may enrich its metadata but not add it back. A truncated feed
-cannot prove absence, so the cache may still add an off-window unread thread. A fresh snapshot that
-no longer lists a read row drops it. Unread rows and rows with a pending action stay: absence from a
-cache read is not proof that an unread thread is gone.
+### How they merge
 
-## How the total is composed
+The ledger uses both inputs. The feed says which threads are unread and gives the total. The cache
+gives the read state and fills in category and metadata. Each read changes rows and the count. It
+does not clear a pending action by itself.
 
-`total = displayed base - pending reductions + pending mark-unreads`, with disabled categories
-excluded and the result clamped at zero.
+```mermaid
+flowchart LR
+    Feed[Feed] --> Ledger[UnreadLedger]
+    Cache[Local cache] --> Ledger
+    Ledger --> Count[Unread count]
+    Ledger --> Rows[Recent rows]
+```
 
-- **Displayed base.** A complete feed counts the entries whose category is enabled. A truncated feed
-  starts at `fullcount` and subtracts each disabled category's sub-feed count, capped at the total.
-- **Before the first poll.** The total is the tracked unread rows in enabled categories.
+If the feed is complete, its entries are the whole unread set. A cache row for a thread the feed
+left out cannot make it unread. The cache may still fill in metadata, and a read row can stay in the
+list. If the feed is truncated, it cannot prove a thread is gone, so the cache may still add an
+unread thread from outside the window.
 
-Across accounts, the dock badge and menu bar sum the totals of the accounts the Focus Filter includes;
-the toolbar switcher shows every account's own total. See [`focus-filters.md`](focus-filters.md).
+A cache read also drops read rows the snapshot no longer lists. It leaves unread rows and rows with
+a pending action alone: a missing unread thread is not proof that it was read.
+
+## How the count is worked out
+
+The count starts with what the feed says is unread. Subtract each local read, archive or trash the
+feed has not confirmed, and add each local mark-unread it has not confirmed. Categories turned off
+are left out, and the result never goes below zero.
+
+- **Complete feed.** Counts the entries in categories that are on.
+- **Truncated feed.** Starts at `fullcount` and subtracts the sub-feed count for each category
+  turned off, capped at the total.
+- **Before the first poll.** Counts the tracked unread rows in categories that are on.
+
+Across accounts, the dock badge and menu bar sum the totals of the accounts the Focus Filter
+includes; the toolbar switcher shows every account's own total. See
+[`focus-filters.md`](focus-filters.md).
 
 ## Categories
 
-The feed carries no label per entry, so the poller resolves each id from Gmail's four category
-sub-feeds. A message in none is primary; Gmail's tabs are mutually exclusive, so primary is the
-residue. Verdicts are memoised by id and dropped when the thread leaves the feed. Only the sub-feeds
-the count depends on are fetched before the report: every `off` category, every absent category, and
-all four when a new message arrives. The rest is classified after the report. A failed sub-feed
-classifies nothing; an unclassified entry is primary for that poll. The tray and widgets take
-category from the ledger rows, which the local cache fills.
+The feed carries no category per entry, so the poller looks each id up in Gmail's four category
+sub-feeds. A message in none of them is primary, because Gmail's tabs do not overlap. Results are
+memoised by id and dropped when the thread leaves the feed. Before the poll reports, it fetches only
+the sub-feeds the count needs: every category turned off, every category it has not classified yet,
+and all four when a new message arrives. The rest are classified afterwards. A failed sub-feed
+classifies nothing, and an unclassified entry counts as primary for that poll. The tray and widgets
+take category from the ledger rows, which the local cache fills.
 
 ## Paging and arrivals
 
-`fullcount` is the whole unread total; the entries are the newest slice, of a size Gmail does not
-document. `allUnread` is exact from `fullcount`, and silenced categories are subtracted from their
-sub-feeds' `fullcount`. `newArrivals` is built from the entries, so it can fall short when the feed is
-truncated. `arrivalsIncomplete` is set when `fullcount` exceeds the entries, and the badge renders
-`12+`; across accounts, one short account makes the total a `+`. The arrival set is in
+`fullcount` is the whole unread total. The entries are the newest slice, of a size Gmail does not
+document. `allUnread` comes straight from `fullcount`; categories turned off are subtracted from
+their sub-feeds' `fullcount`. `newArrivals` is built from the entries, so it can fall short when the
+feed is truncated. `arrivalsIncomplete` is set when `fullcount` exceeds the entries; the badge then
+renders `12+`, and across accounts one short account makes the total a `+`. The arrival set is in
 [`notifications.md`](notifications.md).
 
-## Local triage and freshness
+## Local actions and grace
 
-A local action changes the row immediately and writes a record. The record is in flight until the
-driver confirms it; no source may change that thread while it is in flight. On success the ledger
-stamps the confirmation time and presses Gmail's refresh control. On failure it restores the row's
-previous unread flag and source time, or removes a row the action created, and emits a change.
+A local action changes the row at once and records what it did. While the action is being sent,
+neither the feed nor the cache can change that row. When it succeeds, the ledger records the
+confirmation time and asks Gmail to refresh. When it fails, the ledger puts back the previous read
+state and source time, or removes a row the action created, and emits a change.
 
-A source may change a row only when its observation is at or after the row's own source time:
+After that, a feed or cache read can change the row only if it is at least as new as the row's
+source time.
 
-- **Feed.** Generated at `G`, trusted as of `G - 5s` (`ATOM_READ_PATH_GRACE_MS`). Gmail serves the feed
-  no-store with no `Age`, so this bounds the read path's lag, not an HTTP cache age. An entry changed
-  at or after the action's confirmation is a later truth and wins immediately.
-- **Cache.** A read updates the row's category and metadata, but it cannot clear a pending record.
-  The Atom base may still count the thread, so the adjustment stays until the feed boundary passes or
-  the feed proves the state.
+- **Feed.** The feed is generated at `G` and trusted from `G - 5s` (`ATOM_READ_PATH_GRACE_MS`).
+  Gmail serves it no-store with no `Age`, so the grace covers the read path, not an HTTP cache. An
+  entry changed at or after the action's confirmation wins immediately.
+- **Cache.** A cache read can update category and metadata, but it cannot clear a pending record.
+  The feed may still count the thread, so the adjustment stays until the grace period passes or the
+  feed proves the state.
 
-For a pending reduction, a complete feed that omits the thread confirms it. A truncated feed cannot
-confirm by omission, because the thread may have moved out of the window, so it waits for the
-freshness boundary. For a pending mark-unread, the feed listing the thread confirms it at once;
-absence waits. Archiving or deleting an already-read row hides it at once and writes a record that
-does not move the count, so a failed action can restore it; a stale cache cannot unhide it. Deleting
-an unread row hides it at once and keeps its counting record. Repeating mark-read on a read row, or
-marking an already-unread thread unread, writes no record.
+A complete feed that leaves out a pending local read, archive or trash confirms the action. A
+truncated feed cannot confirm by omission, because the thread may have moved out of the window; it
+waits for the grace to pass. A pending mark-unread is confirmed as soon as the feed lists the
+thread; if the thread is absent, it waits.
 
-## Per-thread states
-
-```mermaid
-stateDiagram-v2
-    state "Read (not counted)" as Read
-    state "Unread" as Unread
-    state "Pending reduction" as PendingReduce
-    state "Pending mark unread" as PendingMarkUnread
-    state "Removed (hidden)" as Removed
-
-    [*] --> Read
-    Read --> Unread: feed or cache says unread
-    Read --> PendingMarkUnread: local mark unread
-    Read --> Removed: local archive or trash
-    Unread --> PendingReduce: local archive or mark read
-    Unread --> Removed: local trash
-    Unread --> Read: source says read
-    PendingReduce --> Read: feed confirms
-    PendingReduce --> Unread: feed boundary passes, still listed
-    PendingMarkUnread --> Unread: feed lists it
-    PendingMarkUnread --> Read: feed boundary passes, still absent
-    Removed --> Read: action fails on a read row
-    Removed --> Unread: action fails on an unread row
-    Removed --> [*]: cache no longer lists it
-```
-
-A read row stays in the recent list until it is archived or deleted; “Read” here means not counted,
-not absent from the popover. A removed row is hidden at once and is dropped when the cache no longer
-lists it. Reduction and addition are mirrors: presence confirms unread, absence confirms not-unread,
-and the opposite observation waits for the freshness boundary.
+Archiving or deleting a read row hides it at once and writes a record that does not change the
+count, so a failed action can restore it. A stale cache cannot bring it back. Deleting an unread row
+hides it at once and keeps its counting record. Marking a read row read again, or marking an
+already-unread thread unread, writes no record.
 
 ## Refresh
 
-Refresh changes when the inputs are asked, never what the ledger already knows. `refresh()` polls and
-then reads the cache; a mailbox change hint reads the cache and asks for a poll; a window wake presses
-Gmail's refresh control and refreshes; **Refresh Inbox** does all of that across every open view and
-pushes each account's rows to the popover. None of these clears a pending record: a response that
-still shows the pre-action state is not fresh enough to have seen the action.
+Refresh changes when the feed and cache are read; it does not override the ledger. A pending action
+keeps its usual grace period, and a response that still shows the old state may have been generated
+before the action, so it is not evidence that the action failed.
+
+`refresh()` polls and then reads the cache. A mailbox change hint reads the cache and asks for a
+poll. A window wake presses Gmail's refresh control and refreshes. **Refresh Inbox** does all of
+that across every open view and pushes each account's rows to the popover.
