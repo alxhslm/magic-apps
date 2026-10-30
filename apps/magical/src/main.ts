@@ -46,7 +46,6 @@ import {
   setNativeToolbarMode,
   updateNativeToolbarAccounts,
 } from './native-toolbar.js';
-import { PresentingWatchdog } from './presenting-watchdog.js';
 import { chooseEventAccount } from './account-picker.js';
 import { CALENDAR_BASE_URL } from './constants.js';
 import { initDock } from './dock.js';
@@ -277,7 +276,6 @@ let menuBarManager: MenuBarManager | null = null;
 let quitting = false;
 /** Set while a replacement window is being built, so recovery cannot recurse. */
 let rebuildingWindow = false;
-let presentingWatchdog: PresentingWatchdog | null = null;
 
 /** Magical's window handles, for the shared action policy. */
 const windowActionTarget: WindowActionTarget<AccountsManager> = {
@@ -1157,18 +1155,17 @@ function reloadCalendar(): void {
 /**
  * Replaces the main window with a fresh one on the same account and bounds.
  *
- * The only recovery observed for a window that has stopped presenting. Both the
- * reload request and the presenting watchdog end up here, and it costs a page
- * reload and a blink of the window; the route the user was on is restored from the
- * remembered URL.
+ * The only recovery observed for a window that has stopped presenting. It costs a
+ * page reload and a blink of the window; the route the user was on is restored from
+ * the remembered URL.
  */
-function rebuildWindow(reason: string): void {
+function rebuildWindow(reason: string, detail?: string): void {
   if (!mainWindow || !accounts || quitting || rebuildingWindow) return;
 
   const accountId = accounts.getActiveAccountId();
   const bounds = mainWindow.getBounds();
   rebuildingWindow = true;
-  log.info(`Rebuilding the window: ${reason}`);
+  log.info(`Rebuilding the window: ${reason}${detail ? ` (${detail})` : ''}`);
 
   // The window's own `closed` handler clears both handles and runs before this
   // listener, so the replacement is built after the old window is gone.
@@ -1239,10 +1236,10 @@ function createWindow(
 
   accounts = new AccountsManager(mainWindow, calendarPreloadPath(), { initialAccountId });
 
-  // Coming back to the window is when a blank one is most likely to be seen, so
-  // show and focus ask the watchdog straight away instead of waiting for its tick.
-  mainWindow.on('show', () => void presentingWatchdog?.check());
-  mainWindow.on('focus', () => void presentingWatchdog?.check());
+  // Coming back to the window is when a blank one is most likely to be seen, so the
+  // pair is logged: it dates the failure against the suspension that preceded it.
+  mainWindow.on('show', () => log.info('Main window shown'));
+  mainWindow.on('hide', () => log.info('Main window hidden'));
   findInPageController = new FindInPageController(
     mainWindow,
     () => accounts?.getActiveView()?.webContents,
@@ -1324,8 +1321,8 @@ app.whenReady().then(async () => {
   logDisplayEnvironment();
   syncExtensionLogs(logDirectory());
   // A window that has stopped presenting leaves no trace of its own, so the events
-  // that could have caused it are recorded where the watchdog's verdict can be read
-  // beside them: a GPU process that died, and a display that came or went.
+  // that could have caused it are recorded beside the show and hide lines: a GPU
+  // process that died, and a display that came or went.
   app.on('child-process-gone', (_event, details) => {
     log.warn(
       `Child process gone: ${details.type} ${details.reason} (exit code ${details.exitCode})`,
@@ -1368,17 +1365,6 @@ app.whenReady().then(async () => {
     );
   }
 
-  // One watchdog for the life of the app: it reads the current window and view each
-  // time, and it has to survive a rebuild, or the quiet period after one would be
-  // lost and a slow page could trigger another rebuild straight away.
-  presentingWatchdog = new PresentingWatchdog({
-    activeView: () => accounts?.getActiveView(),
-    isWindowVisible: () =>
-      (accounts?.isWindowVisible() ?? false) && (mainWindow?.isFocused() ?? false),
-    rebuildWindow: (reason) => rebuildWindow(reason),
-    log,
-  });
-  presentingWatchdog.start();
   createWindow(startupAccountId);
 
   // After the window, because the service needs AccountsManager to navigate on a
