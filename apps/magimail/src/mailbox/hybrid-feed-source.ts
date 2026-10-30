@@ -8,7 +8,7 @@ import {
   type AtomPollResult,
   type NotificationCategory,
 } from '../atom-poller.js';
-import { readCachedInboxData } from '../gmail-cache-reader.js';
+import { readCachedInboxData, type CachedInboxSnapshot } from '../gmail-cache-reader.js';
 import { DomThreadActionDriver } from '../thread-actions/dom-driver.js';
 import { FallbackThreadActionDriver } from '../thread-actions/fallback-driver.js';
 import { pressRefreshControl, SyncThreadActionDriver } from '../thread-actions/sync-driver.js';
@@ -35,6 +35,14 @@ export interface HybridFeedSourceOptions {
   wake?: (accountId: string) => Promise<{ view: WebContentsView; release: () => void } | undefined>;
   /** A press the view refused, to retry once the editor is free. */
   onActionHeld?: (accountId: string, threadId: string, action: TriageAction) => void;
+  /** Reports whether the account has a usable offline cache. */
+  onCacheStatus?: (accountId: string, hasCache: boolean) => void;
+  /** Reports cache-derived category counts for the missing-category UI. */
+  onCacheCategoryCounts?: (
+    accountId: string,
+    counts: Map<NotificationCategory, number>,
+    timestamp?: number,
+  ) => void;
   fetchImpl?: (partition: string, url: string, init: RequestInit) => Promise<Response>;
   pollerFactory?: (
     accountId: string,
@@ -55,7 +63,6 @@ export class HybridFeedSource implements MailboxSource {
   private readonly poller: AtomFeedPoller;
   private readonly threadDriver: ThreadActionDriver;
   private readonly changeListeners = new Set<(event: MailboxChangeEvent) => void>();
-  private lastKnownRecent: TrayMessageItem[] = [];
 
   constructor(accountId: string, options: HybridFeedSourceOptions = {}) {
     this.accountId = accountId;
@@ -111,29 +118,26 @@ export class HybridFeedSource implements MailboxSource {
     if (view && !view.webContents.isDestroyed()) {
       try {
         const snapshot = await readCachedInboxData(view.webContents, limit);
-        if (snapshot && snapshot.messages && snapshot.messages.length > 0) {
+        if (snapshot) {
+          this.reportCache(snapshot);
           this.ledger.reconcileWithCache(snapshot.messages, Date.now(), snapshot.asOf);
-          this.lastKnownRecent = snapshot.messages.slice(0, limit);
-          return this.lastKnownRecent;
         }
       } catch (err) {
         log.warn(`Failed to read cached inbox data for ${this.accountId}:`, err);
       }
     }
 
-    const entries = this.poller.getLatestEntries();
-    if (entries.length > 0) {
-      const items = entries.slice(0, limit).map(atomMessageToTrayMessageItem);
-      this.lastKnownRecent = items;
-      return items;
-    }
+    const items = this.ledger.getRecentMessages(limit);
+    if (items.length > 0) return items;
 
-    return this.lastKnownRecent;
+    // Before the first cache read or poll the ledger has nothing to show.
+    return this.poller.getLatestEntries().slice(0, limit).map(atomMessageToTrayMessageItem);
   }
 
   public async triageThread(threadId: string, action: TriageAction): Promise<boolean> {
-    // 0ms latency: update ledger optimistically
+    // 0ms latency: update ledger optimistically, but not yet confirmed.
     this.ledger.recordLocalTriage(threadId, threadId, action);
+    this.ledger.markLocalTriageInFlight(threadId, threadId);
     this.emitChange({
       addedMessageIds: [],
       removedMessageIds: [threadId],
@@ -142,9 +146,20 @@ export class HybridFeedSource implements MailboxSource {
 
     const success = await this.threadDriver.perform(undefined, this.accountId, threadId, action);
     if (success) {
+      this.ledger.acceptLocalTriage(threadId, threadId, Date.now());
       await this.dispatchUniversalSyncNudge();
+      return true;
     }
-    return success;
+
+    // The optimistic row must not outlive a failed action.
+    if (this.ledger.rollbackLocalTriage(threadId, threadId)) {
+      this.emitChange({
+        addedMessageIds: [],
+        removedMessageIds: [],
+        countChanged: true,
+      });
+    }
+    return false;
   }
 
   public async refresh(): Promise<void> {
@@ -152,14 +167,17 @@ export class HybridFeedSource implements MailboxSource {
 
     const view = this.options.getView?.(this.accountId);
     if (view && !view.webContents.isDestroyed()) {
+      const before = this.ledger.getBreakdown().total;
       try {
         const snapshot = await readCachedInboxData(view.webContents, 20);
         if (snapshot?.messages) {
+          this.reportCache(snapshot);
           this.ledger.reconcileWithCache(snapshot.messages, Date.now(), snapshot.asOf);
         }
       } catch (err) {
         log.warn(`Cache refresh failed for ${this.accountId}:`, err);
       }
+      this.emitIfCountChanged(before);
     }
   }
 
@@ -197,16 +215,41 @@ export class HybridFeedSource implements MailboxSource {
   public async handleMailboxChangeHint(): Promise<void> {
     const view = this.options.getView?.(this.accountId);
     if (view && !view.webContents.isDestroyed()) {
+      const before = this.ledger.getBreakdown().total;
       try {
         const snapshot = await readCachedInboxData(view.webContents, 20);
         if (snapshot?.messages) {
+          this.reportCache(snapshot);
           this.ledger.reconcileWithCache(snapshot.messages, Date.now(), snapshot.asOf);
         }
       } catch {
         // Ignore cache failure
       }
+      this.emitIfCountChanged(before);
     }
     this.poller.requestImmediatePoll();
+  }
+
+  private reportCache(snapshot: CachedInboxSnapshot): void {
+    if (snapshot.stats?.reason === 'no-db') {
+      this.options.onCacheStatus?.(this.accountId, false);
+      return;
+    }
+    if (!snapshot.stats?.reason) {
+      this.options.onCacheStatus?.(this.accountId, true);
+      if (snapshot.categoryCounts.size > 0) {
+        this.options.onCacheCategoryCounts?.(
+          this.accountId,
+          snapshot.categoryCounts,
+          snapshot.asOf,
+        );
+      }
+    }
+  }
+
+  private emitIfCountChanged(before: number): void {
+    if (this.ledger.getBreakdown().total === before) return;
+    this.emitChange({ addedMessageIds: [], removedMessageIds: [], countChanged: true });
   }
 
   public async dispatchUniversalSyncNudge(): Promise<void> {
@@ -275,7 +318,7 @@ export class HybridFeedSource implements MailboxSource {
     const event: MailboxChangeEvent = {
       accountId: this.accountId,
       unread,
-      recentMessages: this.lastKnownRecent,
+      recentMessages: this.ledger.getRecentMessages(20),
       delta,
     };
 

@@ -122,14 +122,15 @@ newer.
 
 ## Thread list source and `TrayModel` state
 
-### Gmail's cache, not the feed
+### The ledger's rows, fed by Gmail's cache
 
 The Atom feed ([`atom-feed.md`](atom-feed.md)) only returns unread messages, so a thread dropping out
-of it is indistinguishable from one that was read, archived or deleted. The popover therefore draws
-its threads from Gmail's own `_xdb` IndexedDB cache in the account's renderer, read by
-`gmail-cache-reader.ts`: Gmail's data worker keeps that cache synchronised, so every row carries the
-thread's real read state, labels and category, and a deleted thread disappears rather than lingering
-as a muted row.
+of it is indistinguishable from one that was read, archived or deleted. `HybridFeedSource` therefore
+reads Gmail's own `_xdb` IndexedDB cache into the `UnreadLedger`, and the popover draws its threads
+from the ledger. Gmail's data worker keeps that cache synchronised, so every row carries the thread's
+real read state, labels and category, and a deleted thread disappears rather than lingering as a
+muted row. Local triage changes the ledger row immediately, so the popover and the badge cannot
+disagree about a thread the user just acted on.
 
 `TrayModel` keeps its own copy of the threads it was last handed, replacing the account's whole list
 on each payload:
@@ -143,7 +144,8 @@ flowchart TD
 ```
 
 The payload is not persisted on the Electron side. Each `tray.getMessages` pull, and each forced
-refresh, decodes the current cache afresh, so the popover opens on what Gmail last wrote. A read that
+refresh, asks `MailboxSource.getRecentMessages()`, which refreshes the ledger from the current cache,
+so the popover opens on what Gmail last wrote plus any local triage not yet confirmed. A read that
 could not run — a suspended or still-loading view — leaves the last list in place rather than blanking
 it; only a cache that was read and held nothing clears the popover. An archive or trash from the
 popover pulls its row at once and suppresses a stale copy until the cache drops it, rather than
@@ -155,13 +157,13 @@ on the row. A read thread has no dot, a faded accent pill, secondary text, and n
 primary signal — it holds up under vibrancy and in dark mode where a low-opacity fill can vanish — and
 sits away from the accent pill so the two do not read as one glyph.
 
-1. **A thread missing from a newer payload is gone**, not carried as a muted row: the cache lists read
-   threads itself, so absence means archived or deleted.
-2. **Inbox zero still shows recent context**, because read threads are in the cache rather than aged
-   in place.
+1. **A thread missing from a newer payload is gone**, not carried as a muted row: the ledger keeps
+   read rows too, so absence means archived or deleted.
+2. **Inbox zero still shows recent context**, because the ledger keeps read rows rather than ageing
+   them in place.
 3. **Items are pruned by count alone** in the popover, not by age. `TrayModel.retentionLimit` keeps
    twenty threads per account, matching `RECENT_TRAY_MESSAGES` (twenty), the number Electron asks the
-   cache for.
+   ledger for.
 
 ### Category symbols mapping
 

@@ -1,18 +1,20 @@
 # Unread reconciliation
 
-`UnreadLedger` owns the unread count for one account. It combines the Atom feed, Gmail's local
-`_xdb` cache, and local triage actions. It is the only writer of the account's unread count; the
-poller and cache reader supply evidence, not decisions.
+`UnreadLedger` owns the recent rows and the unread count for one account. It combines the Atom feed,
+Gmail's local `_xdb` cache, and local triage actions. It is the only mailbox state; the poller and
+cache reader supply evidence, not decisions, and every surface reads the ledger through
+`MailboxSource`.
 
 The ledger answers two separate questions:
 
-- **Which threads are unread right now?** The tracked set, used for category counts, the popover,
-  and remote-triage detection.
+- **Which threads are unread right now?** The unread subset of the recent rows, used for category
+  counts and remote-triage detection.
 - **What number goes on the badge?** A base count from Atom, adjusted by local actions the sources
   have not caught up with yet.
 
 Those are not the same number. In a backlog Atom lists only the first twenty unread threads, so the
-tracked set is a sample while the badge is a total.
+unread subset is a sample while the badge is a total. The popover and widgets read the same recent
+rows, including threads the ledger has marked read, so the list and the count share one state.
 
 ## Freshness belongs to the source
 
@@ -44,10 +46,21 @@ The consequence is the one that matters: a local action followed by a refresh is
 Atom returns its pre-action state, because that response's freshness boundary is still behind the
 action. Refresh changes when the sources are asked, never what the ledger already knows.
 
+## Rows and count
+
+The ledger keeps a bounded recent list (200 rows) with each row's read state, category, subject,
+sender, snippet and the source time that last set it. Cache and Atom both feed that list; the
+popover and widgets ask `MailboxSource.getRecentMessages()` and never read either source directly.
+
+The badge total is not the number of unread rows. It is Atom's filtered total plus or minus pending
+local records, because Atom knows about unread threads outside its twenty-entry window. The rows are
+the visible sample; the count is the total.
+
 ## Per-thread states
 
 Each thread is in exactly one state. The tracked set contains `Unread` and `PendingMarkUnread`
-threads.
+threads. A read row can remain in the recent list, so `Untracked` here means not counted as unread,
+not absent from the popover.
 
 ```mermaid
 stateDiagram-v2
@@ -158,19 +171,12 @@ the feed's message id. That is what stops a thread marked unread from being coun
 - Until that boundary passes, the local record adjusts the total even though the thread is not in
   the entry list. That is what makes the action visible immediately.
 
-## Current limits
-
-- Local records use dispatch time, not the server's acknowledgement time. The badge is safe but the
-  hold can last slightly longer than the server actually needs.
-- Atom and cache are ordered against local records, not against each other for the tracked set. The
-  badge base is Atom, so the total is unaffected, but a stale cache row can still change category
-  counts or the popover list until the next Atom poll corrects it.
-
 ## Invariants
 
-- One account count writer: `MailboxSource.getUnreadCounts()`. Accounts and the poller never apply
-  Atom's number directly.
+- One mailbox state: `MailboxSource`, backed by `UnreadLedger`. The badge, popover and widgets read
+  it; nothing reads Atom or `_xdb` for display.
 - A local record is cleared only by an observation that proves the action, or by the source
   boundary passing the action.
+- A source observation older than a row's last source time cannot change that row.
 - Refresh changes when the sources are asked, never what the ledger already knows.
 - Every pending record carries a category and is counted only when that category is enabled.

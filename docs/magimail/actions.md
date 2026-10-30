@@ -300,15 +300,15 @@ sequenceDiagram
     G-->>E: DOM unread count drops
     E->>P: tray.update (new count)
     P->>E: tray.getMessages
-    E-->>P: tray.messages (from Gmail's cache, which the action has not reached)
+    E-->>P: tray.messages (from the ledger, with the local triage applied)
 ```
 
 Acting on a thread moves an unread count, a changed count pushes fresh tray data, and
 `MenuBarController.updateData` answers that by asking for messages again while the popover is open.
-Electron serves that by decoding Gmail's local `_xdb` cache in the account's renderer
-(`gmail-cache-reader.ts`) when the popover asks. Gmail's data worker owns that cache and has not seen
-our mutation yet, so the row still reads the way it did before the click; `apply` keeps the recorded
-state over it until the cache catches up.
+Electron serves that from the account's `UnreadLedger` when the popover asks. The ledger refreshes
+its rows from Gmail's local `_xdb` cache, then keeps the optimistic triage state over them until a
+source fresh enough to include the action confirms or contradicts it. The row therefore reads the way
+the user acted on it, not the way a lagging cache still reports it.
 
 A record settles as soon as the incoming list says the same thing: a thread marked read is settled once it
 drops out, one marked unread once it is listed again. Anything still waiting after

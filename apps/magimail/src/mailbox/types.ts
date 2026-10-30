@@ -21,6 +21,8 @@ export interface UnreadBreakdown {
   rawFullCount: number | null;
   /** Number of known unique items currently tracked in the ledger. */
   activeCount: number;
+  /** True once the ledger has any source observation or pending local action. */
+  hasState: boolean;
 }
 
 /**
@@ -45,6 +47,8 @@ export interface UnreadLedgerItem {
   from?: string;
   /** Snippet preview. */
   snippet?: string;
+  /** Source observation time that last set this row's state (epoch ms). */
+  sourceAsOf?: number;
 }
 
 /**
@@ -53,10 +57,16 @@ export interface UnreadLedgerItem {
 export interface TriagedRecord {
   /** Epoch timestamp when the action was dispatched. */
   triagedAt: number;
+  /** When the driver confirmed the action, if it has. */
+  acceptedAt?: number;
   /** Triage action performed. */
   action: TriageAction;
   /** Category of the message before triage. */
   category: NotificationCategory;
+  /** Whether the row was unread before the optimistic change. */
+  previousUnread?: boolean;
+  /** The row's source watermark before the optimistic change. */
+  previousSourceAsOf?: number;
 }
 
 /**
@@ -85,8 +95,8 @@ export interface MailboxSource {
   getUnreadCounts(): UnreadBreakdown;
 
   /**
-   * Retrieves the most recent messages for the menu bar popover and widgets.
-   * Prefers enriched cache data, falling back to Atom feed entries.
+   * The ledger's recent rows, read and unread, for the menu bar popover and widgets.
+   * Cache and Atom feed the ledger; callers never read either source directly.
    */
   getRecentMessages(limit?: number): Promise<TrayMessageItem[]>;
 
@@ -100,6 +110,15 @@ export interface MailboxSource {
    * Forces an immediate reconciliation cycle (triggers Atom poll + cache check).
    */
   refresh(): Promise<void>;
+
+  /** The renderer noticed a mailbox change; refresh cache and poll. */
+  handleMailboxChangeHint(): Promise<void>;
+
+  /** The window woke or was unhidden. */
+  handleWindowWakeOrUnhide(): Promise<void>;
+
+  /** Tells the poller which categories the page is currently showing. */
+  setFocusAndMissingCategories(isFocused: boolean, missing: NotificationCategory[]): void;
 
   /**
    * Updates user notification category settings ('all' | 'primary' | 'off').

@@ -51,7 +51,6 @@ import { openDetachedThreadWindow } from './compose.js';
 import { loadAccounts, saveAccounts, createNewAccount } from './account-store.js';
 import { loadSettings, saveSetting } from './settings-store.js';
 import { clearPollerState, type AtomFeedPoller, type AtomPollResult } from './atom-poller.js';
-import { gmailSyncStateFor } from './gmail-sync-state.js';
 import { pressRefreshControl } from './thread-actions/sync-driver.js';
 import { type MailboxSource, HybridFeedSource, type MailboxChangeEvent } from './mailbox/index.js';
 import {
@@ -358,6 +357,8 @@ export class AccountsManager {
           queuedAt: Date.now(),
         });
       },
+      onCacheStatus: (accId, hasCache) => this.handleOfflineCacheStatus(accId, hasCache),
+      onCacheCategoryCounts: (accId, counts) => this.handleCacheCategoryCounts(accId, counts),
       onPollResult: (result) => {
         if (result.status === 'ok') {
           this.setAccountAuthRequired(result.accountId, false);
@@ -1092,9 +1093,7 @@ export class AccountsManager {
     const source = this.mailboxSources.get(accountId);
     if (source) {
       const counts = source.getUnreadCounts();
-      if (counts.rawFullCount !== null || counts.total > 0) {
-        return counts.total;
-      }
+      if (counts.hasState) return counts.total;
     }
     const acc = this.accounts.find((a) => a.id === accountId);
     return acc?.unreadCount ?? 0;
@@ -1145,14 +1144,13 @@ export class AccountsManager {
   public handleCacheCategoryCounts(
     accountId: string,
     categoryCounts: Map<NotificationCategory, number>,
-    timestamp?: number,
   ): void {
     this.recordCategoryCounts(accountId, categoryCounts, true);
 
-    const account = this.accounts.find((a) => a.id === accountId);
-    const syncState = account ? gmailSyncStateFor(account.partition) : null;
-    const effectiveTimestamp =
-      timestamp ?? (syncState?.capturedAt ? syncState.capturedAt : Date.now());
+    // The ledger owns the count once it has any state. This method is now only a
+    // category-count fallback for a cache read that has not reached the ledger yet.
+    const source = this.mailboxSources.get(accountId);
+    if (source?.getUnreadCounts().hasState) return;
 
     const notifSettings = loadSettings().notifications || {};
     let cacheTotal = 0;
@@ -1172,7 +1170,6 @@ export class AccountsManager {
     // for the widget snapshot also calls this, and `onUnreadChanged` runs that
     // same snapshot read, so announcing an unchanged total would re-enter it for
     // as long as a renderer is awake.
-    const source = this.mailboxSources.get(accountId);
     let effectiveUnread = this.getEffectiveUnreadForAccount(accountId);
     if (source && source.getUnreadCounts().rawFullCount === null && cacheTotal > 0) {
       effectiveUnread = cacheTotal;

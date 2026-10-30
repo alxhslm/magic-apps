@@ -498,6 +498,70 @@ describe('Scenario 6: Preemptive Ledger Updates', () => {
   });
 });
 
+describe('Scenario 7: Ledger-owned rows and source ordering', () => {
+  const atomEntry = (id: string, threadId: string) => ({
+    id,
+    threadId,
+    from: 'someone',
+    subject: 'subject',
+    snippet: 'snippet',
+    link: '',
+    issued: new Date(1000).toISOString(),
+    modified: new Date(1000).toISOString(),
+    category: 'primary' as const,
+  });
+  const cacheRow = (id: string, threadId: string, unread: boolean) => ({
+    id,
+    threadId,
+    from: 'someone',
+    subject: 'subject',
+    snippet: 'snippet',
+    category: 'primary' as const,
+    unread,
+    modified: new Date(1000),
+  });
+
+  it('returns popover rows from the ledger with local triage applied', () => {
+    const ledger = new UnreadLedger();
+    ledger.reconcileWithCache([cacheRow('m1', 't1', true)], 1000, 1000);
+    expect(ledger.getRecentMessages(5)[0].unread).toBe(true);
+
+    ledger.recordLocalTriage('m1', 't1', 'archive', 'primary', 2000);
+
+    expect(ledger.getRecentMessages(5)[0].unread).toBe(false);
+    expect(ledger.getBreakdown().total).toBe(0);
+  });
+
+  it('does not let an older cache row overwrite a newer Atom row', () => {
+    const ledger = new UnreadLedger();
+    ledger.reconcileWithAtom([atomEntry('m1', 't1')], 1, 15000, 1, 15000);
+
+    ledger.reconcileWithCache([cacheRow('m1', 't1', false)], 16000, 5000);
+    expect(ledger.getTrackedItems()).toHaveLength(1);
+    expect(ledger.getRecentMessages(5)[0].unread).toBe(true);
+
+    ledger.reconcileWithCache([cacheRow('m1', 't1', false)], 17000, 12000);
+    expect(ledger.getTrackedItems()).toHaveLength(0);
+    expect(ledger.getRecentMessages(5)[0].unread).toBe(false);
+  });
+
+  it('ignores sources while an action is in flight, then uses the acceptance time', () => {
+    const ledger = new UnreadLedger();
+    ledger.reconcileWithAtom([atomEntry('m1', 't1')], 1, 1000);
+    ledger.recordLocalTriage('m1', 't1', 'archive', 'primary', 2000);
+    ledger.markLocalTriageInFlight('m1', 't1');
+
+    // Generated at 12000, but the action has not been confirmed.
+    ledger.reconcileWithAtom([atomEntry('m1', 't1')], 1, 12000, 1, 12000);
+    expect(ledger.getBreakdown().total).toBe(0);
+
+    ledger.acceptLocalTriage('m1', 't1', 13000);
+    // Generated at 19000, so the read path is trusted as of 14000.
+    ledger.reconcileWithAtom([atomEntry('m1', 't1')], 1, 19000, 1, 19000);
+    expect(ledger.getBreakdown().total).toBe(1);
+  });
+});
+
 describe('Scenario 5: Universal Sync Nudge Dispatch', () => {
   let pressRefreshSpy: ReturnType<typeof vi.spyOn>;
 
@@ -612,6 +676,7 @@ describe('Scenario 5: Universal Sync Nudge Dispatch', () => {
     const source = new HybridFeedSource('acc-triage', {
       partition: 'persist:acc-triage',
       fetchImpl,
+      threadActionDriver: { perform: async () => true },
       pollerFactory: (_accId, _part, cb) => {
         pollCallback = cb;
         return mockPoller as any;
@@ -669,6 +734,7 @@ describe('Scenario 5: Universal Sync Nudge Dispatch', () => {
 
     const source = new HybridFeedSource('acc-refresh', {
       partition: 'persist:acc-refresh',
+      threadActionDriver: { perform: async () => true },
       pollerFactory: (_accId, _part, cb) => {
         pollCallback = cb;
         return mockPoller as any;
@@ -730,6 +796,7 @@ describe('Scenario 5: Universal Sync Nudge Dispatch', () => {
 
     const source = new HybridFeedSource('acc-stale-refresh', {
       partition: 'persist:acc-stale-refresh',
+      threadActionDriver: { perform: async () => true },
       pollerFactory: (_accId, _part, cb) => {
         pollCallback = cb;
         return mockPoller as any;
@@ -753,6 +820,58 @@ describe('Scenario 5: Universal Sync Nudge Dispatch', () => {
     // Refresh does not discard the triage record, and the stale feed cannot either.
     await source.refresh();
     expect(source.getUnreadCounts().total).toBe(0);
+
+    source.destroy();
+  });
+
+  it('rolls the optimistic row back when the driver fails', async () => {
+    let pollCallback: (result: any) => void = () => {};
+    const entry = {
+      id: 'm1',
+      threadId: 't1',
+      from: 'someone',
+      subject: 'hello',
+      snippet: 'hi',
+      link: '',
+      issued: new Date(1000).toISOString(),
+      modified: new Date(1000).toISOString(),
+      category: 'primary',
+    };
+    const mockPoller = {
+      pollNow: vi.fn().mockResolvedValue(undefined),
+      stop: vi.fn(),
+      destroy: vi.fn(),
+      updateNotificationSettings: vi.fn(),
+      setFocusAndMissingCategories: vi.fn(),
+      getLatestEntries: vi.fn().mockReturnValue([entry]),
+    };
+
+    const source = new HybridFeedSource('acc-rollback', {
+      partition: 'persist:acc-rollback',
+      threadActionDriver: { perform: async () => false },
+      pollerFactory: (_accId, _part, cb) => {
+        pollCallback = cb;
+        return mockPoller as any;
+      },
+    });
+
+    pollCallback({
+      accountId: 'acc-rollback',
+      totalUnread: 1,
+      newMessages: [],
+      newArrivalCount: 1,
+      arrivalsIncomplete: false,
+      rawFullCount: 1,
+      status: 'ok',
+    });
+    expect(source.getUnreadCounts().total).toBe(1);
+
+    const ok = await source.triageThread('t1', 'archive');
+    expect(ok).toBe(false);
+    expect(source.getUnreadCounts().total).toBe(1);
+
+    const rows = await source.getRecentMessages(5);
+    expect(rows.find((row) => row.threadId === 't1')?.unread).toBe(true);
 
     source.destroy();
   });

@@ -46,7 +46,6 @@ import { AccountsManager, asThreadAction, TRIAGE_ACTIONS } from './accounts-mana
 import { updateDockBadge, refreshDockBadge } from './dock.js';
 import { localCacheKey } from './native-addon.js';
 import { accountIdFromLink } from './protocol-links.js';
-import { loadAccounts } from './account-store.js';
 import { type ThreadActionOutcome, type TriageAction } from './thread-actions/index.js';
 
 // Replaced by tsup at build time with the Unix milliseconds the bundle was
@@ -149,7 +148,6 @@ import { ThemeManager } from './theme-manager.js';
 import { DefaultClientManager } from './default-client.js';
 import { openSettingsWindow } from './settings.js';
 import { buildWidgetCache, writeWidgetCache } from './widget-cache.js';
-import { readRecentCachedMessages, readCachedInboxData } from './gmail-cache-reader.js';
 import { syncExtensionLogs } from './extension-logs.js';
 import { handleCollectDiagnostics } from './diagnostics.js';
 import { sweepAbandonedShareStaging } from './share-staging.js';
@@ -163,7 +161,6 @@ import {
   killHelper,
 } from './swift-helper.js';
 import { type AtomPollResult } from './atom-poller.js';
-import { HybridFeedSource } from './mailbox/index.js';
 import {
   dispatchNotifications,
   setNotificationClickHandler,
@@ -738,11 +735,9 @@ function createMainWindow(
     const activeId = accountsManager?.getActiveAccountId();
 
     for (const [id, source] of accountsManager?.getMailboxSources().entries() ?? []) {
-      if (source instanceof HybridFeedSource) {
-        const isThisAccountFocused = isWindowActive && id === activeId;
-        const absent = accountsManager?.getAbsentCategoriesForAccount(id) || [];
-        source.setFocusAndMissingCategories(isThisAccountFocused, absent);
-      }
+      const isThisAccountFocused = isWindowActive && id === activeId;
+      const absent = accountsManager?.getAbsentCategoriesForAccount(id) || [];
+      source.setFocusAndMissingCategories(isThisAccountFocused, absent);
     }
   };
 
@@ -754,7 +749,7 @@ function createMainWindow(
   };
   accountsManager.onAbsentCategoriesChanged = (accountId, absent) => {
     const source = accountsManager?.getMailboxSource(accountId);
-    if (source instanceof HybridFeedSource) {
+    if (source) {
       const isWindowActive = Boolean(
         mainWindow && mainWindow.isFocused() && !mainWindow.isMinimized() && mainWindow.isVisible(),
       );
@@ -1141,15 +1136,10 @@ if (!hasLock) {
           composeWithoutAccount: () => composeWithoutAccount(),
           requestImmediatePoll: (accountId) => {
             if (accountId) {
-              const source = accountsManager?.getMailboxSource(accountId);
-              if (source instanceof HybridFeedSource) {
-                void source.handleMailboxChangeHint();
-              }
+              void accountsManager?.getMailboxSource(accountId)?.handleMailboxChangeHint();
             } else {
               for (const source of accountsManager?.getMailboxSources().values() ?? []) {
-                if (source instanceof HybridFeedSource) {
-                  void source.handleMailboxChangeHint();
-                }
+                void source.handleMailboxChangeHint();
               }
             }
           },
@@ -1207,29 +1197,7 @@ if (!hasLock) {
     ipcMain.on(IPC_CHANNELS.MAILBOX_CHANGE_HINT, (event) => {
       const accountId = accountsManager?.getAccountIdForWebContentsId(event.sender.id);
       if (accountId) {
-        const source = accountsManager?.getMailboxSource(accountId);
-        if (source instanceof HybridFeedSource) {
-          void source.handleMailboxChangeHint();
-        }
-        const view = accountsManager?.getWebContentsViewForAccount(accountId);
-        if (view) {
-          void readCachedInboxData(view.webContents, 5).then((snapshot) => {
-            if (snapshot) {
-              if (snapshot.stats?.reason === 'no-db') {
-                accountsManager?.handleOfflineCacheStatus(accountId, false);
-              } else if (!snapshot.stats?.reason) {
-                accountsManager?.handleOfflineCacheStatus(accountId, true);
-                if (snapshot.categoryCounts && accountsManager) {
-                  accountsManager.handleCacheCategoryCounts(
-                    accountId,
-                    snapshot.categoryCounts,
-                    Date.now(),
-                  );
-                }
-              }
-            }
-          });
-        }
+        void accountsManager?.getMailboxSource(accountId)?.handleMailboxChangeHint();
       }
     });
 
@@ -1266,10 +1234,7 @@ if (!hasLock) {
     const nudgeActivePoller = () => {
       const activeId = accountsManager?.getActiveAccountId();
       if (activeId) {
-        const source = accountsManager?.getMailboxSource(activeId);
-        if (source instanceof HybridFeedSource) {
-          void source.handleMailboxChangeHint();
-        }
+        void accountsManager?.getMailboxSource(activeId)?.handleMailboxChangeHint();
       }
     };
 
@@ -1525,9 +1490,7 @@ if (!hasLock) {
       log.info('System resumed from sleep, reloading active view and refreshing mailbox sources');
       accountsManager?.reloadActiveViewOnResume();
       for (const source of accountsManager?.getMailboxSources().values() ?? []) {
-        if (source instanceof HybridFeedSource) {
-          void source.handleWindowWakeOrUnhide();
-        }
+        void source.handleWindowWakeOrUnhide();
       }
     });
 

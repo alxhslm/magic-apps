@@ -155,10 +155,11 @@ badge counts keep updating while it is gone.
 
 The feed lists only unread mail, which is the only signal a poll has that a thread was dealt with —
 and it cannot tell a thread that was read from one that was archived or deleted. When Gmail's offline
-mail is enabled, the menu bar and the widget read Gmail's own `_xdb` IndexedDB cache in the account's
-renderer: `gmail-cache-reader.ts` decodes the cached thread protobuf and returns the newest Inbox
-rows with their real read state, labels and category. A deleted thread leaves the popover as soon as
-Gmail's data worker drops it, and a restart paints from data already on disk.
+mail is enabled, `HybridFeedSource` reads Gmail's own `_xdb` IndexedDB cache in the account's
+renderer and merges those rows into the ledger: `gmail-cache-reader.ts` decodes the cached thread
+protobuf and supplies the newest Inbox rows with their real read state, labels and category. The menu
+bar and widgets ask the ledger for rows, never the cache directly. A deleted thread leaves the
+popover as soon as Gmail's data worker drops it, and a restart paints from data already on disk.
 
 When offline mail is disabled or the cache database has not yet been created, the menu bar and
 widgets fall back to the newest entries from the Atom feed. An account whose view is not ready answers

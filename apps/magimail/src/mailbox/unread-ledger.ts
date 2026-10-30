@@ -15,15 +15,22 @@ import type {
  */
 export const ATOM_READ_PATH_GRACE_MS = 5000;
 
+/** A row is kept this long after its last observation so the popover has history. */
+const MAX_RECENT_ROWS = 200;
+
 /**
  * Pure, deterministic state machine for unread email reconciliation.
+ *
+ * The ledger owns the recent rows as well as the count, so the popover, widgets and
+ * badge all read one state. Atom and cache are evidence; local actions are records.
  *
  * Each source carries its own freshness:
  *
  * - Atom is trusted as of its response generation time minus the read-path grace.
- *   The grace is a bound on backend propagation, not an HTTP cache age.
  * - The cache's own last item-sync time is its boundary; a row's modified time is
  *   the fallback when the schema does not expose it.
+ * - A row's `sourceAsOf` is the observation that last set its state, so an older
+ *   source cannot overwrite a newer one.
  *
  * A local action is a record, never an edit to the Atom base. The base is replaced on
  * every poll; records adjust it until a source fresh enough to include the action
@@ -32,7 +39,11 @@ export const ATOM_READ_PATH_GRACE_MS = 5000;
 
 interface MarkedUnreadRecord {
   markedAt: number;
+  acceptedAt?: number;
   category: NotificationCategory;
+  previousUnread?: boolean;
+  previousSourceAsOf?: number;
+  addedKey?: string;
 }
 
 function parseCategory(cat?: string): NotificationCategory | undefined {
@@ -56,7 +67,7 @@ function parseModifiedMs(modified?: string | Date): number | undefined {
 }
 
 export class UnreadLedger {
-  private activeUnread = new Map<string, UnreadLedgerItem>();
+  private recent = new Map<string, UnreadLedgerItem>();
   private recentlyTriaged = new Map<string, TriagedRecord>();
   private recentlyMarkedUnread = new Map<string, MarkedUnreadRecord>();
   /** Raw <fullcount> from the last feed. */
@@ -74,6 +85,9 @@ export class UnreadLedger {
   /**
    * 1. Local Triage Action
    * Invoked synchronously when user triggers triage from tray, notification, or shortcut.
+   *
+   * The row's unread flag changes immediately. The record is in flight until the driver
+   * confirms it, and sources cannot overwrite it during that window.
    */
   public recordLocalTriage(
     id: string,
@@ -84,61 +98,126 @@ export class UnreadLedger {
   ): void {
     this.pruneRecordsBefore(this.atomAsOf);
 
-    const found = this.findActive(id, threadId);
+    const found = this.findRecent(id, threadId);
     const targetId = found?.key ?? id;
-    const existing = found?.item;
-    const resolvedCategory = existing?.category ?? category;
+    const item = found?.item;
+    const resolvedCategory = item?.category ?? category;
 
     if (action === 'markUnread') {
       // A mark-unread supersedes a reducing triage on the same thread, and vice versa.
       this.clearTriageFor(id, threadId, targetId);
       this.clearMarkedUnreadFor(id, threadId, targetId);
 
-      // Keep an existing entry under the key it already has. Writing it under the
-      // thread id as well would leave the old entry counted beside the new one.
-      this.activeUnread.set(targetId, {
-        id: existing?.id ?? id,
-        threadId: threadId || existing?.threadId || id,
-        category: resolvedCategory,
-        unread: true,
-        observedAt: existing?.observedAt ?? now,
-        subject: existing?.subject,
-        from: existing?.from,
-        snippet: existing?.snippet,
-        timestampMs: existing?.timestampMs,
-      });
+      if (item?.unread) return;
 
-      // An already-unread thread is already counted. Only a thread that was not
-      // counted needs a pending addition against the feed.
-      if (!existing) {
-        const markRecord: MarkedUnreadRecord = { markedAt: now, category: resolvedCategory };
-        this.recentlyMarkedUnread.set(id, markRecord);
-        if (threadId && threadId !== id) this.recentlyMarkedUnread.set(threadId, markRecord);
-        if (targetId && targetId !== id && targetId !== threadId) {
-          this.recentlyMarkedUnread.set(targetId, markRecord);
-        }
+      const previousUnread = item?.unread;
+      const previousSourceAsOf = item?.sourceAsOf;
+      if (item) {
+        item.unread = true;
+        item.category = resolvedCategory;
+      } else {
+        this.recent.set(targetId, {
+          id,
+          threadId: threadId || id,
+          category: resolvedCategory,
+          unread: true,
+          observedAt: now,
+        });
+      }
+
+      const markRecord: MarkedUnreadRecord = {
+        markedAt: now,
+        acceptedAt: now,
+        category: resolvedCategory,
+        previousUnread,
+        previousSourceAsOf,
+        addedKey: item ? undefined : targetId,
+      };
+      this.recentlyMarkedUnread.set(id, markRecord);
+      if (threadId && threadId !== id) this.recentlyMarkedUnread.set(threadId, markRecord);
+      if (targetId && targetId !== id && targetId !== threadId) {
+        this.recentlyMarkedUnread.set(targetId, markRecord);
       }
       return;
     }
 
     // A read row can be archived from the popover. It was never counted, so it must
     // not move the badge and must not leave a record that subtracts from the feed.
-    if (!existing) return;
+    if (!item || !item.unread) return;
 
-    this.activeUnread.delete(targetId);
-    if (id !== targetId) this.activeUnread.delete(id);
     this.clearMarkedUnreadFor(id, threadId, targetId);
 
     const record: TriagedRecord = {
       triagedAt: now,
+      acceptedAt: now,
       action,
-      category: resolvedCategory,
+      category: item.category,
+      previousUnread: item.unread,
+      previousSourceAsOf: item.sourceAsOf,
     };
+    item.unread = false;
+
     this.recentlyTriaged.set(id, record);
     if (threadId && threadId !== id) this.recentlyTriaged.set(threadId, record);
     if (targetId && targetId !== id && targetId !== threadId) {
       this.recentlyTriaged.set(targetId, record);
     }
+  }
+
+  /**
+   * Marks the action as confirmed by the driver. Sources newer than this time may
+   * now win; sources older than it may not.
+   */
+  public acceptLocalTriage(id: string, threadId: string, acceptedAt: number = Date.now()): void {
+    const triage = this.findTriageRecord(id, threadId);
+    if (triage) triage.acceptedAt = acceptedAt;
+    const mark = this.findMarkRecord(id, threadId);
+    if (mark) mark.acceptedAt = acceptedAt;
+  }
+
+  /** Clears the confirmation time until the driver answers. */
+  public markLocalTriageInFlight(id: string, threadId: string): void {
+    const triage = this.findTriageRecord(id, threadId);
+    if (triage) triage.acceptedAt = undefined;
+    const mark = this.findMarkRecord(id, threadId);
+    if (mark) mark.acceptedAt = undefined;
+  }
+
+  /**
+   * Puts the optimistic change back when the driver could not land the action.
+   * Returns whether anything changed.
+   */
+  public rollbackLocalTriage(id: string, threadId: string): boolean {
+    let changed = false;
+
+    const triage = this.findTriageRecord(id, threadId);
+    if (triage) {
+      const row = this.findRecent(id, threadId);
+      if (row) {
+        row.item.unread = triage.previousUnread ?? true;
+        row.item.sourceAsOf = triage.previousSourceAsOf;
+      }
+      this.clearTriageRecord(triage);
+      changed = true;
+    }
+
+    const mark = this.findMarkRecord(id, threadId);
+    if (mark) {
+      if (mark.addedKey) {
+        const row = this.findRecent(id, threadId);
+        if (row) this.recent.delete(row.key);
+      } else {
+        const row = this.findRecent(id, threadId);
+        if (row) {
+          row.item.unread = mark.previousUnread ?? false;
+          row.item.sourceAsOf = mark.previousSourceAsOf;
+        }
+      }
+      this.clearMarkedUnreadRecord(mark);
+      changed = true;
+    }
+
+    return changed;
   }
 
   /**
@@ -183,46 +262,56 @@ export class UnreadLedger {
 
       if (triage) {
         const changedAt = parseModifiedMs(entry.modified);
-        if (changedAt !== undefined && changedAt >= triage.triagedAt) {
-          // The thread changed on the server after the local action, so this entry
-          // is a later truth and wins immediately.
+        if (
+          triage.acceptedAt !== undefined &&
+          changedAt !== undefined &&
+          changedAt >= triage.acceptedAt
+        ) {
+          // The thread changed on the server after the action was confirmed, so this
+          // entry is a later truth and wins immediately.
           this.clearTriageRecord(triage);
         } else {
-          // The feed predates the action, or carries no timestamp to prove otherwise.
-          // Suppress it until the source is fresh enough to include the action.
+          // In flight, or the feed predates the action. Suppress until a source is
+          // fresh enough to include the action.
           continue;
         }
       }
 
-      const found = this.findActive(entry.id, entry.threadId);
-      if (!found) {
+      const found = this.findRecent(entry.id, entry.threadId);
+      if (found) {
+        if (found.key !== entry.id) {
+          this.recent.delete(found.key);
+          found.item.id = entry.id;
+          this.recent.set(entry.id, found.item);
+        }
+        if (found.item.sourceAsOf !== undefined && atomAsOf < found.item.sourceAsOf) {
+          // A newer cache row already set this row's state.
+          continue;
+        }
+        if (!found.item.unread) added.push(entry.id);
+        found.item.unread = true;
+        found.item.sourceAsOf = atomAsOf;
+        found.item.category = entry.category ?? found.item.category;
+        found.item.subject = entry.subject || found.item.subject;
+        found.item.from = entry.from || found.item.from;
+        found.item.snippet = entry.snippet || found.item.snippet;
+        const modifiedMs = parseModifiedMs(entry.modified);
+        if (modifiedMs !== undefined) found.item.timestampMs = modifiedMs;
+      } else {
         const item: UnreadLedgerItem = {
           id: entry.id,
           threadId: entry.threadId || entry.id,
           category: entry.category ?? 'primary',
           unread: true,
           observedAt: now,
+          sourceAsOf: atomAsOf,
+          timestampMs: parseModifiedMs(entry.modified),
           subject: entry.subject,
           from: entry.from,
           snippet: entry.snippet,
         };
-        this.activeUnread.set(entry.id, item);
+        this.recent.set(entry.id, item);
         added.push(entry.id);
-      } else {
-        const { key, item } = found;
-        // A preemptive markUnread is keyed by thread id. Adopt the feed's id now
-        // that it knows one, so the same thread is not counted twice.
-        if (key !== entry.id) {
-          this.activeUnread.delete(key);
-          item.id = entry.id;
-          this.activeUnread.set(entry.id, item);
-        }
-        if (entry.category && item.category !== entry.category) {
-          item.category = entry.category;
-        }
-        if (entry.subject) item.subject = entry.subject;
-        if (entry.from) item.from = entry.from;
-        if (entry.snippet) item.snippet = entry.snippet;
       }
     }
 
@@ -238,25 +327,25 @@ export class UnreadLedger {
       }
     }
 
+    // A complete feed also tells us which previously unread rows are now read.
+    if (feedIsComplete) {
+      for (const [key, item] of this.recent.entries()) {
+        if (!item.unread) continue;
+        if (this.markedUnreadFor(key, item.threadId)) continue;
+        if (feedIds.has(key) || feedThreadIds.has(item.threadId)) continue;
+        if (item.sourceAsOf !== undefined && atomAsOf < item.sourceAsOf) continue;
+        item.unread = false;
+        item.sourceAsOf = atomAsOf;
+        removed.push(key);
+      }
+    }
+
     this.lastFullCount = fullCount;
     this.lastDisplayedUnread =
       displayedUnread !== undefined
         ? displayedUnread
         : this.deriveDisplayedUnread(fullCount, entries);
-
-    // Small inbox reconciliation: <= 20 unread (or fullCount <= entries.length)
-    // The feed returned every unread item in existence. Any item in activeUnread
-    // that is NOT in feedIds was triaged remotely (iPhone, Web, another client).
-    const isSmallInbox = fullCount !== null && (fullCount <= entries.length || fullCount <= 20);
-    if (isSmallInbox) {
-      for (const [activeId, item] of this.activeUnread.entries()) {
-        if (this.markedUnreadFor(activeId, item.threadId)) continue;
-        if (!feedIds.has(activeId) && !feedThreadIds.has(item.threadId)) {
-          this.activeUnread.delete(activeId);
-          removed.push(activeId);
-        }
-      }
-    }
+    this.pruneRecent();
 
     const newCount = this.getBreakdown().total;
     return {
@@ -270,7 +359,7 @@ export class UnreadLedger {
    * 3. Reconcile with IndexedDB Cache Snapshot
    * Invoked after readCachedInboxData reads _xdb.
    *
-   * A row is trusted for a thread only when the row's modified time is at or after
+   * A row is trusted for a thread only when the cache's update time is at or after
    * the local action. Otherwise the row predates the action and is ignored for that
    * thread; Atom's freshness cutoff eventually releases the action.
    */
@@ -289,66 +378,59 @@ export class UnreadLedger {
         this.recentlyTriaged.get(msg.id) ??
         (msg.threadId ? this.recentlyTriaged.get(msg.threadId) : undefined);
       const markRecord = this.markedUnreadFor(msg.id, msg.threadId);
-      // The cache's own last-sync time is the boundary. A per-row timestamp is a
-      // fallback for schemas that do not expose it.
-      const rowAsOf =
-        cacheAsOf !== undefined && cacheAsOf > 0 ? cacheAsOf : parseModifiedMs(msg.modified);
+      const sourceAsOf = cacheAsOf !== undefined && cacheAsOf > 0 ? cacheAsOf : undefined;
 
       if (triage || markRecord) {
-        const actionAt = triage?.triagedAt ?? markRecord!.markedAt;
-        if (rowAsOf !== undefined && rowAsOf >= actionAt) {
-          // The row changed after the action, so it is a later truth.
+        const acceptedAt = triage?.acceptedAt ?? markRecord?.acceptedAt;
+        if (acceptedAt !== undefined && sourceAsOf !== undefined && sourceAsOf >= acceptedAt) {
+          // The cache is newer than the confirmed action, so it is a later truth.
           if (triage) this.clearTriageRecord(triage);
           if (markRecord) this.clearMarkedUnreadRecord(markRecord);
         } else {
-          // The row predates the action (or cannot prove otherwise). Ignore its
-          // read/unread assertion for this thread.
+          // In flight, or the row predates the action. Ignore its unread flag.
           continue;
         }
       }
 
-      const found = this.findActive(msg.id, msg.threadId);
-
-      if (!msg.unread) {
-        // If cache explicitly says read and we have it as active unread, remove it.
-        if (found) {
-          this.activeUnread.delete(found.key);
+      const found = this.findRecent(msg.id, msg.threadId);
+      if (found) {
+        if (
+          sourceAsOf !== undefined &&
+          found.item.sourceAsOf !== undefined &&
+          sourceAsOf < found.item.sourceAsOf
+        ) {
+          // Atom already gave this row a newer state.
+          continue;
         }
-        continue;
-      }
-
-      // If it's unread in cache:
-      const existing = found?.item;
-      const parsedCat = parseCategory(msg.category);
-      const modifiedMs = parseModifiedMs(msg.modified);
-      if (existing) {
-        // Enrich metadata from _xdb protobuf
-        existing.category = parsedCat ?? existing.category;
-        existing.subject = msg.subject || existing.subject;
-        existing.from = msg.from || existing.from;
-        existing.snippet = msg.snippet || existing.snippet;
-        if (modifiedMs !== undefined) existing.timestampMs = modifiedMs;
+        found.item.category = parseCategory(msg.category) ?? found.item.category;
+        found.item.subject = msg.subject || found.item.subject;
+        found.item.from = msg.from || found.item.from;
+        found.item.snippet = msg.snippet || found.item.snippet;
+        const modifiedMs = parseModifiedMs(msg.modified);
+        if (modifiedMs !== undefined) found.item.timestampMs = modifiedMs;
+        if (sourceAsOf !== undefined) {
+          found.item.unread = Boolean(msg.unread);
+          found.item.sourceAsOf = sourceAsOf;
+        }
         enriched.push(msg.id);
       } else {
-        // If we are in backlog mode (> 20) and Atom has not listed this item yet,
-        // add it as tracked active unread
-        if (this.lastFullCount === null || this.lastFullCount > 20) {
-          this.activeUnread.set(msg.id, {
-            id: msg.id,
-            threadId: msg.threadId || msg.id,
-            category: parsedCat ?? 'primary',
-            unread: true,
-            observedAt: now,
-            subject: msg.subject,
-            from: msg.from,
-            snippet: msg.snippet,
-            timestampMs: modifiedMs,
-          });
-          enriched.push(msg.id);
-        }
+        this.recent.set(msg.id, {
+          id: msg.id,
+          threadId: msg.threadId || msg.id,
+          category: parseCategory(msg.category) ?? 'primary',
+          unread: Boolean(msg.unread),
+          observedAt: now,
+          sourceAsOf,
+          timestampMs: parseModifiedMs(msg.modified),
+          subject: msg.subject,
+          from: msg.from,
+          snippet: msg.snippet,
+        });
+        enriched.push(msg.id);
       }
     }
 
+    this.pruneRecent();
     return { enriched };
   }
 
@@ -364,8 +446,10 @@ export class UnreadLedger {
       ['forums', 0],
     ]);
 
-    for (const item of this.activeUnread.values()) {
+    let unreadCount = 0;
+    for (const item of this.recent.values()) {
       if (!item.unread) continue;
+      unreadCount += 1;
       const cat = item.category || 'primary';
       byCategory.set(cat, (byCategory.get(cat) ?? 0) + 1);
     }
@@ -382,24 +466,46 @@ export class UnreadLedger {
     }
 
     const arrivalsIncomplete =
-      this.lastFullCount !== null &&
-      (this.lastFullCount > 20 || this.lastFullCount > this.activeUnread.size);
+      this.lastFullCount !== null && (this.lastFullCount > 20 || this.lastFullCount > unreadCount);
 
     return {
       total: Math.max(0, total),
       byCategory,
       arrivalsIncomplete,
       rawFullCount: this.lastFullCount,
-      activeCount: this.activeUnread.size,
+      activeCount: unreadCount,
+      hasState:
+        this.lastFullCount !== null ||
+        this.recent.size > 0 ||
+        this.recentlyTriaged.size > 0 ||
+        this.recentlyMarkedUnread.size > 0,
     };
+  }
+
+  /** The recent rows, read and unread, newest first. */
+  public getRecentMessages(limit = 20): TrayMessageItem[] {
+    return [...this.recent.values()]
+      .sort((a, b) => (b.timestampMs ?? b.observedAt) - (a.timestampMs ?? a.observedAt))
+      .slice(0, limit)
+      .map((item) => ({
+        id: item.id,
+        threadId: item.threadId,
+        from: item.from ?? '',
+        subject: item.subject ?? '',
+        snippet: item.snippet ?? '',
+        modified: item.timestampMs ? new Date(item.timestampMs) : undefined,
+        category: item.category,
+        unread: item.unread,
+      }));
   }
 
   public updateNotificationSettings(settings: Record<string, string>): void {
     this.notificationSettings = { ...settings };
   }
 
+  /** Unread rows only, for callers that track the unread set rather than the list. */
   public getTrackedItems(): UnreadLedgerItem[] {
-    return Array.from(this.activeUnread.values());
+    return [...this.recent.values()].filter((item) => item.unread);
   }
 
   private isCategoryEnabled(category: NotificationCategory): boolean {
@@ -446,6 +552,16 @@ export class UnreadLedger {
     );
   }
 
+  private findTriageRecord(id: string, threadId?: string): TriagedRecord | undefined {
+    return (
+      this.recentlyTriaged.get(id) ?? (threadId ? this.recentlyTriaged.get(threadId) : undefined)
+    );
+  }
+
+  private findMarkRecord(id: string, threadId?: string): MarkedUnreadRecord | undefined {
+    return this.markedUnreadFor(id, threadId);
+  }
+
   private clearMarkedUnreadRecord(record: MarkedUnreadRecord): void {
     for (const [key, candidate] of this.recentlyMarkedUnread.entries()) {
       if (candidate === record) this.recentlyMarkedUnread.delete(key);
@@ -486,15 +602,15 @@ export class UnreadLedger {
     return false;
   }
 
-  /** Finds a tracked item by message id, then by thread id. */
-  private findActive(
+  /** Finds a recent row by message id, then by thread id. */
+  private findRecent(
     id: string,
     threadId?: string,
   ): { key: string; item: UnreadLedgerItem } | undefined {
-    const direct = this.activeUnread.get(id);
+    const direct = this.recent.get(id);
     if (direct) return { key: id, item: direct };
     if (!threadId) return undefined;
-    for (const [key, item] of this.activeUnread.entries()) {
+    for (const [key, item] of this.recent.entries()) {
       if (item.threadId === threadId || item.id === threadId) {
         return { key, item };
       }
@@ -505,10 +621,28 @@ export class UnreadLedger {
   /** Drops records the feed is now fresh enough to have represented. */
   private pruneRecordsBefore(asOf: number): void {
     for (const [id, record] of this.recentlyTriaged.entries()) {
-      if (record.triagedAt <= asOf) this.recentlyTriaged.delete(id);
+      const acceptedAt = record.acceptedAt ?? Number.POSITIVE_INFINITY;
+      if (acceptedAt <= asOf) this.recentlyTriaged.delete(id);
     }
     for (const [id, record] of this.recentlyMarkedUnread.entries()) {
-      if (record.markedAt <= asOf) this.recentlyMarkedUnread.delete(id);
+      const acceptedAt = record.acceptedAt ?? Number.POSITIVE_INFINITY;
+      if (acceptedAt <= asOf) this.recentlyMarkedUnread.delete(id);
+    }
+  }
+
+  /** Keeps the recent list bounded, preferring to drop read rows first. */
+  private pruneRecent(): void {
+    if (this.recent.size <= MAX_RECENT_ROWS) return;
+    const rows = [...this.recent.entries()].sort(
+      (a, b) => (a[1].timestampMs ?? a[1].observedAt) - (b[1].timestampMs ?? b[1].observedAt),
+    );
+    for (const [key, item] of rows) {
+      if (this.recent.size <= MAX_RECENT_ROWS) break;
+      if (!item.unread) this.recent.delete(key);
+    }
+    for (const [key] of rows) {
+      if (this.recent.size <= MAX_RECENT_ROWS) break;
+      this.recent.delete(key);
     }
   }
 }
