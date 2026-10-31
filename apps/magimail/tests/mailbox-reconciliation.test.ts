@@ -1225,3 +1225,76 @@ describe('Scenario 5: Universal Sync Nudge Dispatch', () => {
     source.destroy();
   });
 });
+
+/**
+ * Every category tab, not just Primary.
+ *
+ * The bugs found on this branch were all in the paths a category takes through
+ * the ledger, and the tests only ever exercised Primary. A category that is
+ * counted and one that is silenced take different branches, so both are covered
+ * for each of the five.
+ */
+describe('every category tab', () => {
+  const CATEGORIES = ['primary', 'updates', 'promotions', 'social', 'forums'] as const;
+
+  const atomEntry = (id: string, threadId: string) => ({
+    id,
+    threadId,
+    from: 'someone',
+    subject: 'subject',
+    snippet: 'snippet',
+    link: '',
+    issued: new Date(1000).toISOString(),
+    modified: new Date(1000).toISOString(),
+    category: 'primary' as const,
+  });
+
+  const row = (id: string, threadId: string, unread: boolean, category: string) => ({
+    id,
+    threadId,
+    from: 'someone',
+    subject: 'subject',
+    snippet: 'snippet',
+    category: category as 'primary',
+    unread,
+    modified: new Date(1000),
+  });
+
+  const allEnabled = {
+    primary: 'loud',
+    updates: 'badge',
+    promotions: 'badge',
+    social: 'badge',
+    forums: 'badge',
+  };
+
+  for (const category of CATEGORIES) {
+    it(`counts a read and an unread in ${category}`, () => {
+      const ledger = new UnreadLedger();
+      ledger.updateNotificationSettings(allEnabled);
+      ledger.reconcileWithAtom([], 0, 20000, undefined, 20000);
+      expect(ledger.getBreakdown().total).toBe(0);
+
+      // Unread in this category moves the total, whichever category it is.
+      ledger.reconcileWithCache([row('m1', 't1', true, category)], 21000, 18000);
+      expect(ledger.getBreakdown().total).toBe(1);
+      expect(ledger.getBreakdown().byCategory.get(category)).toBe(1);
+
+      // And reading it takes the total back.
+      ledger.reconcileWithCache([row('m1', 't1', false, category)], 22000, 18000);
+      expect(ledger.getBreakdown().total).toBe(0);
+      expect(ledger.getBreakdown().byCategory.get(category)).toBe(0);
+    });
+
+    it(`ignores ${category} when that category is silenced`, () => {
+      const ledger = new UnreadLedger();
+      ledger.updateNotificationSettings({ ...allEnabled, [category]: 'off' });
+      ledger.reconcileWithAtom([], 0, 20000, undefined, 20000);
+
+      ledger.reconcileWithCache([row('m1', 't1', true, category)], 21000, 18000);
+      expect(ledger.getBreakdown().total).toBe(0);
+      // The row is still tracked; only the total excludes it.
+      expect(ledger.getBreakdown().byCategory.get(category)).toBe(1);
+    });
+  }
+});
