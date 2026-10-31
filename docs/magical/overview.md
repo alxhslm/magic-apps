@@ -38,6 +38,7 @@ flowchart TD
     subgraph Addon["Native N-API addon (in-process)"]
         Cocoa["Cocoa window and NSToolbar"]
         DockTile["NSDockTile date icon"]
+        Sidebar["Native companion sidebar (SwiftUI)"]
     end
 
     subgraph Ext["App extensions (OS-hosted .appex)"]
@@ -176,10 +177,19 @@ The toolbar's mechanism, and the rules every native toolbar item follows, are in
 - **`search`**: optional native `NSSearchField` available via toolbar customisation, expanding Google
   search on submit. Dimmed in Tasks mode, because Google's search is an event search, not a task
   search.
+- **`toggleSidebar`**: toggle button (`sidebar.right`) opening and closing the native companion sidebar.
 
 The switcher segments show account colour dots, focus dimming and authentication warning icons. A
 filled dot means invitations have arrived on that account and not been dealt with, which is the only
 thing that says which account they are waiting on.
+
+## Companion sidebar
+
+The native companion sidebar is an AppKit and SwiftUI surface anchored to the right edge of the main
+window. It adapts its view mode to mirror Google Calendar's active timeframe (Fantastical-style for
+month, year and schedule views; scrubber and agenda for week view; single-day agenda for day view),
+folds smoothly via `NSAnimationContext`, and supports `Cmd+\` keyboard toggling. See
+[`sidebar.md`](sidebar.md).
 
 ## Menu bar
 
