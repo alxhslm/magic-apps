@@ -104,15 +104,9 @@ includes; the toolbar switcher shows every account's own total, which is the unf
 
 ## What survives a restart
 
-The counts are mailbox state, so the mailbox source keeps them between launches in
-`unread-counts.json`, sealed through `secret-file`. A launch draws the tray from the last known
-number instead of zero while the first poll and cache read are still in flight.
-
-It is a separate file rather than fields in `accounts.json` because that one is plaintext, for the
-reason [`sessions-and-security.md`](../shared/sessions-and-security.md#which-files-are-sealed) gives.
-
-The write is throttled: a poll changes the count every few seconds. A launch immediately after a
-change therefore starts from a slightly older number, which corrects on the first observation.
+The mailbox source keeps the counts between launches in `unread-counts.json`, encrypted, so a launch
+draws the tray from the last known number rather than from zero. See
+[`sessions-and-security.md`](../shared/sessions-and-security.md#which-files-are-sealed).
 
 ## Categories
 
