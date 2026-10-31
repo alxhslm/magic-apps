@@ -24,5 +24,10 @@ let package = Package(
             ],
             path: "Sources"
         ),
+        .testTarget(
+            name: "MagicalNativeTests",
+            dependencies: ["MagicalNative"],
+            path: "Tests"
+        ),
     ]
 )
