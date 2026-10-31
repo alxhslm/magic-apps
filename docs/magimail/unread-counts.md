@@ -108,10 +108,8 @@ The counts are mailbox state, so the mailbox source keeps them between launches 
 `unread-counts.json`, sealed through `secret-file`. A launch draws the tray from the last known
 number instead of zero while the first poll and cache read are still in flight.
 
-It is a separate file rather than fields in `accounts.json` because that one is shared with the App
-Intents extension, which reads the account list for the Focus Filter picker and cannot decrypt; the
-shared copy carries the account list and nothing else, and counts left in an older copy are stripped
-on load.
+It is a separate file rather than fields in `accounts.json` because that one is plaintext, for the
+reason [`sessions-and-security.md`](../shared/sessions-and-security.md#which-files-are-sealed) gives.
 
 The write is throttled: a poll changes the count every few seconds. A launch immediately after a
 change therefore starts from a slightly older number, which corrects on the first observation.

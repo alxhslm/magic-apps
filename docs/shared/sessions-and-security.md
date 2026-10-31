@@ -272,8 +272,7 @@ file is present but yields nothing. What happens next depends on the file.
 - **Every other file is discarded and rebuilt**, each with a log line: the event cache refills on the
   next poll, an empty alert record risks repeating one banner, the poller takes the next feed as its
   baseline and announces nothing from it, the theme falls back to `system`, the `mailto` prompt
-  returns once, and the unread counts fall back to whatever the account file last held, which the
-  first poll corrects.
+  returns once, and the unread counts fall back to zero until the first poll answers.
 
 ## Removing an app
 
