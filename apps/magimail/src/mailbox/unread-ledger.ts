@@ -533,7 +533,20 @@ export class UnreadLedger {
           log.info(`Cache set unread id=${msg.id} asOf=${sourceAsOf ?? 'none'}`);
         }
         found.item.unread = nowUnread;
-        if (sourceAsOf !== undefined) found.item.sourceAsOf = sourceAsOf;
+        // A row that moved was written by Gmail since the last read, so the moment
+        // we saw it is when its state was observed. `items_sync_state` lags that
+        // write by seconds and is sometimes minutes stale, and the feed's guard
+        // compares against it, so a freshly rewritten row would otherwise lose to a
+        // feed answer carrying the pre-change state: mark a message read and the
+        // next poll, still listing it, put the unread count straight back.
+        //
+        // A row that did not move carries the watermark as before, because nothing
+        // about it says it was rewritten.
+        if (wasUnread !== nowUnread) {
+          found.item.sourceAsOf = now;
+        } else if (sourceAsOf !== undefined) {
+          found.item.sourceAsOf = sourceAsOf;
+        }
 
         // The count is anchored to the feed's fullcount and adjusted only by
         // locally recorded intents, so a triage made in the Gmail UI left it

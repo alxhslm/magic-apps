@@ -844,6 +844,28 @@ describe('Scenario 7: Ledger-owned rows and source ordering', () => {
     }
   });
 
+  it('does not let a lagging feed undo a row the cache has just rewritten', () => {
+    const ledger = new UnreadLedger();
+    ledger.reconcileWithAtom([atomEntry('m1', 't1')], 1, 20000, undefined, 20000);
+    expect(ledger.getBreakdown().total).toBe(1);
+
+    // A read before the triage, agreeing with the feed, so the flip below is seen
+    // as a change rather than as the first sight of this row.
+    ledger.reconcileWithCache([cacheRow('m1', 't1', true)], 20500, 16000);
+    expect(ledger.getBreakdown().total).toBe(1);
+
+    // The user reads it. The watermark does not advance with the row.
+    ledger.reconcileWithCache([cacheRow('m1', 't1', false)], 21000, 16000);
+    expect(ledger.getBreakdown().total).toBe(0);
+
+    // The poll 200ms later still lists the thread as unread, because the feed has
+    // not caught up. Measured live: the badge went 3, back to 4, then to 3 again,
+    // a visible bounce on every read whose cache write landed before the feed's
+    // view of it.
+    ledger.reconcileWithAtom([atomEntry('m1', 't1')], 1, 21200, undefined, 21200);
+    expect(ledger.getBreakdown().total).toBe(0);
+  });
+
   it('ignores sources while an action is in flight, then uses the acceptance time', () => {
     const ledger = new UnreadLedger();
     ledger.reconcileWithAtom([atomEntry('m1', 't1')], 1, 1000);
