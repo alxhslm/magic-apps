@@ -64,6 +64,14 @@ Real account, client, candidate and colleague data must never reach a tracked fi
 closes its issue, along with the labels and milestones around them. What
 follows is only the part that costs something to get wrong.
 
+- **Check the base before you start.** `git fetch origin main`, then
+  `git log --oneline HEAD..origin/main`. An empty answer is the only evidence that the
+  work is against current code. Do it before diagnosing, measuring or reproducing
+  anything, not only before branching: a measurement taken against stale code is not
+  evidence about the code being shipped, and it is the cheapest mistake in this list
+  to avoid. A latency investigation once ran four commits behind `main`, on a
+  subsystem that had already been rewritten there, and every number in it was about
+  the wrong build.
 - Stage files by name. Never `git add -A` or `git add .`; unrelated work is often in
   progress alongside yours.
 - Split the work into logical commits as you go: a refactor separate from the behaviour
