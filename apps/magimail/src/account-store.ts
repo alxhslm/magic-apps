@@ -52,16 +52,18 @@ export function loadAccounts(): AccountConfig[] {
   if (group) {
     const primary = path.join(group, ACCOUNTS_FILENAME);
     const fromGroup = readAccountsFile(primary);
-    if (fromGroup) return fromGroup;
+    if (fromGroup) {
+      // A file written before the counts moved to `unread-count-store` still
+      // carries them. Rewrite it once, so no plaintext copy of a count survives.
+      if (fromGroup.some((account) => 'unreadCount' in account)) saveAccounts(fromGroup);
+      return fromGroup;
+    }
     // First run with the group: copy the old file into the group so the Focus
     // Filter picker is not empty until the user next changes an account.
     const fromLegacy = readAccountsFile(legacyAccountsPath());
     if (fromLegacy) {
       try {
-        const shared = fromLegacy.map(
-          ({ unreadCount: _total, badgeUnreadCount: _badge, ...rest }) => rest,
-        );
-        fs.writeFileSync(primary, JSON.stringify(shared, null, 2), 'utf8');
+        fs.writeFileSync(primary, JSON.stringify(sharedFields(fromLegacy), null, 2), 'utf8');
         log.info('Migrated accounts.json into the App Group container');
       } catch (err) {
         log.warn('Could not migrate accounts.json into the App Group container:', err);
@@ -73,6 +75,19 @@ export function loadAccounts(): AccountConfig[] {
     if (fromLegacy) return fromLegacy;
   }
   return [...DEFAULT_ACCOUNTS];
+}
+
+/**
+ * The account list without the unread counts.
+ *
+ * This file is shared with the App Intents extension, which reads it for the
+ * Focus Filter picker and cannot decrypt, so it carries the account list and
+ * nothing else. `unread-count-store` keeps the counts, sealed.
+ */
+function sharedFields(
+  accounts: AccountConfig[],
+): Omit<AccountConfig, 'unreadCount' | 'badgeUnreadCount'>[] {
+  return accounts.map(({ unreadCount: _total, badgeUnreadCount: _badge, ...rest }) => rest);
 }
 
 export function saveAccounts(accounts: AccountConfig[]): void {
