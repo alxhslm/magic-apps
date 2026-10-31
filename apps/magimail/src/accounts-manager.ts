@@ -50,6 +50,7 @@ import { uiString } from './strings.js';
 import { updateDockBadge, type ArrivalBadgeState } from './dock.js';
 import { openDetachedThreadWindow } from './compose.js';
 import { loadAccounts, saveAccounts, createNewAccount } from './account-store.js';
+import { saveUnreadCounts, withStoredUnreadCounts } from './unread-count-store.js';
 import { loadSettings, saveSetting } from './settings-store.js';
 import { pressRefreshControl } from './thread-actions/sync-driver.js';
 import {
@@ -241,7 +242,7 @@ function pruneOrphanPartitions(partitions: readonly string[]): void {
 }
 
 export class AccountsManager {
-  private accounts: AccountConfig[] = loadAccounts();
+  private accounts: AccountConfig[] = withStoredUnreadCounts(loadAccounts());
   private activeAccountId: string = this.accounts[0]?.id ?? '';
   /** The account a cold-launch link named, resolved in `initialize()`. */
   private requestedInitialAccountId?: string;
@@ -434,20 +435,26 @@ export class AccountsManager {
   }
 
   /**
-   * Writes the current counts to the accounts file, shortly after they settle.
+   * Stores the current counts shortly after they settle.
    *
-   * The file already carries `unreadCount` per account and startup reads it to
-   * draw the tray before anything is polled, but nothing ever wrote it back: the
-   * only saves were account edits, so every launch began from whatever the count
-   * was when the account was last added, which was usually zero. Throttled
-   * because a poll changes the count every few seconds and the file is small but
-   * not free.
+   * Startup draws the tray before anything is polled, so the last known numbers
+   * are kept between launches. They go to `unread-count-store`, which seals them,
+   * rather than into `accounts.json`, which is shared with the App Intents
+   * extension and stays plaintext. Throttled because a poll changes the count
+   * every few seconds and the file is small but not free.
    */
   private persistUnreadCountsSoon(): void {
     if (this.unreadPersistTimer) return;
     this.unreadPersistTimer = setTimeout(() => {
       this.unreadPersistTimer = null;
-      saveAccounts(this.accounts);
+      saveUnreadCounts(
+        Object.fromEntries(
+          this.accounts.map((account) => [
+            account.id,
+            { total: account.unreadCount, badge: account.badgeUnreadCount ?? account.unreadCount },
+          ]),
+        ),
+      );
     }, UNREAD_PERSIST_DELAY_MS);
     this.unreadPersistTimer.unref?.();
   }

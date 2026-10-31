@@ -22,13 +22,7 @@ export interface MailboxPollEvent {
  * Detailed breakdown of unread mail for an account, filtered by user notification preferences.
  */
 export interface UnreadBreakdown {
-  /**
-   * Everything unread, in every category.
-   *
-   * This is the "what is unread" number, for the menu bar, the tray and the
-   * widgets. It is never filtered by notification settings, because those
-   * settings are about attention rather than about what the mailbox holds.
-   */
+  /** Everything unread, in every category. Not filtered by the notification settings. */
   total: number;
   /** Unread count per Gmail category tab. */
   byCategory: Map<NotificationCategory, number>;
@@ -119,13 +113,7 @@ export interface MailboxSource {
    * Returns the current unread count breakdown. Synchronous and 0ms.
    */
   getUnreadCounts(): UnreadBreakdown;
-  /**
-   * The unread total counting only the given categories.
-   *
-   * The source reports facts; which categories a surface shows is the caller's
-   * decision. This exists because the backlog case needs the feed's `<fullcount>`
-   * and the per-category sub-feed counts, which only the source holds.
-   */
+  /** The unread total filtered by the given categories. */
   getUnreadCountFor(categories: ReadonlySet<NotificationCategory>): number;
 
   /**

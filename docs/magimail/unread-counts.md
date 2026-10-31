@@ -74,27 +74,18 @@ unread thread from outside the window.
 A cache read also drops read rows the snapshot no longer lists. It leaves unread rows and rows with
 a pending action alone: a missing unread thread is not proof that it was read.
 
-## Two numbers, one meaning each
+## Two counts
 
-There are two counts, and the difference between them is a display decision rather than a
-measurement.
+There are two: the raw unread count, and the same count filtered by the notification settings.
 
-- **Everything unread** is what the mailbox holds, in every category. The menu bar, the tray and the
-  widgets show it, because a category turned off is a decision about attention, not a claim that the
-  mail is not there.
-- **Counted categories** leaves out every category whose notification setting is `off`. The dock
-  badge shows it, because the badge exists to pull attention.
+- **Raw** counts every category. The menu bar, the tray and the widgets show it.
+- **Filtered** counts only categories whose setting is not `off`. The dock badge shows it.
 
-A silenced category is therefore either counted or not, never halfway: its row moves the menu bar at
-once and never moves the dock badge. That matters because one filtered number made a silenced
-category look like a lag — its row changed while the count ignored it, and the number then moved
-later when the feed caught up.
-
-The ledger reports facts and answers a query; it does not hold a filtered total. `getBreakdown()`
-gives the per-category counts and the unfiltered total, and `getUnreadCountFor(categories)` answers
-for a chosen set. `AccountsManager` owns the choice, because it owns the settings and the accounts.
-The query is a method rather than a field because the truncated case cannot be answered from rows:
-it needs the feed's `fullcount` and the per-category sub-feed counts, which only the ledger holds.
+`AccountsManager` chooses which categories the filtered number includes, because it owns the
+settings. The ledger reports `byCategory` and the raw total, and answers
+`getUnreadCountFor(categories)`. The filtered number is asked for rather than stored because a
+backlog needs the feed's `fullcount` and the per-category sub-feed counts, which only the ledger
+holds.
 
 ## How the count is worked out
 

@@ -58,7 +58,10 @@ export function loadAccounts(): AccountConfig[] {
     const fromLegacy = readAccountsFile(legacyAccountsPath());
     if (fromLegacy) {
       try {
-        fs.writeFileSync(primary, JSON.stringify(fromLegacy, null, 2), 'utf8');
+        const shared = fromLegacy.map(
+          ({ unreadCount: _total, badgeUnreadCount: _badge, ...rest }) => rest,
+        );
+        fs.writeFileSync(primary, JSON.stringify(shared, null, 2), 'utf8');
         log.info('Migrated accounts.json into the App Group container');
       } catch (err) {
         log.warn('Could not migrate accounts.json into the App Group container:', err);
@@ -79,7 +82,14 @@ export function saveAccounts(accounts: AccountConfig[]): void {
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
-    fs.writeFileSync(filePath, JSON.stringify(accounts, null, 2), 'utf8');
+    // The counts are left out: this file is shared with the App Intents extension,
+    // which reads it for the Focus Filter picker and cannot decrypt, so it carries
+    // the account list and nothing else. `unread-count-store` keeps the counts,
+    // sealed.
+    const shared = accounts.map(
+      ({ unreadCount: _total, badgeUnreadCount: _badge, ...rest }) => rest,
+    );
+    fs.writeFileSync(filePath, JSON.stringify(shared, null, 2), 'utf8');
   } catch (err) {
     // Adding an account logs success before this runs, so without the line the
     // log says the account was added and it is gone after a restart.
