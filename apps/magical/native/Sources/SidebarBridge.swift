@@ -29,6 +29,8 @@ public struct WeekDayItem: Identifiable, Equatable {
 public final class SidebarModel: ObservableObject {
     public static let shared = SidebarModel()
 
+    @Published public var transparentBackground: Bool = true
+    @Published public var isDarkMode: Bool = true
     @Published public var viewMode: SidebarViewMode = .fantastical
     @Published public var selectedDate: Date = .init()
     @Published public var displayedMonthDate: Date = .init()
@@ -370,18 +372,44 @@ public struct SidebarRootView: View {
     @ObservedObject var model: SidebarModel = .shared
 
     public var body: some View {
-        VStack(spacing: 0) {
-            switch model.viewMode {
-            case .fantastical:
-                fantasticalModeView
-            case .week:
-                weekModeView
-            case .day:
-                dayModeView
+        HStack(spacing: 0) {
+            // Visual grouping: leading vertical border separating sidebar from main web view
+            Rectangle()
+                .fill(Color(nsColor: .separatorColor))
+                .frame(width: 1)
+
+            VStack(spacing: 0) {
+                // Top border cleanly separating the toolbar band from sidebar contents
+                Rectangle()
+                    .fill(Color(nsColor: .separatorColor))
+                    .frame(height: 1)
+
+                switch model.viewMode {
+                case .fantastical:
+                    fantasticalModeView
+                case .week:
+                    weekModeView
+                case .day:
+                    dayModeView
+                }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(width: 280)
         .frame(maxHeight: .infinity)
+        .background(groupingBackground)
+    }
+
+    @ViewBuilder
+    private var groupingBackground: some View {
+        if model.transparentBackground {
+            // Translucent wash: keeps the same vibrancy as the rest of the window,
+            // with a gentle tint that visually groups the sidebar panel.
+            Color.primary.opacity(model.isDarkMode ? 0.04 : 0.02)
+        } else {
+            // Opaque Google surface color matching the rest of the app when transparentBackground is false
+            Color(hexString: model.isDarkMode ? "#202124" : "#f1f3f4")
+        }
     }
 
     /// Fantastical Style: Month grid + continuous Schedule feed
@@ -535,9 +563,11 @@ public final class SidebarManager {
             let widthC = effect.widthAnchor.constraint(equalToConstant: isVisible ? width : 0)
             widthConstraint = widthC
 
+            let toolbarHeight: CGFloat = 52
+
             NSLayoutConstraint.activate([
                 widthC,
-                effect.topAnchor.constraint(equalTo: contentView.topAnchor),
+                effect.topAnchor.constraint(equalTo: contentView.topAnchor, constant: toolbarHeight),
                 effect.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
                 effect.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
             ])
@@ -545,6 +575,26 @@ public final class SidebarManager {
             visualEffectView = effect
             hostingView = host
             effect.isHidden = !isVisible
+
+            applyTransparency()
+        }
+    }
+
+    public func setTransparency(_ transparent: Bool, isDark: Bool) {
+        SidebarModel.shared.transparentBackground = transparent
+        SidebarModel.shared.isDarkMode = isDark
+        applyTransparency()
+    }
+
+    private func applyTransparency() {
+        guard let effect = visualEffectView else { return }
+        if SidebarModel.shared.transparentBackground {
+            effect.material = .sidebar
+            effect.blendingMode = .behindWindow
+            effect.state = .followsWindowActiveState
+        } else {
+            effect.material = .underWindowBackground
+            effect.state = .inactive
         }
     }
 
@@ -646,5 +696,29 @@ public func sidebarSetViewMode(_ modePtr: UnsafePointer<CChar>, _ anchorPtr: Uns
     let anchor: String? = anchorPtr != nil ? String(cString: anchorPtr!) : nil
     DispatchQueue.main.async {
         SidebarManager.shared.setViewMode(mode: mode, anchorDateStr: anchor)
+    }
+}
+
+@_cdecl("sidebar_set_transparency")
+public func sidebarSetTransparency(_ transparent: Bool, _ isDark: Bool) {
+    DispatchQueue.main.async {
+        SidebarManager.shared.setTransparency(transparent, isDark: isDark)
+    }
+}
+
+// MARK: - Color Hex Helper
+
+private extension Color {
+    init(hexString: String) {
+        let cleaned = hexString.hasPrefix("#") ? String(hexString.dropFirst()) : hexString
+        guard cleaned.count == 6, let value = UInt32(cleaned, radix: 16) else {
+            self.init(white: 0.5)
+            return
+        }
+        self.init(
+            red: Double((value >> 16) & 0xFF) / 255.0,
+            green: Double((value >> 8) & 0xFF) / 255.0,
+            blue: Double(value & 0xFF) / 255.0
+        )
     }
 }

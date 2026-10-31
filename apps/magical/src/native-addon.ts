@@ -21,6 +21,7 @@ export interface MagicalNativeAddon extends NativeToolbarAddon {
   sidebarSetVisible?: (visible: boolean, animated: boolean) => void;
   sidebarUpdateData?: (json: string) => void;
   sidebarSetViewMode?: (mode: string, anchorDate?: string) => void;
+  sidebarSetTransparency?: (transparent: boolean, isDark: boolean) => void;
 }
 
 export type NativeAddon = MagicalNativeAddon;

@@ -38,9 +38,11 @@ export class SidebarManager {
     try {
       const addon = loadAddon();
       const handle = window.getNativeWindowHandle();
+      const settings = loadSettings();
       addon.sidebarAttach?.(handle);
       addon.sidebarSetVisible?.(this.isVisible, false);
       addon.sidebarSetViewMode?.(this.activeTimeframe, this.activeDateStr);
+      addon.sidebarSetTransparency?.(settings.transparentBackground ?? true, true);
       this.pushData();
     } catch (err) {
       log.warn('Could not attach native sidebar:', err);
@@ -90,6 +92,14 @@ export class SidebarManager {
       loadAddon().sidebarSetViewMode?.(timeframe, dateStr);
     } catch (err) {
       log.warn('Could not set sidebar view mode:', err);
+    }
+  }
+
+  public setTransparency(transparent: boolean, isDark: boolean): void {
+    try {
+      loadAddon().sidebarSetTransparency?.(transparent, isDark);
+    } catch (err) {
+      log.warn('Could not set sidebar transparency:', err);
     }
   }
 

@@ -107,4 +107,18 @@ final class SidebarModelTests: XCTestCase {
         XCTAssertNotNil(matchingPill)
         XCTAssertFalse(try XCTUnwrap(matchingPill?.dots.isEmpty))
     }
+
+    func testTransparencyState() {
+        let model = SidebarModel()
+        XCTAssertTrue(model.transparentBackground)
+        XCTAssertTrue(model.isDarkMode)
+
+        SidebarManager.shared.setTransparency(false, isDark: false)
+        XCTAssertFalse(SidebarModel.shared.transparentBackground)
+        XCTAssertFalse(SidebarModel.shared.isDarkMode)
+
+        SidebarManager.shared.setTransparency(true, isDark: true)
+        XCTAssertTrue(SidebarModel.shared.transparentBackground)
+        XCTAssertTrue(SidebarModel.shared.isDarkMode)
+    }
 }

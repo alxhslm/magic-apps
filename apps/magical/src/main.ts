@@ -482,6 +482,7 @@ function applySettingChange(key: string, value: unknown): void {
       // covers it. Same pair Magimail sets.
       applyWindowTransparency(Boolean(value));
       accounts?.reinjectCss();
+      sidebarManager?.setTransparency(Boolean(value), nativeTheme.shouldUseDarkColors);
       return;
 
     case 'hideSidebar':
@@ -1348,7 +1349,9 @@ app.whenReady().then(async () => {
     accounts?.reinjectCss();
     // An opaque window paints a literal colour, so it has to follow the theme
     // itself — vibrancy would have tracked the appearance for free.
-    if (!loadSettings().transparentBackground) applyWindowTransparency(false);
+    const isTransparent = loadSettings().transparentBackground;
+    if (!isTransparent) applyWindowTransparency(false);
+    sidebarManager?.setTransparency(isTransparent, nativeTheme.shouldUseDarkColors);
   });
 
   onHelperEvent(handleHelperEvent);

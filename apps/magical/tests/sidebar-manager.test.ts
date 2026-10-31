@@ -32,6 +32,7 @@ describe('SidebarManager', () => {
   let sidebarSetVisible: ReturnType<typeof vi.fn>;
   let sidebarSetViewMode: ReturnType<typeof vi.fn>;
   let sidebarUpdateData: ReturnType<typeof vi.fn>;
+  let sidebarSetTransparency: ReturnType<typeof vi.fn>;
   let mockMainWindow: { getNativeWindowHandle: ReturnType<typeof vi.fn> };
   let mockAccountsManager: {
     updateLayout: ReturnType<typeof vi.fn>;
@@ -46,12 +47,14 @@ describe('SidebarManager', () => {
     sidebarSetVisible = vi.fn();
     sidebarSetViewMode = vi.fn();
     sidebarUpdateData = vi.fn();
+    sidebarSetTransparency = vi.fn();
 
     mockLoadAddon.mockReturnValue({
       sidebarAttach,
       sidebarSetVisible,
       sidebarSetViewMode,
       sidebarUpdateData,
+      sidebarSetTransparency,
     });
 
     mockMainWindow = {
@@ -200,5 +203,18 @@ describe('SidebarManager', () => {
     // 3. Join call
     manager.handleSidebarAction('sidebarJoinCall', 'https://meet.google.com/xyz-uvw-rst');
     expect(mockOpenExternal).toHaveBeenCalledWith('https://meet.google.com/xyz-uvw-rst');
+  });
+
+  it('relays transparency and appearance updates to native addon', () => {
+    const manager = new SidebarManager(
+      () => mockMainWindow as any,
+      () => mockAccountsManager as any,
+    );
+
+    manager.setTransparency(false, false);
+    expect(sidebarSetTransparency).toHaveBeenCalledWith(false, false);
+
+    manager.setTransparency(true, true);
+    expect(sidebarSetTransparency).toHaveBeenCalledWith(true, true);
   });
 });
