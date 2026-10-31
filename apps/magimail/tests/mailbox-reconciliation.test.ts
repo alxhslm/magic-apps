@@ -765,6 +765,23 @@ describe('Scenario 7: Ledger-owned rows and source ordering', () => {
     expect(ledger.getRecentMessages(5)[0].unread).toBe(false);
   });
 
+  it('trusts a row that changed since the last snapshot when the watermark lags', () => {
+    const ledger = new UnreadLedger();
+    ledger.reconcileWithAtom([atomEntry('m1', 't1')], 1, 15000, 1, 15000);
+
+    // A read before the triage, agreeing with the feed. Its watermark is older
+    // than the feed's view, so it only confirms what is already held.
+    ledger.reconcileWithCache([cacheRow('m1', 't1', true)], 16000, 5000);
+    expect(ledger.getBreakdown().total).toBe(1);
+
+    // Gmail applies the triage and rewrites the row, but `items_sync_state` has
+    // not caught up, so the watermark still says 5000. The row changing is the
+    // evidence: on a live account this is the state the ledger threw away, and
+    // the badge sat 1.37s on the feed's number instead.
+    ledger.reconcileWithCache([cacheRow('m1', 't1', false)], 17000, 5000);
+    expect(ledger.getBreakdown().total).toBe(0);
+  });
+
   it('ignores sources while an action is in flight, then uses the acceptance time', () => {
     const ledger = new UnreadLedger();
     ledger.reconcileWithAtom([atomEntry('m1', 't1')], 1, 1000);
