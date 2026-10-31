@@ -104,15 +104,17 @@ includes; the toolbar switcher shows every account's own total, which is the unf
 
 ## What survives a restart
 
-The counts are written back to `accounts.json` a few seconds after they settle, so a launch draws
-the menu bar from the last known number instead of zero while the first poll and cache read are
-still in flight. `unreadCount` is the number the menu bar and tray start from; `badgeUnreadCount`
-is the dock badge's, so a silenced category is not briefly counted there either. Both are the same
-fields the running app updates, so there is no second cache to keep in step.
+The counts are mailbox state, so the mailbox source keeps them between launches in
+`unread-counts.json`, sealed through `secret-file`. A launch draws the tray from the last known
+number instead of zero while the first poll and cache read are still in flight.
 
-The write is throttled: a poll changes the count every few seconds and the file is small but not
-free. A launch immediately after a change therefore starts from a slightly older number, which is
-the same as any other stale read and corrects on the first observation.
+It is a separate file rather than fields in `accounts.json` because that one is shared with the App
+Intents extension, which reads the account list for the Focus Filter picker and cannot decrypt; the
+shared copy carries the account list and nothing else, and counts left in an older copy are stripped
+on load.
+
+The write is throttled: a poll changes the count every few seconds. A launch immediately after a
+change therefore starts from a slightly older number, which corrects on the first observation.
 
 ## Categories
 

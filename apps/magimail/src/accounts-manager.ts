@@ -50,7 +50,7 @@ import { uiString } from './strings.js';
 import { updateDockBadge, type ArrivalBadgeState } from './dock.js';
 import { openDetachedThreadWindow } from './compose.js';
 import { loadAccounts, saveAccounts, createNewAccount } from './account-store.js';
-import { saveUnreadCounts, withStoredUnreadCounts } from './unread-count-store.js';
+import { withStoredUnreadCounts } from './mailbox/unread-count-store.js';
 import { loadSettings, saveSetting } from './settings-store.js';
 import { pressRefreshControl } from './thread-actions/sync-driver.js';
 import {
@@ -91,9 +91,6 @@ export const CATEGORY_BANNER_HEIGHT = 34;
  * enabled because they act on a list selection too. `replyGroup` is the
  * segmented Reply/Reply All/Forward group, which carries its own identifier.
  */
-/** How long to wait before writing changed unread counts to the accounts file. */
-const UNREAD_PERSIST_DELAY_MS = 3000;
-
 const THREAD_ONLY_TOOLBAR_ITEMS = ['print', 'share'] as const;
 
 /**
@@ -274,7 +271,6 @@ export class AccountsManager {
   private offlineCacheAvailableByAccount: Map<string, boolean> = new Map();
   private currentBannerType: 'categories' | 'offlineMail' = 'offlineMail';
   private accountsWithCategoriesObserved = new Set<string>();
-  private unreadPersistTimer: ReturnType<typeof setTimeout> | null = null;
   private domReports: Map<string, DomUnreadReport> = new Map();
   private mailboxSources: Map<string, MailboxSource> = new Map();
   public onPollResult?: (event: MailboxPollEvent) => void;
@@ -431,32 +427,6 @@ export class AccountsManager {
     updateDockBadge(calculateAggregateBadge(focused), this.getFocusedArrivals());
     this.notifyToolbar();
     this.onUnreadChanged?.(focused, total);
-    this.persistUnreadCountsSoon();
-  }
-
-  /**
-   * Stores the current counts shortly after they settle.
-   *
-   * Startup draws the tray before anything is polled, so the last known numbers
-   * are kept between launches. They go to `unread-count-store`, which seals them,
-   * rather than into `accounts.json`, which is shared with the App Intents
-   * extension and stays plaintext. Throttled because a poll changes the count
-   * every few seconds and the file is small but not free.
-   */
-  private persistUnreadCountsSoon(): void {
-    if (this.unreadPersistTimer) return;
-    this.unreadPersistTimer = setTimeout(() => {
-      this.unreadPersistTimer = null;
-      saveUnreadCounts(
-        Object.fromEntries(
-          this.accounts.map((account) => [
-            account.id,
-            { total: account.unreadCount, badge: account.badgeUnreadCount ?? account.unreadCount },
-          ]),
-        ),
-      );
-    }, UNREAD_PERSIST_DELAY_MS);
-    this.unreadPersistTimer.unref?.();
   }
 
   public getMailboxSource(accountId: string): MailboxSource | undefined {

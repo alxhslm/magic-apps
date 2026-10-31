@@ -44,9 +44,11 @@ export function loadUnreadCounts(): Record<string, StoredUnreadCounts> {
   }
 }
 
-export function saveUnreadCounts(counts: Record<string, StoredUnreadCounts>): void {
+export function saveUnreadCounts(accountId: string, counts: StoredUnreadCounts): void {
   try {
-    writeSecretFile(countsPath(), counts);
+    const all = loadUnreadCounts();
+    all[accountId] = counts;
+    writeSecretFile(countsPath(), all);
   } catch (err) {
     // Only a launch that starts at zero depends on this, so it is not worth
     // failing anything over.

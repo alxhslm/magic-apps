@@ -23,8 +23,12 @@ import type {
   UnreadBreakdown,
 } from './types.js';
 import { UnreadLedger } from './unread-ledger.js';
+import { saveUnreadCounts } from './unread-count-store.js';
 
 /** How many times a hint re-reads the cache, and how far apart. */
+/** How long to wait before storing changed counts. */
+const COUNTS_PERSIST_DELAY_MS = 3000;
+
 const CACHE_REREAD_ATTEMPTS = 3;
 const CACHE_REREAD_INTERVAL_MS = 100;
 
@@ -87,10 +91,14 @@ export class HybridFeedSource implements MailboxSource {
   private readonly changeListeners = new Set<(event: MailboxChangeEvent) => void>();
   /** One re-read loop per account, so a burst of hints cannot stack them. */
   private hintReadInFlight = false;
+  /** One write of the stored counts at a time. */
+  private countPersistTimer: ReturnType<typeof setTimeout> | null = null;
+  private notificationSettings: Record<string, string> = {};
 
   constructor(accountId: string, options: HybridFeedSourceOptions = {}) {
     this.accountId = accountId;
     this.options = options;
+    this.notificationSettings = options.notificationSettings ?? {};
     this.ledger = new UnreadLedger(options.notificationSettings);
 
     const partition =
@@ -214,6 +222,7 @@ export class HybridFeedSource implements MailboxSource {
   }
 
   public updateNotificationSettings(settings: Record<string, string>): void {
+    this.notificationSettings = settings;
     this.ledger.updateNotificationSettings(settings);
     this.poller.updateNotificationSettings(settings);
     this.emitChange({
@@ -328,6 +337,34 @@ export class HybridFeedSource implements MailboxSource {
   private emitIfCountChanged(before: number): void {
     if (this.ledger.getBreakdown().total === before) return;
     this.emitChange({ addedMessageIds: [], removedMessageIds: [], countChanged: true });
+    this.persistCountsSoon();
+  }
+
+  /**
+   * Stores this account's counts shortly after they settle.
+   *
+   * The counts are this source's state, so it keeps them between launches rather
+   * than leaving it to a caller. A launch draws the tray before anything is
+   * polled, and the store is what stops it starting at zero. Sealed through
+   * `unread-count-store`; throttled because a poll changes the count every few
+   * seconds.
+   */
+  private persistCountsSoon(): void {
+    if (this.countPersistTimer) return;
+    this.countPersistTimer = setTimeout(() => {
+      this.countPersistTimer = null;
+      const breakdown = this.ledger.getBreakdown();
+      const enabled = new Set(
+        (['primary', 'updates', 'promotions', 'social', 'forums'] as const).filter(
+          (category) => this.notificationSettings[category] !== 'off',
+        ),
+      );
+      saveUnreadCounts(this.accountId, {
+        total: breakdown.total,
+        badge: this.ledger.getUnreadCountFor(enabled),
+      });
+    }, COUNTS_PERSIST_DELAY_MS);
+    this.countPersistTimer.unref?.();
   }
 
   public async dispatchUniversalSyncNudge(): Promise<void> {
