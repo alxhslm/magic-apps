@@ -315,6 +315,10 @@ export class AccountsManager {
           }
         },
         detach: (accountId, view) => {
+          // Suspending every view on window close runs after the window is gone, and
+          // its contentView throws once destroyed. The view is still closed either way;
+          // there is simply nothing left to take it off.
+          if (this.windowIsGone()) return;
           if (this.mainWindow.contentView.children.includes(view)) {
             this.mainWindow.contentView.removeChildView(view);
             log.info(`Detached view for account ${accountId} (${this.pool.attachedSummary()})`);
@@ -760,13 +764,13 @@ export class AccountsManager {
         nodeIntegration: false,
         sandbox: false,
         spellcheck: true,
-        // A view is only ever created for the account being switched to, so it
-        // starts unthrottled. switchAccount re-enables throttling once the
-        // account is detached: its mailbox-change hints only ever accelerated
-        // the badge for the mailbox on screen, and the mailbox poller — which owns
-        // the count outright — keeps running against the partition session
+        // `backgroundThrottling` stays at its default. Disabling it stops
+        // Electron's hidden-view patch from reaching `DelegatedFrameHost::WasShown`,
+        // so a view shown after a spell with nothing attached can produce no frame.
+        // The mailbox-change hints a detached view used to keep warm only ever
+        // accelerated the badge for the mailbox on screen, and the mailbox poller,
+        // which owns the count outright, keeps running against the partition session
         // regardless of whether a renderer exists.
-        backgroundThrottling: false,
       },
     });
     view.setBackgroundColor('#00000000');
@@ -984,7 +988,12 @@ export class AccountsManager {
     // they are released here, once, whether or not any account view is still open.
     this.clearBannerTimer();
     if (this.categoryBannerView) {
-      if (this.mainWindow.contentView.children.includes(this.categoryBannerView)) {
+      // The banner's view is a child of a window that may already be gone, by the same
+      // route as an account view: suspend timers outlive the window that armed them.
+      if (
+        !this.windowIsGone() &&
+        this.mainWindow.contentView.children.includes(this.categoryBannerView)
+      ) {
         this.mainWindow.contentView.removeChildView(this.categoryBannerView);
         log.info(`Detached category banner on suspend all (${this.pool.attachedSummary()})`);
       }
@@ -1001,6 +1010,12 @@ export class AccountsManager {
     this.mailActionQueue.clear();
 
     this.pool.suspendAllAccounts();
+  }
+
+  /** Whether the window the pool attaches to is gone, taking its contentView with it. */
+  private windowIsGone(): boolean {
+    if (typeof this.mainWindow.isDestroyed !== 'function') return false;
+    return this.mainWindow.isDestroyed();
   }
 
   /** Whether an account currently has a live renderer. */
@@ -2211,8 +2226,9 @@ export class AccountsManager {
    * transparent before its first paint. Placing it beside the window instead does not
    * work; bounds outside the parent are clipped back to nothing.
    *
-   * Throttling is lifted too, so the render is not paced like a background tab while
-   * the action waits on it.
+   * The view stays hidden while the action runs, so the page throttles as a
+   * background tab does; the waits in `packages/core/src/dom.ts` lean on a
+   * MutationObserver and a 50 ms poll, which is the part that slows down.
    */
   private sizeForBackgroundAction(view: WebContentsView, accountId: string): () => void {
     // The account on screen is normally already attached and sized, so there is

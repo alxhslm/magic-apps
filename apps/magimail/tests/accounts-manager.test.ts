@@ -1230,3 +1230,25 @@ describe('holding triage while the view is busy', () => {
     expect(routeAttempts(run)).toBe(refused);
   });
 });
+
+/**
+ * What the manager does on the way out of a window.
+ *
+ * `suspendAllAccounts` runs from the window's `closed` handler, and a suspend timer
+ * armed before the window went can fire after it, so the contentView is not always
+ * there to detach from. The renderer still has to be released.
+ */
+describe('releasing account views on teardown', () => {
+  it('releases the views when the window has gone, without touching its contentView', () => {
+    const win = new BaseWindow();
+    const manager = new AccountsManager(win, '/path/to/preload.js');
+    manager.initialize();
+    const wc = manager.getActiveWebContentsView()!.webContents;
+
+    // The state a suspend timer fires in five minutes after the window closed.
+    (win as unknown as { isDestroyed: () => boolean }).isDestroyed = () => true;
+
+    expect(() => manager.suspendAllAccounts()).not.toThrow();
+    expect(wc.close).toHaveBeenCalled();
+  });
+});

@@ -18,6 +18,12 @@ describe('DOM driving preamble contracts', () => {
     expect(DOM_DRIVE_PREAMBLE).not.toMatch(/attempts\s*<=\s*0/);
     expect(DOM_DRIVE_PREAMBLE).not.toMatch(/check\(\s*25\s*\)/);
   });
+
+  it('checks the predicate on mutation and route events, not on a poll', () => {
+    expect(DOM_DRIVE_PREAMBLE).not.toContain('setTimeout(check,');
+    expect(DOM_DRIVE_PREAMBLE).toContain("addEventListener('hashchange'");
+    expect(DOM_DRIVE_PREAMBLE).toContain("addEventListener('popstate'");
+  });
 });
 
 describe('DOM driving preamble execution', () => {
@@ -98,14 +104,13 @@ describe('DOM driving preamble execution', () => {
   });
 
   it('waitUntil resolves when predicate matches and mutations settle', async () => {
-    const { ctx, elements } = createDomContext();
+    const { ctx, elements, triggerMutation } = createDomContext();
     const target = { textContent: 'ready' };
 
     const script = `
       ${DOM_DRIVE_PREAMBLE}
       waitUntil(() => document.querySelector('#target')?.textContent === 'ready', {
         quietMs: 50,
-        pollIntervalMs: 10,
         timeoutMs: 1000,
       });
     `;
@@ -118,6 +123,7 @@ describe('DOM driving preamble execution', () => {
 
     // Predicate satisfied
     elements.set('#target', target);
+    triggerMutation();
     const outcome = await promise;
     expect(outcome).toBe(true);
   });
@@ -171,7 +177,7 @@ describe('DOM driving preamble execution', () => {
 
     const script = `
       ${DOM_DRIVE_PREAMBLE}
-      clickAndConfirm('#action', () => false, { timeoutMs: 100, pollIntervalMs: 20 });
+      clickAndConfirm('#action', () => false, { timeoutMs: 100 });
     `;
 
     const outcome = await vm.runInContext(script, ctx);

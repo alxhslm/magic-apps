@@ -65,6 +65,12 @@ children. `crash-handlers.ts` adds `render-process-gone` and `child-process-gone
 failures nothing else records: a dead renderer leaves a blank pane, a dead GPU process leaves the
 window rendering wrong, and neither writes anything anywhere else.
 
+The same module records `display-added`, `display-removed` and `display-metrics-changed`. A window
+that stops presenting leaves no trace of its own, and moving between displays or changing a
+resolution is one of the few things that can cause it, so the record is what dates the next
+occurrence against the rest of the log. Those listeners are registered on ready, because `screen`
+throws before the app is ready and the module loads before then.
+
 A `clean-exit` reason is logged at `info`. Ordinary teardown must not read as a crash, or the level
 stops meaning anything.
 

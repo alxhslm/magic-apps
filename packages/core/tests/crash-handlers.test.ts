@@ -1,15 +1,24 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { handlers, logInfo, logError } = vi.hoisted(() => ({
+const { handlers, logInfo, logError, displayHandlers } = vi.hoisted(() => ({
   handlers: new Map<string, (...args: unknown[]) => void>(),
   logInfo: vi.fn(),
   logError: vi.fn(),
+  displayHandlers: new Map<string, (...args: unknown[]) => void>(),
 }));
 
 vi.mock('electron', () => ({
   app: {
     on: (event: string, handler: (...args: unknown[]) => void) => {
       handlers.set(event, handler);
+    },
+    // Resolves straight away: the real `screen` cannot be read before the app is
+    // ready, so the module defers its listeners to this promise.
+    whenReady: () => Promise.resolve(),
+  },
+  screen: {
+    on: (event: string, handler: (...args: unknown[]) => void) => {
+      displayHandlers.set(event, handler);
     },
   },
 }));
@@ -88,5 +97,25 @@ describe('what is deliberately not captured', () => {
   it('leaves renderer console messages alone', () => {
     // Gmail logs continuously; capturing it would bury everything above.
     expect(handlers.has('console-message')).toBe(false);
+  });
+});
+
+describe('display changes', () => {
+  /**
+   * Registered on ready rather than at install time, because `screen` throws before
+   * the app is ready and this module loads before then in both apps.
+   */
+  it('records a display that came, went or changed metrics', async () => {
+    await Promise.resolve();
+
+    for (const event of ['display-added', 'display-removed', 'display-metrics-changed']) {
+      const handler = displayHandlers.get(event);
+      if (!handler) throw new Error(`no display handler registered for ${event}`);
+      handler();
+    }
+
+    expect(logInfo).toHaveBeenCalledWith('Display added');
+    expect(logInfo).toHaveBeenCalledWith('Display removed');
+    expect(logInfo).toHaveBeenCalledWith('Display metrics changed');
   });
 });

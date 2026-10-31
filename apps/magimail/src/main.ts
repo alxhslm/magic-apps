@@ -9,6 +9,7 @@ import {
   powerMonitor,
   session,
   shell,
+  type Rectangle,
 } from 'electron';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
@@ -29,6 +30,7 @@ import {
   type AccountConfig,
   type WindowActionTarget,
   viewIsAlive,
+  WindowRebuilder,
 } from '@magimail/core';
 import { DEFAULT_PARTITION, IPC_CHANNELS } from './constants.js';
 import {
@@ -200,6 +202,20 @@ let mainWindow: BaseWindow | null = null;
 let findInPageController: FindInPageController | null = null;
 let isQuitting = false;
 /**
+ * The window rebuild both apps share. It reads the handles below rather than capturing
+ * them, so it survives a window being replaced.
+ */
+const windowRebuilder = new WindowRebuilder<AccountsManager>({
+  window: () => mainWindow,
+  manager: () => accountsManager,
+  accountId: (manager) => manager.getActiveAccountId(),
+  quitting: () => isQuitting,
+  build: (accountId, bounds) => {
+    mainWindow = createMainWindow(accountId, { bounds });
+  },
+  log,
+});
+/**
  * Whether the launch pass has finished building the window, the tray and the pollers.
  *
  * A protocol URL that arrives before it is queued (`pendingMailtoUrl`) and replayed by
@@ -359,7 +375,7 @@ function updateApplicationMenu(preloadPath: string, isThreadSelected?: boolean):
       accountsManager?.switchToIndex(index);
     },
     onReloadActive: () => {
-      accountsManager?.reloadActiveView();
+      reloadMailbox();
     },
     onFindInPage: () => {
       findInPageController?.show();
@@ -660,7 +676,7 @@ async function routeThreadAction(
 
 function createMainWindow(
   initialAccountId?: string,
-  { show = true }: { show?: boolean } = {},
+  { show = true, bounds }: { show?: boolean; bounds?: Rectangle } = {},
 ): BaseWindow {
   log.info('Creating main window');
   const preloadPath = getPreloadPath();
@@ -672,6 +688,8 @@ function createMainWindow(
     height: 850,
     minWidth: 960,
     minHeight: 600,
+    // Set when this window is a replacement, so it returns to where the user had it.
+    bounds,
     ...(settings.transparentBackground
       ? {}
       : {
@@ -688,6 +706,11 @@ function createMainWindow(
 
   // Initialize multi-account manager with WebContentsViews and ThemeManager
   accountsManager = new AccountsManager(win, preloadPath, themeManager || undefined);
+
+  // Coming back to the window is when a blank one is most likely to be seen, so the
+  // pair is logged: it dates the failure against the suspension that preceded it.
+  win.on('show', () => log.info('Main window shown'));
+  win.on('hide', () => log.info('Main window hidden'));
   // The helper forwards the filter as soon as it reads it, which can be before the first window,
   // and so before the manager the filter is applied to. Without this a filter that arrived with
   // the window closed would be lost when the next window is built.
@@ -855,7 +878,10 @@ function createMainWindow(
 
   // When tray is active, hide the window instead of closing — app stays in menu bar
   win.on('close', (event) => {
-    if (isTrayCreated() && !isQuitting) {
+    // A rebuild closes the window on purpose, so it must not be turned into a hide: a
+    // hidden window still holds the blank page the rebuild exists to replace. Any
+    // handler added here has to let `isRebuilding()` through for the same reason.
+    if (isTrayCreated() && !isQuitting && !windowRebuilder.isRebuilding()) {
       event.preventDefault();
       win.hide();
     }
@@ -865,6 +891,10 @@ function createMainWindow(
     // Before the manager goes, so a relaunch restores the account that was last on
     // screen.
     accountsManager?.persistActiveAccount();
+    // The account views outlive the window: nothing else closes them, so without
+    // this they hold a renderer each until quit, and their suspend timers fire a few
+    // minutes later against a destroyed window.
+    accountsManager?.suspendAllAccounts();
     // Release the native toolbar with the window it was attached to, so a
     // window recreated from the dock gets a fresh one.
     detachNativeToolbar();
@@ -875,6 +905,19 @@ function createMainWindow(
   });
 
   return win;
+}
+
+/**
+ * Serves a reload request: Cmd+R, or Reload in the View menu.
+ *
+ * It rebuilds the window rather than the account view, for the same reason Magical
+ * does. A view rebuild is the cheaper repair, and the right one when only the view's
+ * compositor has died, but on 29 October twenty of them ran in twenty seconds in
+ * Magical with the window still blank until it was closed and rebuilt. A reload
+ * request is a user asking for their mail back, so it does the repair that works.
+ */
+function reloadMailbox(): void {
+  windowRebuilder.rebuild('reload requested');
 }
 
 // Chromium performance switches — disable unused browser subsystems
