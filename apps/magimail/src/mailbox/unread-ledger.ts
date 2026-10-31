@@ -19,7 +19,16 @@ const log = createLogger('UnreadLedger');
 export const ATOM_READ_PATH_GRACE_MS = 5000;
 
 /** A row is kept this long after its last observation so the popover has history. */
-const MAX_RECENT_ROWS = 200;
+/**
+ * How many rows the ledger keeps.
+ *
+ * It has to hold the whole inbox the cache reader hands over, or the oldest rows
+ * are pruned between reads and re-added as new, which loses the "did this row
+ * move" comparison for exactly the threads that sit furthest from the top of the
+ * list. The inbox here runs to about 310 threads, so this is a ceiling rather than
+ * a working size.
+ */
+const MAX_RECENT_ROWS = 500;
 
 /**
  * Pure, deterministic state machine for unread email reconciliation.
@@ -409,6 +418,7 @@ export class UnreadLedger {
     // report that started the last investigation produced zero log lines.
     const totalBefore = this.getBreakdown().total;
     let rowsMoved = 0;
+    const movedDetail: string[] = [];
     this.pruneRecordsBefore(this.atomAsOf);
 
     for (const msg of snapshotMessages) {
@@ -531,6 +541,11 @@ export class UnreadLedger {
         // it. Measured: the row was right at 53.6s, the badge moved at 55.0s.
         if (wasUnread !== nowUnread) {
           rowsMoved += 1;
+          movedDetail.push(
+            `${msg.id.slice(0, 8)}:${nowUnread ? 'unread' : 'read'}:` +
+              `${this.isCategoryEnabled(found.item.category) ? 'counted' : 'excluded'}` +
+              `:${found.item.category}`,
+          );
           if (this.lastDisplayedUnread !== null) {
             this.lastDisplayedUnread = Math.max(0, this.lastDisplayedUnread + (nowUnread ? 1 : -1));
           }
@@ -564,7 +579,9 @@ export class UnreadLedger {
       const totalAfter = this.getBreakdown().total;
       const detail =
         `Cache read: ${rowsMoved} of ${snapshotMessages.length} row(s) moved, ` +
-        `total ${totalBefore} -> ${totalAfter}, asOf=${cacheAsOf ?? 'none'}`;
+        `total ${totalBefore} -> ${totalAfter}, asOf=${cacheAsOf ?? 'none'}, ` +
+        `moved=[${movedDetail.join(' ')}], ` +
+        `enabled=[${(['primary', 'updates', 'promotions', 'social', 'forums'] as const).filter((c) => this.isCategoryEnabled(c)).join(',')}]`;
       if (totalAfter === totalBefore) {
         log.warn(`${detail}. The badge did not follow, so something outvoted the row.`);
       } else {

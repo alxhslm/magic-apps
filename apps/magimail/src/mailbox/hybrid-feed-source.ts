@@ -28,6 +28,18 @@ import { UnreadLedger } from './unread-ledger.js';
 const CACHE_REREAD_ATTEMPTS = 3;
 const CACHE_REREAD_INTERVAL_MS = 100;
 
+/**
+ * How many inbox threads a hint read asks for.
+ *
+ * The reader decodes every row in `_xdb` regardless, and only the slice limits
+ * what comes back, so this costs serialisation and not decoding. It has to cover
+ * the whole inbox: at twenty, a triage on any thread older than the newest twenty
+ * was invisible to the read, and the count waited for the feed instead. Promotions
+ * and Forums are older by nature, which is why they were the categories that
+ * showed it.
+ */
+const CACHE_HINT_MAX_ROWS = 400;
+
 const log = createLogger('HybridFeedSource');
 
 export interface HybridFeedSourceOptions {
@@ -185,7 +197,7 @@ export class HybridFeedSource implements MailboxSource {
     if (view && !view.webContents.isDestroyed()) {
       const before = this.ledger.getBreakdown().total;
       try {
-        const snapshot = await readCachedInboxData(view.webContents, 20);
+        const snapshot = await readCachedInboxData(view.webContents, CACHE_HINT_MAX_ROWS);
         if (snapshot?.messages) {
           this.reportCache(snapshot);
           this.ledger.reconcileWithCache(snapshot.messages, Date.now(), snapshot.asOf);
@@ -272,7 +284,7 @@ export class HybridFeedSource implements MailboxSource {
         const before = this.ledger.getBreakdown().total;
         let moved = 0;
         try {
-          const snapshot = await readCachedInboxData(view.webContents, 20);
+          const snapshot = await readCachedInboxData(view.webContents, CACHE_HINT_MAX_ROWS);
           if (snapshot?.messages) {
             this.reportCache(snapshot);
             moved = this.ledger.reconcileWithCache(
