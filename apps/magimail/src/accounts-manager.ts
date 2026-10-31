@@ -90,6 +90,9 @@ export const CATEGORY_BANNER_HEIGHT = 34;
  * enabled because they act on a list selection too. `replyGroup` is the
  * segmented Reply/Reply All/Forward group, which carries its own identifier.
  */
+/** How long to wait before writing changed unread counts to the accounts file. */
+const UNREAD_PERSIST_DELAY_MS = 3000;
+
 const THREAD_ONLY_TOOLBAR_ITEMS = ['print', 'share'] as const;
 
 /**
@@ -270,6 +273,7 @@ export class AccountsManager {
   private offlineCacheAvailableByAccount: Map<string, boolean> = new Map();
   private currentBannerType: 'categories' | 'offlineMail' = 'offlineMail';
   private accountsWithCategoriesObserved = new Set<string>();
+  private unreadPersistTimer: ReturnType<typeof setTimeout> | null = null;
   private domReports: Map<string, DomUnreadReport> = new Map();
   private mailboxSources: Map<string, MailboxSource> = new Map();
   public onPollResult?: (event: MailboxPollEvent) => void;
@@ -426,6 +430,26 @@ export class AccountsManager {
     updateDockBadge(calculateAggregateBadge(focused), this.getFocusedArrivals());
     this.notifyToolbar();
     this.onUnreadChanged?.(focused, total);
+    this.persistUnreadCountsSoon();
+  }
+
+  /**
+   * Writes the current counts to the accounts file, shortly after they settle.
+   *
+   * The file already carries `unreadCount` per account and startup reads it to
+   * draw the tray before anything is polled, but nothing ever wrote it back: the
+   * only saves were account edits, so every launch began from whatever the count
+   * was when the account was last added, which was usually zero. Throttled
+   * because a poll changes the count every few seconds and the file is small but
+   * not free.
+   */
+  private persistUnreadCountsSoon(): void {
+    if (this.unreadPersistTimer) return;
+    this.unreadPersistTimer = setTimeout(() => {
+      this.unreadPersistTimer = null;
+      saveAccounts(this.accounts);
+    }, UNREAD_PERSIST_DELAY_MS);
+    this.unreadPersistTimer.unref?.();
   }
 
   public getMailboxSource(accountId: string): MailboxSource | undefined {

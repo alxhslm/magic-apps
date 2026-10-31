@@ -111,6 +111,18 @@ Across accounts, the dock badge and menu bar sum their own number over the accou
 includes; the toolbar switcher shows every account's own total, which is the unfiltered one. See
 [`focus-filters.md`](focus-filters.md).
 
+## What survives a restart
+
+The counts are written back to `accounts.json` a few seconds after they settle, so a launch draws
+the menu bar from the last known number instead of zero while the first poll and cache read are
+still in flight. `unreadCount` is the number the menu bar and tray start from; `badgeUnreadCount`
+is the dock badge's, so a silenced category is not briefly counted there either. Both are the same
+fields the running app updates, so there is no second cache to keep in step.
+
+The write is throttled: a poll changes the count every few seconds and the file is small but not
+free. A launch immediately after a change therefore starts from a slightly older number, which is
+the same as any other stale read and corrects on the first observation.
+
 ## Categories
 
 The feed carries no category per entry, so the poller looks each id up in Gmail's four category
