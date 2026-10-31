@@ -50,17 +50,16 @@ than thrown away.
 
 ## From web URL to desktop client
 
-`toNativeMeetingUrl(url)` and `toNativeTodoistUrl(url)` in `links.ts` (re-exported by `calendar-service.ts`)
-are the functions that rewrite web URLs to desktop schemes.
+`toNativeMeetingUrl(url)` in `links.ts` (re-exported by `calendar-service.ts`) is where conference
+schemes are rewritten. Task and productivity tool hand-offs are in
+[`third-party-integrations.md`](third-party-integrations.md).
 
-| Provider / Service  | Matched                                         | What is launched                                                                         |
-| :------------------ | :---------------------------------------------- | :--------------------------------------------------------------------------------------- |
-| **Zoom**            | `zoom.us/j/<id>` or `zoom.us/w/<id>`            | `zoommtg://zoom.us/join?action=join&confno=<id>`, plus `&pwd=` when the link carried one |
-| **Microsoft Teams** | `teams.microsoft.com` or `teams.live.com`       | The same URL with `https://` replaced by `msteams://`                                    |
-| **Todoist Task**    | `todoist.com/app/task/<id>` or `showTask`       | `todoist://task?id=<id>`                                                                 |
-| **Todoist Project** | `todoist.com/app/project/<id>` or `showProject` | `todoist://project?id=<id>`                                                              |
-| **Google Meet**     | None                                            | Unchanged. Meet has no desktop app; its web client is the real one                       |
-| **Webex**           | None                                            | Unchanged. Recognised as joinable, opened in the browser                                 |
+| Provider            | Matched                                   | What is launched                                                                         |
+| :------------------ | :---------------------------------------- | :--------------------------------------------------------------------------------------- |
+| **Zoom**            | `zoom.us/j/<id>` or `zoom.us/w/<id>`      | `zoommtg://zoom.us/join?action=join&confno=<id>`, plus `&pwd=` when the link carried one |
+| **Microsoft Teams** | `teams.microsoft.com` or `teams.live.com` | The same URL with `https://` replaced by `msteams://`                                    |
+| **Google Meet**     | None                                      | Unchanged. Meet has no desktop app; its web client is the real one                       |
+| **Webex**           | None                                      | Unchanged. Recognised as joinable, opened in the browser                                 |
 
 ### Asking macOS whether the client is installed
 
