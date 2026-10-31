@@ -1321,6 +1321,10 @@ describe('every category tab', () => {
       ledger.updateNotificationSettings({ ...allEnabled, [category]: 'off' });
       ledger.reconcileWithAtom([], 0, 20000, undefined, 20000);
 
+      // One cache read, and the total moves. That is the whole latency guarantee:
+      // a silenced category is counted for display on the same read that sees it,
+      // exactly as a counted one is, rather than arriving later when the feed
+      // catches up. The dock badge number does not move, and that is the filter.
       ledger.reconcileWithCache([row('m1', 't1', true, category)], 21000, 18000);
       const breakdown = ledger.getBreakdown();
       // Two numbers with one meaning each: the menu bar shows what is unread, the
