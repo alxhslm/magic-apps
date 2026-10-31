@@ -400,7 +400,7 @@ export class UnreadLedger {
     snapshotMessages: TrayMessageItem[],
     now: number = Date.now(),
     cacheAsOf?: number,
-  ): { enriched: string[] } {
+  ): { enriched: string[]; moved: number } {
     const enriched: string[] = [];
     const snapshotKeys = new Set<string>();
     let oldestSnapshotTs: number | undefined;
@@ -574,7 +574,7 @@ export class UnreadLedger {
 
     this.pruneAbsentFromCache(snapshotKeys, oldestSnapshotTs);
     this.pruneRecent();
-    return { enriched };
+    return { enriched, moved: rowsMoved };
   }
 
   /**
