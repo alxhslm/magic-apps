@@ -450,8 +450,15 @@ export class UnreadLedger {
       // written later than that, so its verdict is the newer one. Without this,
       // marking a message unread in Gmail was reverted to read by a feed that had
       // not caught up, and the badge waited 1-3s for the feed to agree.
+      //
+      // The watermark settles the remaining case, and it is the same comparison
+      // the rest of this method uses: when the cache was written at or after the
+      // feed's view, a row saying unread is newer than an omission, and forcing
+      // it read makes the count oscillate until the feed catches up.
+      const cacheIsNewerThanFeed = sourceAsOf !== undefined && sourceAsOf >= this.atomAsOf;
       const feedSaysNotUnread =
         !snapshotChanged &&
+        !cacheIsNewerThanFeed &&
         this.lastFeedComplete &&
         msg.unread &&
         !this.lastFeedIds.has(msg.id) &&
@@ -595,8 +602,19 @@ export class UnreadLedger {
       if (this.isCategoryEnabled(cat)) activeDisplayed += count;
     }
 
+    // When the feed listed everything it counted, the rows are the whole picture
+    // and the stored number is a second copy of the same fact. Two copies drift:
+    // `feedSaysNotUnread` moves a row, a poll rewrites the number, and the next
+    // cache read adds that row's change to a number that already carried it. That
+    // is how a read-then-unread cycle ratcheted the badge upward, and it cleared
+    // only when the feed next listed the message.
+    //
+    // So the rows decide whenever they can. The number stays for a backlog, where
+    // `<fullcount>` exceeds the twenty entries the feed exposes and no list can
+    // account for the rest. Pending local actions are already carried by the rows
+    // in the first case, which is why they are only applied in the second.
     let total = activeDisplayed;
-    if (this.lastDisplayedUnread !== null) {
+    if (!this.lastFeedComplete && this.lastDisplayedUnread !== null) {
       total =
         this.lastDisplayedUnread - this.countPendingTriaged() + this.countPendingMarkedUnread();
     }

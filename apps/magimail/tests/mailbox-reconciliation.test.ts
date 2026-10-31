@@ -347,9 +347,13 @@ describe('Scenario 6: Preemptive Ledger Updates', () => {
 
   it('does not let a stale cache add a thread a complete feed omitted', () => {
     const ledger = new UnreadLedger();
-    ledger.reconcileWithAtom([atomEntry('m1', 't1')], 1, 1000);
+    // Real epoch-ms times: the five-second grace makes `atomAsOf` earlier than the
+    // feed's own timestamp, and a fake clock of 1000 puts it before zero, which
+    // makes any positive watermark look newer than the feed and stops this test
+    // testing staleness at all.
+    ledger.reconcileWithAtom([atomEntry('m1', 't1')], 1, 20000);
 
-    ledger.reconcileWithCache([cacheRow('deleted', 't2', true)], 2000, 2000);
+    ledger.reconcileWithCache([cacheRow('deleted', 't2', true)], 21000, 1000);
 
     expect(ledger.getBreakdown().total).toBe(1);
     expect(ledger.getTrackedItems().map((item) => item.id)).toEqual(['m1']);
@@ -796,6 +800,48 @@ describe('Scenario 7: Ledger-owned rows and source ordering', () => {
     // waited 1-3s for the feed to agree while the read direction moved in 7ms.
     ledger.reconcileWithCache([cacheRow('m1', 't1', true)], 17000, 5000);
     expect(ledger.getBreakdown().total).toBe(2);
+  });
+
+  it('does not let a lagging feed undo a row the cache wrote after its view', () => {
+    const ledger = new UnreadLedger();
+    // A complete feed whose only unread message is not the one under test.
+    ledger.reconcileWithAtom([atomEntry('u1', 'tu')], 1, 20000, undefined, 20000);
+    expect(ledger.getBreakdown().total).toBe(1);
+
+    // The user marks the other thread unread in Gmail, and the cache is written
+    // after the feed's view of 15000.
+    ledger.reconcileWithCache([cacheRow('m1', 't1', true)], 21000, 18000);
+    expect(ledger.getBreakdown().total).toBe(2);
+
+    // The feed restates its count without listing that thread. Its omission is
+    // older than the cache, so it must not force the row back to read. Doing so
+    // made the count climb back on every pass, which is the ratchet from the log.
+    ledger.reconcileWithAtom([atomEntry('u1', 'tu')], 1, 23000, undefined, 23000);
+    ledger.reconcileWithCache([cacheRow('m1', 't1', true)], 24000, 18000);
+    expect(ledger.getBreakdown().total).toBe(2);
+  });
+
+  it('holds one total across repeated feed restatements of an unchanged mailbox', () => {
+    const ledger = new UnreadLedger();
+    ledger.reconcileWithAtom([atomEntry('u1', 'tu')], 1, 20000, undefined, 20000);
+    ledger.reconcileWithCache([cacheRow('m1', 't1', true)], 21000, 18000);
+    const settled = ledger.getBreakdown().total;
+    expect(settled).toBe(2);
+
+    // Three more passes of the same mailbox: the feed restates its count without
+    // listing the second thread, and the cache re-reads the same row, with Gmail's
+    // watermark advancing as it does on every sync. Nothing about the mailbox
+    // changes, so nothing about the total may change either.
+    //
+    // This is the ratchet as reported: each pass moved the count, and it settled
+    // only once the feed finally listed the thread. Asserting the settled value
+    // once would not catch it; asserting it on every pass does.
+    for (let pass = 0; pass < 3; pass += 1) {
+      const t = 23000 + pass * 4000;
+      ledger.reconcileWithAtom([atomEntry('u1', 'tu')], 1, t, undefined, t);
+      ledger.reconcileWithCache([cacheRow('m1', 't1', true)], t + 1000, t);
+      expect(ledger.getBreakdown().total).toBe(settled);
+    }
   });
 
   it('ignores sources while an action is in flight, then uses the acceptance time', () => {
