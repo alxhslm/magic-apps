@@ -413,6 +413,9 @@
     "Open in Magical": {
       "extractionState": "manual"
     },
+    "Open Todoist links in desktop app": {
+      "extractionState": "manual"
+    },
     "Other": {
       "extractionState": "manual"
     },
@@ -501,6 +504,9 @@
       "extractionState": "manual"
     },
     "Task": {
+      "extractionState": "manual"
+    },
+    "Task and project links open in the Todoist app when installed, falling back to the browser.": {
       "extractionState": "manual"
     },
     "The badge counts invitations, never meetings. All outstanding keeps counting every invitation awaiting a reply. New invitations counts only those that arrived while you were away. Either way, only answering an invitation takes the number down.": {

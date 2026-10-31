@@ -59,6 +59,7 @@ import {
   resolveCanonicalCalendarId,
   resolvePrimaryEmail,
 } from './calendars.js';
+import { openExternalUrl, toNativeMeetingUrl, toNativeTodoistUrl } from './links.js';
 
 const log = createLogger('CalendarService');
 
@@ -1985,33 +1986,7 @@ export class CalendarService {
    * installed Zoom.
    */
   public async joinCall(conferenceUrl: string): Promise<void> {
-    const native = loadSettings().alwaysJoinInBrowser
-      ? conferenceUrl
-      : toNativeMeetingUrl(conferenceUrl);
-
-    if (native !== conferenceUrl) {
-      const scheme = native.split(':')[0];
-      if (hasApplicationForUrl(native)) {
-        try {
-          await shell.openExternal(native);
-          return;
-        } catch (err) {
-          // A registration outlives the app it points at, so macOS can name a handler
-          // that then refuses to launch. The web URL works either way.
-          log.warn(`${scheme}: refused the call, joining in the browser:`, err);
-        }
-      } else {
-        log.info(`No application for ${scheme}:, joining in the browser`);
-      }
-    }
-
-    try {
-      await shell.openExternal(conferenceUrl);
-    } catch (err) {
-      // Both callers discard this promise, so a throw here is an unhandled rejection
-      // and nothing else. Whoever clicked Join has seen nothing happen either way.
-      log.error('Could not open the meeting link:', err);
-    }
+    await openExternalUrl(conferenceUrl);
   }
 
   /**
@@ -2373,21 +2348,6 @@ export class CalendarService {
   }
 }
 
-/**
- * Converts a web meeting URL to its native app scheme.
- *
- * Google Meet is left alone: it has no desktop app, and its web client is the real one.
- */
-export function toNativeMeetingUrl(url: string): string {
-  const zoom = /^https?:\/\/[^/]*zoom\.us\/[jw]\/(\d+)/.exec(url);
-  if (zoom) {
-    const pwd = /[?&]pwd=([^&]+)/.exec(url)?.[1];
-    return `zoommtg://zoom.us/join?action=join&confno=${zoom[1]}${pwd ? `&pwd=${pwd}` : ''}`;
-  }
-  if (/^https?:\/\/teams\.(microsoft|live)\.com\//.test(url)) {
-    return url.replace(/^https?:\/\//, 'msteams://');
-  }
-  return url;
-}
+export { openExternalUrl, toNativeMeetingUrl, toNativeTodoistUrl } from './links.js';
 
 export type { NormalizedCalendarEvent };
