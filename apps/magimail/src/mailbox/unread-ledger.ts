@@ -418,6 +418,7 @@ export class UnreadLedger {
     // report that started the last investigation produced zero log lines.
     const totalBefore = this.getBreakdown().total;
     let rowsMoved = 0;
+    let countedRowsMoved = 0;
     const movedDetail: string[] = [];
     this.pruneRecordsBefore(this.atomAsOf);
 
@@ -541,6 +542,7 @@ export class UnreadLedger {
         // it. Measured: the row was right at 53.6s, the badge moved at 55.0s.
         if (wasUnread !== nowUnread) {
           rowsMoved += 1;
+          if (this.isCategoryEnabled(found.item.category)) countedRowsMoved += 1;
           movedDetail.push(
             `${msg.id.slice(0, 8)}:${nowUnread ? 'unread' : 'read'}:` +
               `${this.isCategoryEnabled(found.item.category) ? 'counted' : 'excluded'}` +
@@ -582,7 +584,10 @@ export class UnreadLedger {
         `total ${totalBefore} -> ${totalAfter}, asOf=${cacheAsOf ?? 'none'}, ` +
         `moved=[${movedDetail.join(' ')}], ` +
         `enabled=[${(['primary', 'updates', 'promotions', 'social', 'forums'] as const).filter((c) => this.isCategoryEnabled(c)).join(',')}]`;
-      if (totalAfter === totalBefore) {
+      if (totalAfter === totalBefore && countedRowsMoved > 0) {
+        // Only a counted row is expected to move the total. A silenced category
+        // moving and the total holding still is the filter working, not a fault,
+        // and warning about it buries the case that matters.
         log.warn(`${detail}. The badge did not follow, so something outvoted the row.`);
       } else {
         log.info(detail);
