@@ -765,6 +765,39 @@ describe('Scenario 7: Ledger-owned rows and source ordering', () => {
     expect(ledger.getRecentMessages(5)[0].unread).toBe(false);
   });
 
+  it('trusts a row that changed since the last snapshot when the watermark lags', () => {
+    const ledger = new UnreadLedger();
+    ledger.reconcileWithAtom([atomEntry('m1', 't1')], 1, 15000, 1, 15000);
+
+    // A read before the triage, agreeing with the feed. Its watermark is older
+    // than the feed's view, so it only confirms what is already held.
+    ledger.reconcileWithCache([cacheRow('m1', 't1', true)], 16000, 5000);
+    expect(ledger.getBreakdown().total).toBe(1);
+
+    // Gmail applies the triage and rewrites the row, but `items_sync_state` has
+    // not caught up, so the watermark still says 5000. The row changing is the
+    // evidence: on a live account this is the state the ledger threw away, and
+    // the badge sat 1.37s on the feed's number instead.
+    ledger.reconcileWithCache([cacheRow('m1', 't1', false)], 17000, 5000);
+    expect(ledger.getBreakdown().total).toBe(0);
+  });
+
+  it('believes a row that flipped to unread over a feed that has not caught up', () => {
+    const ledger = new UnreadLedger();
+    // The feed's view holds one unread message, in a different category, and it
+    // does not list the message this test triages at all.
+    ledger.reconcileWithAtom([atomEntry('u1', 'tu')], 1, 15000, 1, 15000);
+    ledger.reconcileWithCache([cacheRow('m1', 't1', false)], 16000, 5000);
+    expect(ledger.getBreakdown().total).toBe(1);
+
+    // The user marks it unread in Gmail. The row flips, and the feed still omits
+    // it, which reads as proof of read. That verdict is only true as of the feed's
+    // view, and the row moved after it, so the row wins. Measured live: this half
+    // waited 1-3s for the feed to agree while the read direction moved in 7ms.
+    ledger.reconcileWithCache([cacheRow('m1', 't1', true)], 17000, 5000);
+    expect(ledger.getBreakdown().total).toBe(2);
+  });
+
   it('ignores sources while an action is in flight, then uses the acceptance time', () => {
     const ledger = new UnreadLedger();
     ledger.reconcileWithAtom([atomEntry('m1', 't1')], 1, 1000);

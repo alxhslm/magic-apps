@@ -287,6 +287,38 @@ function queueSidebarScan() {
 }
 
 function initSidebarObserver() {
+  // Hints come from the message list. Marking a message read re-renders rows, and
+  // the sidebar report no longer carries a number whose change would betray it.
+  let triageDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+  const queueTriageHint = () => {
+    if (triageDebounceTimer) return;
+    triageDebounceTimer = setTimeout(() => {
+      triageDebounceTimer = null;
+      ipcRenderer.send(IPC_CHANNELS.MAILBOX_CHANGE_HINT);
+    }, 200);
+  };
+
+  // Gmail replaces the message list's container when the view changes, and an
+  // observer bound to the old node sees nothing afterwards. Bound once, triage in
+  // a category view had no hint at all, so its count waited for the next poll
+  // while the same triage in the inbox moved in a third of a second. Re-bind
+  // whenever the live container is not the one being watched.
+  let observedMain: Element | null = null;
+  let mainObserver: MutationObserver | null = null;
+  const ensureMainObserver = () => {
+    const main = document.querySelector('div[role="main"]');
+    if (!main || main === observedMain) return;
+    mainObserver?.disconnect();
+    observedMain = main;
+    mainObserver = new MutationObserver(() => queueTriageHint());
+    mainObserver.observe(main, { childList: true, subtree: true });
+  };
+  ensureMainObserver();
+  // A view change announces itself here. The sidebar check below covers the case
+  // where it does not, because a navigation Gmail does not route through the hash
+  // would otherwise leave the observer on the old node again.
+  window.addEventListener('hashchange', ensureMainObserver);
+
   const attachObserver = (nav: Element) => {
     const observer = new MutationObserver(() => {
       // Marking runs here rather than inside the debounced scan. Gmail rebuilds
@@ -297,6 +329,7 @@ function initSidebarObserver() {
       // marking here lands before the frame.
       markCategorySection(nav);
       applyCategoriesCollapsed();
+      ensureMainObserver();
       queueSidebarScan();
     });
     observer.observe(nav, {
@@ -321,44 +354,6 @@ function initSidebarObserver() {
       }
     });
     bodyObserver.observe(document.body || document.documentElement, {
-      childList: true,
-      subtree: true,
-    });
-  }
-
-  // Observe the main content container (message list & triage actions) to emit
-  // MAILBOX_CHANGE_HINT when unread emails are archived or modified within categories.
-  let triageDebounceTimer: ReturnType<typeof setTimeout> | null = null;
-  const queueTriageHint = () => {
-    if (triageDebounceTimer) return;
-    triageDebounceTimer = setTimeout(() => {
-      triageDebounceTimer = null;
-      ipcRenderer.send(IPC_CHANNELS.MAILBOX_CHANGE_HINT);
-    }, 200);
-  };
-
-  const attachMainObserver = (main: Element) => {
-    const mainObserver = new MutationObserver(() => {
-      queueTriageHint();
-    });
-    mainObserver.observe(main, {
-      childList: true,
-      subtree: true,
-    });
-  };
-
-  const main = document.querySelector('div[role="main"]');
-  if (main) {
-    attachMainObserver(main);
-  } else {
-    const mainFinder = new MutationObserver(() => {
-      const foundMain = document.querySelector('div[role="main"]');
-      if (foundMain) {
-        mainFinder.disconnect();
-        attachMainObserver(foundMain);
-      }
-    });
-    mainFinder.observe(document.body || document.documentElement, {
       childList: true,
       subtree: true,
     });

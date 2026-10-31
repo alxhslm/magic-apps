@@ -79,6 +79,16 @@ export class UnreadLedger {
   private lastDisplayedUnread: number | null = null;
   /** The mailbox time the last Atom response is trusted as of. */
   private atomAsOf = 0;
+
+  /**
+   * The unread flag each row carried in the previous cache snapshot.
+   *
+   * A row that changed between two reads is evidence the cache moved, which the
+   * store's own watermark cannot give: `items_sync_state.c` is the last item
+   * sync and lands seconds after the row it describes. Gating on that watermark
+   * alone discarded readings that were already right.
+   */
+  private lastSnapshotUnread = new Map<string, boolean>();
   /** Whether the last feed listed every unread thread. */
   private lastFeedComplete = false;
   /** Every id and thread id the last feed listed. */
@@ -394,6 +404,11 @@ export class UnreadLedger {
     const enriched: string[] = [];
     const snapshotKeys = new Set<string>();
     let oldestSnapshotTs: number | undefined;
+    // A read that moved a row and did not move the badge is the shape of every
+    // regression this ledger has had, and it used to leave no trace at all: the
+    // report that started the last investigation produced zero log lines.
+    const totalBefore = this.getBreakdown().total;
+    let rowsMoved = 0;
     this.pruneRecordsBefore(this.atomAsOf);
 
     for (const msg of snapshotMessages) {
@@ -422,7 +437,21 @@ export class UnreadLedger {
         continue;
       }
 
+      // Whether this row moved since the previous snapshot, which is the only
+      // evidence the cache itself carries. `items_sync_state` is the last item
+      // sync and lands seconds after the row it describes, so it cannot speak for
+      // a row that has just been rewritten.
+      const snapshotChanged = this.lastSnapshotUnread.has(msg.id)
+        ? this.lastSnapshotUnread.get(msg.id) !== Boolean(msg.unread)
+        : false;
+
+      // A complete feed that omits the message is proof it is read, but only as
+      // of the feed's view. A row that has moved since the last snapshot was
+      // written later than that, so its verdict is the newer one. Without this,
+      // marking a message unread in Gmail was reverted to read by a feed that had
+      // not caught up, and the badge waited 1-3s for the feed to agree.
       const feedSaysNotUnread =
+        !snapshotChanged &&
         this.lastFeedComplete &&
         msg.unread &&
         !this.lastFeedIds.has(msg.id) &&
@@ -456,12 +485,19 @@ export class UnreadLedger {
           found.item.localIntent = undefined;
           found.item.localIntentAt = undefined;
         }
+        // Measured on a live account: a Gmail-UI triage appeared in the rows at
+        // 53.6s, the watermark advanced at 55.1s, and the badge did not move until
+        // the feed answered at 55.0s. The row was right for 1.37s and this gate
+        // threw it away. A row that changed since the last snapshot is that row.
         if (
+          !snapshotChanged &&
           sourceAsOf !== undefined &&
           found.item.sourceAsOf !== undefined &&
           sourceAsOf < found.item.sourceAsOf
         ) {
-          // Atom already gave this row a newer state.
+          // Atom already gave this row a newer state, and nothing says the cache
+          // has moved since, so the older row is skipped rather than allowed to
+          // win. The watermark is trustworthy in this direction only.
           continue;
         }
         found.item.category = parseCategory(msg.category) ?? found.item.category;
@@ -470,12 +506,27 @@ export class UnreadLedger {
         found.item.snippet = msg.snippet || found.item.snippet;
         const modifiedMs = parseModifiedMs(msg.modified);
         if (modifiedMs !== undefined) found.item.timestampMs = modifiedMs;
-        if (sourceAsOf !== undefined) {
-          if (!found.item.unread && msg.unread) {
-            log.info(`Cache set unread id=${msg.id} asOf=${sourceAsOf}`);
+        // Applied even without a watermark. A schema that does not expose
+        // `items_sync_state` left `sourceAsOf` undefined, and the flag was then
+        // never written, so the cache could not move the count at all.
+        const wasUnread = found.item.unread;
+        const nowUnread = Boolean(msg.unread);
+        if (!wasUnread && nowUnread) {
+          log.info(`Cache set unread id=${msg.id} asOf=${sourceAsOf ?? 'none'}`);
+        }
+        found.item.unread = nowUnread;
+        if (sourceAsOf !== undefined) found.item.sourceAsOf = sourceAsOf;
+
+        // The count is anchored to the feed's fullcount and adjusted only by
+        // locally recorded intents, so a triage made in the Gmail UI left it
+        // pinned until the next poll however fresh the rows were. This row
+        // disagreeing with what is held is the evidence, so the anchor follows
+        // it. Measured: the row was right at 53.6s, the badge moved at 55.0s.
+        if (wasUnread !== nowUnread) {
+          rowsMoved += 1;
+          if (this.lastDisplayedUnread !== null) {
+            this.lastDisplayedUnread = Math.max(0, this.lastDisplayedUnread + (nowUnread ? 1 : -1));
           }
-          found.item.unread = Boolean(msg.unread);
-          found.item.sourceAsOf = sourceAsOf;
         }
         enriched.push(msg.id);
       } else {
@@ -492,6 +543,25 @@ export class UnreadLedger {
           snippet: msg.snippet,
         });
         enriched.push(msg.id);
+      }
+    }
+
+    // Recorded after the loop so the `continue`s above cannot skip a row, and
+    // bounded so a long session cannot accumulate one entry per message ever seen.
+    if (this.lastSnapshotUnread.size > 2000) this.lastSnapshotUnread.clear();
+    for (const msg of snapshotMessages) {
+      if (msg.id) this.lastSnapshotUnread.set(msg.id, Boolean(msg.unread));
+    }
+
+    if (rowsMoved > 0) {
+      const totalAfter = this.getBreakdown().total;
+      const detail =
+        `Cache read: ${rowsMoved} of ${snapshotMessages.length} row(s) moved, ` +
+        `total ${totalBefore} -> ${totalAfter}, asOf=${cacheAsOf ?? 'none'}`;
+      if (totalAfter === totalBefore) {
+        log.warn(`${detail}. The badge did not follow, so something outvoted the row.`);
+      } else {
+        log.info(detail);
       }
     }
 
