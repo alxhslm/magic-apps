@@ -396,6 +396,16 @@ export class DomCalendarActionDriver implements CalendarActionDriver {
   }
 
   /**
+   * Navigates the active Calendar view to a specified date.
+   */
+  public async navigateToDate(view: WebContentsView, date: Date, mode?: string): Promise<boolean> {
+    const current = await this.currentPath(view);
+    const targetMode = mode ?? (await this.currentViewMode(view)) ?? 'day';
+    const path = `${calendarRoot(current)}/${targetMode}/${date.getFullYear()}/${date.getMonth() + 1}/${date.getDate()}`;
+    return this.routeTo(view, path);
+  }
+
+  /**
    * The view Calendar is rendering, as a route segment.
    *
    * Read from `data-viewkey` rather than from the title, which is a localised date

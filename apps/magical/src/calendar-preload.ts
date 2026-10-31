@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import { applyMainWorldIdentity, chromeBrands, chromeFullVersionBrands } from '@magimail/core';
 import { extractRawCalendarList, extractGaiaId, extractGoogleApiKey } from './calendar-list.js';
-import { CALENDAR_LIST_CHANNEL } from './constants.js';
+import { CALENDAR_LIST_CHANNEL, GCAL_VIEW_MODE_CHANNEL } from './constants.js';
 
 /**
  * Completes the Chrome identity inside the Google Calendar page.
@@ -76,4 +76,101 @@ if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', reportCalendars, { once: true });
 } else {
   reportCalendars();
+}
+
+/**
+ * Observes Google Calendar's active timeframe and anchor date, relaying changes
+ * to the main process so the native companion sidebar adapts its presentation.
+ */
+const VIEW_KEY_TO_TIMEFRAME: Record<string, string> = {
+  DAY: 'day',
+  WEEK: 'week',
+  MONTH: 'month',
+  CUSTOM_DAYS: 'week',
+  CUSTOM_WEEKS: 'week',
+  YEAR: 'year',
+  AGENDA: 'schedule',
+  SCHEDULE: 'schedule',
+};
+
+let lastReportedTimeframe: string | null = null;
+let lastReportedDate: string | null = null;
+
+function checkViewMode(): void {
+  const path = window.location.pathname;
+  const match =
+    /\/r\/(day|week|month|year|customday|customweek|agenda|schedule)(?:\/(\d{4})\/(\d{1,2})\/(\d{1,2}))?/.exec(
+      path,
+    );
+
+  let timeframe: string | null = null;
+  let dateStr: string | null = null;
+
+  if (match) {
+    timeframe = match[1];
+    if (match[2] && match[3] && match[4]) {
+      const y = match[2];
+      const m = match[3].padStart(2, '0');
+      const d = match[4].padStart(2, '0');
+      dateStr = `${y}-${m}-${d}`;
+    }
+  }
+
+  if (!timeframe) {
+    const el = document.querySelector('[data-viewkey]');
+    const key = el?.getAttribute('data-viewkey');
+    if (key && VIEW_KEY_TO_TIMEFRAME[key]) {
+      timeframe = VIEW_KEY_TO_TIMEFRAME[key];
+    }
+  }
+
+  if (!timeframe) return;
+
+  if (timeframe !== lastReportedTimeframe || dateStr !== lastReportedDate) {
+    lastReportedTimeframe = timeframe;
+    lastReportedDate = dateStr;
+    ipcRenderer.send(GCAL_VIEW_MODE_CHANNEL, {
+      timeframe,
+      dateStr,
+    });
+  }
+}
+
+let checkDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+function debouncedCheckViewMode(): void {
+  if (checkDebounceTimer) clearTimeout(checkDebounceTimer);
+  checkDebounceTimer = setTimeout(checkViewMode, 80);
+}
+
+window.addEventListener('popstate', checkViewMode);
+window.addEventListener('hashchange', checkViewMode);
+
+if (document.readyState === 'loading') {
+  document.addEventListener(
+    'DOMContentLoaded',
+    () => {
+      checkViewMode();
+      const observer = new MutationObserver(debouncedCheckViewMode);
+      if (document.body) {
+        observer.observe(document.body, {
+          subtree: true,
+          childList: true,
+          attributes: true,
+          attributeFilter: ['data-viewkey'],
+        });
+      }
+    },
+    { once: true },
+  );
+} else {
+  checkViewMode();
+  const observer = new MutationObserver(debouncedCheckViewMode);
+  if (document.body) {
+    observer.observe(document.body, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: ['data-viewkey'],
+    });
+  }
 }

@@ -43,3 +43,35 @@ export function pathnameOf(url: string): string | null {
 export function viewModeForPath(path: string | null): ViewMode {
   return /\/r\/tasks(?:\/|$)/.test(path ?? '') ? 'tasks' : 'calendar';
 }
+
+/**
+ * The timeframe Calendar is rendering in its main grid.
+ */
+export type CalendarTimeframe =
+  'day' | 'week' | 'month' | 'year' | 'customday' | 'customweek' | 'agenda' | 'schedule';
+
+export interface CalendarRouteInfo {
+  timeframe: CalendarTimeframe;
+  dateStr?: string; // YYYY-MM-DD
+}
+
+/**
+ * Extracts timeframe and anchor date from a Calendar route URL or path.
+ */
+export function parseCalendarRoute(urlOrPath: string | null): CalendarRouteInfo | null {
+  if (!urlOrPath) return null;
+  const match =
+    /\/r\/(day|week|month|year|customday|customweek|agenda|schedule)(?:\/(\d{4})\/(\d{1,2})\/(\d{1,2}))?/.exec(
+      urlOrPath,
+    );
+  if (!match) return null;
+  const timeframe = match[1] as CalendarTimeframe;
+  let dateStr: string | undefined;
+  if (match[2] && match[3] && match[4]) {
+    const y = match[2];
+    const m = match[3].padStart(2, '0');
+    const d = match[4].padStart(2, '0');
+    dateStr = `${y}-${m}-${d}`;
+  }
+  return { timeframe, dateStr };
+}
