@@ -19,7 +19,12 @@ import {
   viewIsAlive,
 } from '@magimail/core';
 import { createLogger, redactUrl } from '@magimail/core/logger';
-import { CALENDAR_BASE_URL, CALENDAR_LIST_CHANNEL, CALENDAR_LOGIN_URL } from './constants.js';
+import {
+  CALENDAR_BASE_URL,
+  CALENDAR_LIST_CHANNEL,
+  GCAL_VIEW_MODE_CHANNEL,
+  CALENDAR_LOGIN_URL,
+} from './constants.js';
 import { layoutCalendarView } from './window-layout.js';
 import { uiString } from './strings.js';
 import { getCalendarCss, getCalendarSubframeCss } from './calendar-css.js';
@@ -38,7 +43,12 @@ import {
   type RsvpResponse,
   type RsvpTiming,
 } from './calendar-actions/index.js';
-import { pathnameOf, viewModeForPath, type ViewMode } from './calendar-routes.js';
+import {
+  pathnameOf,
+  viewModeForPath,
+  parseCalendarRoute,
+  type ViewMode,
+} from './calendar-routes.js';
 
 export type { ViewMode };
 
@@ -145,6 +155,8 @@ export class AccountsManager {
   public onModeChanged?: (mode: ViewMode) => void;
   /** Fired when the active account's history moves, so the menu can follow it. */
   public onHistoryChanged?: () => void;
+  /** Fired when the active account's timeframe or anchor date moves, so the companion sidebar can follow it. */
+  public onTimeframeChanged?: (timeframe: string, dateStr?: string) => void;
 
   /** RSVP, delete and task completion: the sync API first, the page as fallback. */
   private readonly actions: CalendarActionDriver;
@@ -599,7 +611,11 @@ export class AccountsManager {
 
   public updateLayout(): void {
     const [width, height] = this.mainWindow.getContentSize();
-    const bounds = layoutCalendarView(width, height);
+    const settings = loadSettings();
+    const bounds = layoutCalendarView(width, height, {
+      sidebarVisible: settings.sidebarVisible,
+      sidebarPosition: settings.sidebarPosition,
+    });
     for (const [, view] of this.pool.entries()) {
       view.setBounds(bounds);
     }
@@ -670,7 +686,13 @@ export class AccountsManager {
     if (this.mainWindow.contentView.children.includes(view)) return () => {};
 
     const [width, height] = this.mainWindow.getContentSize();
-    view.setBounds(layoutCalendarView(width, height));
+    const settings = loadSettings();
+    view.setBounds(
+      layoutCalendarView(width, height, {
+        sidebarVisible: settings.sidebarVisible,
+        sidebarPosition: settings.sidebarPosition,
+      }),
+    );
     if (typeof view.setVisible === 'function') {
       view.setVisible(false);
     }
@@ -754,6 +776,15 @@ export class AccountsManager {
   }
 
   /**
+   * Navigates the active account view to a specific date.
+   */
+  public async navigateToDate(date: Date, mode?: string): Promise<boolean> {
+    const view = this.getActiveView();
+    if (!view || !viewIsAlive(view)) return false;
+    return this.dom.navigateToDate(view, date, mode);
+  }
+
+  /**
    * Shows one event in its own account's view, with its detail panel open.
    *
    * What a banner does when the user clicks its body.
@@ -797,6 +828,10 @@ export class AccountsManager {
    * background account is in changes nothing the user can see.
    */
   private updateViewMode(accountId: string, url: string): void {
+    const routeInfo = parseCalendarRoute(url);
+    if (routeInfo && accountId === this.activeAccountId) {
+      this.onTimeframeChanged?.(routeInfo.timeframe, routeInfo.dateStr);
+    }
     const next = viewModeForPath(pathnameOf(url));
     const previous = this.viewModes.get(accountId) ?? 'calendar';
     this.viewModes.set(accountId, next);
@@ -994,6 +1029,20 @@ export class AccountsManager {
    * response carrying the list -- later ones are deltas.
    */
   private receiveCalendarLists(): void {
+    ipcMain.on(
+      GCAL_VIEW_MODE_CHANNEL,
+      (event, payload: { timeframe?: string; dateStr?: string }) => {
+        const entry = [...this.pool.entries()].find(
+          ([, view]) => viewIsAlive(view) && view.webContents === event.sender,
+        );
+        if (!entry) return;
+        const [accountId] = entry;
+        if (accountId === this.activeAccountId && payload?.timeframe) {
+          this.onTimeframeChanged?.(payload.timeframe, payload.dateStr);
+        }
+      },
+    );
+
     ipcMain.on(
       CALENDAR_LIST_CHANNEL,
       (
@@ -1204,7 +1253,13 @@ export class AccountsManager {
     // Laid out, though never shown: Google renders the pane against the viewport, and a
     // zero-sized one leaves the controls unrendered for the selectors to miss.
     const [width, height] = this.mainWindow.getContentSize();
-    worker.setBounds(layoutCalendarView(width, height));
+    const settings = loadSettings();
+    worker.setBounds(
+      layoutCalendarView(width, height, {
+        sidebarVisible: settings.sidebarVisible,
+        sidebarPosition: settings.sidebarPosition,
+      }),
+    );
 
     let outcome: IcsImportOutcome;
     try {

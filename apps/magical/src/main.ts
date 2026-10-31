@@ -47,6 +47,7 @@ import {
   updateNativeToolbarAccounts,
 } from './native-toolbar.js';
 import { chooseEventAccount } from './account-picker.js';
+import { SidebarManager } from './sidebar-manager.js';
 import { CALENDAR_BASE_URL } from './constants.js';
 import { initDock } from './dock.js';
 import { syncExtensionLogs } from './extension-logs.js';
@@ -272,6 +273,7 @@ let findInPageController: FindInPageController | null = null;
 let calendarService: CalendarService | null = null;
 let accounts: AccountsManager | null = null;
 let menuBarManager: MenuBarManager | null = null;
+let sidebarManager: SidebarManager | null = null;
 /** Set before quitting, so the window being torn down is not rebuilt afterwards. */
 let quitting = false;
 /**
@@ -342,6 +344,7 @@ function applyMenu(): void {
       },
       onSearch: () => handleSearch(),
       onCustomizeToolbar: () => runToolbarCustomization(),
+      onToggleSidebar: () => sidebarManager?.toggleSidebar(),
       currentTheme: loadSettings().theme,
       onSetTheme: applyTheme,
       onRemoveAllData,
@@ -723,12 +726,14 @@ function startCalendarService(): void {
 
   calendarService.onEventsUpdated = (events) => {
     menuBarManager?.updateEvents(events);
+    sidebarManager?.updateEvents(events);
     if (accounts) {
       pushCalendarsToSettings(accounts, events);
     }
   };
   if (calendarService.getCachedEvents().size > 0) {
     menuBarManager?.updateEvents(calendarService.getCachedEvents());
+    sidebarManager?.updateEvents(calendarService.getCachedEvents());
   }
 
   calendarService.setActiveAccount(accounts.getActiveAccountId());
@@ -1130,6 +1135,16 @@ function handleToolbarAction(action: string, value: string): void {
       void handleNewTask();
       break;
 
+    case 'toggleSidebar':
+      sidebarManager?.toggleSidebar();
+      break;
+
+    case 'sidebarSelectDate':
+    case 'sidebarOpenEvent':
+    case 'sidebarJoinCall':
+      sidebarManager?.handleSidebarAction(action, value);
+      break;
+
     case 'search':
       handleSearch(value);
       break;
@@ -1191,6 +1206,12 @@ function createWindow(
 
   attachNativeToolbar(mainWindow);
 
+  sidebarManager = new SidebarManager(
+    () => mainWindow,
+    () => accounts,
+  );
+  sidebarManager.attach(mainWindow);
+
   // Coming back to the window is the moment a stale agenda is most visible, and the
   // poller's own cadence is minutes long. `pollOnFocus` rate-limits this itself, so
   // switching between apps does not turn into a request per switch.
@@ -1217,6 +1238,7 @@ function createWindow(
     findInPageController = null;
     mainWindow = null;
     accounts = null;
+    sidebarManager = null;
   });
 
   accounts = new AccountsManager(mainWindow, calendarPreloadPath(), { initialAccountId });
@@ -1253,6 +1275,7 @@ function createWindow(
     // The dropdown belongs to the account in the window, so it follows the switch.
     calendarService?.setActiveAccount(accounts.getActiveAccountId());
     menuBarManager?.updateAccounts(accounts.getAccounts());
+    sidebarManager?.updateAccounts(accounts.getAccounts());
     forgetAccountSettings(new Set(accounts.getAccounts().map((a) => a.id)));
     // An account that was just removed has to take its poller and its cached events with
     // it, or the agenda keeps drawing a diary whose filter row no longer exists. Cheap
@@ -1261,6 +1284,9 @@ function createWindow(
     // Cheap, and it keeps an open settings window in step with the Accounts
     // menu. The helper ignores it when no window is showing.
     pushAccountsToSettings(accounts, calendarService?.getCachedEvents(), accountsNeedingSignIn());
+  };
+  accounts.onTimeframeChanged = (timeframe, dateStr) => {
+    sidebarManager?.setTimeframe(timeframe, dateStr);
   };
 
   if (!menuBarManager) {
@@ -1281,6 +1307,10 @@ function createWindow(
     if (calendarService) {
       menuBarManager.updateEvents(calendarService.getCachedEvents());
     }
+  }
+
+  if (calendarService) {
+    sidebarManager?.updateEvents(calendarService.getCachedEvents());
   }
 
   pushToolbarAccounts();
