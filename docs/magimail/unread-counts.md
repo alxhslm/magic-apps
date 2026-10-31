@@ -74,19 +74,41 @@ unread thread from outside the window.
 A cache read also drops read rows the snapshot no longer lists. It leaves unread rows and rows with
 a pending action alone: a missing unread thread is not proof that it was read.
 
+## Two numbers, one meaning each
+
+There are two counts, and the difference between them is a display decision rather than a
+measurement.
+
+- **Everything unread** is what the mailbox holds, in every category. The menu bar, the tray and the
+  widgets show it, because a category turned off is a decision about attention, not a claim that the
+  mail is not there.
+- **Counted categories** leaves out every category whose notification setting is `off`. The dock
+  badge shows it, because the badge exists to pull attention.
+
+A silenced category is therefore either counted or not, never halfway: its row moves the menu bar at
+once and never moves the dock badge. That matters because one filtered number made a silenced
+category look like a lag — its row changed while the count ignored it, and the number then moved
+later when the feed caught up.
+
+The ledger reports facts and answers a query; it does not hold a filtered total. `getBreakdown()`
+gives the per-category counts and the unfiltered total, and `getUnreadCountFor(categories)` answers
+for a chosen set. `AccountsManager` owns the choice, because it owns the settings and the accounts.
+The query is a method rather than a field because the truncated case cannot be answered from rows:
+it needs the feed's `fullcount` and the per-category sub-feed counts, which only the ledger holds.
+
 ## How the count is worked out
 
 The count starts with what the feed says is unread. Subtract each local read, archive or trash the
-feed has not confirmed, and add each local mark-unread it has not confirmed. Categories turned off
-are left out, and the result never goes below zero.
+feed has not confirmed, and add each local mark-unread it has not confirmed. The result never goes
+below zero.
 
-- **Complete feed.** Counts the entries in categories that are on.
-- **Truncated feed.** Starts at `fullcount` and subtracts the sub-feed count for each category
-  turned off, capped at the total.
-- **Before the first poll.** Counts the tracked unread rows in categories that are on.
+- **Complete feed.** Counts the tracked rows, because the feed listed everything it counted.
+- **Truncated feed.** Starts at `fullcount` and, for a filtered count, subtracts the sub-feed count
+  for each category left out, capped at the total.
+- **Before the first poll.** Counts the tracked unread rows.
 
-Across accounts, the dock badge and menu bar sum the totals of the accounts the Focus Filter
-includes; the toolbar switcher shows every account's own total. See
+Across accounts, the dock badge and menu bar sum their own number over the accounts the Focus Filter
+includes; the toolbar switcher shows every account's own total, which is the unfiltered one. See
 [`focus-filters.md`](focus-filters.md).
 
 ## Categories
