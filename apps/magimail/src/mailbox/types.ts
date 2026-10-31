@@ -22,8 +22,22 @@ export interface MailboxPollEvent {
  * Detailed breakdown of unread mail for an account, filtered by user notification preferences.
  */
 export interface UnreadBreakdown {
-  /** Effective aggregate unread count for badge and menu bar display. */
+  /**
+   * Everything unread, in every category.
+   *
+   * This is the "what is unread" number, for the menu bar, the tray and the
+   * widgets. It is never filtered by notification settings, because those
+   * settings are about attention rather than about what the mailbox holds.
+   */
   total: number;
+  /**
+   * Unread mail in categories the user has not silenced.
+   *
+   * This is the "what deserves a nudge" number, for the dock badge and
+   * notifications. Keeping it separate from `total` is what stops a silenced
+   * category looking like a lag: its row moves `total` and never moves this.
+   */
+  badgeTotal: number;
   /** Unread count per Gmail category tab. */
   byCategory: Map<NotificationCategory, number>;
   /**

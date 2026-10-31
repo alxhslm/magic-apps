@@ -648,10 +648,20 @@ export class UnreadLedger {
     // `<fullcount>` exceeds the twenty entries the feed exposes and no list can
     // account for the rest. Pending local actions are already carried by the rows
     // in the first case, which is why they are only applied in the second.
-    let total = activeDisplayed;
+    let total = unreadCount;
+    let badgeTotal = activeDisplayed;
     if (!this.lastFeedComplete && this.lastDisplayedUnread !== null) {
+      // A backlog: the rows cannot account for the mail the feed counts but does
+      // not list, so both numbers come from the feed's own count. `lastFullCount`
+      // is every category; `lastDisplayedUnread` is the filtered one.
       total =
-        this.lastDisplayedUnread - this.countPendingTriaged() + this.countPendingMarkedUnread();
+        (this.lastFullCount ?? 0) -
+        this.countPendingTriaged(false) +
+        this.countPendingMarkedUnread(false);
+      badgeTotal =
+        this.lastDisplayedUnread -
+        this.countPendingTriaged(true) +
+        this.countPendingMarkedUnread(true);
     }
 
     const arrivalsIncomplete =
@@ -659,6 +669,7 @@ export class UnreadLedger {
 
     return {
       total: Math.max(0, total),
+      badgeTotal: Math.max(0, badgeTotal),
       byCategory,
       arrivalsIncomplete,
       rawFullCount: this.lastFullCount,
@@ -703,20 +714,22 @@ export class UnreadLedger {
   }
 
   /** Unique reducing triages that still apply to a counted category. */
-  private countPendingTriaged(): number {
+  private countPendingTriaged(onlyCountedCategories: boolean): number {
     const records = new Set<TriagedRecord>();
     for (const record of this.recentlyTriaged.values()) {
       if (record.countsInTotal === false) continue;
-      if (this.isCategoryEnabled(record.category)) records.add(record);
+      if (onlyCountedCategories && !this.isCategoryEnabled(record.category)) continue;
+      records.add(record);
     }
     return records.size;
   }
 
   /** Unique mark-unread records that still apply to a counted category. */
-  private countPendingMarkedUnread(): number {
+  private countPendingMarkedUnread(onlyCountedCategories: boolean): number {
     const records = new Set<MarkedUnreadRecord>();
     for (const record of this.recentlyMarkedUnread.values()) {
-      if (this.isCategoryEnabled(record.category)) records.add(record);
+      if (onlyCountedCategories && !this.isCategoryEnabled(record.category)) continue;
+      records.add(record);
     }
     return records.size;
   }

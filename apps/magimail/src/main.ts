@@ -15,6 +15,7 @@ import * as path from 'node:path';
 import * as fs from 'node:fs';
 import {
   prereleaseBuildExpiredMessage,
+  calculateAggregateBadge,
   calculateAggregateUnread,
   configureSecretFiles,
   createMainWindowOptions,
@@ -742,7 +743,9 @@ function createMainWindow(
     const focused = accountsManager?.getFocusedAccounts() ?? [];
     const total = calculateAggregateUnread(focused);
     updateTrayData(focused, total);
-    updateDockBadge(total);
+    // The menu bar and tray show everything; the dock badge is the attention
+    // surface and counts only categories the user has not silenced.
+    updateDockBadge(calculateAggregateBadge(focused));
   };
   accountsManager.onThreadStateChanged = (isThread) => updateApplicationMenu(preloadPath, isThread);
   accountsManager.onHistoryChanged = () => updateApplicationMenu(preloadPath);

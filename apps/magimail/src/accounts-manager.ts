@@ -15,6 +15,7 @@ import {
 import {
   type AccountConfig,
   TOOLBAR_HEIGHT,
+  calculateAggregateBadge,
   calculateAggregateUnread,
   updateAccountUnread,
   updateAccountAuth,
@@ -395,10 +396,15 @@ export class AccountsManager {
   private handleMailboxChange(event: MailboxChangeEvent): void {
     // The source emits only when the mailbox changed. Do not second-guess it with
     // a count comparison: a row can change while the total stays the same.
-    this.accounts = updateAccountUnread(this.accounts, event.accountId, event.unread.total);
+    this.accounts = updateAccountUnread(
+      this.accounts,
+      event.accountId,
+      event.unread.total,
+      event.unread.badgeTotal,
+    );
     const focused = this.getFocusedAccounts();
     const total = calculateAggregateUnread(focused);
-    updateDockBadge(total, this.getFocusedArrivals());
+    updateDockBadge(calculateAggregateBadge(focused), this.getFocusedArrivals());
     this.notifyToolbar();
     this.onUnreadChanged?.(focused, total);
   }
@@ -469,7 +475,7 @@ export class AccountsManager {
   public seedArrivalCount(accountId: string, count: number): void {
     this.arrivalsByAccount.set(accountId, count);
     const focused = this.getFocusedAccounts();
-    updateDockBadge(calculateAggregateUnread(focused), this.getFocusedArrivals());
+    updateDockBadge(calculateAggregateBadge(focused), this.getFocusedArrivals());
   }
 
   /** New arrivals across the accounts the Focus Filter includes, and whether the sum may be short. */
@@ -527,7 +533,7 @@ export class AccountsManager {
     this.notifyToolbar();
     const focused = this.getFocusedAccounts();
     const total = calculateAggregateUnread(focused);
-    updateDockBadge(total, this.getFocusedArrivals());
+    updateDockBadge(calculateAggregateBadge(focused), this.getFocusedArrivals());
     this.onUnreadChanged?.(focused, total);
     this.onAccountsChanged?.();
   }
@@ -1049,7 +1055,7 @@ export class AccountsManager {
     this.accounts = updateAccountUnread(this.accounts, accountId, effective);
     const focused = this.getFocusedAccounts();
     const total = calculateAggregateUnread(focused);
-    updateDockBadge(total, this.getFocusedArrivals());
+    updateDockBadge(calculateAggregateBadge(focused), this.getFocusedArrivals());
     this.onUnreadChanged?.(focused, total);
     this.onMissingCategoriesChanged?.(accountId, this.getMissingCategoriesForAccount(accountId));
     // Rebuilds the application menu, which marks the account being viewed.
@@ -1205,7 +1211,7 @@ export class AccountsManager {
     this.accounts = updateAccountUnread(this.accounts, accountId, effectiveUnread);
     const focused = this.getFocusedAccounts();
     const total = calculateAggregateUnread(focused);
-    updateDockBadge(total, this.getFocusedArrivals());
+    updateDockBadge(calculateAggregateBadge(focused), this.getFocusedArrivals());
     this.notifyToolbar();
     this.onUnreadChanged?.(focused, total);
   }
@@ -1742,7 +1748,7 @@ export class AccountsManager {
     // still shows every account's own count, dimmed.
     const focused = this.getFocusedAccounts();
     const total = calculateAggregateUnread(focused);
-    updateDockBadge(total, this.getFocusedArrivals());
+    updateDockBadge(calculateAggregateBadge(focused), this.getFocusedArrivals());
     this.notifyToolbar();
     this.onUnreadChanged?.(focused, total);
   }
