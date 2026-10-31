@@ -782,6 +782,22 @@ describe('Scenario 7: Ledger-owned rows and source ordering', () => {
     expect(ledger.getBreakdown().total).toBe(0);
   });
 
+  it('believes a row that flipped to unread over a feed that has not caught up', () => {
+    const ledger = new UnreadLedger();
+    // The feed's view holds one unread message, in a different category, and it
+    // does not list the message this test triages at all.
+    ledger.reconcileWithAtom([atomEntry('u1', 'tu')], 1, 15000, 1, 15000);
+    ledger.reconcileWithCache([cacheRow('m1', 't1', false)], 16000, 5000);
+    expect(ledger.getBreakdown().total).toBe(1);
+
+    // The user marks it unread in Gmail. The row flips, and the feed still omits
+    // it, which reads as proof of read. That verdict is only true as of the feed's
+    // view, and the row moved after it, so the row wins. Measured live: this half
+    // waited 1-3s for the feed to agree while the read direction moved in 7ms.
+    ledger.reconcileWithCache([cacheRow('m1', 't1', true)], 17000, 5000);
+    expect(ledger.getBreakdown().total).toBe(2);
+  });
+
   it('ignores sources while an action is in flight, then uses the acceptance time', () => {
     const ledger = new UnreadLedger();
     ledger.reconcileWithAtom([atomEntry('m1', 't1')], 1, 1000);

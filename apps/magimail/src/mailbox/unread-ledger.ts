@@ -432,7 +432,21 @@ export class UnreadLedger {
         continue;
       }
 
+      // Whether this row moved since the previous snapshot, which is the only
+      // evidence the cache itself carries. `items_sync_state` is the last item
+      // sync and lands seconds after the row it describes, so it cannot speak for
+      // a row that has just been rewritten.
+      const snapshotChanged = this.lastSnapshotUnread.has(msg.id)
+        ? this.lastSnapshotUnread.get(msg.id) !== Boolean(msg.unread)
+        : false;
+
+      // A complete feed that omits the message is proof it is read, but only as
+      // of the feed's view. A row that has moved since the last snapshot was
+      // written later than that, so its verdict is the newer one. Without this,
+      // marking a message unread in Gmail was reverted to read by a feed that had
+      // not caught up, and the badge waited 1-3s for the feed to agree.
       const feedSaysNotUnread =
+        !snapshotChanged &&
         this.lastFeedComplete &&
         msg.unread &&
         !this.lastFeedIds.has(msg.id) &&
@@ -470,9 +484,6 @@ export class UnreadLedger {
         // 53.6s, the watermark advanced at 55.1s, and the badge did not move until
         // the feed answered at 55.0s. The row was right for 1.37s and this gate
         // threw it away. A row that changed since the last snapshot is that row.
-        const snapshotChanged = this.lastSnapshotUnread.has(msg.id)
-          ? this.lastSnapshotUnread.get(msg.id) !== Boolean(msg.unread)
-          : false;
         if (
           !snapshotChanged &&
           sourceAsOf !== undefined &&
