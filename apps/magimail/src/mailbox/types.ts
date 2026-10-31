@@ -30,14 +30,6 @@ export interface UnreadBreakdown {
    * settings are about attention rather than about what the mailbox holds.
    */
   total: number;
-  /**
-   * Unread mail in categories the user has not silenced.
-   *
-   * This is the "what deserves a nudge" number, for the dock badge and
-   * notifications. Keeping it separate from `total` is what stops a silenced
-   * category looking like a lag: its row moves `total` and never moves this.
-   */
-  badgeTotal: number;
   /** Unread count per Gmail category tab. */
   byCategory: Map<NotificationCategory, number>;
   /**
@@ -127,6 +119,14 @@ export interface MailboxSource {
    * Returns the current unread count breakdown. Synchronous and 0ms.
    */
   getUnreadCounts(): UnreadBreakdown;
+  /**
+   * The unread total counting only the given categories.
+   *
+   * The source reports facts; which categories a surface shows is the caller's
+   * decision. This exists because the backlog case needs the feed's `<fullcount>`
+   * and the per-category sub-feed counts, which only the source holds.
+   */
+  getUnreadCountFor(categories: ReadonlySet<NotificationCategory>): number;
 
   /**
    * The ledger's recent rows, read and unread, for the menu bar popover and widgets.

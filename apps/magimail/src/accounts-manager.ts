@@ -120,6 +120,21 @@ const READ_TOGGLE_ACTIONS = ['markUnread', 'markRead'] as const;
 /** The segmented Reply/Reply to all/Forward group, enabled if any member is. */
 const REPLY_GROUP_TOOLBAR_ITEM = 'replyGroup';
 
+/**
+ * The categories a display surface counts, given the notification settings.
+ *
+ * The mailbox source reports per-category facts and answers a query; which
+ * categories a surface includes is decided here, because this class owns both the
+ * settings and the accounts. `off` means "do not pull attention", which for the
+ * dock badge means "do not count"; the menu bar and widgets ask for everything.
+ */
+function countedCategories(
+  notifications: Record<string, string> | undefined,
+): Set<NotificationCategory> {
+  const all: NotificationCategory[] = ['primary', 'updates', 'promotions', 'social', 'forums'];
+  return new Set(all.filter((cat) => notifications?.[cat] !== 'off'));
+}
+
 function setThreadOnlyItemsEnabled(enabled: boolean): void {
   for (const id of THREAD_ONLY_TOOLBAR_ITEMS) {
     setNativeToolbarItemEnabled(id, enabled);
@@ -396,11 +411,15 @@ export class AccountsManager {
   private handleMailboxChange(event: MailboxChangeEvent): void {
     // The source emits only when the mailbox changed. Do not second-guess it with
     // a count comparison: a row can change while the total stays the same.
+    const badgeTotal =
+      this.getMailboxSource(event.accountId)?.getUnreadCountFor(
+        countedCategories(loadSettings().notifications),
+      ) ?? event.unread.total;
     this.accounts = updateAccountUnread(
       this.accounts,
       event.accountId,
       event.unread.total,
-      event.unread.badgeTotal,
+      badgeTotal,
     );
     const focused = this.getFocusedAccounts();
     const total = calculateAggregateUnread(focused);

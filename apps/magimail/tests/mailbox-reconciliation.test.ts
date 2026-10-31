@@ -168,10 +168,11 @@ describe('UnreadLedger State Machine', () => {
       const breakdown1 = ledger.getBreakdown();
       expect(breakdown1.byCategory.get('primary')).toBe(1);
       expect(breakdown1.byCategory.get('promotions')).toBe(1);
-      // Both numbers are reported: the menu bar shows everything the mailbox
-      // holds, the badge counts only the categories the user has not silenced.
+      // Two numbers, asked for separately: the menu bar shows everything the
+      // mailbox holds, the badge counts only the categories not silenced. The
+      // source reports facts; the caller decides which categories it wants.
       expect(breakdown1.total).toBe(2);
-      expect(breakdown1.badgeTotal).toBe(1);
+      expect(ledger.getUnreadCountFor(new Set(['primary', 'updates', 'social', 'forums']))).toBe(1);
 
       // 2. User archives pr-1 on iPhone. Next Atom poll: entries = [p-1], fullCount = 1
       const delta1 = ledger.reconcileWithAtom([primaryMsg], 1, 2000);
@@ -376,17 +377,18 @@ describe('Scenario 6: Preemptive Ledger Updates', () => {
 
     const primary = atomEntry('m1', 't1');
     const promo = { ...atomEntry('m2', 't2'), category: 'promotions' as const };
-    // Atom already filtered promotions out, so the badge counts 1 of the 2.
+    // Both messages are unread; only the primary is in a counted category.
     ledger.reconcileWithAtom([primary, promo], 2, 1000, 1);
+    const withoutPromotions = new Set(['primary', 'updates', 'social', 'forums'] as const);
     expect(ledger.getBreakdown().total).toBe(2);
-    expect(ledger.getBreakdown().badgeTotal).toBe(1);
+    expect(ledger.getUnreadCountFor(withoutPromotions)).toBe(1);
 
     // Archiving the silenced promotion lowers what is unread but must not touch
     // the badge, which never counted it in the first place.
     ledger.recordLocalTriage('m2', 't2', 'archive', 'promotions', 2000);
 
     expect(ledger.getBreakdown().total).toBe(1);
-    expect(ledger.getBreakdown().badgeTotal).toBe(1);
+    expect(ledger.getUnreadCountFor(withoutPromotions)).toBe(1);
   });
 
   it('lets a response generated at least the read-path grace after the action win', () => {
@@ -1321,12 +1323,15 @@ describe('every category tab', () => {
 
       ledger.reconcileWithCache([row('m1', 't1', true, category)], 21000, 18000);
       const breakdown = ledger.getBreakdown();
-      // Two numbers with one meaning each: the menu bar shows what is unread,
-      // the dock badge shows what deserves a nudge. Neither is a compromise
-      // between the two, which is what made a silenced category look like a lag.
+      // Two numbers with one meaning each: the menu bar shows what is unread, the
+      // dock badge shows what deserves a nudge. Neither is a compromise between
+      // the two, which is what made a silenced category look like a lag.
       expect(breakdown.total).toBe(1);
-      expect(breakdown.badgeTotal).toBe(0);
       expect(breakdown.byCategory.get(category)).toBe(1);
+      const counted = new Set(CATEGORIES.filter((cat) => cat !== category)) as ReadonlySet<
+        (typeof CATEGORIES)[number]
+      >;
+      expect(ledger.getUnreadCountFor(counted)).toBe(0);
     });
   }
 });

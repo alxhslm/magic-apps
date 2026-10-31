@@ -141,6 +141,10 @@ export class HybridFeedSource implements MailboxSource {
     return this.ledger.getBreakdown();
   }
 
+  public getUnreadCountFor(categories: ReadonlySet<NotificationCategory>): number {
+    return this.ledger.getUnreadCountFor(categories);
+  }
+
   public async getRecentMessages(limit = 20): Promise<TrayMessageItem[]> {
     const view = this.options.getView?.(this.accountId);
     if (view && !view.webContents.isDestroyed()) {

@@ -84,6 +84,8 @@ export class UnreadLedger {
   private recentlyMarkedUnread = new Map<string, MarkedUnreadRecord>();
   /** Raw <fullcount> from the last feed. */
   private lastFullCount: number | null = null;
+  /** Per-category sub-feed counts from the last feed, for the backlog case. */
+  private lastCategoryCounts = new Map<NotificationCategory, number>();
   /** Feed count after disabled categories were removed. */
   private lastDisplayedUnread: number | null = null;
   /** The mailbox time the last Atom response is trusted as of. */
@@ -386,6 +388,9 @@ export class UnreadLedger {
     }
 
     this.lastFullCount = fullCount;
+    // Kept for the backlog query. Guarded because the parameter is optional and a
+    // caller that passes something other than a Map should not crash a reconcile.
+    this.lastCategoryCounts = categoryCounts instanceof Map ? new Map(categoryCounts) : new Map();
     this.lastDisplayedUnread = this.deriveDisplayedUnread(fullCount, entries, categoryCounts);
     this.pruneRecent();
 
@@ -613,6 +618,43 @@ export class UnreadLedger {
   }
 
   /**
+   * The unread total counting only the given categories.
+   *
+   * The ledger reports facts and answers the question it is asked; which
+   * categories a surface shows is the caller's decision. It is a method rather
+   * than a field because the backlog case needs the feed's `<fullcount>` and the
+   * per-category sub-feed counts, which only the ledger holds.
+   */
+  public getUnreadCountFor(categories: ReadonlySet<NotificationCategory>): number {
+    if (this.lastFeedComplete || this.lastFullCount === null) {
+      // The rows are the whole picture, so count the ones the caller asked for.
+      let sum = 0;
+      for (const item of this.recent.values()) {
+        if (!item.unread) continue;
+        if (categories.has(item.category || 'primary')) sum += 1;
+      }
+      return sum;
+    }
+
+    // A backlog: subtract what the feed reports for the categories the caller
+    // does not want, capped at the total as Atom reports them.
+    let excluded = 0;
+    for (const [category, count] of this.lastCategoryCounts) {
+      if (categories.has(category)) continue;
+      excluded += Math.min(count, this.lastFullCount);
+    }
+    let pending = 0;
+    for (const record of new Set(this.recentlyTriaged.values())) {
+      if (record.countsInTotal === false) continue;
+      if (categories.has(record.category)) pending -= 1;
+    }
+    for (const record of new Set(this.recentlyMarkedUnread.values())) {
+      if (categories.has(record.category)) pending += 1;
+    }
+    return Math.max(0, this.lastFullCount - excluded + pending);
+  }
+
+  /**
    * Calculates the current unread breakdown respecting user notification preferences.
    */
   public getBreakdown(): UnreadBreakdown {
@@ -632,11 +674,6 @@ export class UnreadLedger {
       byCategory.set(cat, (byCategory.get(cat) ?? 0) + 1);
     }
 
-    let activeDisplayed = 0;
-    for (const [cat, count] of byCategory.entries()) {
-      if (this.isCategoryEnabled(cat)) activeDisplayed += count;
-    }
-
     // When the feed listed everything it counted, the rows are the whole picture
     // and the stored number is a second copy of the same fact. Two copies drift:
     // `feedSaysNotUnread` moves a row, a poll rewrites the number, and the next
@@ -649,19 +686,11 @@ export class UnreadLedger {
     // account for the rest. Pending local actions are already carried by the rows
     // in the first case, which is why they are only applied in the second.
     let total = unreadCount;
-    let badgeTotal = activeDisplayed;
-    if (!this.lastFeedComplete && this.lastDisplayedUnread !== null) {
-      // A backlog: the rows cannot account for the mail the feed counts but does
-      // not list, so both numbers come from the feed's own count. `lastFullCount`
-      // is every category; `lastDisplayedUnread` is the filtered one.
+    if (!this.lastFeedComplete && this.lastFullCount !== null) {
+      // A backlog cannot be counted from rows at all, so its number is the feed's
+      // own count corrected by pending local actions.
       total =
-        (this.lastFullCount ?? 0) -
-        this.countPendingTriaged(false) +
-        this.countPendingMarkedUnread(false);
-      badgeTotal =
-        this.lastDisplayedUnread -
-        this.countPendingTriaged(true) +
-        this.countPendingMarkedUnread(true);
+        this.lastFullCount - this.countPendingTriaged(false) + this.countPendingMarkedUnread(false);
     }
 
     const arrivalsIncomplete =
@@ -669,7 +698,6 @@ export class UnreadLedger {
 
     return {
       total: Math.max(0, total),
-      badgeTotal: Math.max(0, badgeTotal),
       byCategory,
       arrivalsIncomplete,
       rawFullCount: this.lastFullCount,
