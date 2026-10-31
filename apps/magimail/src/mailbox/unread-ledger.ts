@@ -404,6 +404,11 @@ export class UnreadLedger {
     const enriched: string[] = [];
     const snapshotKeys = new Set<string>();
     let oldestSnapshotTs: number | undefined;
+    // A read that moved a row and did not move the badge is the shape of every
+    // regression this ledger has had, and it used to leave no trace at all: the
+    // report that started the last investigation produced zero log lines.
+    const totalBefore = this.getBreakdown().total;
+    let rowsMoved = 0;
     this.pruneRecordsBefore(this.atomAsOf);
 
     for (const msg of snapshotMessages) {
@@ -517,8 +522,11 @@ export class UnreadLedger {
         // pinned until the next poll however fresh the rows were. This row
         // disagreeing with what is held is the evidence, so the anchor follows
         // it. Measured: the row was right at 53.6s, the badge moved at 55.0s.
-        if (wasUnread !== nowUnread && this.lastDisplayedUnread !== null) {
-          this.lastDisplayedUnread = Math.max(0, this.lastDisplayedUnread + (nowUnread ? 1 : -1));
+        if (wasUnread !== nowUnread) {
+          rowsMoved += 1;
+          if (this.lastDisplayedUnread !== null) {
+            this.lastDisplayedUnread = Math.max(0, this.lastDisplayedUnread + (nowUnread ? 1 : -1));
+          }
         }
         enriched.push(msg.id);
       } else {
@@ -543,6 +551,18 @@ export class UnreadLedger {
     if (this.lastSnapshotUnread.size > 2000) this.lastSnapshotUnread.clear();
     for (const msg of snapshotMessages) {
       if (msg.id) this.lastSnapshotUnread.set(msg.id, Boolean(msg.unread));
+    }
+
+    if (rowsMoved > 0) {
+      const totalAfter = this.getBreakdown().total;
+      const detail =
+        `Cache read: ${rowsMoved} of ${snapshotMessages.length} row(s) moved, ` +
+        `total ${totalBefore} -> ${totalAfter}, asOf=${cacheAsOf ?? 'none'}`;
+      if (totalAfter === totalBefore) {
+        log.warn(`${detail}. The badge did not follow, so something outvoted the row.`);
+      } else {
+        log.info(detail);
+      }
     }
 
     this.pruneAbsentFromCache(snapshotKeys, oldestSnapshotTs);
