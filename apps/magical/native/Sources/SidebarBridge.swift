@@ -1,0 +1,650 @@
+import AppKit
+import MagicalHelperLib
+import SuiteNative
+import SwiftUI
+
+// MARK: - View Mode
+
+public enum SidebarViewMode: String {
+    case fantastical // Month, Schedule, Year
+    case week // Week & 4-Day
+    case day // Day
+}
+
+// MARK: - Week Day Item
+
+public struct WeekDayItem: Identifiable, Equatable {
+    public let id: String
+    public let date: Date
+    public let dayLetter: String
+    public let dayNumber: String
+    public let isToday: Bool
+    public let isSelected: Bool
+    public let dots: [Color]
+}
+
+// MARK: - Sidebar Model
+
+@MainActor
+public final class SidebarModel: ObservableObject {
+    public static let shared = SidebarModel()
+
+    @Published public var viewMode: SidebarViewMode = .fantastical
+    @Published public var selectedDate: Date = .init()
+    @Published public var displayedMonthDate: Date = .init()
+    @Published public var anchorDate: Date = .init()
+    @Published public var isCalendarCollapsed: Bool = false
+    @Published public var isVisible: Bool = true
+    @Published public var currentWeekDays: [WeekDayItem] = []
+
+    public let trayModel = TrayModel.shared
+
+    private let calendar: Calendar = {
+        var cal = Calendar.current
+        cal.firstWeekday = 2 // Monday start
+        return cal
+    }()
+
+    public init() {
+        recomputeWeekDays()
+    }
+
+    public func selectDate(_ date: Date) {
+        selectedDate = date
+        displayedMonthDate = date
+        recomputeWeekDays()
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.timeZone = .current
+        ActionBridge.emit("sidebarSelectDate", formatter.string(from: date))
+    }
+
+    public func setViewMode(_ mode: SidebarViewMode, anchor: Date? = nil) {
+        viewMode = mode
+        if let anchor {
+            anchorDate = anchor
+            selectedDate = anchor
+            displayedMonthDate = anchor
+        }
+        recomputeWeekDays()
+    }
+
+    public func recomputeWeekDays() {
+        let reference = selectedDate
+        guard let weekInterval = calendar.dateInterval(of: .weekOfYear, for: reference) else { return }
+
+        let startOfWeek = weekInterval.start
+        var items: [WeekDayItem] = []
+
+        let dotsMap = trayModel.densityDotsByDay
+        let keyFormatter = DateFormatter()
+        keyFormatter.dateFormat = "yyyy-MM-dd"
+        keyFormatter.timeZone = .current
+
+        let letterFormatter = DateFormatter()
+        letterFormatter.dateFormat = "EEEEE"
+        letterFormatter.timeZone = .current
+
+        let numberFormatter = DateFormatter()
+        numberFormatter.dateFormat = "d"
+        numberFormatter.timeZone = .current
+
+        for dayOffset in 0 ..< 7 {
+            guard let dayDate = calendar.date(byAdding: .day, value: dayOffset, to: startOfWeek) else { continue }
+            let key = keyFormatter.string(from: dayDate)
+            let isToday = calendar.isDateInToday(dayDate)
+            let isSelected = calendar.isDate(dayDate, inSameDayAs: selectedDate)
+            let dots = dotsMap[key] ?? []
+
+            items.append(WeekDayItem(
+                id: key,
+                date: dayDate,
+                dayLetter: letterFormatter.string(from: dayDate),
+                dayNumber: numberFormatter.string(from: dayDate),
+                isToday: isToday,
+                isSelected: isSelected,
+                dots: dots
+            ))
+        }
+
+        currentWeekDays = items
+    }
+
+    /// Events belonging specifically to `selectedDate` for Day & Week companion views.
+    public var selectedDayEvents: [TrayEvent] {
+        let keyFormatter = DateFormatter()
+        keyFormatter.dateFormat = "yyyy-MM-dd"
+        keyFormatter.timeZone = .current
+        let key = keyFormatter.string(from: selectedDate)
+
+        return trayModel.filteredEvents.filter { $0.dateKey == key }
+    }
+}
+
+// MARK: - Week Scrubber View
+
+public struct WeekScrubberView: View {
+    @ObservedObject var model: SidebarModel
+
+    private var weekRangeText: String {
+        guard let first = model.currentWeekDays.first?.date,
+              let last = model.currentWeekDays.last?.date else { return "" }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM d"
+        let endFormatter = DateFormatter()
+        endFormatter.dateFormat = "MMM d, yyyy"
+        return "\(formatter.string(from: first)) – \(endFormatter.string(from: last))"
+    }
+
+    public var body: some View {
+        VStack(spacing: 8) {
+            // Header with navigation arrows and week label
+            HStack {
+                Button(action: navigatePrevDay) {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 11, weight: .semibold))
+                }
+                .buttonStyle(.plain)
+
+                Spacer()
+
+                Text(weekRangeText)
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(.primary)
+
+                Spacer()
+
+                Button(action: navigateNextDay) {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 11, weight: .semibold))
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 12)
+            .padding(.top, 8)
+
+            // Day pills row
+            HStack(spacing: 4) {
+                ForEach(model.currentWeekDays) { item in
+                    dayPill(item)
+                }
+            }
+            .padding(.horizontal, 8)
+        }
+        .padding(.bottom, 8)
+    }
+
+    private func dayPill(_ item: WeekDayItem) -> some View {
+        Button(action: { model.selectDate(item.date) }) {
+            VStack(spacing: 2) {
+                Text(item.dayLetter)
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(item.isSelected ? .primary : .tertiary)
+
+                ZStack {
+                    if item.isToday {
+                        Circle()
+                            .fill(Color.blue)
+                            .frame(width: 22, height: 22)
+                    } else if item.isSelected {
+                        Circle()
+                            .fill(Color.blue.opacity(0.15))
+                            .frame(width: 22, height: 22)
+                    }
+
+                    if item.isSelected {
+                        Circle()
+                            .strokeBorder(Color.blue, lineWidth: 1.2)
+                            .frame(width: 24, height: 24)
+                    }
+
+                    Text(item.dayNumber)
+                        .font(.system(size: 11, weight: item.isToday || item.isSelected ? .bold : .regular))
+                        .foregroundStyle(item.isToday ? .white : (item.isSelected ? Color.blue : .primary))
+                }
+                .frame(width: 26, height: 26)
+
+                // Density dots
+                HStack(spacing: 2) {
+                    if item.dots.isEmpty {
+                        Circle()
+                            .fill(Color.clear)
+                            .frame(width: 3.5, height: 3.5)
+                    } else {
+                        ForEach(0 ..< min(3, item.dots.count), id: \.self) { idx in
+                            Circle()
+                                .fill(item.dots[idx])
+                                .frame(width: 3.5, height: 3.5)
+                        }
+                    }
+                }
+                .frame(height: 5)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 4)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func navigatePrevDay() {
+        if let prev = Calendar.current.date(byAdding: .day, value: -1, to: model.selectedDate) {
+            model.selectDate(prev)
+        }
+    }
+
+    private func navigateNextDay() {
+        if let next = Calendar.current.date(byAdding: .day, value: 1, to: model.selectedDate) {
+            model.selectDate(next)
+        }
+    }
+}
+
+// MARK: - Day Companion Header View
+
+public struct DayCompanionHeaderView: View {
+    @ObservedObject var model: SidebarModel
+
+    private var dayTitle: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEEE, MMMM d"
+        return formatter.string(from: model.selectedDate)
+    }
+
+    public var body: some View {
+        HStack {
+            Button(action: {
+                if let prev = Calendar.current.date(byAdding: .day, value: -1, to: model.selectedDate) {
+                    model.selectDate(prev)
+                }
+            }) {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 11, weight: .semibold))
+            }
+            .buttonStyle(.plain)
+
+            Spacer()
+
+            Text(dayTitle)
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(.primary)
+
+            Spacer()
+
+            Button(action: {
+                if let next = Calendar.current.date(byAdding: .day, value: 1, to: model.selectedDate) {
+                    model.selectDate(next)
+                }
+            }) {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 11, weight: .semibold))
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+    }
+}
+
+// MARK: - Day Focused Events List
+
+public struct DayFocusedEventsList: View {
+    let events: [TrayEvent]
+    let date: Date
+
+    private var isToday: Bool {
+        Calendar.current.isDateInToday(date)
+    }
+
+    public var body: some View {
+        ScrollView(.vertical, showsIndicators: true) {
+            LazyVStack(spacing: 8) {
+                if events.isEmpty {
+                    VStack(spacing: 6) {
+                        Image(systemName: "calendar")
+                            .font(.system(size: 22))
+                            .foregroundStyle(.tertiary)
+                        Text("No events for this day")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.tertiary)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 40)
+                } else {
+                    let now = Date()
+                    let nowIndex = events.firstIndex { $0.startTime > now } ?? events.count
+
+                    ForEach(0 ..< events.count, id: \.self) { idx in
+                        let event = events[idx]
+                        VStack(spacing: 6) {
+                            if isToday, idx == nowIndex {
+                                nowRule(now)
+                            }
+
+                            EventCardView(
+                                event: event,
+                                onSelect: { ActionBridge.emit("sidebarOpenEvent", event.id) },
+                                onJoinCall: { ActionBridge.emit("sidebarJoinCall", $0) },
+                                onRsvp: { _ in },
+                                onDelete: nil,
+                                onComplete: nil
+                            )
+                        }
+                    }
+
+                    if isToday, nowIndex == events.count {
+                        nowRule(now)
+                    }
+                }
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+        }
+    }
+
+    private func nowRule(_ now: Date) -> some View {
+        HStack(spacing: 6) {
+            Circle()
+                .fill(Color.red)
+                .frame(width: 6, height: 6)
+            Rectangle()
+                .fill(Color.red)
+                .frame(height: 1)
+            Text(nowTime(now))
+                .font(.system(size: 9.5, weight: .semibold, design: .rounded).monospacedDigit())
+                .foregroundStyle(Color.red)
+        }
+        .padding(.vertical, 2)
+    }
+
+    private func nowTime(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        return formatter.string(from: date)
+    }
+}
+
+// MARK: - Sidebar Root View
+
+public struct SidebarRootView: View {
+    @ObservedObject var model: SidebarModel = .shared
+
+    public var body: some View {
+        VStack(spacing: 0) {
+            switch model.viewMode {
+            case .fantastical:
+                fantasticalModeView
+            case .week:
+                weekModeView
+            case .day:
+                dayModeView
+            }
+        }
+        .frame(width: 280)
+        .frame(maxHeight: .infinity)
+    }
+
+    /// Fantastical Style: Month grid + continuous Schedule feed
+    private var fantasticalModeView: some View {
+        VStack(spacing: 0) {
+            // Month header & collapse toggle
+            HStack {
+                Text(monthTitle(model.displayedMonthDate))
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(.primary)
+
+                Spacer()
+
+                Button(action: {
+                    if let prev = Calendar.current.date(byAdding: .month, value: -1, to: model.displayedMonthDate) {
+                        model.displayedMonthDate = prev
+                    }
+                }) {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 11, weight: .semibold))
+                }
+                .buttonStyle(.plain)
+
+                Button(action: {
+                    if let next = Calendar.current.date(byAdding: .month, value: 1, to: model.displayedMonthDate) {
+                        model.displayedMonthDate = next
+                    }
+                }) {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 11, weight: .semibold))
+                }
+                .buttonStyle(.plain)
+
+                Button(action: {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        model.isCalendarCollapsed.toggle()
+                    }
+                }) {
+                    Image(systemName: model.isCalendarCollapsed ? "chevron.down" : "chevron.up")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .padding(.leading, 4)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+
+            // Mini month grid
+            if !model.isCalendarCollapsed {
+                MiniMonthGridView(
+                    displayedMonth: model.displayedMonthDate,
+                    selectedDate: model.selectedDate,
+                    densityDots: model.trayModel.densityDotsByDay,
+                    onSelectDate: { date in
+                        model.selectDate(date)
+                    }
+                )
+                .padding(.horizontal, 6)
+                .padding(.bottom, 6)
+                .transition(.opacity.combined(with: .move(edge: .top)))
+
+                Divider()
+            }
+
+            // Continuous schedule agenda
+            ScheduleAgendaView(
+                feedItems: model.trayModel.scheduleFeedItems,
+                selectedDate: model.selectedDate,
+                requestedScrollDate: model.selectedDate,
+                onSelectEvent: { event in ActionBridge.emit("sidebarOpenEvent", event.id) },
+                onJoinCall: { ActionBridge.emit("sidebarJoinCall", $0) },
+                onRsvp: { _, _ in },
+                onDeleteEvent: nil,
+                onCompleteTask: nil,
+                onDayScrolledIntoView: { date in
+                    model.selectedDate = date
+                },
+                onScrolledNearEnd: nil,
+                isExplainedElsewhere: false
+            )
+        }
+    }
+
+    /// Week mode: Day scrubber + Focused day agenda
+    private var weekModeView: some View {
+        VStack(spacing: 0) {
+            WeekScrubberView(model: model)
+            Divider()
+            DayFocusedEventsList(events: model.selectedDayEvents, date: model.selectedDate)
+        }
+    }
+
+    /// Day mode: Day title header + Focused day agenda
+    private var dayModeView: some View {
+        VStack(spacing: 0) {
+            DayCompanionHeaderView(model: model)
+            Divider()
+            DayFocusedEventsList(events: model.selectedDayEvents, date: model.selectedDate)
+        }
+    }
+
+    private func monthTitle(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMMM yyyy"
+        return formatter.string(from: date)
+    }
+}
+
+// MARK: - Sidebar Manager (AppKit Host)
+
+@MainActor
+public final class SidebarManager {
+    public static let shared = SidebarManager()
+
+    public private(set) weak var window: NSWindow?
+    private var visualEffectView: NSVisualEffectView?
+    private var hostingView: NSHostingView<SidebarRootView>?
+    private var widthConstraint: NSLayoutConstraint?
+
+    public var isVisible: Bool = true
+    public var position: String = "right"
+    public let width: CGFloat = 280
+
+    public init() {}
+
+    public func attach(to window: NSWindow) {
+        self.window = window
+        guard let contentView = window.contentView else { return }
+
+        if visualEffectView == nil {
+            let effect = NSVisualEffectView(frame: .zero)
+            effect.material = .sidebar
+            effect.blendingMode = .behindWindow
+            effect.state = .followsWindowActiveState
+            effect.translatesAutoresizingMaskIntoConstraints = false
+
+            let host = NSHostingView(rootView: SidebarRootView())
+            host.translatesAutoresizingMaskIntoConstraints = false
+            effect.addSubview(host)
+
+            NSLayoutConstraint.activate([
+                host.leadingAnchor.constraint(equalTo: effect.leadingAnchor),
+                host.trailingAnchor.constraint(equalTo: effect.trailingAnchor),
+                host.topAnchor.constraint(equalTo: effect.topAnchor),
+                host.bottomAnchor.constraint(equalTo: effect.bottomAnchor),
+            ])
+
+            contentView.addSubview(effect)
+
+            let widthC = effect.widthAnchor.constraint(equalToConstant: isVisible ? width : 0)
+            widthConstraint = widthC
+
+            NSLayoutConstraint.activate([
+                widthC,
+                effect.topAnchor.constraint(equalTo: contentView.topAnchor),
+                effect.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
+                effect.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
+            ])
+
+            visualEffectView = effect
+            hostingView = host
+            effect.isHidden = !isVisible
+        }
+    }
+
+    public func setVisible(_ visible: Bool, animated: Bool) {
+        guard isVisible != visible else { return }
+        isVisible = visible
+        SidebarModel.shared.isVisible = visible
+
+        guard let effect = visualEffectView, let widthC = widthConstraint else { return }
+
+        if visible {
+            effect.isHidden = false
+        }
+
+        let targetWidth: CGFloat = visible ? width : 0
+
+        if animated {
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.25
+                context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                context.allowsImplicitAnimation = true
+                widthC.animator().constant = targetWidth
+                effect.animator().alphaValue = visible ? 1.0 : 0.0
+            } completionHandler: {
+                if !visible {
+                    effect.isHidden = true
+                }
+            }
+        } else {
+            widthC.constant = targetWidth
+            effect.alphaValue = visible ? 1.0 : 0.0
+            effect.isHidden = !visible
+        }
+    }
+
+    public func updateData(json: String) {
+        guard let data = json.data(using: .utf8),
+              let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else { return }
+
+        SidebarModel.shared.trayModel.update(from: dict)
+        SidebarModel.shared.recomputeWeekDays()
+    }
+
+    public func setViewMode(mode: String, anchorDateStr: String?) {
+        let viewMode: SidebarViewMode = switch mode.lowercased() {
+        case "week", "customday", "customweek", "custom_days", "custom_weeks":
+            .week
+        case "day":
+            .day
+        case "month", "year", "agenda", "schedule", "fantastical":
+            .fantastical
+        default:
+            .fantastical
+        }
+
+        var anchor: Date?
+        if let str = anchorDateStr, !str.isEmpty {
+            let df = DateFormatter()
+            df.dateFormat = "yyyy-MM-dd"
+            df.timeZone = .current
+            anchor = df.date(from: str)
+        }
+
+        SidebarModel.shared.setViewMode(viewMode, anchor: anchor)
+    }
+}
+
+// MARK: - C Cdecl Exports for Node Addon
+
+@_cdecl("sidebar_attach")
+public func sidebarAttach(_ nsViewPtr: UnsafeMutableRawPointer) {
+    let contentView = Unmanaged<NSView>.fromOpaque(nsViewPtr).takeUnretainedValue()
+    guard let window = contentView.window else { return }
+
+    DispatchQueue.main.async {
+        SidebarManager.shared.attach(to: window)
+    }
+}
+
+@_cdecl("sidebar_set_visible")
+public func sidebarSetVisible(_ visible: Bool, _ animated: Bool) {
+    DispatchQueue.main.async {
+        SidebarManager.shared.setVisible(visible, animated: animated)
+    }
+}
+
+@_cdecl("sidebar_update_data")
+public func sidebarUpdateData(_ json: UnsafePointer<CChar>) {
+    let str = String(cString: json)
+    DispatchQueue.main.async {
+        SidebarManager.shared.updateData(json: str)
+    }
+}
+
+@_cdecl("sidebar_set_view_mode")
+public func sidebarSetViewMode(_ modePtr: UnsafePointer<CChar>, _ anchorPtr: UnsafePointer<CChar>?) {
+    let mode = String(cString: modePtr)
+    let anchor: String? = anchorPtr != nil ? String(cString: anchorPtr!) : nil
+    DispatchQueue.main.async {
+        SidebarManager.shared.setViewMode(mode: mode, anchorDateStr: anchor)
+    }
+}

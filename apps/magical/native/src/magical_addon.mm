@@ -18,6 +18,10 @@ typedef void (*ReloadWidgetsFn)(void);
 typedef char* (*GroupContainerPathFn)(const char*);
 typedef char* (*AppGroupIdentifierFn)(void);
 typedef char* (*LocalCacheKeyFn)(void);
+typedef void (*SidebarAttachFn)(void*);
+typedef void (*SidebarSetVisibleFn)(bool, bool);
+typedef void (*SidebarUpdateDataFn)(const char*);
+typedef void (*SidebarSetViewModeFn)(const char*, const char*);
 
 static SetCallbackFn fn_set_callback = nullptr;
 static AttachFn fn_attach = nullptr;
@@ -34,6 +38,10 @@ static ReloadWidgetsFn fn_reload_widgets = nullptr;
 static GroupContainerPathFn fn_group_container_path = nullptr;
 static AppGroupIdentifierFn fn_app_group_identifier = nullptr;
 static LocalCacheKeyFn fn_local_cache_key = nullptr;
+static SidebarAttachFn fn_sidebar_attach = nullptr;
+static SidebarSetVisibleFn fn_sidebar_set_visible = nullptr;
+static SidebarUpdateDataFn fn_sidebar_update_data = nullptr;
+static SidebarSetViewModeFn fn_sidebar_set_view_mode = nullptr;
 static void* dylibHandle = nullptr;
 
 // JavaScript callback reference (called from Swift via C bridge)
@@ -79,6 +87,10 @@ static bool loadDylib(Napi::Env env, const std::string& path) {
   fn_app_group_identifier =
     (AppGroupIdentifierFn)dlsym(dylibHandle, "widgets_app_group_identifier");
   fn_local_cache_key = (LocalCacheKeyFn)dlsym(dylibHandle, "localcache_key");
+  fn_sidebar_attach = (SidebarAttachFn)dlsym(dylibHandle, "sidebar_attach");
+  fn_sidebar_set_visible = (SidebarSetVisibleFn)dlsym(dylibHandle, "sidebar_set_visible");
+  fn_sidebar_update_data = (SidebarUpdateDataFn)dlsym(dylibHandle, "sidebar_update_data");
+  fn_sidebar_set_view_mode = (SidebarSetViewModeFn)dlsym(dylibHandle, "sidebar_set_view_mode");
 
   if (!fn_set_callback || !fn_attach || !fn_detach || !fn_update_accounts) {
     Napi::Error::New(env, "Missing symbols in Magical toolbar dylib").ThrowAsJavaScriptException();
@@ -356,6 +368,48 @@ static Napi::Value LocalCacheKey(const Napi::CallbackInfo& info) {
   return result;
 }
 
+// JS: sidebarAttach(nativeWindowHandle: Buffer)
+static Napi::Value SidebarAttach(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  if (!fn_sidebar_attach) return env.Undefined();
+  if (info.Length() < 1 || !info[0].IsBuffer()) return env.Undefined();
+  Napi::Buffer<void*> buf = info[0].As<Napi::Buffer<void*>>();
+  void* nsViewPtr = *reinterpret_cast<void**>(buf.Data());
+  fn_sidebar_attach(nsViewPtr);
+  return env.Undefined();
+}
+
+// JS: sidebarSetVisible(visible: boolean, animated: boolean)
+static Napi::Value SidebarSetVisible(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  if (!fn_sidebar_set_visible) return env.Undefined();
+  bool visible = info.Length() > 0 && info[0].IsBoolean() ? info[0].As<Napi::Boolean>().Value() : true;
+  bool animated = info.Length() > 1 && info[1].IsBoolean() ? info[1].As<Napi::Boolean>().Value() : true;
+  fn_sidebar_set_visible(visible, animated);
+  return env.Undefined();
+}
+
+// JS: sidebarUpdateData(json: string)
+static Napi::Value SidebarUpdateData(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  if (!fn_sidebar_update_data) return env.Undefined();
+  if (info.Length() < 1 || !info[0].IsString()) return env.Undefined();
+  std::string json = info[0].As<Napi::String>().Utf8Value();
+  fn_sidebar_update_data(json.c_str());
+  return env.Undefined();
+}
+
+// JS: sidebarSetViewMode(mode: string, anchorDate?: string)
+static Napi::Value SidebarSetViewMode(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  if (!fn_sidebar_set_view_mode) return env.Undefined();
+  if (info.Length() < 1 || !info[0].IsString()) return env.Undefined();
+  std::string mode = info[0].As<Napi::String>().Utf8Value();
+  std::string anchor = (info.Length() > 1 && info[1].IsString()) ? info[1].As<Napi::String>().Utf8Value() : "";
+  fn_sidebar_set_view_mode(mode.c_str(), anchor.empty() ? nullptr : anchor.c_str());
+  return env.Undefined();
+}
+
 Napi::Object InitAll(Napi::Env env, Napi::Object exports) {
   exports.Set("init", Napi::Function::New(env, Init));
   exports.Set("attach", Napi::Function::New(env, Attach));
@@ -373,6 +427,10 @@ Napi::Object InitAll(Napi::Env env, Napi::Object exports) {
   exports.Set("groupContainerPath", Napi::Function::New(env, GroupContainerPath));
   exports.Set("appGroupIdentifier", Napi::Function::New(env, AppGroupIdentifier));
   exports.Set("localCacheKey", Napi::Function::New(env, LocalCacheKey));
+  exports.Set("sidebarAttach", Napi::Function::New(env, SidebarAttach));
+  exports.Set("sidebarSetVisible", Napi::Function::New(env, SidebarSetVisible));
+  exports.Set("sidebarUpdateData", Napi::Function::New(env, SidebarUpdateData));
+  exports.Set("sidebarSetViewMode", Napi::Function::New(env, SidebarSetViewMode));
   return exports;
 }
 
