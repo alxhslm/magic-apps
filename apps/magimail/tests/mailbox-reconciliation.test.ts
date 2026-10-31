@@ -168,8 +168,11 @@ describe('UnreadLedger State Machine', () => {
       const breakdown1 = ledger.getBreakdown();
       expect(breakdown1.byCategory.get('primary')).toBe(1);
       expect(breakdown1.byCategory.get('promotions')).toBe(1);
-      // promotions is 'off', so total displayed is 1
-      expect(breakdown1.total).toBe(1);
+      // Two numbers, asked for separately: the menu bar shows everything the
+      // mailbox holds, the badge counts only the categories not silenced. The
+      // source reports facts; the caller decides which categories it wants.
+      expect(breakdown1.total).toBe(2);
+      expect(ledger.getUnreadCountFor(new Set(['primary', 'updates', 'social', 'forums']))).toBe(1);
 
       // 2. User archives pr-1 on iPhone. Next Atom poll: entries = [p-1], fullCount = 1
       const delta1 = ledger.reconcileWithAtom([primaryMsg], 1, 2000);
@@ -347,9 +350,13 @@ describe('Scenario 6: Preemptive Ledger Updates', () => {
 
   it('does not let a stale cache add a thread a complete feed omitted', () => {
     const ledger = new UnreadLedger();
-    ledger.reconcileWithAtom([atomEntry('m1', 't1')], 1, 1000);
+    // Real epoch-ms times: the five-second grace makes `atomAsOf` earlier than the
+    // feed's own timestamp, and a fake clock of 1000 puts it before zero, which
+    // makes any positive watermark look newer than the feed and stops this test
+    // testing staleness at all.
+    ledger.reconcileWithAtom([atomEntry('m1', 't1')], 1, 20000);
 
-    ledger.reconcileWithCache([cacheRow('deleted', 't2', true)], 2000, 2000);
+    ledger.reconcileWithCache([cacheRow('deleted', 't2', true)], 21000, 1000);
 
     expect(ledger.getBreakdown().total).toBe(1);
     expect(ledger.getTrackedItems().map((item) => item.id)).toEqual(['m1']);
@@ -370,13 +377,18 @@ describe('Scenario 6: Preemptive Ledger Updates', () => {
 
     const primary = atomEntry('m1', 't1');
     const promo = { ...atomEntry('m2', 't2'), category: 'promotions' as const };
-    // Atom already filtered promotions out, so its displayed count is 1.
+    // Both messages are unread; only the primary is in a counted category.
     ledger.reconcileWithAtom([primary, promo], 2, 1000, 1);
-    expect(ledger.getBreakdown().total).toBe(1);
+    const withoutPromotions = new Set(['primary', 'updates', 'social', 'forums'] as const);
+    expect(ledger.getBreakdown().total).toBe(2);
+    expect(ledger.getUnreadCountFor(withoutPromotions)).toBe(1);
 
+    // Archiving the silenced promotion lowers what is unread but must not touch
+    // the badge, which never counted it in the first place.
     ledger.recordLocalTriage('m2', 't2', 'archive', 'promotions', 2000);
 
     expect(ledger.getBreakdown().total).toBe(1);
+    expect(ledger.getUnreadCountFor(withoutPromotions)).toBe(1);
   });
 
   it('lets a response generated at least the read-path grace after the action win', () => {
@@ -765,6 +777,103 @@ describe('Scenario 7: Ledger-owned rows and source ordering', () => {
     expect(ledger.getRecentMessages(5)[0].unread).toBe(false);
   });
 
+  it('trusts a row that changed since the last snapshot when the watermark lags', () => {
+    const ledger = new UnreadLedger();
+    ledger.reconcileWithAtom([atomEntry('m1', 't1')], 1, 15000, 1, 15000);
+
+    // A read before the triage, agreeing with the feed. Its watermark is older
+    // than the feed's view, so it only confirms what is already held.
+    ledger.reconcileWithCache([cacheRow('m1', 't1', true)], 16000, 5000);
+    expect(ledger.getBreakdown().total).toBe(1);
+
+    // Gmail applies the triage and rewrites the row, but `items_sync_state` has
+    // not caught up, so the watermark still says 5000. The row changing is the
+    // evidence: on a live account this is the state the ledger threw away, and
+    // the badge sat 1.37s on the feed's number instead.
+    ledger.reconcileWithCache([cacheRow('m1', 't1', false)], 17000, 5000);
+    expect(ledger.getBreakdown().total).toBe(0);
+  });
+
+  it('believes a row that flipped to unread over a feed that has not caught up', () => {
+    const ledger = new UnreadLedger();
+    // The feed's view holds one unread message, in a different category, and it
+    // does not list the message this test triages at all.
+    ledger.reconcileWithAtom([atomEntry('u1', 'tu')], 1, 15000, 1, 15000);
+    ledger.reconcileWithCache([cacheRow('m1', 't1', false)], 16000, 5000);
+    expect(ledger.getBreakdown().total).toBe(1);
+
+    // The user marks it unread in Gmail. The row flips, and the feed still omits
+    // it, which reads as proof of read. That verdict is only true as of the feed's
+    // view, and the row moved after it, so the row wins. Measured live: this half
+    // waited 1-3s for the feed to agree while the read direction moved in 7ms.
+    ledger.reconcileWithCache([cacheRow('m1', 't1', true)], 17000, 5000);
+    expect(ledger.getBreakdown().total).toBe(2);
+  });
+
+  it('does not let a lagging feed undo a row the cache wrote after its view', () => {
+    const ledger = new UnreadLedger();
+    // A complete feed whose only unread message is not the one under test.
+    ledger.reconcileWithAtom([atomEntry('u1', 'tu')], 1, 20000, undefined, 20000);
+    expect(ledger.getBreakdown().total).toBe(1);
+
+    // The user marks the other thread unread in Gmail, and the cache is written
+    // after the feed's view of 15000.
+    ledger.reconcileWithCache([cacheRow('m1', 't1', true)], 21000, 18000);
+    expect(ledger.getBreakdown().total).toBe(2);
+
+    // The feed restates its count without listing that thread. Its omission is
+    // older than the cache, so it must not force the row back to read. Doing so
+    // made the count climb back on every pass, which is the ratchet from the log.
+    ledger.reconcileWithAtom([atomEntry('u1', 'tu')], 1, 23000, undefined, 23000);
+    ledger.reconcileWithCache([cacheRow('m1', 't1', true)], 24000, 18000);
+    expect(ledger.getBreakdown().total).toBe(2);
+  });
+
+  it('holds one total across repeated feed restatements of an unchanged mailbox', () => {
+    const ledger = new UnreadLedger();
+    ledger.reconcileWithAtom([atomEntry('u1', 'tu')], 1, 20000, undefined, 20000);
+    ledger.reconcileWithCache([cacheRow('m1', 't1', true)], 21000, 18000);
+    const settled = ledger.getBreakdown().total;
+    expect(settled).toBe(2);
+
+    // Three more passes of the same mailbox: the feed restates its count without
+    // listing the second thread, and the cache re-reads the same row, with Gmail's
+    // watermark advancing as it does on every sync. Nothing about the mailbox
+    // changes, so nothing about the total may change either.
+    //
+    // This is the ratchet as reported: each pass moved the count, and it settled
+    // only once the feed finally listed the thread. Asserting the settled value
+    // once would not catch it; asserting it on every pass does.
+    for (let pass = 0; pass < 3; pass += 1) {
+      const t = 23000 + pass * 4000;
+      ledger.reconcileWithAtom([atomEntry('u1', 'tu')], 1, t, undefined, t);
+      ledger.reconcileWithCache([cacheRow('m1', 't1', true)], t + 1000, t);
+      expect(ledger.getBreakdown().total).toBe(settled);
+    }
+  });
+
+  it('does not let a lagging feed undo a row the cache has just rewritten', () => {
+    const ledger = new UnreadLedger();
+    ledger.reconcileWithAtom([atomEntry('m1', 't1')], 1, 20000, undefined, 20000);
+    expect(ledger.getBreakdown().total).toBe(1);
+
+    // A read before the triage, agreeing with the feed, so the flip below is seen
+    // as a change rather than as the first sight of this row.
+    ledger.reconcileWithCache([cacheRow('m1', 't1', true)], 20500, 16000);
+    expect(ledger.getBreakdown().total).toBe(1);
+
+    // The user reads it. The watermark does not advance with the row.
+    ledger.reconcileWithCache([cacheRow('m1', 't1', false)], 21000, 16000);
+    expect(ledger.getBreakdown().total).toBe(0);
+
+    // The poll 200ms later still lists the thread as unread, because the feed has
+    // not caught up. Measured live: the badge went 3, back to 4, then to 3 again,
+    // a visible bounce on every read whose cache write landed before the feed's
+    // view of it.
+    ledger.reconcileWithAtom([atomEntry('m1', 't1')], 1, 21200, undefined, 21200);
+    expect(ledger.getBreakdown().total).toBe(0);
+  });
+
   it('ignores sources while an action is in flight, then uses the acceptance time', () => {
     const ledger = new UnreadLedger();
     ledger.reconcileWithAtom([atomEntry('m1', 't1')], 1, 1000);
@@ -1145,4 +1254,88 @@ describe('Scenario 5: Universal Sync Nudge Dispatch', () => {
     expect(ok).toBe(false);
     source.destroy();
   });
+});
+
+/**
+ * Every category tab, not just Primary.
+ *
+ * The bugs found on this branch were all in the paths a category takes through
+ * the ledger, and the tests only ever exercised Primary. A category that is
+ * counted and one that is silenced take different branches, so both are covered
+ * for each of the five.
+ */
+describe('every category tab', () => {
+  const CATEGORIES = ['primary', 'updates', 'promotions', 'social', 'forums'] as const;
+
+  const atomEntry = (id: string, threadId: string) => ({
+    id,
+    threadId,
+    from: 'someone',
+    subject: 'subject',
+    snippet: 'snippet',
+    link: '',
+    issued: new Date(1000).toISOString(),
+    modified: new Date(1000).toISOString(),
+    category: 'primary' as const,
+  });
+
+  const row = (id: string, threadId: string, unread: boolean, category: string) => ({
+    id,
+    threadId,
+    from: 'someone',
+    subject: 'subject',
+    snippet: 'snippet',
+    category: category as 'primary',
+    unread,
+    modified: new Date(1000),
+  });
+
+  const allEnabled = {
+    primary: 'loud',
+    updates: 'badge',
+    promotions: 'badge',
+    social: 'badge',
+    forums: 'badge',
+  };
+
+  for (const category of CATEGORIES) {
+    it(`counts a read and an unread in ${category}`, () => {
+      const ledger = new UnreadLedger();
+      ledger.updateNotificationSettings(allEnabled);
+      ledger.reconcileWithAtom([], 0, 20000, undefined, 20000);
+      expect(ledger.getBreakdown().total).toBe(0);
+
+      // Unread in this category moves the total, whichever category it is.
+      ledger.reconcileWithCache([row('m1', 't1', true, category)], 21000, 18000);
+      expect(ledger.getBreakdown().total).toBe(1);
+      expect(ledger.getBreakdown().byCategory.get(category)).toBe(1);
+
+      // And reading it takes the total back.
+      ledger.reconcileWithCache([row('m1', 't1', false, category)], 22000, 18000);
+      expect(ledger.getBreakdown().total).toBe(0);
+      expect(ledger.getBreakdown().byCategory.get(category)).toBe(0);
+    });
+
+    it(`counts ${category} for display and excludes it from the badge when silenced`, () => {
+      const ledger = new UnreadLedger();
+      ledger.updateNotificationSettings({ ...allEnabled, [category]: 'off' });
+      ledger.reconcileWithAtom([], 0, 20000, undefined, 20000);
+
+      // One cache read, and the total moves. That is the whole latency guarantee:
+      // a silenced category is counted for display on the same read that sees it,
+      // exactly as a counted one is, rather than arriving later when the feed
+      // catches up. The dock badge number does not move, and that is the filter.
+      ledger.reconcileWithCache([row('m1', 't1', true, category)], 21000, 18000);
+      const breakdown = ledger.getBreakdown();
+      // Two numbers with one meaning each: the menu bar shows what is unread, the
+      // dock badge shows what deserves a nudge. Neither is a compromise between
+      // the two, which is what made a silenced category look like a lag.
+      expect(breakdown.total).toBe(1);
+      expect(breakdown.byCategory.get(category)).toBe(1);
+      const counted = new Set(CATEGORIES.filter((cat) => cat !== category)) as ReadonlySet<
+        (typeof CATEGORIES)[number]
+      >;
+      expect(ledger.getUnreadCountFor(counted)).toBe(0);
+    });
+  }
 });

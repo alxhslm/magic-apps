@@ -8,6 +8,13 @@ export interface AccountConfig {
   partition: string;
   color: string; // Hex color for dot badge (e.g. #3b82f6)
   unreadCount: number;
+  /**
+   * Unread in categories the user has not silenced, for the dock badge.
+   *
+   * Optional so accounts saved before this existed load unchanged; a missing
+   * value means "same as `unreadCount`" to every reader.
+   */
+  badgeUnreadCount?: number;
   email?: string;
   /** Whether this account requires authentication / re-signing in */
   needsAuth?: boolean;
@@ -46,15 +53,37 @@ export function calculateAggregateUnread(accounts: AccountConfig[]): number {
 }
 
 /**
+ * Aggregate unread for the dock badge.
+ *
+ * The dock badge is an attention surface, so it counts only categories the user
+ * has not silenced. The menu bar, the tray and the widgets use
+ * `calculateAggregateUnread`, because they answer what the mailbox holds.
+ */
+export function calculateAggregateBadge(accounts: AccountConfig[]): number {
+  return accounts.reduce(
+    (total, acc) =>
+      total + (acc.badgeUnreadCount && acc.badgeUnreadCount > 0 ? acc.badgeUnreadCount : 0),
+    0,
+  );
+}
+
+/**
  * Updates unread count for a specific account and returns new list
  */
 export function updateAccountUnread(
   accounts: AccountConfig[],
   accountId: string,
   unreadCount: number,
+  badgeUnreadCount: number = unreadCount,
 ): AccountConfig[] {
   return accounts.map((acc) =>
-    acc.id === accountId ? { ...acc, unreadCount: Math.max(0, unreadCount) } : acc,
+    acc.id === accountId
+      ? {
+          ...acc,
+          unreadCount: Math.max(0, unreadCount),
+          badgeUnreadCount: Math.max(0, badgeUnreadCount),
+        }
+      : acc,
   );
 }
 

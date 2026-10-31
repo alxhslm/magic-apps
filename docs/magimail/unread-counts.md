@@ -74,20 +74,39 @@ unread thread from outside the window.
 A cache read also drops read rows the snapshot no longer lists. It leaves unread rows and rows with
 a pending action alone: a missing unread thread is not proof that it was read.
 
+## Two counts
+
+There are two: the raw unread count, and the same count filtered by the notification settings.
+
+- **Raw** counts every category. The menu bar, the tray and the widgets show it.
+- **Filtered** counts only categories whose setting is not `off`. The dock badge shows it.
+
+`AccountsManager` chooses which categories the filtered number includes, because it owns the
+settings. The ledger reports `byCategory` and the raw total, and answers
+`getUnreadCountFor(categories)`. The filtered number is asked for rather than stored because a
+backlog needs the feed's `fullcount` and the per-category sub-feed counts, which only the ledger
+holds.
+
 ## How the count is worked out
 
 The count starts with what the feed says is unread. Subtract each local read, archive or trash the
-feed has not confirmed, and add each local mark-unread it has not confirmed. Categories turned off
-are left out, and the result never goes below zero.
+feed has not confirmed, and add each local mark-unread it has not confirmed. The result never goes
+below zero.
 
-- **Complete feed.** Counts the entries in categories that are on.
-- **Truncated feed.** Starts at `fullcount` and subtracts the sub-feed count for each category
-  turned off, capped at the total.
-- **Before the first poll.** Counts the tracked unread rows in categories that are on.
+- **Complete feed.** Counts the tracked rows, because the feed listed everything it counted.
+- **Truncated feed.** Starts at `fullcount` and, for a filtered count, subtracts the sub-feed count
+  for each category left out, capped at the total.
+- **Before the first poll.** Counts the tracked unread rows.
 
-Across accounts, the dock badge and menu bar sum the totals of the accounts the Focus Filter
-includes; the toolbar switcher shows every account's own total. See
+Across accounts, the dock badge and menu bar sum their own number over the accounts the Focus Filter
+includes; the toolbar switcher shows every account's own total, which is the unfiltered one. See
 [`focus-filters.md`](focus-filters.md).
+
+## What survives a restart
+
+The mailbox source keeps the counts between launches in `unread-counts.json`, encrypted, so a launch
+draws the tray from the last known number rather than from zero. See
+[`sessions-and-security.md`](../shared/sessions-and-security.md#which-files-are-sealed).
 
 ## Categories
 

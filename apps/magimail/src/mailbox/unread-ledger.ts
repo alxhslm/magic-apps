@@ -19,7 +19,16 @@ const log = createLogger('UnreadLedger');
 export const ATOM_READ_PATH_GRACE_MS = 5000;
 
 /** A row is kept this long after its last observation so the popover has history. */
-const MAX_RECENT_ROWS = 200;
+/**
+ * How many rows the ledger keeps.
+ *
+ * It has to hold the whole inbox the cache reader hands over, or the oldest rows
+ * are pruned between reads and re-added as new, which loses the "did this row
+ * move" comparison for exactly the threads that sit furthest from the top of the
+ * list. The inbox here runs to about 310 threads, so this is a ceiling rather than
+ * a working size.
+ */
+const MAX_RECENT_ROWS = 500;
 
 /**
  * Pure, deterministic state machine for unread email reconciliation.
@@ -75,10 +84,22 @@ export class UnreadLedger {
   private recentlyMarkedUnread = new Map<string, MarkedUnreadRecord>();
   /** Raw <fullcount> from the last feed. */
   private lastFullCount: number | null = null;
+  /** Per-category sub-feed counts from the last feed, for the backlog case. */
+  private lastCategoryCounts = new Map<NotificationCategory, number>();
   /** Feed count after disabled categories were removed. */
   private lastDisplayedUnread: number | null = null;
   /** The mailbox time the last Atom response is trusted as of. */
   private atomAsOf = 0;
+
+  /**
+   * The unread flag each row carried in the previous cache snapshot.
+   *
+   * A row that changed between two reads is evidence the cache moved, which the
+   * store's own watermark cannot give: `items_sync_state.c` is the last item
+   * sync and lands seconds after the row it describes. Gating on that watermark
+   * alone discarded readings that were already right.
+   */
+  private lastSnapshotUnread = new Map<string, boolean>();
   /** Whether the last feed listed every unread thread. */
   private lastFeedComplete = false;
   /** Every id and thread id the last feed listed. */
@@ -367,6 +388,9 @@ export class UnreadLedger {
     }
 
     this.lastFullCount = fullCount;
+    // Kept for the backlog query. Guarded because the parameter is optional and a
+    // caller that passes something other than a Map should not crash a reconcile.
+    this.lastCategoryCounts = categoryCounts instanceof Map ? new Map(categoryCounts) : new Map();
     this.lastDisplayedUnread = this.deriveDisplayedUnread(fullCount, entries, categoryCounts);
     this.pruneRecent();
 
@@ -390,10 +414,17 @@ export class UnreadLedger {
     snapshotMessages: TrayMessageItem[],
     now: number = Date.now(),
     cacheAsOf?: number,
-  ): { enriched: string[] } {
+  ): { enriched: string[]; moved: number } {
     const enriched: string[] = [];
     const snapshotKeys = new Set<string>();
     let oldestSnapshotTs: number | undefined;
+    // A read that moved a row and did not move the badge is the shape of every
+    // regression this ledger has had, and it used to leave no trace at all: the
+    // report that started the last investigation produced zero log lines.
+    const totalBefore = this.getBreakdown().total;
+    let rowsMoved = 0;
+    let countedRowsMoved = 0;
+    const movedDetail: string[] = [];
     this.pruneRecordsBefore(this.atomAsOf);
 
     for (const msg of snapshotMessages) {
@@ -422,7 +453,28 @@ export class UnreadLedger {
         continue;
       }
 
+      // Whether this row moved since the previous snapshot, which is the only
+      // evidence the cache itself carries. `items_sync_state` is the last item
+      // sync and lands seconds after the row it describes, so it cannot speak for
+      // a row that has just been rewritten.
+      const snapshotChanged = this.lastSnapshotUnread.has(msg.id)
+        ? this.lastSnapshotUnread.get(msg.id) !== Boolean(msg.unread)
+        : false;
+
+      // A complete feed that omits the message is proof it is read, but only as
+      // of the feed's view. A row that has moved since the last snapshot was
+      // written later than that, so its verdict is the newer one. Without this,
+      // marking a message unread in Gmail was reverted to read by a feed that had
+      // not caught up, and the badge waited 1-3s for the feed to agree.
+      //
+      // The watermark settles the remaining case, and it is the same comparison
+      // the rest of this method uses: when the cache was written at or after the
+      // feed's view, a row saying unread is newer than an omission, and forcing
+      // it read makes the count oscillate until the feed catches up.
+      const cacheIsNewerThanFeed = sourceAsOf !== undefined && sourceAsOf >= this.atomAsOf;
       const feedSaysNotUnread =
+        !snapshotChanged &&
+        !cacheIsNewerThanFeed &&
         this.lastFeedComplete &&
         msg.unread &&
         !this.lastFeedIds.has(msg.id) &&
@@ -456,12 +508,19 @@ export class UnreadLedger {
           found.item.localIntent = undefined;
           found.item.localIntentAt = undefined;
         }
+        // Measured on a live account: a Gmail-UI triage appeared in the rows at
+        // 53.6s, the watermark advanced at 55.1s, and the badge did not move until
+        // the feed answered at 55.0s. The row was right for 1.37s and this gate
+        // threw it away. A row that changed since the last snapshot is that row.
         if (
+          !snapshotChanged &&
           sourceAsOf !== undefined &&
           found.item.sourceAsOf !== undefined &&
           sourceAsOf < found.item.sourceAsOf
         ) {
-          // Atom already gave this row a newer state.
+          // Atom already gave this row a newer state, and nothing says the cache
+          // has moved since, so the older row is skipped rather than allowed to
+          // win. The watermark is trustworthy in this direction only.
           continue;
         }
         found.item.category = parseCategory(msg.category) ?? found.item.category;
@@ -470,12 +529,46 @@ export class UnreadLedger {
         found.item.snippet = msg.snippet || found.item.snippet;
         const modifiedMs = parseModifiedMs(msg.modified);
         if (modifiedMs !== undefined) found.item.timestampMs = modifiedMs;
-        if (sourceAsOf !== undefined) {
-          if (!found.item.unread && msg.unread) {
-            log.info(`Cache set unread id=${msg.id} asOf=${sourceAsOf}`);
-          }
-          found.item.unread = Boolean(msg.unread);
+        // Applied even without a watermark. A schema that does not expose
+        // `items_sync_state` left `sourceAsOf` undefined, and the flag was then
+        // never written, so the cache could not move the count at all.
+        const wasUnread = found.item.unread;
+        const nowUnread = Boolean(msg.unread);
+        if (!wasUnread && nowUnread) {
+          log.info(`Cache set unread id=${msg.id} asOf=${sourceAsOf ?? 'none'}`);
+        }
+        found.item.unread = nowUnread;
+        // A row that moved was written by Gmail since the last read, so the moment
+        // we saw it is when its state was observed. `items_sync_state` lags that
+        // write by seconds and is sometimes minutes stale, and the feed's guard
+        // compares against it, so a freshly rewritten row would otherwise lose to a
+        // feed answer carrying the pre-change state: mark a message read and the
+        // next poll, still listing it, put the unread count straight back.
+        //
+        // A row that did not move carries the watermark as before, because nothing
+        // about it says it was rewritten.
+        if (wasUnread !== nowUnread) {
+          found.item.sourceAsOf = now;
+        } else if (sourceAsOf !== undefined) {
           found.item.sourceAsOf = sourceAsOf;
+        }
+
+        // The count is anchored to the feed's fullcount and adjusted only by
+        // locally recorded intents, so a triage made in the Gmail UI left it
+        // pinned until the next poll however fresh the rows were. This row
+        // disagreeing with what is held is the evidence, so the anchor follows
+        // it. Measured: the row was right at 53.6s, the badge moved at 55.0s.
+        if (wasUnread !== nowUnread) {
+          rowsMoved += 1;
+          if (this.isCategoryEnabled(found.item.category)) countedRowsMoved += 1;
+          movedDetail.push(
+            `${msg.id.slice(0, 8)}:${nowUnread ? 'unread' : 'read'}:` +
+              `${this.isCategoryEnabled(found.item.category) ? 'counted' : 'excluded'}` +
+              `:${found.item.category}`,
+          );
+          if (this.lastDisplayedUnread !== null) {
+            this.lastDisplayedUnread = Math.max(0, this.lastDisplayedUnread + (nowUnread ? 1 : -1));
+          }
         }
         enriched.push(msg.id);
       } else {
@@ -495,9 +588,70 @@ export class UnreadLedger {
       }
     }
 
+    // Recorded after the loop so the `continue`s above cannot skip a row, and
+    // bounded so a long session cannot accumulate one entry per message ever seen.
+    if (this.lastSnapshotUnread.size > 2000) this.lastSnapshotUnread.clear();
+    for (const msg of snapshotMessages) {
+      if (msg.id) this.lastSnapshotUnread.set(msg.id, Boolean(msg.unread));
+    }
+
+    if (rowsMoved > 0) {
+      const totalAfter = this.getBreakdown().total;
+      const detail =
+        `Cache read: ${rowsMoved} of ${snapshotMessages.length} row(s) moved, ` +
+        `total ${totalBefore} -> ${totalAfter}, asOf=${cacheAsOf ?? 'none'}, ` +
+        `moved=[${movedDetail.join(' ')}], ` +
+        `enabled=[${(['primary', 'updates', 'promotions', 'social', 'forums'] as const).filter((c) => this.isCategoryEnabled(c)).join(',')}]`;
+      if (totalAfter === totalBefore && countedRowsMoved > 0) {
+        // Only a counted row is expected to move the total. A silenced category
+        // moving and the total holding still is the filter working, not a fault,
+        // and warning about it buries the case that matters.
+        log.warn(`${detail}. The badge did not follow, so something outvoted the row.`);
+      } else {
+        log.info(detail);
+      }
+    }
+
     this.pruneAbsentFromCache(snapshotKeys, oldestSnapshotTs);
     this.pruneRecent();
-    return { enriched };
+    return { enriched, moved: rowsMoved };
+  }
+
+  /**
+   * The unread total counting only the given categories.
+   *
+   * The ledger reports facts and answers the question it is asked; which
+   * categories a surface shows is the caller's decision. It is a method rather
+   * than a field because the backlog case needs the feed's `<fullcount>` and the
+   * per-category sub-feed counts, which only the ledger holds.
+   */
+  public getUnreadCountFor(categories: ReadonlySet<NotificationCategory>): number {
+    if (this.lastFeedComplete || this.lastFullCount === null) {
+      // The rows are the whole picture, so count the ones the caller asked for.
+      let sum = 0;
+      for (const item of this.recent.values()) {
+        if (!item.unread) continue;
+        if (categories.has(item.category || 'primary')) sum += 1;
+      }
+      return sum;
+    }
+
+    // A backlog: subtract what the feed reports for the categories the caller
+    // does not want, capped at the total as Atom reports them.
+    let excluded = 0;
+    for (const [category, count] of this.lastCategoryCounts) {
+      if (categories.has(category)) continue;
+      excluded += Math.min(count, this.lastFullCount);
+    }
+    let pending = 0;
+    for (const record of new Set(this.recentlyTriaged.values())) {
+      if (record.countsInTotal === false) continue;
+      if (categories.has(record.category)) pending -= 1;
+    }
+    for (const record of new Set(this.recentlyMarkedUnread.values())) {
+      if (categories.has(record.category)) pending += 1;
+    }
+    return Math.max(0, this.lastFullCount - excluded + pending);
   }
 
   /**
@@ -520,15 +674,23 @@ export class UnreadLedger {
       byCategory.set(cat, (byCategory.get(cat) ?? 0) + 1);
     }
 
-    let activeDisplayed = 0;
-    for (const [cat, count] of byCategory.entries()) {
-      if (this.isCategoryEnabled(cat)) activeDisplayed += count;
-    }
-
-    let total = activeDisplayed;
-    if (this.lastDisplayedUnread !== null) {
+    // When the feed listed everything it counted, the rows are the whole picture
+    // and the stored number is a second copy of the same fact. Two copies drift:
+    // `feedSaysNotUnread` moves a row, a poll rewrites the number, and the next
+    // cache read adds that row's change to a number that already carried it. That
+    // is how a read-then-unread cycle ratcheted the badge upward, and it cleared
+    // only when the feed next listed the message.
+    //
+    // So the rows decide whenever they can. The number stays for a backlog, where
+    // `<fullcount>` exceeds the twenty entries the feed exposes and no list can
+    // account for the rest. Pending local actions are already carried by the rows
+    // in the first case, which is why they are only applied in the second.
+    let total = unreadCount;
+    if (!this.lastFeedComplete && this.lastFullCount !== null) {
+      // A backlog cannot be counted from rows at all, so its number is the feed's
+      // own count corrected by pending local actions.
       total =
-        this.lastDisplayedUnread - this.countPendingTriaged() + this.countPendingMarkedUnread();
+        this.lastFullCount - this.countPendingTriaged(false) + this.countPendingMarkedUnread(false);
     }
 
     const arrivalsIncomplete =
@@ -580,20 +742,22 @@ export class UnreadLedger {
   }
 
   /** Unique reducing triages that still apply to a counted category. */
-  private countPendingTriaged(): number {
+  private countPendingTriaged(onlyCountedCategories: boolean): number {
     const records = new Set<TriagedRecord>();
     for (const record of this.recentlyTriaged.values()) {
       if (record.countsInTotal === false) continue;
-      if (this.isCategoryEnabled(record.category)) records.add(record);
+      if (onlyCountedCategories && !this.isCategoryEnabled(record.category)) continue;
+      records.add(record);
     }
     return records.size;
   }
 
   /** Unique mark-unread records that still apply to a counted category. */
-  private countPendingMarkedUnread(): number {
+  private countPendingMarkedUnread(onlyCountedCategories: boolean): number {
     const records = new Set<MarkedUnreadRecord>();
     for (const record of this.recentlyMarkedUnread.values()) {
-      if (this.isCategoryEnabled(record.category)) records.add(record);
+      if (onlyCountedCategories && !this.isCategoryEnabled(record.category)) continue;
+      records.add(record);
     }
     return records.size;
   }

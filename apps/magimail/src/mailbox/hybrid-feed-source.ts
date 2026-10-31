@@ -23,6 +23,26 @@ import type {
   UnreadBreakdown,
 } from './types.js';
 import { UnreadLedger } from './unread-ledger.js';
+import { saveUnreadCounts } from './unread-count-store.js';
+
+/** How many times a hint re-reads the cache, and how far apart. */
+/** How long to wait before storing changed counts. */
+const COUNTS_PERSIST_DELAY_MS = 3000;
+
+const CACHE_REREAD_ATTEMPTS = 3;
+const CACHE_REREAD_INTERVAL_MS = 100;
+
+/**
+ * How many inbox threads a hint read asks for.
+ *
+ * The reader decodes every row in `_xdb` regardless, and only the slice limits
+ * what comes back, so this costs serialisation and not decoding. It has to cover
+ * the whole inbox: at twenty, a triage on any thread older than the newest twenty
+ * was invisible to the read, and the count waited for the feed instead. Promotions
+ * and Forums are older by nature, which is why they were the categories that
+ * showed it.
+ */
+const CACHE_HINT_MAX_ROWS = 400;
 
 const log = createLogger('HybridFeedSource');
 
@@ -69,10 +89,16 @@ export class HybridFeedSource implements MailboxSource {
   private readonly poller: AtomFeedPoller;
   private readonly threadDriver: ThreadActionDriver;
   private readonly changeListeners = new Set<(event: MailboxChangeEvent) => void>();
+  /** One re-read loop per account, so a burst of hints cannot stack them. */
+  private hintReadInFlight = false;
+  /** One write of the stored counts at a time. */
+  private countPersistTimer: ReturnType<typeof setTimeout> | null = null;
+  private notificationSettings: Record<string, string> = {};
 
   constructor(accountId: string, options: HybridFeedSourceOptions = {}) {
     this.accountId = accountId;
     this.options = options;
+    this.notificationSettings = options.notificationSettings ?? {};
     this.ledger = new UnreadLedger(options.notificationSettings);
 
     const partition =
@@ -121,6 +147,10 @@ export class HybridFeedSource implements MailboxSource {
 
   public getUnreadCounts(): UnreadBreakdown {
     return this.ledger.getBreakdown();
+  }
+
+  public getUnreadCountFor(categories: ReadonlySet<NotificationCategory>): number {
+    return this.ledger.getUnreadCountFor(categories);
   }
 
   public async getRecentMessages(limit = 20): Promise<TrayMessageItem[]> {
@@ -179,7 +209,7 @@ export class HybridFeedSource implements MailboxSource {
     if (view && !view.webContents.isDestroyed()) {
       const before = this.ledger.getBreakdown().total;
       try {
-        const snapshot = await readCachedInboxData(view.webContents, 20);
+        const snapshot = await readCachedInboxData(view.webContents, CACHE_HINT_MAX_ROWS);
         if (snapshot?.messages) {
           this.reportCache(snapshot);
           this.ledger.reconcileWithCache(snapshot.messages, Date.now(), snapshot.asOf);
@@ -192,6 +222,7 @@ export class HybridFeedSource implements MailboxSource {
   }
 
   public updateNotificationSettings(settings: Record<string, string>): void {
+    this.notificationSettings = settings;
     this.ledger.updateNotificationSettings(settings);
     this.poller.updateNotificationSettings(settings);
     this.emitChange({
@@ -239,22 +270,51 @@ export class HybridFeedSource implements MailboxSource {
     await this.refresh();
   }
 
+  /**
+   * Reads the cache again shortly after a hint, until a read sees a change.
+   *
+   * The hint fires about 200ms after the click, and Gmail's write can land after
+   * that, so the first read sometimes carries the old count and the badge waits
+   * for the next hint or the next poll. Reading again is cheap: `getAll` over 500
+   * rows measures 3ms and decoding every byte another 3ms, so three attempts cost
+   * under 20ms spread over 200ms, against a 200ms debounce that is already paid.
+   * A read that sees a change stops the loop.
+   */
   public async handleMailboxChangeHint(): Promise<void> {
-    const view = this.options.getView?.(this.accountId);
-    if (view && !view.webContents.isDestroyed()) {
-      const before = this.ledger.getBreakdown().total;
-      try {
-        const snapshot = await readCachedInboxData(view.webContents, 20);
-        if (snapshot?.messages) {
-          this.reportCache(snapshot);
-          this.ledger.reconcileWithCache(snapshot.messages, Date.now(), snapshot.asOf);
-        }
-      } catch {
-        // Ignore cache failure
-      }
-      this.emitIfCountChanged(before);
-    }
     this.poller.requestImmediatePoll();
+
+    if (this.hintReadInFlight) return;
+    const view = this.options.getView?.(this.accountId);
+    if (!view || view.webContents.isDestroyed()) return;
+
+    this.hintReadInFlight = true;
+    try {
+      for (let attempt = 0; attempt < CACHE_REREAD_ATTEMPTS; attempt += 1) {
+        if (attempt > 0) {
+          await new Promise((resolve) => setTimeout(resolve, CACHE_REREAD_INTERVAL_MS));
+          if (view.webContents.isDestroyed()) return;
+        }
+        const before = this.ledger.getBreakdown().total;
+        let moved = 0;
+        try {
+          const snapshot = await readCachedInboxData(view.webContents, CACHE_HINT_MAX_ROWS);
+          if (snapshot?.messages) {
+            this.reportCache(snapshot);
+            moved = this.ledger.reconcileWithCache(
+              snapshot.messages,
+              Date.now(),
+              snapshot.asOf,
+            ).moved;
+          }
+        } catch {
+          // Ignore cache failure; the poll already requested covers it.
+        }
+        this.emitIfCountChanged(before);
+        if (moved > 0) return;
+      }
+    } finally {
+      this.hintReadInFlight = false;
+    }
   }
 
   private reportCache(snapshot: CachedInboxSnapshot): void {
@@ -277,6 +337,34 @@ export class HybridFeedSource implements MailboxSource {
   private emitIfCountChanged(before: number): void {
     if (this.ledger.getBreakdown().total === before) return;
     this.emitChange({ addedMessageIds: [], removedMessageIds: [], countChanged: true });
+    this.persistCountsSoon();
+  }
+
+  /**
+   * Stores this account's counts shortly after they settle.
+   *
+   * The counts are this source's state, so it keeps them between launches rather
+   * than leaving it to a caller. A launch draws the tray before anything is
+   * polled, and the store is what stops it starting at zero. Sealed through
+   * `unread-count-store`; throttled because a poll changes the count every few
+   * seconds.
+   */
+  private persistCountsSoon(): void {
+    if (this.countPersistTimer) return;
+    this.countPersistTimer = setTimeout(() => {
+      this.countPersistTimer = null;
+      const breakdown = this.ledger.getBreakdown();
+      const enabled = new Set(
+        (['primary', 'updates', 'promotions', 'social', 'forums'] as const).filter(
+          (category) => this.notificationSettings[category] !== 'off',
+        ),
+      );
+      saveUnreadCounts(this.accountId, {
+        total: breakdown.total,
+        badge: this.ledger.getUnreadCountFor(enabled),
+      });
+    }, COUNTS_PERSIST_DELAY_MS);
+    this.countPersistTimer.unref?.();
   }
 
   public async dispatchUniversalSyncNudge(): Promise<void> {

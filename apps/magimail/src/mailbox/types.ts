@@ -22,7 +22,7 @@ export interface MailboxPollEvent {
  * Detailed breakdown of unread mail for an account, filtered by user notification preferences.
  */
 export interface UnreadBreakdown {
-  /** Effective aggregate unread count for badge and menu bar display. */
+  /** Everything unread, in every category. Not filtered by the notification settings. */
   total: number;
   /** Unread count per Gmail category tab. */
   byCategory: Map<NotificationCategory, number>;
@@ -113,6 +113,8 @@ export interface MailboxSource {
    * Returns the current unread count breakdown. Synchronous and 0ms.
    */
   getUnreadCounts(): UnreadBreakdown;
+  /** The unread total filtered by the given categories. */
+  getUnreadCountFor(categories: ReadonlySet<NotificationCategory>): number;
 
   /**
    * The ledger's recent rows, read and unread, for the menu bar popover and widgets.

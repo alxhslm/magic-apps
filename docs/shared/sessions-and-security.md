@@ -217,17 +217,21 @@ failing. CI runs `swift test` for both helpers.
 
 ### Which files are sealed
 
-| File                             | App      | What it holds                                       |
-| :------------------------------- | :------- | :-------------------------------------------------- |
-| `settings.json`                  | both     | every preference the user has set                   |
-| `event-cache.json`               | Magical  | three days of meetings, tens of kilobytes of titles |
-| `alert-state.json`               | Magical  | which alerts have already fired                     |
-| `atom-state/<accountId>.json`    | Magimail | the message ids the poller has already announced    |
-| `theme-preference.json`          | Magimail | the theme choice                                    |
-| `default-client-preference.json` | Magimail | whether the `mailto` prompt was dismissed for good  |
+| File                             | App      | What it holds                                                       |
+| :------------------------------- | :------- | :------------------------------------------------------------------ |
+| `settings.json`                  | both     | every preference the user has set                                   |
+| `event-cache.json`               | Magical  | three days of meetings, tens of kilobytes of titles                 |
+| `alert-state.json`               | Magical  | which alerts have already fired                                     |
+| `atom-state/<accountId>.json`    | Magimail | the message ids the poller has already announced                    |
+| `theme-preference.json`          | Magimail | the theme choice                                                    |
+| `default-client-preference.json` | Magimail | whether the `mailto` prompt was dismissed for good                  |
+| `unread-counts.json`             | Magimail | the last known unread counts, so a launch starts at the real number |
 
 `widget-cache.json`, `accounts.json` and `focus-filter.json` are plaintext; [Local cache
-files](#local-cache-files) says why.
+files](#local-cache-files) says why. The unread counts are sealed in their own file rather than kept
+in `accounts.json` for that reason: the App Intents extension reads the account list for the Focus
+Filter picker and cannot decrypt, so the shared copy carries the account list and nothing else, and
+counts left in an older copy are stripped on load.
 
 ### Key and where it lives
 
@@ -267,8 +271,8 @@ file is present but yields nothing. What happens next depends on the file.
   from.
 - **Every other file is discarded and rebuilt**, each with a log line: the event cache refills on the
   next poll, an empty alert record risks repeating one banner, the poller takes the next feed as its
-  baseline and announces nothing from it, the theme falls back to `system`, and the `mailto` prompt
-  returns once.
+  baseline and announces nothing from it, the theme falls back to `system`, the `mailto` prompt
+  returns once, and the unread counts fall back to zero until the first poll answers.
 
 ## Removing an app
 

@@ -15,6 +15,7 @@ import * as path from 'node:path';
 import * as fs from 'node:fs';
 import {
   prereleaseBuildExpiredMessage,
+  calculateAggregateBadge,
   calculateAggregateUnread,
   configureSecretFiles,
   createMainWindowOptions,
@@ -311,7 +312,13 @@ function handlePollResult(result: MailboxPollEvent): void {
   // The account's MailboxSource has already applied the ledger's count. This
   // refreshes the surfaces that also show arrivals and message lists.
   if (accountsManager) {
-    log.info(`(AtomPoller) Poll ok for ${result.accountId}`);
+    // The count belongs on the line. A poll that answers without one cannot be
+    // matched against the cache read or the tray update by anything reading the
+    // log, and it is the number every regression here has been measured against.
+    // It is the ledger's applied total rather than the feed's, because that is
+    // what the surfaces show.
+    const applied = accountsManager.getMailboxSource(result.accountId)?.getUnreadCounts().total;
+    log.info(`(AtomPoller) Poll ok for ${result.accountId}: applied=${applied ?? 'unknown'}`);
     restrictedAccounts.delete(result.accountId);
 
     // Menu bar and widgets show only what the Focus Filter includes -- their
@@ -736,7 +743,9 @@ function createMainWindow(
     const focused = accountsManager?.getFocusedAccounts() ?? [];
     const total = calculateAggregateUnread(focused);
     updateTrayData(focused, total);
-    updateDockBadge(total);
+    // The menu bar and tray show everything; the dock badge is the attention
+    // surface and counts only categories the user has not silenced.
+    updateDockBadge(calculateAggregateBadge(focused));
   };
   accountsManager.onThreadStateChanged = (isThread) => updateApplicationMenu(preloadPath, isThread);
   accountsManager.onHistoryChanged = () => updateApplicationMenu(preloadPath);

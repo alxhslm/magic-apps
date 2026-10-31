@@ -147,8 +147,9 @@ that arrived. Only ids are stored; nothing downstream needs a time.
 
 The count is also read back before the first poll, because waiting for the first fetch left the badge
 blank for a few seconds at every launch and read as though it had cleared itself. The unread total is
-not seeded this way: `accounts.json` is only written on account events, so its `unreadCount` is
-whatever it was at the last rename or sign-in.
+seeded the same way, from `unread-counts.json`, which the mailbox source writes a few seconds after
+the count settles; [`unread-counts.md`](unread-counts.md#what-survives-a-restart) has the detail.
+`accounts.json` no longer carries a count at all.
 
 ### Poll cadence
 
