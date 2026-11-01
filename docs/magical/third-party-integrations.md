@@ -1,11 +1,10 @@
 # Third-party integrations
 
-Event descriptions, task bodies and meeting invitations frequently contain links to external
-tools, such as task managers (Todoist, Linear, Notion) and video conference providers (Zoom, Microsoft Teams).
+External links clicked in Google Calendar pass through `openExternalUrl` in `links.ts`.
+Tracking redirectors are unwrapped using `@magimail/core`, and meeting links (Zoom and Microsoft
+Teams) are rewritten to native desktop schemes when enabled.
 
-Magical unifies external link dispatch in `openExternalUrl` in `links.ts`, unwrapping redirectors
-via `@magimail/core` before dispatch so desktop clients and conference handlers receive direct URLs.
-The shared redirector unwrapping and Universal Links resolution mechanism is documented in
+The shared redirector unwrapping and Apple Universal Links resolution mechanism is documented in
 [`../shared/third-party-links.md`](../shared/third-party-links.md).
 
 ```mermaid
@@ -13,24 +12,21 @@ flowchart TD
   Trigger["External link trigger<br/>(window.open, will-navigate, joinCall)"] --> Open["openExternalUrl(url)"]
   Open --> Unwrap["unwrapRedirectors(url)<br/>(@magimail/core)"]
   Unwrap --> CallCheck{"Conference call link and<br/>alwaysJoinInBrowser off?"}
+  CallCheck -->|No| Shared["shell.openExternal(unwrappedUrl)<br/>(Shared Universal Links dispatch)"]
   CallCheck -->|Yes| RewriteMeeting["toNativeMeetingUrl(url)<br/>(zoommtg://, msteams://)"]
-  CallCheck -->|No| Universal["shell.openExternal(unwrappedUrl)<br/>macOS Universal Links"]
   RewriteMeeting --> LSCheck{"hasApplicationForUrl<br/>(LaunchServices check)"}
   LSCheck -->|Yes| LaunchNative["shell.openExternal(nativeUrl)<br/>Desktop Application"]
-  LSCheck -->|No| Universal
-  LaunchNative -->|Throws / refused| Universal
-  Universal --> Resolution{"Desktop client installed<br/>for target domain?"}
-  Resolution -->|Yes (apps supporting deep links<br/>including Todoist, Notion, etc.)| App["Desktop Application"]
-  Resolution -->|No| Browser["Default Web Browser"]
+  LSCheck -->|No| Shared
+  LaunchNative -->|Throws / refused| Shared
 ```
 
 ## Desktop apps via Universal Links
 
-Outbound tracking redirectors are unwrapped using `unwrapRedirectors` from `@magimail/core`.
-macOS then resolves Apple Universal Links directly to installed desktop apps (such as Todoist,
-Notion, Linear, Figma, and Slack), falling back to the default web browser when the application
-is not installed. See [`../shared/third-party-links.md`](../shared/third-party-links.md) for the
-shared architecture.
+Magical delegates external link unwrapping and desktop app dispatch to the shared implementation in
+[`../shared/third-party-links.md`](../shared/third-party-links.md). Outbound links in event
+descriptions and tasks have Google tracking prefixes stripped via `@magimail/core`, allowing macOS
+Universal Links to open native desktop clients (such as Todoist, Notion, Linear, Figma, and Slack)
+without opening a browser tab. Non-meeting URLs require no bespoke custom schemes or user toggles.
 
 ## Video conference schemes
 
