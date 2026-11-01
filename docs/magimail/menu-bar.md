@@ -41,16 +41,17 @@ flowchart TD
 
 Helper and main process talk in newline-delimited JSON-RPC over `stdin` and `stdout`:
 
-| Event / Method       | Direction         | Payload                                                        | Action Performed                                                                         |
-| :------------------- | :---------------- | :------------------------------------------------------------- | :--------------------------------------------------------------------------------------- |
-| `tray.update`        | Electron → Helper | `{ accounts: Account[], threads: Thread[], totalUnread: int }` | Updates `TrayModel`, refreshes status item title/unread dot, updates popover view.       |
-| `tray.showThread`    | Helper → Electron | `{ threadId: string, accountId: string }`                      | Switches main window to target account partition and navigates directly to thread.       |
-| `tray.threadAction`  | Helper → Electron | `{ threadId: string, accountId: string, action: string }`      | Archives, trashes, marks read or marks unread that one thread, leaving the window alone. |
-| `tray.compose`       | Helper → Electron | `{ accountId?: string }`                                       | Opens compose window in specified account (or shows account picker if unspecified).      |
-| `tray.search`        | Helper → Electron | `{ query: string, accountId?: string }`                        | Switches to and wakes the named account, then loads the search in its Gmail view.        |
-| `tray.openPrefs`     | Helper (Internal) | None                                                           | Instantiates native `SettingsWindowController` directly in Swift.                        |
-| `tray.popoverOpened` | Helper → Electron | None                                                           | Asks every poller for a hint poll, rate-limited inside the poller.                       |
-| `tray.refresh`       | Helper → Electron | None                                                           | Polls every account now, then pushes `tray.messages` for each so the popover redraws.    |
+| Event / Method          | Direction         | Payload                                                            | Action Performed                                                                         |
+| :---------------------- | :---------------- | :----------------------------------------------------------------- | :--------------------------------------------------------------------------------------- |
+| `tray.update`           | Electron → Helper | `{ accounts: Account[], threads: Thread[], totalUnread: int }`     | Updates `TrayModel`, refreshes status item title/unread dot, updates popover view.       |
+| `tray.showThread`       | Helper → Electron | `{ threadId: string, accountId: string }`                          | Switches main window to target account partition and navigates directly to thread.       |
+| `tray.threadAction`     | Helper → Electron | `{ threadId: string, accountId: string, action: string }`          | Archives, trashes, marks read or marks unread that one thread, leaving the window alone. |
+| `tray.compose`          | Helper → Electron | `{ accountId?: string }`                                           | Opens compose window in specified account (or shows account picker if unspecified).      |
+| `tray.search`           | Helper → Electron | `{ query: string, accountId?: string }`                            | Switches to and wakes the named account, then loads the search in its Gmail view.        |
+| `tray.verificationCode` | Electron → Helper | `{ code: string, service?: string, subject: string, ... } \| null` | Sets or clears the active verification code shown in the popover's hero band.            |
+| `tray.openPrefs`        | Helper (Internal) | None                                                               | Instantiates native `SettingsWindowController` directly in Swift.                        |
+| `tray.popoverOpened`    | Helper → Electron | None                                                               | Asks every poller for a hint poll, rate-limited inside the poller.                       |
+| `tray.refresh`          | Helper → Electron | None                                                               | Polls every account now, then pushes `tray.messages` for each so the popover redraws.    |
 
 ## Status item mechanics
 
@@ -101,6 +102,16 @@ The menu carries none of AppKit's recents tags, `NSSearchFieldRecentsMenuItemTag
 search field reads those tags to manage a recent-search list and rewrites the items carrying them;
 untagged items it passes through as written, which is why plain `NSMenuItem`s behave as an ordinary
 menu here.
+
+### Verification code hero band
+
+When an unread email received within the configured retention duration contains a one-time
+verification code, the popover draws a hero band directly below the header matching Magical's
+hero card. The band carries an accent pill in the account's colour, the sender or service name,
+elapsed time, the code in large monospaced text, and a prominent "Copy" button. Clicking "Copy"
+places the code on `NSPasteboard.general` and shows "Copied" for two seconds; clicking the band
+opens the thread in Magimail. Triaging the message or reaching the expiration duration removes
+the band immediately.
 
 ## Getting a newer list
 

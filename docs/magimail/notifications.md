@@ -95,6 +95,13 @@ anyway.
 `threadIdentifier` is the category, so Notification Center stacks banners per category and a pile of
 promotions can be cleared without disturbing the rest.
 
+### One-time verification codes
+
+When a new unread email contains a one-time verification code, the notification uses the
+`magimail.message.verification` category. This adds a **Copy Code** button in addition to Mark Read
+and Archive. Clicking **Copy Code** copies the code directly to `NSPasteboard.general` without
+bringing the app forward.
+
 ## Which category a thread is in
 
 Category resolution, the primary residue and the failed-fetch fallback are in
