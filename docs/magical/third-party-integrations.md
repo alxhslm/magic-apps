@@ -9,6 +9,9 @@ application is installed, and hands the link directly to the native client.
 
 External link interception is unified in `openExternalUrl` in `links.ts`, covering `window.open`
 requests, top-level in-view navigations (`will-navigate`), and conference join actions (`joinCall`).
+Links clicked inside Google Calendar's web client are wrapped in outbound redirectors (such as
+`www.google.com/url?q=...`), and invitations routed through Exchange carry Outlook Safelinks.
+`unwrapRedirectors` unwraps these wrappers (up to three hops) before pattern matching and dispatch.
 
 ```mermaid
 flowchart TD

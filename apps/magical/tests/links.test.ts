@@ -24,6 +24,7 @@ import {
   openExternalUrl,
   toNativeMeetingUrl,
   toNativeTodoistUrl,
+  unwrapRedirectors,
   withoutQuery,
 } from '../src/links.js';
 
@@ -119,6 +120,42 @@ describe('toNativeTodoistUrl', () => {
     );
     expect(toNativeTodoistUrl('https://example.com')).toBe('https://example.com');
   });
+
+  it('unwraps Google redirector URLs before rewriting', () => {
+    expect(
+      toNativeTodoistUrl(
+        'https://www.google.com/url?q=https://app.todoist.com/app/task/6c33mFGQvgx4Qmmc&usd=1&usg=2',
+      ),
+    ).toBe('todoist://task?id=6c33mFGQvgx4Qmmc');
+    expect(
+      toNativeTodoistUrl(
+        'https://www.google.com/url?q=https://app.todoist.com/app/project/99887766&usd=1',
+      ),
+    ).toBe('todoist://project?id=99887766');
+  });
+});
+
+describe('unwrapRedirectors', () => {
+  it('unwraps Google outbound URLs', () => {
+    expect(unwrapRedirectors('https://www.google.com/url?q=https://example.com/page&usd=1')).toBe(
+      'https://example.com/page',
+    );
+    expect(unwrapRedirectors('https://google.com/url?url=https://example.com/page')).toBe(
+      'https://example.com/page',
+    );
+  });
+
+  it('unwraps Outlook safelinks', () => {
+    expect(
+      unwrapRedirectors(
+        'https://eur02.safelinks.protection.outlook.com/?url=https%3A%2F%2Fexample.com&data=1',
+      ),
+    ).toBe('https://example.com');
+  });
+
+  it('returns plain URLs unchanged', () => {
+    expect(unwrapRedirectors('https://example.com')).toBe('https://example.com');
+  });
 });
 
 describe('openExternalUrl', () => {
@@ -134,6 +171,14 @@ describe('openExternalUrl', () => {
     await openExternalUrl('https://app.todoist.com/app/task/6372819283');
     expect(hasApplicationForUrl).toHaveBeenCalledWith('todoist://task?id=6372819283');
     expect(openExternal).toHaveBeenCalledWith('todoist://task?id=6372819283');
+  });
+
+  it('unwraps and opens Google redirector wrapped Todoist task links', async () => {
+    await openExternalUrl(
+      'https://www.google.com/url?q=https://app.todoist.com/app/task/6c33mFGQvgx4Qmmc&usd=123',
+    );
+    expect(hasApplicationForUrl).toHaveBeenCalledWith('todoist://task?id=6c33mFGQvgx4Qmmc');
+    expect(openExternal).toHaveBeenCalledWith('todoist://task?id=6c33mFGQvgx4Qmmc');
   });
 
   it('falls back to browser when Todoist app is missing', async () => {

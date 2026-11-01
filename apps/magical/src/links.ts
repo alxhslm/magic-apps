@@ -43,21 +43,49 @@ export function withoutQuery(rawUrl: string): string {
 }
 
 /**
+ * Unwraps redirector URLs (e.g. Google's outbound `google.com/url?q=` or Outlook Safelinks)
+ * to reveal the destination URL.
+ */
+export function unwrapRedirectors(rawUrl: string): string {
+  let url = rawUrl;
+  for (let hop = 0; hop < 3; hop++) {
+    let parsed: URL;
+    try {
+      parsed = new URL(url);
+    } catch {
+      return url;
+    }
+    const isGoogle = parsed.hostname === 'google.com' || parsed.hostname.endsWith('.google.com');
+    const isSafelinks = parsed.hostname.endsWith('safelinks.protection.outlook.com');
+    const inner =
+      isGoogle && parsed.pathname === '/url'
+        ? parsed.searchParams.get('q') || parsed.searchParams.get('url')
+        : isSafelinks
+          ? parsed.searchParams.get('url')
+          : null;
+    if (!inner) return url;
+    url = inner;
+  }
+  return url;
+}
+
+/**
  * Rewrites a recognised video conference web URL to its native desktop scheme.
  *
  * Zoom and Teams support custom schemes that join the meeting in the native client
  * directly. Google Meet has no native client and Webex is kept in the browser.
  */
 export function toNativeMeetingUrl(url: string): string {
-  const zoom = /^https?:\/\/[^/]*zoom\.us\/[jw]\/(\d+)/.exec(url);
+  const unwrapped = unwrapRedirectors(url);
+  const zoom = /^https?:\/\/[^/]*zoom\.us\/[jw]\/(\d+)/.exec(unwrapped);
   if (zoom) {
-    const pwd = /[?&]pwd=([^&]+)/.exec(url)?.[1];
+    const pwd = /[?&]pwd=([^&]+)/.exec(unwrapped)?.[1];
     return `zoommtg://zoom.us/join?action=join&confno=${zoom[1]}${pwd ? `&pwd=${pwd}` : ''}`;
   }
-  if (/^https?:\/\/teams\.(microsoft|live)\.com\//.test(url)) {
-    return url.replace(/^https?:\/\//, 'msteams://');
+  if (/^https?:\/\/teams\.(microsoft|live)\.com\//.test(unwrapped)) {
+    return unwrapped.replace(/^https?:\/\//, 'msteams://');
   }
-  return url;
+  return unwrapped;
 }
 
 /**
@@ -69,14 +97,16 @@ export function toNativeMeetingUrl(url: string): string {
  * - `https://todoist.com/showTask?id=<id>` -> `todoist://task?id=<id>`
  * - `https://todoist.com/showProject?id=<id>` -> `todoist://project?id=<id>`
  *
+ * Outbound wrapper redirectors (such as `www.google.com/url?q=...`) are unwrapped before matching.
  * Anything else (e.g. settings, pricing, invalid IDs) is returned unchanged.
  */
 export function toNativeTodoistUrl(url: string): string {
+  const unwrapped = unwrapRedirectors(url);
   try {
-    const parsed = new URL(url);
+    const parsed = new URL(unwrapped);
     const host = parsed.hostname.toLowerCase();
     if (host !== 'todoist.com' && host !== 'app.todoist.com' && !host.endsWith('.todoist.com')) {
-      return url;
+      return unwrapped;
     }
 
     const pathname = parsed.pathname;
@@ -109,9 +139,9 @@ export function toNativeTodoistUrl(url: string): string {
       }
     }
 
-    return url;
+    return unwrapped;
   } catch {
-    return url;
+    return unwrapped;
   }
 }
 
@@ -119,23 +149,24 @@ export function toNativeTodoistUrl(url: string): string {
  * Dispatches an external URL to macOS.
  *
  * Shared click gate used by `window.open`, in-view navigation, and the Join Call button.
- * Meeting URLs and Todoist URLs are rewritten to their native desktop schemes if enabled
- * in settings. If macOS has an application registered for the native scheme, it is launched;
- * if no application is registered or the client throws, it falls back to opening the web URL
- * in the system default browser.
+ * Meeting URLs and Todoist URLs are unwrapped from redirectors (such as Google outbound links)
+ * and rewritten to their native desktop schemes if enabled in settings. If macOS has an application
+ * registered for the native scheme, it is launched; if no application is registered or the client
+ * throws, it falls back to opening the web URL in the system default browser.
  */
 export async function openExternalUrl(rawUrl: string): Promise<void> {
+  const unwrappedUrl = unwrapRedirectors(rawUrl);
   const settings = loadSettings();
-  let native = rawUrl;
+  let native = unwrappedUrl;
 
   if (!settings.alwaysJoinInBrowser) {
     native = toNativeMeetingUrl(native);
   }
-  if (settings.openTodoistInDesktopApp && native === rawUrl) {
+  if (settings.openTodoistInDesktopApp && native === unwrappedUrl) {
     native = toNativeTodoistUrl(native);
   }
 
-  if (native !== rawUrl) {
+  if (native !== unwrappedUrl) {
     const scheme = native.split(':')[0];
     if (hasApplicationForUrl(native)) {
       try {
@@ -150,8 +181,8 @@ export async function openExternalUrl(rawUrl: string): Promise<void> {
   }
 
   try {
-    await shell.openExternal(rawUrl);
+    await shell.openExternal(unwrappedUrl);
   } catch (err) {
-    log.error('Could not open external link:', redactUrl(rawUrl), err);
+    log.error('Could not open external link:', redactUrl(unwrappedUrl), err);
   }
 }

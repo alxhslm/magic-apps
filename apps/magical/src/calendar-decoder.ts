@@ -10,6 +10,9 @@
 
 import { createLogger } from '@magimail/core/logger';
 import { colourForId } from './google-colours.js';
+import { unwrapRedirectors } from './links.js';
+
+export { unwrapRedirectors } from './links.js';
 
 const log = createLogger('CalendarDecoder');
 
@@ -467,28 +470,6 @@ export class CalendarDecodeError extends Error {
     super(message);
     this.name = 'CalendarDecodeError';
   }
-}
-
-/** Google wraps outbound description links, and Exchange wraps them again. */
-export function unwrapRedirectors(rawUrl: string): string {
-  let url = rawUrl;
-  for (let hop = 0; hop < 3; hop++) {
-    let parsed: URL;
-    try {
-      parsed = new URL(url);
-    } catch {
-      return url;
-    }
-    const inner =
-      parsed.hostname === 'www.google.com' && parsed.pathname === '/url'
-        ? parsed.searchParams.get('q')
-        : parsed.hostname.endsWith('safelinks.protection.outlook.com')
-          ? parsed.searchParams.get('url')
-          : null;
-    if (!inner) return url;
-    url = inner;
-  }
-  return url;
 }
 
 /**
