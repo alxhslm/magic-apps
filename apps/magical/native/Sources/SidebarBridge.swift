@@ -290,6 +290,18 @@ public struct DayCompanionHeaderView: View {
 
 // MARK: - Day Focused Events List
 
+public struct TimedEventCluster: Identifiable {
+    public let id: String
+    public let events: [TrayEvent]
+    public var isConcurrent: Bool {
+        events.count > 1
+    }
+
+    public var startTime: Date {
+        events.first?.startTime ?? Date()
+    }
+}
+
 public struct DayFocusedEventsList: View {
     let events: [TrayEvent]
     let date: Date
@@ -298,10 +310,36 @@ public struct DayFocusedEventsList: View {
         Calendar.current.isDateInToday(date)
     }
 
+    private var allDayEvents: [TrayEvent] {
+        events.filter(\.isAllDay)
+    }
+
+    private var timedEvents: [TrayEvent] {
+        events.filter { !$0.isAllDay }.sorted(by: { $0.startTime < $1.startTime })
+    }
+
+    private var clusters: [TimedEventCluster] {
+        var result: [TimedEventCluster] = []
+        var i = 0
+        while i < timedEvents.count {
+            var current = [timedEvents[i]]
+            var j = i + 1
+            var maxEnd = timedEvents[i].endTime
+            while j < timedEvents.count, timedEvents[j].startTime < maxEnd {
+                current.append(timedEvents[j])
+                maxEnd = max(maxEnd, timedEvents[j].endTime)
+                j += 1
+            }
+            result.append(TimedEventCluster(id: current[0].id, events: current))
+            i = j
+        }
+        return result
+    }
+
     public var body: some View {
         ScrollView(.vertical, showsIndicators: true) {
             LazyVStack(spacing: 8) {
-                if events.isEmpty {
+                if allDayEvents.isEmpty, timedEvents.isEmpty {
                     VStack(spacing: 6) {
                         Image(systemName: "calendar")
                             .font(.system(size: 22))
@@ -313,28 +351,63 @@ public struct DayFocusedEventsList: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 40)
                 } else {
-                    let now = Date()
-                    let nowIndex = events.firstIndex { $0.startTime > now } ?? events.count
+                    // 1. Pinned All-Day Banners at the top
+                    if !allDayEvents.isEmpty {
+                        VStack(spacing: 4) {
+                            ForEach(allDayEvents, id: \.identity) { event in
+                                AllDayBannerView(
+                                    event: event,
+                                    onSelect: { ActionBridge.emit("sidebarOpenEvent", event.id) },
+                                    onDelete: nil
+                                )
+                            }
+                        }
+                        .padding(.bottom, timedEvents.isEmpty ? 0 : 2)
+                    }
 
-                    ForEach(0 ..< events.count, id: \.self) { idx in
-                        let event = events[idx]
+                    // 2. Timed Events (with side-by-side tiles for concurrent events)
+                    let now = Date()
+                    let eventClusters = clusters
+                    let nowClusterIndex = eventClusters.firstIndex { $0.startTime > now } ?? eventClusters.count
+
+                    ForEach(0 ..< eventClusters.count, id: \.self) { idx in
+                        let cluster = eventClusters[idx]
                         VStack(spacing: 6) {
-                            if isToday, idx == nowIndex {
+                            if isToday, idx == nowClusterIndex {
                                 nowRule(now)
                             }
 
-                            EventCardView(
-                                event: event,
-                                onSelect: { ActionBridge.emit("sidebarOpenEvent", event.id) },
-                                onJoinCall: { ActionBridge.emit("sidebarJoinCall", $0) },
-                                onRsvp: { _ in },
-                                onDelete: nil,
-                                onComplete: nil
-                            )
+                            if cluster.events.count == 2 {
+                                // Side-by-side presentation for 2 concurrent overlapping events
+                                HStack(spacing: 6) {
+                                    ForEach(cluster.events, id: \.identity) { event in
+                                        CompactEventTileView(
+                                            event: event,
+                                            onSelect: { ActionBridge.emit("sidebarOpenEvent", event.id) },
+                                            onJoinCall: { ActionBridge.emit("sidebarJoinCall", $0) },
+                                            onRsvp: { _ in },
+                                            onDelete: nil,
+                                            onComplete: nil
+                                        )
+                                    }
+                                }
+                            } else {
+                                // Full width cards for single events or clusters of 3+
+                                ForEach(cluster.events, id: \.identity) { event in
+                                    EventCardView(
+                                        event: event,
+                                        onSelect: { ActionBridge.emit("sidebarOpenEvent", event.id) },
+                                        onJoinCall: { ActionBridge.emit("sidebarJoinCall", $0) },
+                                        onRsvp: { _ in },
+                                        onDelete: nil,
+                                        onComplete: nil
+                                    )
+                                }
+                            }
                         }
                     }
 
-                    if isToday, nowIndex == events.count {
+                    if isToday, nowClusterIndex == eventClusters.count, !timedEvents.isEmpty || !allDayEvents.isEmpty {
                         nowRule(now)
                     }
                 }

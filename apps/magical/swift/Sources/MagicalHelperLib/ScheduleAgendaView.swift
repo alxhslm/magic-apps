@@ -276,16 +276,27 @@ public struct ScheduleAgendaView: View {
                     }
                 }
 
-            // Right column: Stack of Apple HIG Event Cards
+            // Right column: Stack of Apple HIG Event Cards and All-Day Banners
             VStack(spacing: 6) {
+                let allDayEvents = group.events.filter(\.isAllDay)
+                let timedEvents = group.events.filter { !$0.isAllDay }
+
+                // Pinned all-day banners at the top of the day
+                ForEach(allDayEvents, id: \.identity) { event in
+                    AllDayBannerView(
+                        event: event,
+                        onSelect: { onSelectEvent(event) },
+                        onDelete: onDeleteEvent
+                    )
+                }
+
                 let now = Date()
                 let isToday = Calendar.current.isDateInToday(group.date)
-                // Before the first thing that has not started. A meeting under way began
-                // before now, so it belongs above the rule; an all-day entry starts at
-                // midnight and stays at the top where it is read.
-                let nowIndex = group.events.firstIndex { $0.startTime > now } ?? group.events.count
+                // Before the first timed meeting that has not started. All-day banners are
+                // pinned above, so the now rule operates strictly among timed meetings.
+                let nowIndex = timedEvents.firstIndex { $0.startTime > now } ?? timedEvents.count
 
-                ForEach(Array(group.events.enumerated()), id: \.element.identity) { index, event in
+                ForEach(Array(timedEvents.enumerated()), id: \.element.identity) { index, event in
                     if isToday, index == nowIndex {
                         nowRule(now)
                     }
@@ -300,7 +311,7 @@ public struct ScheduleAgendaView: View {
                 }
 
                 // The day is done; the rule sits under the last of it.
-                if isToday, nowIndex == group.events.count {
+                if isToday, nowIndex == timedEvents.count, !timedEvents.isEmpty || !allDayEvents.isEmpty {
                     nowRule(now)
                 }
             }
