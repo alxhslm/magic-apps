@@ -54,4 +54,4 @@ supporting external tools requires no per-app custom schemes or individual user 
   [`../magimail/overview.md`](../magimail/overview.md) unwrap redirectors before calling `shell.openExternal`.
 - **Magical**: Outbound links in event descriptions and tasks pass through `openExternalUrl` in
   `links.ts`. Magical also rewrites video conference links (Zoom and Microsoft Teams) to native
-  custom schemes; see [`../magical/third-party-integrations.md`](../magical/third-party-integrations.md).
+  custom schemes; see [`../magical/conference-links.md`](../magical/conference-links.md).

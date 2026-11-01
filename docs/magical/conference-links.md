@@ -50,15 +50,31 @@ than thrown away.
 
 ## From web URL to desktop client
 
-Zoom and Microsoft Teams links can open in their native desktop applications. Google Meet and Webex
-remain in the browser: Meet has no desktop app, and Webex is opened as a web session.
+`toNativeMeetingUrl(url)` in `calendar-service.ts` is the only place a scheme is rewritten.
 
-URL rewriting, LaunchServices verification and fallback handling are unified in `openExternalUrl` and
-documented in [`third-party-integrations.md`](third-party-integrations.md).
-[`third-party-integrations.md`'s Supported providers](third-party-integrations.md#supported-providers)
-details the scheme transformations for Zoom (`zoommtg://`) and Teams (`msteams://`), and
-[`third-party-integrations.md`'s LaunchServices verification and fallback](third-party-integrations.md#launchservices-verification-and-fallback)
-describes the native `NSWorkspace` check and browser fallback.
+| Provider            | Matched                                   | What is launched                                                                         |
+| :------------------ | :---------------------------------------- | :--------------------------------------------------------------------------------------- |
+| **Zoom**            | `zoom.us/j/<id>` or `zoom.us/w/<id>`      | `zoommtg://zoom.us/join?action=join&confno=<id>`, plus `&pwd=` when the link carried one |
+| **Microsoft Teams** | `teams.microsoft.com` or `teams.live.com` | The same URL with `https://` replaced by `msteams://`                                    |
+| **Google Meet**     | None                                      | Unchanged. Meet has no desktop app; its web client is the real one                       |
+| **Webex**           | None                                      | Unchanged. Recognised as joinable, opened in the browser                                 |
+
+### Asking macOS whether the client is installed
+
+`hasApplicationForUrl` in `native-handlers.ts` puts a rewritten URL to
+`NSWorkspace.URLForApplicationToOpenURL:` before it is launched, and `joinCall` opens the web URL when
+nothing answers. Invitations arrive from people on platforms the user has never installed, so a Teams
+link on a machine with no Teams client is the ordinary case rather than the edge; it opens a browser
+tab rather than the system's "no application is set to open the URL" dialog and no meeting. Only a
+rewritten URL is asked about: a Meet or Webex link comes back from `toNativeMeetingUrl` unchanged,
+and there is nothing to fall back from.
+
+The question goes through the N-API addon, `magical_addon.node`, because Electron cannot reach
+LaunchServices; it is the same bridge that draws the dock tile
+([`dock-icon.md`'s The drawing engine](dock-icon.md#drawing-engine)). One answer is kept per
+scheme for as long as the app runs, so a client installed halfway through a session is not used until
+the next launch. The answer is no when the addon cannot be asked at all, so a build with no addon
+joins in the browser.
 
 ## Opening in the browser instead
 
@@ -78,16 +94,22 @@ flowchart LR
 
   Action --> Join["CalendarService.joinCall"]
   Handler --> Join
-  Join --> Dispatch["openExternalUrl(url)<br/>(third-party-integrations.md)"]
+  Join --> Pref{"alwaysJoinInBrowser"}
+  Pref -->|on| Web["shell.openExternal(webUrl)"]
+  Pref -->|off| Installed{"client installed?"}
+  Installed -->|no| Web
+  Installed -->|yes| Native["shell.openExternal(nativeUrl)"]
 ```
 
 The tray's handler rewrites nothing itself; it calls `this.getCalendarService()?.joinCall(url)`, so a
 call joined from the popover, from an agenda card or from the status item honours the preference
 exactly as a banner does.
 
-`joinCall` never rejects, whichever way it ends; callers discard the promise, so any launch or
-network failure is logged rather than surfaced as an unhandled rejection that leaves the user with a
-Join button that does nothing.
+The diagram leaves out one edge: a client macOS named can still refuse to launch, because a
+registration outlives the app it points at. `shell.openExternal` rejects when it does, and the web URL
+is opened instead. `joinCall` never rejects, whichever way it ends; both callers discard the promise,
+so a throw would reach the log as an unhandled rejection and the user would see a Join button that
+does nothing.
 
 ## Where the join controls are
 
