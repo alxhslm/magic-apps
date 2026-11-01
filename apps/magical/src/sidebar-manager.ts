@@ -131,6 +131,7 @@ export class SidebarManager {
         for (const [accountId, events] of this.cachedEvents.entries()) {
           const evt = events.find((e) => e.id === eventId);
           if (evt) {
+            manager.switchAccount(accountId);
             void manager.revealEvent(accountId, eventId, evt.startTime);
             break;
           }

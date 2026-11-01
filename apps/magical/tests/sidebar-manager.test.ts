@@ -65,6 +65,7 @@ describe('SidebarManager', () => {
       updateLayout: vi.fn(),
       navigateToDate: vi.fn().mockResolvedValue(true),
       revealEvent: vi.fn().mockResolvedValue('revealed'),
+      switchAccount: vi.fn(),
       getActiveAccountId: vi.fn().mockReturnValue('acc_personal'),
     };
   });
@@ -194,6 +195,7 @@ describe('SidebarManager', () => {
     ]);
     manager.updateEvents(events);
     manager.handleSidebarAction('sidebarOpenEvent', 'evt_special');
+    expect(mockAccountsManager.switchAccount).toHaveBeenCalledWith('acc_personal');
     expect(mockAccountsManager.revealEvent).toHaveBeenCalledWith(
       'acc_personal',
       'evt_special',
