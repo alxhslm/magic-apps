@@ -10,8 +10,8 @@
     "clean": "rm -rf _site"
   },
   "devDependencies": {
-    "@astrojs/starlight": "^0.42.6",
-    "astro": "^7.4.0",
-    "wrangler": "^4.152.0"
+    "@astrojs/starlight": "^0.42.7",
+    "astro": "^7.4.4",
+    "wrangler": "^4.155.0"
   }
 }

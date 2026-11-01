@@ -123,6 +123,38 @@ struct NotificationControllerTests {
         #expect(NotificationController.makeContent(params: params) == nil)
     }
 
+    @Test func everyRegisteredActionHasAnEventMapping() {
+        let registered = NotificationController.makeCategories()
+            .flatMap(\.actions)
+            .map(\.identifier)
+        #expect(Set(registered) == Set([
+            NotificationController.joinAction,
+            NotificationController.snoozeAction,
+            NotificationController.rsvpYes,
+            NotificationController.rsvpMaybe,
+            NotificationController.rsvpNo,
+        ]))
+
+        let userInfo: [String: Any] = [
+            "key": "meeting_123",
+            "accountId": "acc_work",
+        ]
+        for identifier in registered {
+            #expect(
+                NotificationController.makeActionPayload(
+                    actionIdentifier: identifier,
+                    userInfo: userInfo
+                ) != nil
+            )
+        }
+        #expect(
+            NotificationController.makeActionPayload(
+                actionIdentifier: UNNotificationDefaultActionIdentifier,
+                userInfo: userInfo
+            ) != nil
+        )
+    }
+
     @Test func makeActionPayloadMapsIdentifiersAndExtractsUserInfo() throws {
         let userInfo: [String: Any] = [
             "key": "meeting_123",

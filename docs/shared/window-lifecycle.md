@@ -16,13 +16,13 @@ flowchart TD
 
 `createMainWindowOptions` in `packages/core/src/window.ts` builds a hidden `BaseWindow` with `titleBarStyle: 'hiddenInset'` and sidebar vibrancy. It has no web engine of its own, so the shell starts no renderer where a `BrowserWindow` would.
 
-Each account's page is a `WebContentsView` on that account's partition. Only the account on screen is attached, because a view is transparent until it paints. The views keep `backgroundThrottling: false` in their `webPreferences` so Chromium does not freeze their rendering pipelines while idle.
+Each account's page is a `WebContentsView` on that account's partition. Only the account on screen is attached, because a view is transparent until it paints. Both apps leave `backgroundThrottling` at its default, and that is deliberate. Turning it off is what leaves a view blank: `setBackgroundThrottling(false)` on a view whose window is hidden calls `RenderWidgetHostImpl::WasShown()` directly, bypassing the view, so `BrowserCompositorMac`/`DelegatedFrameHost` never embed the surface the renderer is submitting to ([#42378](https://github.com/electron/electron/issues/42378), fixed upstream in [#52844](https://github.com/electron/electron/pull/52844), regression-tested by `capturePage` rejecting with "Current display surface not available for capture"). The cost of the default is throttled timers in a view that is off screen or covered, which the pool only keeps for the five minutes before it releases them; the view on screen is never throttled.
 
 ## Account renderer lifetime
 
 The pool builds a view when an account is first switched to. When an account leaves the screen it arms a timer for `inactiveAccountSuspendMinutes`, 5 minutes by default; switching back before it fires cancels the timer. When it fires, the pool remembers the view's URL, detaches the view, calls the app's `onRelease`, and closes the `WebContents`. That close is the only thing that returns renderer memory ([measurements](performance-optimisation.md#what-actually-reclaims-renderer-memory-measured)).
 
-`SUSPEND_NEVER` (`0`, the Settings "Never") arms no timer. `suspendAllAccounts` releases every view and runs on quit.
+`SUSPEND_NEVER` (`0`, the Settings "Never") arms no timer. `suspendAllAccounts` releases every view; it runs on quit, and when the main window closes, so a closed window leaves no renderer per account behind and no timer to fire against a destroyed window.
 
 The account on screen is spared the timer only while the window is visible, so a hidden or tray-only app holds no renderer. A window built hidden fires no `hide`, so the app calls `handleWindowHidden` itself.
 
@@ -30,7 +30,13 @@ The account on screen is spared the timer only while the window is visible, so a
 
 A `WebContentsView` on macOS can occasionally stop presenting frames to its window while its underlying renderer process continues running and handling DOM actions. Calling `webContents.reload()` reuses the same `WebContents` and compositor pipeline, leaving the window blank.
 
-Tearing down the dead `WebContents` and constructing a replacement through `RendererPool.rebuildView` (which removes the view with `rememberUrl: true` and calls `attachOnly`) rebuilds the view on a fresh compositor surface while preserving the route the user was on. In both Magimail and Magical, `reloadActiveView()` / `reloadActive()` (invoked via `Cmd+R` or the View menu) drives this rebuild.
+Tearing down the dead `WebContents` and constructing a replacement through `RendererPool.rebuildView` (which removes the view with `rememberUrl: true` and calls `attachOnly`) rebuilds the view on a fresh compositor surface while preserving the route the user was on. Both apps call it (`reloadActiveView()` in Magimail, `reloadActive()` in Magical) from the Settings toggles that change Google's own layout and from the wake-from-sleep handler.
+
+A reload request is different, and in both apps it rebuilds the whole window: `reloadCalendar` in `apps/magical/src/main.ts`, `reloadMailbox` in `apps/magimail/src/main.ts`. The log shows why the cheaper view rebuild is not enough on its own: on 29 October twenty of them ran in twenty seconds, each detaching, creating, attaching and navigating, and the window stayed blank until it was closed and rebuilt. A reload request is a user asking for their calendar or mail back, so it does the repair that works, at the cost of a page load and a blink of the window. Both apps remove the old window with `close()` rather than `destroy()`, so its `close` handlers still run; Magimail's tray handler checks `isRebuilding()` and lets the close through, because otherwise it turns the close into a hide and the hidden window keeps the blank page.
+
+Neither app watches for this in the background. Detecting it means capturing the view's compositor on a timer, about 17 MB of frame every ten seconds, and a wrong verdict rebuilds a window that was fine in a way that looks exactly like the fault; every other Electron app leaves it to the user, and so do these two. The repair is the reload request, and the diagnostics that make the next occurrence legible are logged instead: window shown and hidden, `child-process-gone`, and display changes ([logging.md](logging.md#crash-capture)).
+
+A blank window with a page that paints is the other case, and no repair in the app reaches it, because the fault is then above the renderer in the window server. A fresh window that comes up blank is the signal to relaunch rather than reload.
 
 ## RendererPool and its spec
 

@@ -65,6 +65,25 @@ describe('sidebar-driven mailbox unread observer contract', () => {
     expect(preloadSource).not.toMatch(/onTitleMutation/);
   });
 
+  it('re-binds the message-list observer whenever Gmail replaces the container', () => {
+    // Gmail removes and rebuilds `div[role="main"]` when the view changes, and an
+    // observer bound to the old node never fires again. Bound once, a category
+    // view sent no hint at all, so its triage waited for a poll while the same
+    // triage in the inbox moved in a third of a second. Every category tab and
+    // every label view depends on this.
+    expect(preloadSource).toContain('ensureMainObserver');
+    // Re-bound on navigation, which is how Gmail announces a view change...
+    expect(preloadSource).toMatch(/addEventListener\(\s*'hashchange'\s*,\s*ensureMainObserver/);
+    // ...and from the sidebar mutation callback, for a view change Gmail does not
+    // route through the hash.
+    const from = preloadSource.indexOf('const attachObserver');
+    const sidebarCallback = preloadSource.slice(
+      from,
+      preloadSource.indexOf('queueSidebarScan();', from),
+    );
+    expect(sidebarCallback).toContain('ensureMainObserver()');
+  });
+
   it('coalesces DOM changes with a short debounce and dispatches DOM_UNREAD_UPDATE', () => {
     expect(preloadSource).toContain('IPC_CHANNELS.DOM_UNREAD_UPDATE');
     expect(preloadSource).toMatch(/setTimeout\(\s*\(\)\s*=>\s*\{[\s\S]*?20\s*\)/);

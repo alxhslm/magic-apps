@@ -156,11 +156,11 @@ Two corollaries:
   `loadURL` is what saves memory. Deferring construction is only tidiness.
 - **Suspension is invisible to notifications.** `session.fromPartition(...).fetch()` on a partition
   with zero `WebContentsView`s returns 200; see
-  [Notification sync architecture](#notification-sync-architecture-partition-authenticated-atom-feed-vs-heavy-imaprest).
+  [Notification sync architecture](#notification-sync-architecture-partition-authenticated-feed-vs-heavy-imaprest).
 
-## Notification sync architecture: partition-authenticated Atom feed vs. heavy IMAP/REST
+## Notification sync architecture: partition-authenticated feed vs. heavy IMAP/REST
 
-Magimail polls Gmail's partition-authenticated Atom XML feed rather than holding IMAP IDLE sockets
+Magimail polls Gmail's partition-authenticated XML feed rather than holding IMAP IDLE sockets
 open or polling the OAuth REST API. The feed delivers notifications without keeping a connection open,
 and without spending memory or CPU on a background sync.
 
@@ -177,7 +177,7 @@ When it polls:
 | :----------- | :------------------------------------------------------------------------------------- |
 | AC power     | 60 s by default, configurable as `pollIntervalSeconds`                                 |
 | Battery      | 180 s by default (`pollIntervalBatterySeconds`), via `powerMonitor.isOnBatteryPower()` |
-| Window focus | Deliberately ignored: the interval is applied literally (`atom-poller.ts`)             |
+| Window focus | 5 s on AC, 8 s on battery for the focused account (`the poller`)                       |
 | Suspended    | Paused on suspend, with an immediate fetch on resume                                   |
 
 The poller is decoupled from the renderers. Polling runs directly in the Node.js main process using
@@ -217,7 +217,7 @@ projected. "Idle" is after the inactive account has aged out (see
 
 With the window hidden (tray-only), the active account ages out too and the total falls to **~530
 MB**: no Gmail renderers at all, with badges and notifications still arriving from the main-process
-Atom pollers.
+Mailbox pollers.
 
 ### Remaining opportunities
 

@@ -197,9 +197,21 @@ extension NotificationControllerBase: UNUserNotificationCenterDelegate {
     ) {
         let userInfo = response.notification.request.content.userInfo
         let actionIdentifier = response.actionIdentifier
+        let messageId = userInfo["messageId"] as? String
+            ?? userInfo["key"] as? String
+            ?? ""
+
+        HelperLog.info(
+            "Notifications",
+            "Response received: action=\(actionIdentifier) id=\(messageId)"
+        )
 
         Task { @MainActor in
             guard let event = notificationEvent(actionIdentifier: actionIdentifier, userInfo: userInfo) else {
+                HelperLog.warn(
+                    "Notifications",
+                    "No event for action=\(actionIdentifier) id=\(messageId); response dropped"
+                )
                 return
             }
             sendEvent(method: event.method, params: event.params)

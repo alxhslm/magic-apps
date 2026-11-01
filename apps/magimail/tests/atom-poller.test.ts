@@ -148,6 +148,17 @@ describe('Atom XML Parser', () => {
     expect(entries[1].from).toBe('John Connor <john@resistance.org>');
   });
 
+  it('reads the root feed modified time as the data boundary', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://purl.org/atom/ns#" version="0.3">
+  <fullcount>0</fullcount>
+  <modified>2026-09-05T11:40:00Z</modified>
+</feed>`;
+
+    const { feedModified } = parseAtomXml(xml);
+    expect(feedModified).toBe('2026-09-05T11:40:00Z');
+  });
+
   it('handles empty feed with 0 count', () => {
     const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <feed xmlns="http://purl.org/atom/ns#" version="0.3">
@@ -259,7 +270,7 @@ describe('AtomFeedPoller', () => {
     await poller.pollNow();
 
     expect(pollResults.length).toBe(1);
-    expect(pollResults[0].totalUnread).toBe(1);
+    expect(pollResults[0].rawFullCount).toBe(1);
     // Initial run establishes baseline; newMessages should be empty so we do not spam notifications on launch
     expect(pollResults[0].newMessages.length).toBe(0);
 
@@ -306,7 +317,7 @@ describe('AtomFeedPoller', () => {
     await poller.pollNow();
 
     expect(pollResults.length).toBe(2);
-    expect(pollResults[1].totalUnread).toBe(2);
+    expect(pollResults[1].rawFullCount).toBe(2);
     expect(pollResults[1].newMessages.length).toBe(1);
     expect(pollResults[1].newMessages[0].id).toBe('msg2');
     expect(pollResults[1].newMessages[0].subject).toBe('Urgent Update');
@@ -344,8 +355,8 @@ describe('AtomFeedPoller', () => {
     await poller.pollNow();
     await poller.pollNow();
 
-    expect(pollResults[0].totalUnread).toBe(3);
-    expect(pollResults[1].totalUnread).toBe(2);
+    expect(pollResults[0].rawFullCount).toBe(3);
+    expect(pollResults[1].rawFullCount).toBe(2);
     // Nothing arrived, so no notification should fire on the way down.
     expect(pollResults[1].newMessages.length).toBe(0);
 
@@ -430,7 +441,7 @@ describe('AtomFeedPoller', () => {
     poller.stop();
   });
 
-  it('login-page HTML response returns auth_required and does not zero previous count', async () => {
+  it('login-page HTML response reports auth_required', async () => {
     const validXml = `<?xml version="1.0" encoding="UTF-8"?><feed><fullcount>5</fullcount></feed>`;
     const loginHtml = `<!DOCTYPE html><html><head><title>Sign in</title></head><body>Login</body></html>`;
 
@@ -454,18 +465,18 @@ describe('AtomFeedPoller', () => {
     await poller.pollNow();
     expect(pollResults.length).toBe(1);
     expect(pollResults[0].status).toBe('ok');
-    expect(pollResults[0].totalUnread).toBe(5);
+    expect(pollResults[0].rawFullCount).toBe(5);
 
     // 2. Second poll returns login HTML: must NOT report 0 unread!
     await poller.pollNow();
     expect(pollResults.length).toBe(2);
     expect(pollResults[1].status).toBe('auth_required');
-    expect(pollResults[1].totalUnread).toBe(5); // Retained previous count!
+    expect(pollResults[1].rawFullCount).toBeUndefined();
 
     poller.stop();
   });
 
-  it('401 response retains previous unread count', async () => {
+  it('401 response reports auth_required', async () => {
     const validXml = `<?xml version="1.0" encoding="UTF-8"?><feed><fullcount>3</fullcount></feed>`;
 
     mockFetch
@@ -485,11 +496,11 @@ describe('AtomFeedPoller', () => {
     });
 
     await poller.pollNow();
-    expect(pollResults[0].totalUnread).toBe(3);
+    expect(pollResults[0].rawFullCount).toBe(3);
 
     await poller.pollNow();
     expect(pollResults[1].status).toBe('auth_required');
-    expect(pollResults[1].totalUnread).toBe(3); // Never overwritten with 0
+    expect(pollResults[1].rawFullCount).toBeUndefined();
 
     poller.stop();
   });
@@ -521,12 +532,12 @@ describe('AtomFeedPoller', () => {
     // 2. Recovery poll succeeds
     await poller.pollNow();
     expect(pollResults[1].status).toBe('ok');
-    expect(pollResults[1].totalUnread).toBe(7);
+    expect(pollResults[1].rawFullCount).toBe(7);
 
     poller.stop();
   });
 
-  it('network fetch error reports network_error without zeroing previous count', async () => {
+  it('network fetch error reports network_error', async () => {
     const validXml = `<?xml version="1.0" encoding="UTF-8"?><feed><fullcount>4</fullcount></feed>`;
 
     mockFetch
@@ -542,11 +553,11 @@ describe('AtomFeedPoller', () => {
     });
 
     await poller.pollNow();
-    expect(pollResults[0].totalUnread).toBe(4);
+    expect(pollResults[0].rawFullCount).toBe(4);
 
     await poller.pollNow();
     expect(pollResults[1].status).toBe('network_error');
-    expect(pollResults[1].totalUnread).toBe(4);
+    expect(pollResults[1].rawFullCount).toBeUndefined();
 
     poller.stop();
   });
@@ -731,14 +742,14 @@ describe('Category filtering', () => {
     await poller.pollNow();
 
     expect(pollResults.length).toBe(1);
-    expect(pollResults[0].totalUnread).toBe(10);
+    expect(pollResults[0].rawFullCount).toBe(10);
     // Root feed only — no sub-feed requests
     expect(mockFetch).toHaveBeenCalledTimes(1);
 
     poller.stop();
   });
 
-  it('subtracts off-category counts from total', async () => {
+  it('reports the off-category sub-feed count alongside the raw fullcount', async () => {
     // Root returns 10; forums sub-feed returns 3 → displayed = 7
     mockFetch
       .mockResolvedValueOnce({
@@ -759,7 +770,8 @@ describe('Category filtering', () => {
     await poller.pollNow();
 
     expect(pollResults.length).toBe(1);
-    expect(pollResults[0].totalUnread).toBe(7);
+    expect(pollResults[0].rawFullCount).toBe(10);
+    expect(pollResults[0].categoryCounts?.get('forums')).toBe(3);
     // Root + 1 sub-feed
     expect(mockFetch).toHaveBeenCalledTimes(2);
 
@@ -789,12 +801,12 @@ describe('Category filtering', () => {
 
     expect(pollResults.length).toBe(1);
     // 401 sub-feed contributes 0; displayed = 10 - 0 = 10
-    expect(pollResults[0].totalUnread).toBe(10);
+    expect(pollResults[0].rawFullCount).toBe(10);
 
     poller.stop();
   });
 
-  it('clamps to 0 when off categories exceed total', async () => {
+  it('reports a sub-feed count larger than the raw fullcount', async () => {
     // Root returns 2; forums returns 5 due to race — result should clamp to 0
     mockFetch
       .mockResolvedValueOnce({
@@ -815,12 +827,13 @@ describe('Category filtering', () => {
     await poller.pollNow();
 
     expect(pollResults.length).toBe(1);
-    expect(pollResults[0].totalUnread).toBe(0);
+    expect(pollResults[0].rawFullCount).toBe(2);
+    expect(pollResults[0].categoryCounts?.get('forums')).toBe(5);
 
     poller.stop();
   });
 
-  it('subtracts multiple off-category counts simultaneously', async () => {
+  it('reports multiple sub-feed counts alongside the raw fullcount', async () => {
     // Root = 15; forums = 3; promotions = 4 → displayed = 15 - 3 - 4 = 8
     mockFetch
       .mockResolvedValueOnce({ ok: true, status: 200, text: async () => rootXml(15) }) // root
@@ -833,7 +846,9 @@ describe('Category filtering', () => {
     poller.updateNotificationSettings({ forums: 'off', promotions: 'off' });
     await poller.pollNow();
 
-    expect(pollResults[0].totalUnread).toBe(8);
+    expect(pollResults[0].rawFullCount).toBe(15);
+    expect(pollResults[0].categoryCounts?.get('forums')).toBe(3);
+    expect(pollResults[0].categoryCounts?.get('promotions')).toBe(4);
     // Root + 2 sub-feeds
     expect(mockFetch).toHaveBeenCalledTimes(3);
 
@@ -876,7 +891,7 @@ describe('Category filtering', () => {
     expect(pollResults.length).toBe(1);
     // Displayed unread must NOT clamp to Math.max(0, 2 - 3) = 0!
     // Since neither msg1 nor msg2 is in promotions, offCategoryCount is 0, so displayedUnread is 2!
-    expect(pollResults[0].totalUnread).toBe(2);
+    expect(pollResults[0].rawFullCount).toBe(2);
 
     poller.stop();
   });
@@ -897,7 +912,7 @@ describe('Category filtering', () => {
     });
     await poller.pollNow();
 
-    expect(pollResults[0].totalUnread).toBe(10);
+    expect(pollResults[0].rawFullCount).toBe(10);
     // Only the root feed should have been fetched — no sub-feed requests
     expect(mockFetch).toHaveBeenCalledTimes(1);
 
@@ -914,14 +929,14 @@ describe('Category filtering', () => {
     poller.updateNotificationSettings({ unknownCategory: 'off' } as Record<string, string>);
     await poller.pollNow();
 
-    expect(pollResults[0].totalUnread).toBe(5);
+    expect(pollResults[0].rawFullCount).toBe(5);
     // Only root feed — unknown key is not in CATEGORY_FEED_PATHS so no sub-fetch
     expect(mockFetch).toHaveBeenCalledTimes(1);
 
     poller.stop();
   });
 
-  it('updateNotificationSettings takes effect on the next poll', async () => {
+  it('reports the sub-feed count after notification settings change', async () => {
     // First poll: no settings configured → count = 10
     // Second poll: forums now off, sub-feed returns 3 → count = 7
     mockFetch
@@ -934,11 +949,12 @@ describe('Category filtering', () => {
     });
 
     await poller.pollNow();
-    expect(pollResults[0].totalUnread).toBe(10);
+    expect(pollResults[0].rawFullCount).toBe(10);
 
     poller.updateNotificationSettings({ forums: 'off' });
     await poller.pollNow();
-    expect(pollResults[1].totalUnread).toBe(7);
+    expect(pollResults[1].rawFullCount).toBe(10);
+    expect(pollResults[1].categoryCounts?.get('forums')).toBe(3);
 
     poller.stop();
   });
@@ -1060,13 +1076,15 @@ describe('Category tagging', () => {
     });
     poller.updateNotificationSettings({ promotions: 'off' });
 
-    // Poll 1: msg1 classified as promotions (which is off), so totalUnread is 0
+    // Poll 1: msg1 is classified as promotions.
     await poller.pollNow();
-    expect(pollResults[0].totalUnread).toBe(0);
+    expect(pollResults[0].rawFullCount).toBe(1);
+    expect(poller.getLatestEntries()[0].category).toBe('promotions');
 
-    // Poll 2: msg1 reclassified to primary, so totalUnread is 1!
+    // Poll 2: msg1 is reclassified to primary on another device.
     await poller.pollNow();
-    expect(pollResults[1].totalUnread).toBe(1);
+    expect(pollResults[1].rawFullCount).toBe(1);
+    expect(poller.getLatestEntries()[0].category).toBe('primary');
 
     poller.stop();
   });
@@ -1145,7 +1163,8 @@ describe('Category tagging', () => {
     // 2 root polls + 4 distinct sub-feeds each — forums is fetched once per
     // poll, serving its count and the tagging together rather than twice
     expect(mockFetch).toHaveBeenCalledTimes(10);
-    expect(pollResults[1].totalUnread).toBe(7);
+    expect(pollResults[1].rawFullCount).toBe(10);
+    expect(pollResults[1].categoryCounts?.get('forums')).toBe(3);
     expect(pollResults[1].newMessages[0].category).toBe('forums');
 
     poller.stop();
@@ -1410,7 +1429,7 @@ describe('Notifications follow arrival, counts follow unread', () => {
     // No banner...
     expect(pollResults[1].newMessages).toEqual([]);
     // ...but the badge still reports it, because it *is* unread.
-    expect(pollResults[1].totalUnread).toBe(2);
+    expect(pollResults[1].rawFullCount).toBe(2);
     // Two root polls, each carrying an id with no verdict — 'recent' on the
     // first and 'ancient' on the second — so each pays for the four lookups.
     expect(mockFetch).toHaveBeenCalledTimes(10);
@@ -1530,7 +1549,7 @@ describe('Reading a message then marking it unread', () => {
     expect(pollResults[1].newMessages.map((m) => m.id)).toEqual(['fresh']);
     expect(pollResults[3].newMessages).toEqual([]);
     // Still unread, so it still counts.
-    expect(pollResults[3].totalUnread).toBe(2);
+    expect(pollResults[3].rawFullCount).toBe(2);
 
     poller.stop();
   });
@@ -1604,7 +1623,7 @@ describe('New arrivals badge count', () => {
     const poller = new AtomFeedPoller('arr1', 'persist:arr1', 60, (res) => pollResults.push(res));
     await poller.pollNow();
 
-    expect(pollResults[0].totalUnread).toBe(300);
+    expect(pollResults[0].rawFullCount).toBe(300);
     expect(pollResults[0].newArrivalCount).toBe(0);
     poller.stop();
   });
@@ -1627,7 +1646,7 @@ describe('New arrivals badge count', () => {
 
     expect(pollResults[1].newArrivalCount).toBe(1);
     // The backlog is untouched by the read, and the arrival count is now clear.
-    expect(pollResults[2].totalUnread).toBe(1);
+    expect(pollResults[2].rawFullCount).toBe(1);
     expect(pollResults[2].newArrivalCount).toBe(0);
     poller.stop();
   });
@@ -1646,7 +1665,7 @@ describe('New arrivals badge count', () => {
     await poller.pollNow();
 
     // It counts as unread, as it should, but it did not *arrive*.
-    expect(pollResults[1].totalUnread).toBe(2);
+    expect(pollResults[1].rawFullCount).toBe(2);
     expect(pollResults[1].newArrivalCount).toBe(0);
     poller.stop();
   });
@@ -1822,12 +1841,12 @@ describe('New arrivals badge count', () => {
 
     expect(pollResults[1].newArrivalCount).toBe(1);
     // Unread says 40; the arrival count has let go of what it can no longer see.
-    expect(pollResults[2].totalUnread).toBe(40);
+    expect(pollResults[2].rawFullCount).toBe(40);
     expect(pollResults[2].newArrivalCount).toBe(0);
     poller.stop();
   });
 
-  it('leaves a silenced category out of the count, as the unread total does', async () => {
+  it('reports the silenced category count and suppresses its arrival', async () => {
     const dated = (count: number, entries: Array<[string, string]>) => datedFeed(count, entries);
     const ok = (xml: string) => ({ ok: true, status: 200, text: async () => xml });
 
@@ -1857,8 +1876,10 @@ describe('New arrivals badge count', () => {
     // The message did arrive and is reported as such — `dispatchNotifications`
     // owns whether it is announced — but a silenced category never badges.
     expect(pollResults[1].newMessages.map((m) => m.id)).toEqual(['ad']);
-    // 2 unread minus the 1 silenced promotion, and the arrival is silenced too.
-    expect(pollResults[1].totalUnread).toBe(1);
+    // The poller reports the raw count and the silenced category; the ledger
+    // subtracts the category. The arrival itself is silenced.
+    expect(pollResults[1].rawFullCount).toBe(2);
+    expect(pollResults[1].categoryCounts?.get('promotions')).toBe(1);
     expect(pollResults[1].newArrivalCount).toBe(0);
     poller.stop();
   });

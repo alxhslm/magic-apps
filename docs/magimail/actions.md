@@ -50,12 +50,12 @@ own control.
 
 `performThreadAction(accountId, threadId, action)` takes a thread id. If `action === 'open'`, it
 raises the window, switches to the account, routes the view to the thread, and brings it into focus.
-For triage actions (`archive`, `trash`, `markRead`, `markUnread`), it dispatches through a pluggable
-`ThreadActionDriver` (`createDefaultThreadActionDriver`): a DOM host plus the direct driver's own
-options, tried in order.
+For triage actions (`archive`, `trash`, `markRead`, `markUnread`), it delegates to the account's
+`MailboxSource`, whose `ThreadActionDriver` is the fallback stack (`createDefaultThreadActionDriver`):
+the direct driver and the DOM driver, tried in order.
 
 1. **Primary (`SyncThreadActionDriver`)**: Posts the mutation to Gmail's internal `/sync/u/<n>/i/s`
-   from the main process, mapping the Atom feed's hex thread id onto the decimal reference that
+   from the main process, mapping Gmail's legacy hex thread id onto the decimal reference that
    protocol names. It needs no renderer: the partition's cookies authenticate the request and the
    headers Gmail's own `/sync/` traffic carried are replayed from `gmail-sync-state.ts`. The thread
    changes without routing the viewport or flashing the UI.
@@ -75,10 +75,9 @@ are replayed verbatim, which is what makes a main-process fetch match the page's
 keyed by partition, so it outlives the page. Measured on a live account: the XSRF token did not change
 across a page reload, so it is scoped to the session rather than the page load.
 
-A notification's buttons, a `magimail://thread/<id>` triage link and `tray.threadAction` all route
-through `routeAcrossWindow`, whose three paths are in
-[`window-lifecycle.md`'s Routing an action across the window boundary](../shared/window-lifecycle.md#routing-an-action-across-the-window-boundary).
-`THREAD_ACTIONS` names the set once for all of them (open, archive, trash, mark read, mark unread),
+A notification's buttons, a `magimail://thread/<id>` triage link and `tray.threadAction` all reach
+the account's `MailboxSource`, which runs this driver stack. `THREAD_ACTIONS` names the set once for
+all of them (open, archive, trash, mark read, mark unread),
 and `TRIAGE_ACTIONS` is that set without open. Only open asks to look at something: it raises the
 window and changes the account on screen, while triage must not — and does not need a renderer to not
 do it.
@@ -97,13 +96,13 @@ open thread actually renders.
 A banner carries three actions from `UNUserNotificationCenter`: Archive, Mark Read, and Delete, which
 is marked destructive. Tapping the banner itself opens the thread. The helper sends `notify.action`
 (or `notify.click` for the tap) with the account and message id, and the main process routes it
-through `routeAcrossWindow` — for the tap that means building the window, because opening asks to
-look at the message.
+through the account's `MailboxSource` — for the tap that means building the window, because opening
+asks to look at the message.
 
 ### A menu bar popover row
 
 Right-clicking a row archives, trashes, marks read or marks unread without opening the thread, so the
-three newsletters at the top of the feed can be cleared from the popover. Left-click still opens, and
+three newsletters at the top of the list can be cleared from the popover. Left-click still opens, and
 the menu leads with that. The row sends `tray.threadAction`.
 
 ### A `magimail://thread/<id>` link
@@ -121,14 +120,13 @@ the window that scheduled it, and with the menu bar tray off, closing the window
 returning early on the null — a press that silently did nothing is the same class of failure as an
 alert that never fires.
 
-Triage is routed through `routeAcrossWindow`, which holds the rule for a notification button, a
-`magimail://thread/` triage link and `tray.threadAction` (see
-[`window-lifecycle.md`'s Routing an action across the window boundary](../shared/window-lifecycle.md#routing-an-action-across-the-window-boundary)).
-Magimail's `direct` path is the `/sync/` write, which needs no view, so a triage that lands costs one
-POST and nothing appears. A write the direct driver cannot do, because the partition has no captured
-`/sync/` headers or Gmail refused the mutation, reaches the window the policy builds in the
-background through `openWindowForAction(windowActionTarget, accountId, { show: false })`, so the page
-can be driven without being looked at.
+Triage is routed to the account's `HybridFeedSource` for a notification button, a
+`magimail://thread/` triage link and `tray.threadAction`. Its driver tries the direct `/sync/` write
+first, which needs no view, so a triage that lands costs one POST and nothing appears. A write the
+direct driver cannot do, because the partition has no captured `/sync/` headers or Gmail refused the
+mutation, wakes the account's view through the renderer pool (`wakeAccountForAction`) and drives the
+DOM, so the page can be driven without being looked at. A view that never becomes ready fails the
+action rather than being raised.
 
 Triage never raises one. `performThreadAction` raises the window itself for `open`, and everything
 that asks to look at something — an open, an account row, a compose, a search, a triage link that
@@ -167,7 +165,7 @@ autosave debounce.
 
 ### Detecting arrival
 
-The Atom feed's legacy hex thread id cannot confirm arrival. Gmail resolves the id and rewrites the
+Gmail's legacy hex thread id cannot confirm arrival. Gmail resolves the id and rewrites the
 hash to its own canonical form (`#inbox/FMfcgz…`) about 100ms later, so the id asked for stops
 appearing in the URL at precisely the moment the thread appears on screen; a gate waiting for that id
 never fires, times out, skips the action, and leaves the thread it opened marked read.
@@ -273,20 +271,18 @@ letting overlapping operations collide.
 Unlike every other row action, triage does not dismiss the popover. Triage comes in runs, and closing
 after each action would mean reopening it to reach the next row.
 
-`TrayModel.apply` marks the row read in the helper's own cache as the action is sent, rather than
+`TrayModel.apply` marks the row read in the helper's own row state as the action is sent, rather than
 waiting for the poll that will confirm it. A poll is far enough away that a row left unread reads as
-the click having missed. An archived or trashed row stays in the feed as read rather than
-disappearing, which is what a thread dropping out of the unread-only Atom feed already does (see
-[Gmail's cache, not the feed](menu-bar.md#gmails-cache-not-the-feed)); the list does not
-reshuffle under the pointer mid-triage.
+the click having missed. An archived or trashed row stays in the list as read rather than
+disappearing, matching how the ledger treats a reduced thread; the list does not reshuffle under the
+pointer mid-triage. See [`unread-counts.md`](unread-counts.md#local-actions-and-grace).
 
 The count follows on its own. Acting on the thread routes the account's live view to it, and the
-status item counts on the same terms as the account switcher: `getEffectiveUnreadForAccount` reads
-Gmail's sidebar wherever the page is alive and falls back to the feed where it is not. A background
-account is no exception, so triage from a hidden window lands straight away, and a thread marked read
-in the main window counts on the same terms. `tray.threadAction` still nudges that account's poller
-once the action has run, for the categories Gmail is not showing: the sidebar can only report the
-rows it renders.
+status item counts on the same terms as the account switcher: both read the account's ledger, so a
+background account and a thread marked read in the main window count the same way. See
+[`unread-counts.md`](unread-counts.md). `tray.threadAction` still nudges that account's poller once
+the action has run, for the categories Gmail is not showing: the sidebar can only report the rows it
+renders.
 
 `apply` records the state as well as showing it, and `setMessages` re-applies the record over every
 list that arrives:
@@ -302,15 +298,15 @@ sequenceDiagram
     G-->>E: DOM unread count drops
     E->>P: tray.update (new count)
     P->>E: tray.getMessages
-    E-->>P: tray.messages (from Gmail's cache, which the action has not reached)
+    E-->>P: tray.messages (from the ledger, with the local triage applied)
 ```
 
 Acting on a thread moves an unread count, a changed count pushes fresh tray data, and
 `MenuBarController.updateData` answers that by asking for messages again while the popover is open.
-Electron serves that by decoding Gmail's local `_xdb` cache in the account's renderer
-(`gmail-cache-reader.ts`) when the popover asks. Gmail's data worker owns that cache and has not seen
-our mutation yet, so the row still reads the way it did before the click; `apply` keeps the recorded
-state over it until the cache catches up.
+Electron serves that from the account's `UnreadLedger` when the popover asks. The ledger keeps the
+optimistic triage state over its rows until a source fresh enough to include the action confirms or
+contradicts it. The row therefore reads the way the user acted on it, not the way a lagging source
+still reports it.
 
 A record settles as soon as the incoming list says the same thing: a thread marked read is settled once it
 drops out, one marked unread once it is listed again. Anything still waiting after

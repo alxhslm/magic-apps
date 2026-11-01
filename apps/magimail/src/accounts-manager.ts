@@ -15,6 +15,7 @@ import {
 import {
   type AccountConfig,
   TOOLBAR_HEIGHT,
+  calculateAggregateBadge,
   calculateAggregateUnread,
   updateAccountUnread,
   updateAccountAuth,
@@ -50,20 +51,15 @@ import { uiString } from './strings.js';
 import { updateDockBadge, type ArrivalBadgeState } from './dock.js';
 import { openDetachedThreadWindow } from './compose.js';
 import { loadAccounts, saveAccounts, createNewAccount } from './account-store.js';
+import { withStoredUnreadCounts } from './mailbox/unread-count-store.js';
 import { loadSettings, saveSetting } from './settings-store.js';
-import { clearPollerState } from './atom-poller.js';
-import { gmailSyncStateFor } from './gmail-sync-state.js';
 import { pressRefreshControl } from './thread-actions/sync-driver.js';
-
-export type UnreadSource = 'atom' | 'cache' | 'api';
-
-export interface SourceReport {
-  count: number;
-  timestamp: number;
-  categoryCounts?: Map<NotificationCategory, number>;
-}
-
-export const CACHE_TRIAGE_GRACE_MS = 5000;
+import {
+  type MailboxSource,
+  type MailboxChangeEvent,
+  type MailboxPollEvent,
+  HybridFeedSource,
+} from './mailbox/index.js';
 import {
   attachNativeToolbar,
   updateNativeToolbarAccounts,
@@ -77,11 +73,7 @@ import { createShareTempDir, removeShareTempDir, writeIntoShareTempDir } from '.
 import { observeGmailSyncState } from './gmail-sync-state.js';
 import { type FocusFilterState } from './focus-filter-manager.js';
 import { createLogger, redactUrl } from '@magimail/core/logger';
-import {
-  createDefaultThreadActionDriver,
-  type ThreadActionDriver,
-  type TriageAction,
-} from './thread-actions/index.js';
+import { type ThreadActionDriver, type TriageAction } from './thread-actions/index.js';
 
 const composeLog = createLogger('Compose');
 const log = createLogger('Accounts');
@@ -129,6 +121,21 @@ const READ_TOGGLE_ACTIONS = ['markUnread', 'markRead'] as const;
 
 /** The segmented Reply/Reply to all/Forward group, enabled if any member is. */
 const REPLY_GROUP_TOOLBAR_ITEM = 'replyGroup';
+
+/**
+ * The categories a display surface counts, given the notification settings.
+ *
+ * The mailbox source reports per-category facts and answers a query; which
+ * categories a surface includes is decided here, because this class owns both the
+ * settings and the accounts. `off` means "do not pull attention", which for the
+ * dock badge means "do not count"; the menu bar and widgets ask for everything.
+ */
+function countedCategories(
+  notifications: Record<string, string> | undefined,
+): Set<NotificationCategory> {
+  const all: NotificationCategory[] = ['primary', 'updates', 'promotions', 'social', 'forums'];
+  return new Set(all.filter((cat) => notifications?.[cat] !== 'off'));
+}
 
 function setThreadOnlyItemsEnabled(enabled: boolean): void {
   for (const id of THREAD_ONLY_TOOLBAR_ITEMS) {
@@ -233,7 +240,7 @@ function pruneOrphanPartitions(partitions: readonly string[]): void {
 }
 
 export class AccountsManager {
-  private accounts: AccountConfig[] = loadAccounts();
+  private accounts: AccountConfig[] = withStoredUnreadCounts(loadAccounts());
   private activeAccountId: string = this.accounts[0]?.id ?? '';
   /** The account a cold-launch link named, resolved in `initialize()`. */
   private requestedInitialAccountId?: string;
@@ -266,7 +273,8 @@ export class AccountsManager {
   private currentBannerType: 'categories' | 'offlineMail' = 'offlineMail';
   private accountsWithCategoriesObserved = new Set<string>();
   private domReports: Map<string, DomUnreadReport> = new Map();
-  private accountSources: Map<string, Partial<Record<UnreadSource, SourceReport>>> = new Map();
+  private mailboxSources: Map<string, MailboxSource> = new Map();
+  public onPollResult?: (event: MailboxPollEvent) => void;
   /**
    * The latest count seen for each category, from the sidebar or the feed,
    * whichever reported it last. Neither covers all five on its own, so a
@@ -296,7 +304,7 @@ export class AccountsManager {
 
   public onThreadStateChanged?: (isThread: boolean) => void;
   public onHistoryChanged?: () => void;
-  private readonly threadActionDriver: ThreadActionDriver;
+  private readonly threadActionDriver?: ThreadActionDriver;
 
   constructor(
     mainWindow: BaseWindow,
@@ -307,6 +315,7 @@ export class AccountsManager {
     this.mainWindow = mainWindow;
     this.preloadPath = preloadPath;
     this.themeManager = themeManager;
+    this.threadActionDriver = threadActionDriver;
 
     this.pool = new RendererPool<AccountConfig, WebContentsView>(
       {
@@ -324,6 +333,10 @@ export class AccountsManager {
           }
         },
         detach: (accountId, view) => {
+          // Suspending every view on window close runs after the window is gone, and
+          // its contentView throws once destroyed. The view is still closed either way;
+          // there is simply nothing left to take it off.
+          if (this.windowIsGone()) return;
           if (this.mainWindow.contentView.children.includes(view)) {
             this.mainWindow.contentView.removeChildView(view);
             log.info(`Detached view for account ${accountId} (${this.pool.attachedSummary()})`);
@@ -336,8 +349,6 @@ export class AccountsManager {
         onRelease: (accountId, view) => {
           this.earlyCssKeys.delete(view);
           this.domReports.delete(accountId);
-          this.accountSources.delete(accountId);
-          this.accountSources.delete(accountId);
         },
         rememberUrl: (url) => (url.startsWith('https://mail.google.com') ? url : undefined),
       },
@@ -347,28 +358,108 @@ export class AccountsManager {
       },
     );
 
-    this.threadActionDriver =
-      threadActionDriver ??
-      createDefaultThreadActionDriver(
-        {
-          wake: (accountId) => this.wakeAccountForAction(accountId),
-          onActionHeld: (accountId, threadId, action) => {
-            this.queueMailAction({
-              accountId,
-              messageId: threadId,
-              action,
-              queuedAt: Date.now(),
-            });
-          },
-        },
-        {
-          getAccountContext: (accountId) => {
-            const account = this.accounts.find((a) => a.id === accountId);
-            return account ? { partition: account.partition } : undefined;
-          },
-          existingView: (accountId) => this.pool.view(accountId),
-        },
-      );
+    for (const account of this.accounts) {
+      this.mailboxSources.set(account.id, this.createMailboxSource(account));
+    }
+  }
+
+  private createMailboxSource(account: AccountConfig): MailboxSource {
+    const settings = loadSettings();
+    const source = new HybridFeedSource(account.id, {
+      getView: (accId) => this.pool.view(accId),
+      getAccountContext: (accId) => {
+        const acc = this.accounts.find((a) => a.id === accId);
+        return acc ? { partition: acc.partition } : undefined;
+      },
+      partition: account.partition,
+      notificationSettings: settings.notifications || {},
+      pollIntervalSeconds: settings.pollIntervalSeconds,
+      pollIntervalBatterySeconds: settings.pollIntervalBatterySeconds,
+      threadActionDriver: this.threadActionDriver,
+      wake: (accId) => this.wakeAccountForAction(accId),
+      onActionHeld: (accId, threadId, action) => {
+        this.queueMailAction({
+          accountId: accId,
+          messageId: threadId,
+          action,
+          queuedAt: Date.now(),
+        });
+      },
+      onCacheStatus: (accId, hasCache) => this.handleOfflineCacheStatus(accId, hasCache),
+      onCacheCategoryCounts: (accId, counts) => this.handleCacheCategoryCounts(accId, counts),
+      onPollResult: (result) => {
+        if (result.status === 'ok') {
+          this.setAccountAuthRequired(result.accountId, false);
+          this.handlePollMetadata(
+            result.accountId,
+            result.categoryCounts,
+            result.newArrivalCount,
+            result.arrivalsIncomplete,
+          );
+        } else if (result.status === 'auth_required') {
+          this.setAccountAuthRequired(result.accountId, true);
+        }
+        this.onPollResult?.(result);
+      },
+    });
+
+    source.onChanged((event) => {
+      this.handleMailboxChange(event);
+    });
+
+    return source;
+  }
+
+  private handleMailboxChange(event: MailboxChangeEvent): void {
+    // The source emits only when the mailbox changed. Do not second-guess it with
+    // a count comparison: a row can change while the total stays the same.
+    const badgeTotal =
+      this.getMailboxSource(event.accountId)?.getUnreadCountFor(
+        countedCategories(loadSettings().notifications),
+      ) ?? event.unread.total;
+    this.accounts = updateAccountUnread(
+      this.accounts,
+      event.accountId,
+      event.unread.total,
+      badgeTotal,
+    );
+    const focused = this.getFocusedAccounts();
+    const total = calculateAggregateUnread(focused);
+    updateDockBadge(calculateAggregateBadge(focused), this.getFocusedArrivals());
+    this.notifyToolbar();
+    this.onUnreadChanged?.(focused, total);
+  }
+
+  public getMailboxSource(accountId: string): MailboxSource | undefined {
+    return this.mailboxSources.get(accountId);
+  }
+
+  public getMailboxSources(): Map<string, MailboxSource> {
+    return this.mailboxSources;
+  }
+
+  public setPollIntervals(acSeconds: number, batterySeconds: number): void {
+    for (const source of this.mailboxSources.values()) {
+      source.setPollIntervals(acSeconds, batterySeconds);
+    }
+  }
+
+  public requestImmediatePoll(): void {
+    for (const source of this.mailboxSources.values()) {
+      source.requestImmediatePoll();
+    }
+  }
+
+  public stopMailboxSources(): void {
+    for (const source of this.mailboxSources.values()) {
+      source.stop();
+    }
+  }
+
+  public updateNotificationSettings(settings: Record<string, string>): void {
+    for (const source of this.mailboxSources.values()) {
+      source.updateNotificationSettings(settings);
+    }
   }
 
   public getAccounts(): AccountConfig[] {
@@ -405,7 +496,7 @@ export class AccountsManager {
   public seedArrivalCount(accountId: string, count: number): void {
     this.arrivalsByAccount.set(accountId, count);
     const focused = this.getFocusedAccounts();
-    updateDockBadge(calculateAggregateUnread(focused), this.getFocusedArrivals());
+    updateDockBadge(calculateAggregateBadge(focused), this.getFocusedArrivals());
   }
 
   /** New arrivals across the accounts the Focus Filter includes, and whether the sum may be short. */
@@ -463,7 +554,7 @@ export class AccountsManager {
     this.notifyToolbar();
     const focused = this.getFocusedAccounts();
     const total = calculateAggregateUnread(focused);
-    updateDockBadge(total, this.getFocusedArrivals());
+    updateDockBadge(calculateAggregateBadge(focused), this.getFocusedArrivals());
     this.onUnreadChanged?.(focused, total);
     this.onAccountsChanged?.();
   }
@@ -545,7 +636,7 @@ export class AccountsManager {
 
     // Configure every account's partition, not only the ones that get a view.
     //
-    // This is load-bearing for background notifications. AtomFeedPoller fetches
+    // This is load-bearing for background notifications. The mailbox poller fetches
     // the feed through session.fromPartition() from the main process, so an
     // account that is never opened still needs its clean User-Agent and header
     // sanitisation installed — otherwise Google sees an Electron client on the
@@ -700,13 +791,13 @@ export class AccountsManager {
         nodeIntegration: false,
         sandbox: false,
         spellcheck: true,
-        // A view is only ever created for the account being switched to, so it
-        // starts unthrottled. switchAccount re-enables throttling once the
-        // account is detached: its mailbox-change hints only ever accelerated
-        // the badge for the mailbox on screen, and the Atom poller — which owns
-        // the count outright — keeps running against the partition session
+        // `backgroundThrottling` stays at its default. Disabling it stops
+        // Electron's hidden-view patch from reaching `DelegatedFrameHost::WasShown`,
+        // so a view shown after a spell with nothing attached can produce no frame.
+        // The mailbox-change hints a detached view used to keep warm only ever
+        // accelerated the badge for the mailbox on screen, and the mailbox poller,
+        // which owns the count outright, keeps running against the partition session
         // regardless of whether a renderer exists.
-        backgroundThrottling: false,
       },
     });
     view.setBackgroundColor('#00000000');
@@ -926,7 +1017,12 @@ export class AccountsManager {
     // they are released here, once, whether or not any account view is still open.
     this.clearBannerTimer();
     if (this.categoryBannerView) {
-      if (this.mainWindow.contentView.children.includes(this.categoryBannerView)) {
+      // The banner's view is a child of a window that may already be gone, by the same
+      // route as an account view: suspend timers outlive the window that armed them.
+      if (
+        !this.windowIsGone() &&
+        this.mainWindow.contentView.children.includes(this.categoryBannerView)
+      ) {
         this.mainWindow.contentView.removeChildView(this.categoryBannerView);
         log.info(`Detached category banner on suspend all (${this.pool.attachedSummary()})`);
       }
@@ -943,6 +1039,12 @@ export class AccountsManager {
     this.mailActionQueue.clear();
 
     this.pool.suspendAllAccounts();
+  }
+
+  /** Whether the window the pool attaches to is gone, taking its contentView with it. */
+  private windowIsGone(): boolean {
+    if (typeof this.mainWindow.isDestroyed !== 'function') return false;
+    return this.mainWindow.isDestroyed();
   }
 
   /** Whether an account currently has a live renderer. */
@@ -976,7 +1078,7 @@ export class AccountsManager {
     this.accounts = updateAccountUnread(this.accounts, accountId, effective);
     const focused = this.getFocusedAccounts();
     const total = calculateAggregateUnread(focused);
-    updateDockBadge(total, this.getFocusedArrivals());
+    updateDockBadge(calculateAggregateBadge(focused), this.getFocusedArrivals());
     this.onUnreadChanged?.(focused, total);
     this.onMissingCategoriesChanged?.(accountId, this.getMissingCategoriesForAccount(accountId));
     // Rebuilds the application menu, which marks the account being viewed.
@@ -1026,33 +1128,6 @@ export class AccountsManager {
     return this.missingCategoriesByAccount.get(accountId) || [];
   }
 
-  public reportSourceUnread(accountId: string, source: UnreadSource, report: SourceReport): void {
-    let sources = this.accountSources.get(accountId);
-    if (!sources) {
-      sources = {};
-      this.accountSources.set(accountId, sources);
-    }
-    sources[source] = report;
-  }
-
-  /**
-   * Clears any active cache triage grace window (e.g. when the user explicitly triggers
-   * "Refresh Inbox" from the tray). This allows the subsequent Atom poll or server sync
-   * to immediately become authoritative.
-   */
-  public resetTriageGraceWindow(accountId?: string): void {
-    if (accountId) {
-      const sources = this.accountSources.get(accountId);
-      if (sources) {
-        delete sources.cache;
-      }
-    } else {
-      for (const sources of this.accountSources.values()) {
-        delete sources.cache;
-      }
-    }
-  }
-
   /**
    * Presses Gmail's toolbar refresh control in any open WebContentsView.
    */
@@ -1069,48 +1144,11 @@ export class AccountsManager {
   }
 
   public getEffectiveUnreadForAccount(accountId: string): number {
-    const sources = this.accountSources.get(accountId);
-    const settings = loadSettings();
-    const notifSettings = settings.notifications || {};
-    const now = Date.now();
-
-    // 1. Highest priority: 'api' (future BYOK / OAuth REST API) if present and valid
-    if (sources?.api) {
-      return sources.api.count;
+    const source = this.mailboxSources.get(accountId);
+    if (source) {
+      const counts = source.getUnreadCounts();
+      if (counts.hasState) return counts.total;
     }
-
-    const cache = sources?.cache;
-    const atom = sources?.atom;
-
-    // 2. 'cache' source: local IndexedDB (_xdb).
-    // During the 5-second triage grace window after a local cache update,
-    // trust cache over lagging Atom edge-cache responses.
-    const isCacheInGrace = cache !== undefined && now - cache.timestamp < CACHE_TRIAGE_GRACE_MS;
-
-    if (isCacheInGrace || (cache && (!atom || cache.timestamp >= atom.timestamp))) {
-      if (cache.categoryCounts) {
-        let total = 0;
-        const allCategories: NotificationCategory[] = [
-          'primary',
-          'updates',
-          'promotions',
-          'social',
-          'forums',
-        ];
-        for (const cat of allCategories) {
-          if (notifSettings[cat] === 'off') continue;
-          total += cache.categoryCounts.get(cat) ?? 0;
-        }
-        return total;
-      }
-      return cache.count;
-    }
-
-    // 3. 'atom' source: server feed (authoritative for background, multi-device sync, or no cache)
-    if (atom) {
-      return atom.count;
-    }
-
     const acc = this.accounts.find((a) => a.id === accountId);
     return acc?.unreadCount ?? 0;
   }
@@ -1151,7 +1189,7 @@ export class AccountsManager {
   }
 
   /**
-   * Updates category counts derived from the local IndexedDB cache (_xdb).
+   * Updates category counts derived from the local cache.
    *
    * Unlike the DOM sidebar links and Atom sub-feeds which include archived mail,
    * the local cache query specifically filters for items that are both unread (^u)
@@ -1160,14 +1198,13 @@ export class AccountsManager {
   public handleCacheCategoryCounts(
     accountId: string,
     categoryCounts: Map<NotificationCategory, number>,
-    timestamp?: number,
   ): void {
     this.recordCategoryCounts(accountId, categoryCounts, true);
 
-    const account = this.accounts.find((a) => a.id === accountId);
-    const syncState = account ? gmailSyncStateFor(account.partition) : null;
-    const effectiveTimestamp =
-      timestamp ?? (syncState?.capturedAt ? syncState.capturedAt : Date.now());
+    // The ledger owns the count once it has any state. This method is now only a
+    // category-count fallback for a cache read that has not reached the ledger yet.
+    const source = this.mailboxSources.get(accountId);
+    if (source?.getUnreadCounts().hasState) return;
 
     const notifSettings = loadSettings().notifications || {};
     let cacheTotal = 0;
@@ -1183,24 +1220,21 @@ export class AccountsManager {
       cacheTotal += categoryCounts.get(cat) ?? 0;
     }
 
-    this.reportSourceUnread(accountId, 'cache', {
-      count: cacheTotal,
-      timestamp: effectiveTimestamp,
-      categoryCounts,
-    });
-
     // Only a changed total is worth announcing. The caller that reads the cache
     // for the widget snapshot also calls this, and `onUnreadChanged` runs that
     // same snapshot read, so announcing an unchanged total would re-enter it for
     // as long as a renderer is awake.
-    const effectiveUnread = this.getEffectiveUnreadForAccount(accountId);
+    let effectiveUnread = this.getEffectiveUnreadForAccount(accountId);
+    if (source && source.getUnreadCounts().rawFullCount === null && cacheTotal > 0) {
+      effectiveUnread = cacheTotal;
+    }
     const currentUnread = this.accounts.find((a) => a.id === accountId)?.unreadCount ?? 0;
     if (effectiveUnread === currentUnread) return;
 
     this.accounts = updateAccountUnread(this.accounts, accountId, effectiveUnread);
     const focused = this.getFocusedAccounts();
     const total = calculateAggregateUnread(focused);
-    updateDockBadge(total, this.getFocusedArrivals());
+    updateDockBadge(calculateAggregateBadge(focused), this.getFocusedArrivals());
     this.notifyToolbar();
     this.onUnreadChanged?.(focused, total);
   }
@@ -1221,7 +1255,7 @@ export class AccountsManager {
   /**
    * Categories that are enabled in user notification settings but currently absent
    * from the DOM report (e.g. folded under Categories, collapsed under More, or missing),
-   * or absent from local cache (_xdb missing).
+   * or absent from the local cache.
    * These categories require Atom feed sub-polling to ensure accurate unread totals.
    */
   public getAbsentCategoriesForAccount(accountId: string): NotificationCategory[] {
@@ -1235,8 +1269,8 @@ export class AccountsManager {
 
     for (const cat of lookupCategories) {
       if (notifSettings[cat] && notifSettings[cat] !== 'off') {
-        // When offline cache is absent, non-primary categories cannot be read from _xdb and require Atom sub-polling.
-        // When offline cache is confirmed available, _xdb provides all category unreads so sub-polling is not needed.
+        // When the local cache is absent, non-primary categories require sub-polling.
+        // When the local cache is available, it provides all category unreads so sub-polling is not needed.
         if (hasCache !== true && (hasCache === false || !present.has(cat))) {
           absent.push(cat);
         }
@@ -1274,7 +1308,7 @@ export class AccountsManager {
       return;
     }
 
-    // Category counts are sourced directly from Gmail's local IndexedDB cache (_xdb),
+    // Category counts are sourced directly from Gmail's local cache,
     // which accurately computes true unread inbox items (^i + ^u) without needing
     // categories pinned or unfolded in the sidebar. We no longer prompt the user with
     // a configuration banner to force categories into the sidebar.
@@ -1674,9 +1708,15 @@ export class AccountsManager {
 </html>`;
   }
 
-  public handleApiUnreadUpdate(
+  /**
+   * Records what a poll learned about a mailbox, without touching its unread count.
+   *
+   * The count comes from the account's `MailboxSource` and nowhere else. A source's
+   * base count may lag behind a local triage, so applying it here would undo the
+   * preemptive change during the read-path grace.
+   */
+  public handlePollMetadata(
     accountId: string,
-    totalUnread: number,
     categoryCounts?: Map<NotificationCategory, number>,
     newArrivalCount?: number,
     arrivalsIncomplete?: boolean,
@@ -1691,16 +1731,39 @@ export class AccountsManager {
       if (arrivalsIncomplete) this.arrivalsIncompleteByAccount.add(accountId);
       else this.arrivalsIncompleteByAccount.delete(accountId);
     }
+  }
 
-    this.reportSourceUnread(accountId, 'atom', {
-      count: totalUnread,
-      timestamp: Date.now(),
-      categoryCounts,
-    });
+  /**
+   * Applies an externally reported count directly.
+   *
+   * Kept for callers with no `MailboxSource`; the poll path uses
+   * `handlePollMetadata` and lets the source's ledger own the number.
+   */
+  public handleExternalUnreadUpdate(
+    accountId: string,
+    totalUnread: number,
+    categoryCounts?: Map<NotificationCategory, number>,
+    newArrivalCount?: number,
+    arrivalsIncomplete?: boolean,
+  ): void {
+    this.handlePollMetadata(accountId, categoryCounts, newArrivalCount, arrivalsIncomplete);
 
-    const unreadToApply = this.getEffectiveUnreadForAccount(accountId);
+    const source = this.mailboxSources.get(accountId);
+    let unreadToApply = this.getEffectiveUnreadForAccount(accountId);
+    if (categoryCounts && this.lastKnownCategoryCounts.has(accountId)) {
+      const known = this.lastKnownCategoryCounts.get(accountId)!;
+      const notifSettings = loadSettings().notifications || {};
+      let blended = 0;
+      for (const [cat, count] of known) {
+        if (notifSettings[cat] === 'off') continue;
+        blended += count;
+      }
+      unreadToApply = blended;
+    } else if (source && source.getUnreadCounts().rawFullCount === null) {
+      unreadToApply = totalUnread;
+    }
     log.info(
-      `(Accounts) handleApiUnreadUpdate for ${accountId}: totalUnread=${totalUnread}, applied=${unreadToApply}`,
+      `(Accounts) handleExternalUnreadUpdate for ${accountId}: totalUnread=${totalUnread}, applied=${unreadToApply}`,
     );
 
     this.accounts = updateAccountUnread(this.accounts, accountId, unreadToApply);
@@ -1708,7 +1771,7 @@ export class AccountsManager {
     // still shows every account's own count, dimmed.
     const focused = this.getFocusedAccounts();
     const total = calculateAggregateUnread(focused);
-    updateDockBadge(total, this.getFocusedArrivals());
+    updateDockBadge(calculateAggregateBadge(focused), this.getFocusedArrivals());
     this.notifyToolbar();
     this.onUnreadChanged?.(focused, total);
   }
@@ -2169,14 +2232,12 @@ export class AccountsManager {
       }
     }
 
-    // Triage does not wake the account: the direct write needs no renderer, and the DOM
-    // fallback wakes a view itself.
-    return this.threadActionDriver.perform(
-      this.pool.view(accountId),
-      accountId,
-      messageId,
-      action as TriageAction,
-    );
+    // Triage does not wake the account: the mailbox source owns the action.
+    const source = this.mailboxSources.get(accountId);
+    if (source) {
+      return source.triageThread(messageId, action as TriageAction);
+    }
+    return false;
   }
 
   /**
@@ -2194,8 +2255,9 @@ export class AccountsManager {
    * transparent before its first paint. Placing it beside the window instead does not
    * work; bounds outside the parent are clipped back to nothing.
    *
-   * Throttling is lifted too, so the render is not paced like a background tab while
-   * the action waits on it.
+   * The view stays hidden while the action runs, so the page throttles as a
+   * background tab does; the waits in `packages/core/src/dom.ts` lean on a
+   * MutationObserver and a 50 ms poll, which is the part that slows down.
    */
   private sizeForBackgroundAction(view: WebContentsView, accountId: string): () => void {
     // The account on screen is normally already attached and sized, so there is
@@ -2573,6 +2635,7 @@ export class AccountsManager {
     // Its partition still needs configuring for the poller that main.ts starts
     // straight away; that poller reports 401 until the user signs in.
     configureGoogleSession(account.partition);
+    this.mailboxSources.set(account.id, this.createMailboxSource(account));
     this.notifyToolbar();
     this.onAccountsChanged?.();
     return account;
@@ -2584,6 +2647,11 @@ export class AccountsManager {
     if (index === -1) return false;
 
     log.info(`Removing account ${accountId}`);
+    const source = this.mailboxSources.get(accountId);
+    if (source) {
+      source.forget();
+      this.mailboxSources.delete(accountId);
+    }
     // A filter that still names the account would leave the switcher and the badge
     // leaning on an id nothing can reach. `focus-filter.json` itself is left alone: the
     // App Intents extension owns it, and an id it names that no longer exists is ignored.
@@ -2608,18 +2676,12 @@ export class AccountsManager {
     this.offlineCacheAvailableByAccount.delete(accountId);
     this.accountsWithCategoriesObserved.delete(accountId);
     this.domReports.delete(accountId);
-    this.accountSources.delete(accountId);
     this.lastKnownCategoryCounts.delete(accountId);
     this.cacheDerivedCategories.delete(accountId);
     this.missingCategoriesByAccount.delete(accountId);
     for (const key of [...this.mailActionQueue.keys()]) {
       if (key.startsWith(`${accountId}:`)) this.mailActionQueue.delete(key);
     }
-    // The persisted poller state is deleted here rather than at the call sites in main.ts,
-    // which could be skipped: the file is named after the account, so one that is gone
-    // would keep a record of seen messages for a mailbox nobody has.
-    clearPollerState(accountId);
-
     // The account id is a timestamp, so the partition it used is never signed in to again:
     // its cookies are a Google session left on disk for the life of the install. Clearing
     // removes the credential now; the directory itself is swept on the next launch.

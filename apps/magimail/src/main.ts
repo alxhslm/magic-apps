@@ -9,11 +9,13 @@ import {
   powerMonitor,
   session,
   shell,
+  type Rectangle,
 } from 'electron';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 import {
   prereleaseBuildExpiredMessage,
+  calculateAggregateBadge,
   calculateAggregateUnread,
   configureSecretFiles,
   createMainWindowOptions,
@@ -25,11 +27,11 @@ import {
   isDemoMode,
   openWindowForAction,
   resolveUserDataPath,
-  routeAcrossWindow,
   WEBSITE_URL,
   type AccountConfig,
   type WindowActionTarget,
   viewIsAlive,
+  WindowRebuilder,
   unwrapRedirectors,
 } from '@magimail/core';
 import { DEFAULT_PARTITION, IPC_CHANNELS } from './constants.js';
@@ -48,12 +50,7 @@ import { AccountsManager, asThreadAction, TRIAGE_ACTIONS } from './accounts-mana
 import { updateDockBadge, refreshDockBadge } from './dock.js';
 import { localCacheKey } from './native-addon.js';
 import { accountIdFromLink } from './protocol-links.js';
-import { loadAccounts } from './account-store.js';
-import {
-  SyncThreadActionDriver,
-  type ThreadActionOutcome,
-  type TriageAction,
-} from './thread-actions/index.js';
+import { type ThreadActionOutcome, type TriageAction } from './thread-actions/index.js';
 
 // Replaced by tsup at build time with the Unix milliseconds the bundle was
 // compiled at; see `prerelease-build-expiry.ts` in @magimail/core.
@@ -155,7 +152,6 @@ import { ThemeManager } from './theme-manager.js';
 import { DefaultClientManager } from './default-client.js';
 import { openSettingsWindow } from './settings.js';
 import { buildWidgetCache, writeWidgetCache } from './widget-cache.js';
-import { readRecentCachedMessages, readCachedInboxData } from './gmail-cache-reader.js';
 import { syncExtensionLogs } from './extension-logs.js';
 import { handleCollectDiagnostics } from './diagnostics.js';
 import { sweepAbandonedShareStaging } from './share-staging.js';
@@ -168,11 +164,7 @@ import {
   onHelperSpawned,
   killHelper,
 } from './swift-helper.js';
-import {
-  AtomFeedPoller,
-  atomMessageToTrayMessageItem,
-  type AtomPollResult,
-} from './atom-poller.js';
+import type { MailboxPollEvent } from './mailbox/types.js';
 import {
   dispatchNotifications,
   setNotificationClickHandler,
@@ -212,6 +204,20 @@ let mainWindow: BaseWindow | null = null;
 let findInPageController: FindInPageController | null = null;
 let isQuitting = false;
 /**
+ * The window rebuild both apps share. It reads the handles below rather than capturing
+ * them, so it survives a window being replaced.
+ */
+const windowRebuilder = new WindowRebuilder<AccountsManager>({
+  window: () => mainWindow,
+  manager: () => accountsManager,
+  accountId: (manager) => manager.getActiveAccountId(),
+  quitting: () => isQuitting,
+  build: (accountId, bounds) => {
+    mainWindow = createMainWindow(accountId, { bounds });
+  },
+  log,
+});
+/**
  * Whether the launch pass has finished building the window, the tray and the pollers.
  *
  * A protocol URL that arrives before it is queued (`pendingMailtoUrl`) and replayed by
@@ -224,7 +230,6 @@ let accountsManager: AccountsManager | null = null;
 let themeManager: ThemeManager | null = null;
 let defaultClientManager: DefaultClientManager | null = null;
 let pendingMailtoUrl: string | null = null;
-const atomPollers = new Map<string, AtomFeedPoller>();
 /**
  * Accounts whose Atom feed a Workspace administrator is refusing.
  *
@@ -259,39 +264,21 @@ const lastWidgetMessages = new Map<string, TrayMessageItem[]>();
 async function refreshWidgetCache(accounts: AccountConfig[], totalUnread: number): Promise<void> {
   const messagesByAccount = new Map<string, TrayMessageItem[]>();
   for (const account of accounts) {
-    const view = accountsManager?.getWebContentsViewForAccount(account.id);
-    const snapshot = view ? await readCachedInboxData(view.webContents, 5) : null;
-    let messages = snapshot?.messages ?? null;
-    if (snapshot) {
-      if (snapshot.stats?.reason === 'no-db') {
-        accountsManager?.handleOfflineCacheStatus(account.id, false);
-      } else if (!snapshot.stats?.reason) {
-        accountsManager?.handleOfflineCacheStatus(account.id, true);
-      }
+    const source = accountsManager?.getMailboxSource(account.id);
+    const messages = source ? await source.getRecentMessages(5) : null;
+    if (messages && messages.length > 0) {
+      lastWidgetMessages.set(account.id, messages);
     }
-    if (!messages || messages.length === 0) {
-      const poller = atomPollers.get(account.id);
-      if (poller) {
-        const fallback = poller.getLatestEntries().slice(0, 5).map(atomMessageToTrayMessageItem);
-        if (fallback.length > 0) messages = fallback;
-      }
-    }
-    if (messages) lastWidgetMessages.set(account.id, messages);
     messagesByAccount.set(account.id, messages ?? lastWidgetMessages.get(account.id) ?? []);
   }
   const wrote = writeWidgetCache(
     buildWidgetCache(accounts, totalUnread, messagesByAccount),
     appGroupContainerPath,
   );
-  // Only a changed snapshot is worth a reload. WidgetKit rations reloads per
-  // widget, and this runs on every poll and every unread change, so asking
-  // unconditionally gets the requests merged or ignored. This must run in the
-  // Electron main process: BaseBoard verifies that the calling process executable
-  // matches CFBundleExecutable (Magimail).
   if (wrote) reloadNativeWidgets();
 }
 
-function handlePollResult(result: AtomPollResult): void {
+function handlePollResult(result: MailboxPollEvent): void {
   if (result.status === 'auth_required') {
     restrictedAccounts.delete(result.accountId);
     accountsManager?.setAccountAuthRequired(result.accountId, true);
@@ -323,18 +310,17 @@ function handlePollResult(result: AtomPollResult): void {
     return;
   }
 
-  // Update unread counts for the account
+  // The account's MailboxSource has already applied the ledger's count. This
+  // refreshes the surfaces that also show arrivals and message lists.
   if (accountsManager) {
-    log.info(`(AtomPoller) Poll ok for ${result.accountId}: totalUnread=${result.totalUnread}`);
+    // The count belongs on the line. A poll that answers without one cannot be
+    // matched against the cache read or the tray update by anything reading the
+    // log, and it is the number every regression here has been measured against.
+    // It is the ledger's applied total rather than the feed's, because that is
+    // what the surfaces show.
+    const applied = accountsManager.getMailboxSource(result.accountId)?.getUnreadCounts().total;
+    log.info(`(AtomPoller) Poll ok for ${result.accountId}: applied=${applied ?? 'unknown'}`);
     restrictedAccounts.delete(result.accountId);
-    accountsManager.setAccountAuthRequired(result.accountId, false);
-    accountsManager.handleApiUnreadUpdate(
-      result.accountId,
-      result.totalUnread,
-      result.categoryCounts,
-      result.newArrivalCount,
-      result.arrivalsIncomplete,
-    );
 
     // Menu bar and widgets show only what the Focus Filter includes -- their
     // job is to pull attention, which is the thing a filter is suppressing.
@@ -353,95 +339,14 @@ function handlePollResult(result: AtomPollResult): void {
   }
 }
 
-function startPollerForAccount(accountId: string, partition: string): void {
-  if (atomPollers.has(accountId)) return;
-
-  const settings = loadSettings();
-  const poller = new AtomFeedPoller(
-    accountId,
-    partition,
-    settings.pollIntervalSeconds,
-    settings.pollIntervalBatterySeconds,
-    handlePollResult,
-  );
-  poller.updateNotificationSettings(settings.notifications);
-  const isWindowActive = Boolean(
-    mainWindow && mainWindow.isFocused() && !mainWindow.isMinimized() && mainWindow.isVisible(),
-  );
-  const isThisAccountFocused =
-    isWindowActive && accountId === accountsManager?.getActiveAccountId();
-  const absent = accountsManager?.getAbsentCategoriesForAccount(accountId) || [];
-  poller.setFocusAndMissingCategories(isThisAccountFocused, absent);
-  atomPollers.set(accountId, poller);
-  accountsManager?.seedArrivalCount(accountId, poller.getArrivalCount());
-  poller.start();
-}
-
 /**
  * Push one account's recent threads to the helper's popover.
- *
- * Messages are pulled rather than pushed: the helper asks with `tray.getMessages` when the
- * popover opens. A forced poll has to push the answer itself, or the list the user just
- * refreshed stays as it was until they close and reopen.
- *
- * Messages come from Gmail's local IndexedDB cache (`_xdb`), which Gmail's
- * data worker keeps synchronised. This means the list includes threads that
- * have since been read (shown as read), without any network traffic. If the
- * account's renderer is not ready the list is empty — Gmail will have
- * initialised by the time the user opens the popover again.
  */
 async function sendTrayMessages(accountId: string): Promise<void> {
-  const view = accountsManager?.getWebContentsViewForAccount(accountId);
-  if (!view) {
-    // A popped-under account has no renderer to read. Say so rather than
-    // replacing the popover's list with nothing, which reads as "the tray is
-    // broken" and would also drop rows the last good read had.
-    log.info(`No live view for ${accountId}; keeping the last tray list`);
-    return;
-  }
-  let messages = await readRecentCachedMessages(view.webContents, RECENT_TRAY_MESSAGES);
-  if (!messages || messages.length === 0) {
-    const poller = atomPollers.get(accountId);
-    if (poller) {
-      const fallback = poller
-        .getLatestEntries()
-        .slice(0, RECENT_TRAY_MESSAGES)
-        .map(atomMessageToTrayMessageItem);
-      if (fallback.length > 0) messages = fallback;
-    }
-  }
-  // `null` is "could not read", not "empty". Pushing an empty list here would
-  // blank the popover every time a view was momentarily loading.
-  if (!messages) return;
+  const source = accountsManager?.getMailboxSource(accountId);
+  if (!source) return;
+  const messages = await source.getRecentMessages(RECENT_TRAY_MESSAGES);
   pushTrayMessages(accountId, messages);
-}
-
-/**
- * Stops an account's poller, which is all its removal needs before the record goes.
- *
- * The persisted seen-id and arrival state is not cleared here: `removeAccount` owns it, so
- * a removal that never happens — the last account refusing to go — cannot leave the state
- * gone for an account still on screen.
- */
-function stopPollerForAccount(accountId: string): void {
-  const poller = atomPollers.get(accountId);
-  if (poller) {
-    poller.stop();
-    atomPollers.delete(accountId);
-  }
-  if (restrictedAccounts.delete(accountId) && accountsManager) {
-    const accounts = accountsManager.getFocusedAccounts();
-    updateTrayData(accounts, calculateAggregateUnread(accounts), {
-      isRestricted: restrictedAccounts.size > 0,
-    });
-  }
-}
-
-function startAllPollers(): void {
-  const accounts = accountsManager?.getAccounts() || [];
-  for (const account of accounts) {
-    startPollerForAccount(account.id, account.partition);
-  }
 }
 
 function updateApplicationMenu(preloadPath: string, isThreadSelected?: boolean): void {
@@ -478,7 +383,7 @@ function updateApplicationMenu(preloadPath: string, isThreadSelected?: boolean):
       accountsManager?.switchToIndex(index);
     },
     onReloadActive: () => {
-      accountsManager?.reloadActiveView();
+      reloadMailbox();
     },
     onFindInPage: () => {
       findInPageController?.show();
@@ -527,7 +432,7 @@ function updateApplicationMenu(preloadPath: string, isThreadSelected?: boolean):
     },
     onRemoveAllData,
     onCollectDiagnostics: () => {
-      void handleCollectDiagnostics(mainWindow, accountsManager, atomPollers);
+      void handleCollectDiagnostics(mainWindow, accountsManager);
     },
     onRevealLogs: () => {
       const dir = logDirectory();
@@ -760,60 +665,26 @@ function getPreloadPath(): string {
 }
 
 /**
- * The direct `/sync/` triage write, built here rather than inside `AccountsManager` so it outlives
- * the window.
- *
- * Each account comes from the manager while there is one, and from disk when there is not, which is
- * what lets a banner's triage land with the window closed. The captured `/sync/` headers it replays
- * live in a partition-keyed map for the life of the app, so they outlive the page that produced
- * them; until a partition has made a `/sync/` request there is nothing to replay and the write
- * reports failed, which sends the action to a background window.
- */
-const directTriage = new SyncThreadActionDriver({
-  getAccountContext: (accountId) => {
-    const account = (accountsManager?.getAccounts() ?? loadAccounts()).find(
-      (a) => a.id === accountId,
-    );
-    return account ? { partition: account.partition } : undefined;
-  },
-  // Never builds one: the refresh press is skipped when the account has no view, and the next
-  // poll picks the write up.
-  existingView: (accountId) => accountsManager?.getWebContentsViewForAccount(accountId),
-});
-
-/**
  * Runs a triage action across the window boundary.
  *
- * The direct `/sync/` write needs no window and is tried first. While a window is open its own
- * stack runs the action instead; when the write cannot land, the window is built in the background
- * to drive the page. Nothing here raises one: triage never asks to look at something.
+ * Routes directly to the account's MailboxSource triageThread method.
  */
-function routeThreadAction(
+async function routeThreadAction(
   accountId: string,
   threadId: string,
   action: TriageAction,
 ): Promise<ThreadActionOutcome> {
-  const throughWindow = (manager: AccountsManager): Promise<ThreadActionOutcome> =>
-    manager
-      .performThreadAction(accountId, threadId, action)
-      .then((landed) => (landed ? 'ok' : 'failed'));
-
-  return routeAcrossWindow({
-    window: () => (accountsManager ? throughWindow(accountsManager) : null),
-    direct: () =>
-      directTriage
-        .perform(undefined, accountId, threadId, action)
-        .then((landed) => (landed ? 'ok' : 'failed')),
-    openWindow: () => {
-      const manager = openWindowForAction(windowActionTarget, accountId, { show: false });
-      return manager ? throughWindow(manager) : Promise.resolve('failed' as const);
-    },
-  });
+  const source = accountsManager?.getMailboxSource(accountId);
+  if (source) {
+    const ok = await source.triageThread(threadId, action);
+    return ok ? 'ok' : 'failed';
+  }
+  return 'failed';
 }
 
 function createMainWindow(
   initialAccountId?: string,
-  { show = true }: { show?: boolean } = {},
+  { show = true, bounds }: { show?: boolean; bounds?: Rectangle } = {},
 ): BaseWindow {
   log.info('Creating main window');
   const preloadPath = getPreloadPath();
@@ -825,6 +696,8 @@ function createMainWindow(
     height: 850,
     minWidth: 960,
     minHeight: 600,
+    // Set when this window is a replacement, so it returns to where the user had it.
+    bounds,
     ...(settings.transparentBackground
       ? {}
       : {
@@ -841,6 +714,11 @@ function createMainWindow(
 
   // Initialize multi-account manager with WebContentsViews and ThemeManager
   accountsManager = new AccountsManager(win, preloadPath, themeManager || undefined);
+
+  // Coming back to the window is when a blank one is most likely to be seen, so the
+  // pair is logged: it dates the failure against the suspension that preceded it.
+  win.on('show', () => log.info('Main window shown'));
+  win.on('hide', () => log.info('Main window hidden'));
   // The helper forwards the filter as soon as it reads it, which can be before the first window,
   // and so before the manager the filter is applied to. Without this a filter that arrived with
   // the window closed would be lost when the next window is built.
@@ -866,20 +744,17 @@ function createMainWindow(
     const focused = accountsManager?.getFocusedAccounts() ?? [];
     const total = calculateAggregateUnread(focused);
     updateTrayData(focused, total);
-    updateDockBadge(total);
+    // The menu bar and tray show everything; the dock badge is the attention
+    // surface and counts only categories the user has not silenced.
+    updateDockBadge(calculateAggregateBadge(focused));
   };
   accountsManager.onThreadStateChanged = (isThread) => updateApplicationMenu(preloadPath, isThread);
   accountsManager.onHistoryChanged = () => updateApplicationMenu(preloadPath);
   accountsManager.onGmailSignIn = (accountId) => {
-    const account = accountsManager?.getAccounts().find((a) => a.id === accountId);
-    if (account) {
-      const poller = atomPollers.get(accountId);
-      if (poller) {
-        poller.pollNow();
-      } else {
-        startPollerForAccount(accountId, account.partition);
-      }
-    }
+    void accountsManager?.getMailboxSource(accountId)?.refresh();
+  };
+  accountsManager.onPollResult = (result) => {
+    handlePollResult(result);
   };
   accountsManager.onUnreadChanged = (accounts, total) => {
     updateTrayData(accounts, total, { isRestricted: restrictedAccounts.size > 0 });
@@ -892,10 +767,10 @@ function createMainWindow(
     accountsManager?.setWindowFocused(isWindowActive);
     const activeId = accountsManager?.getActiveAccountId();
 
-    for (const [id, poller] of atomPollers.entries()) {
+    for (const [id, source] of accountsManager?.getMailboxSources().entries() ?? []) {
       const isThisAccountFocused = isWindowActive && id === activeId;
       const absent = accountsManager?.getAbsentCategoriesForAccount(id) || [];
-      poller.setFocusAndMissingCategories(isThisAccountFocused, absent);
+      source.setFocusAndMissingCategories(isThisAccountFocused, absent);
     }
   };
 
@@ -906,16 +781,16 @@ function createMainWindow(
     syncActiveAccountFocus();
   };
   accountsManager.onAbsentCategoriesChanged = (accountId, absent) => {
-    const poller = atomPollers.get(accountId);
-    if (poller) {
+    const source = accountsManager?.getMailboxSource(accountId);
+    if (source) {
       const isWindowActive = Boolean(
         mainWindow && mainWindow.isFocused() && !mainWindow.isMinimized() && mainWindow.isVisible(),
       );
       const isThisAccountFocused =
         isWindowActive && accountId === accountsManager?.getActiveAccountId();
-      poller.setFocusAndMissingCategories(isThisAccountFocused, absent);
+      source.setFocusAndMissingCategories(isThisAccountFocused, absent);
       if (absent.length > 0 && isThisAccountFocused) {
-        poller.requestImmediatePoll();
+        void source.handleMailboxChangeHint();
       }
     }
   };
@@ -932,7 +807,8 @@ function createMainWindow(
   accountsManager.initialize();
   if (process.env.DEBUG || process.env.NODE_ENV !== 'production') {
     (globalThis as unknown as { __accountsManager: unknown }).__accountsManager = accountsManager;
-    (globalThis as unknown as { __atomPollers: unknown }).__atomPollers = atomPollers;
+    (globalThis as unknown as { __mailboxSources: unknown }).__mailboxSources =
+      accountsManager?.getMailboxSources();
   }
 
   // Handle actions from the native SwiftUI toolbar
@@ -1012,7 +888,10 @@ function createMainWindow(
 
   // When tray is active, hide the window instead of closing — app stays in menu bar
   win.on('close', (event) => {
-    if (isTrayCreated() && !isQuitting) {
+    // A rebuild closes the window on purpose, so it must not be turned into a hide: a
+    // hidden window still holds the blank page the rebuild exists to replace. Any
+    // handler added here has to let `isRebuilding()` through for the same reason.
+    if (isTrayCreated() && !isQuitting && !windowRebuilder.isRebuilding()) {
       event.preventDefault();
       win.hide();
     }
@@ -1022,6 +901,10 @@ function createMainWindow(
     // Before the manager goes, so a relaunch restores the account that was last on
     // screen.
     accountsManager?.persistActiveAccount();
+    // The account views outlive the window: nothing else closes them, so without
+    // this they hold a renderer each until quit, and their suspend timers fire a few
+    // minutes later against a destroyed window.
+    accountsManager?.suspendAllAccounts();
     // Release the native toolbar with the window it was attached to, so a
     // window recreated from the dock gets a fresh one.
     detachNativeToolbar();
@@ -1032,6 +915,19 @@ function createMainWindow(
   });
 
   return win;
+}
+
+/**
+ * Serves a reload request: Cmd+R, or Reload in the View menu.
+ *
+ * It rebuilds the window rather than the account view, for the same reason Magical
+ * does. A view rebuild is the cheaper repair, and the right one when only the view's
+ * compositor has died, but on 29 October twenty of them ran in twenty seconds in
+ * Magical with the window still blank until it was closed and rebuilt. A reload
+ * request is a user asking for their mail back, so it does the repair that works.
+ */
+function reloadMailbox(): void {
+  windowRebuilder.rebuild('reload requested');
 }
 
 // Chromium performance switches — disable unused browser subsystems
@@ -1162,21 +1058,17 @@ if (!hasLock) {
           themeManager?.setTheme(value as 'system' | 'light' | 'dark');
           updateApplicationMenu(preloadPath);
         } else if (key === 'collectDiagnostics') {
-          void handleCollectDiagnostics(mainWindow, accountsManager, atomPollers);
+          void handleCollectDiagnostics(mainWindow, accountsManager);
         } else {
           saveSetting(key, value);
           // Trigger side effects for specific settings
           if (key === 'pollIntervalSeconds' && typeof value === 'number') {
             const current = loadSettings();
-            for (const poller of atomPollers.values()) {
-              poller.setIntervals(value, current.pollIntervalBatterySeconds);
-            }
+            accountsManager?.setPollIntervals(value, current.pollIntervalBatterySeconds);
           }
           if (key === 'pollIntervalBatterySeconds' && typeof value === 'number') {
             const current = loadSettings();
-            for (const poller of atomPollers.values()) {
-              poller.setIntervals(current.pollIntervalSeconds, value);
-            }
+            accountsManager?.setPollIntervals(current.pollIntervalSeconds, value);
           }
           if (key === 'inactiveAccountSuspendMinutes' && typeof value === 'number') {
             accountsManager?.setSuspendDelayMinutes(value);
@@ -1231,16 +1123,13 @@ if (!hasLock) {
           if (key.startsWith('notifications.')) {
             accountsManager?.recalculateMissingCategories();
             const updatedNotifications = loadSettings().notifications;
-            for (const poller of atomPollers.values()) {
-              poller.updateNotificationSettings(updatedNotifications);
-              void poller.pollNow();
-            }
+            accountsManager?.updateNotificationSettings(updatedNotifications);
+            accountsManager?.requestImmediatePoll();
           }
         }
       } else if (method === 'account.add') {
         const newAcc = accountsManager?.addAccount(params.name as string, params.color as string);
         if (newAcc) {
-          startPollerForAccount(newAcc.id, newAcc.partition);
           const accounts = accountsManager?.getAccounts() || [];
           const total = accounts.reduce((sum, a) => sum + a.unreadCount, 0);
           updateTrayData(accounts, total);
@@ -1248,7 +1137,6 @@ if (!hasLock) {
         }
       } else if (method === 'account.remove') {
         accountsManager?.removeAccount(params.accountId as string);
-        stopPollerForAccount(params.accountId as string);
         const accounts = accountsManager?.getAccounts() || [];
         const total = accounts.reduce((sum, a) => sum + a.unreadCount, 0);
         updateTrayData(accounts, total);
@@ -1295,20 +1183,20 @@ if (!hasLock) {
           composeWithoutAccount: () => composeWithoutAccount(),
           requestImmediatePoll: (accountId) => {
             if (accountId) {
-              atomPollers.get(accountId)?.requestImmediatePoll();
+              void accountsManager?.getMailboxSource(accountId)?.handleMailboxChangeHint();
             } else {
-              for (const poller of atomPollers.values()) {
-                poller.requestImmediatePoll();
+              for (const source of accountsManager?.getMailboxSources().values() ?? []) {
+                void source.handleMailboxChangeHint();
               }
             }
           },
           pollAllNow: () => {
-            accountsManager?.resetTriageGraceWindow();
             void accountsManager?.pressGmailRefreshControl();
+            const sources = accountsManager?.getMailboxSources();
             return Promise.allSettled(
-              [...atomPollers.values()].map((poller) => poller.pollNow()),
+              [...(sources?.values() ?? [])].map((source) => source.refresh()),
             ).then(() => {
-              for (const accountId of atomPollers.keys()) {
+              for (const accountId of sources?.keys() ?? []) {
                 sendTrayMessages(accountId);
               }
             });
@@ -1356,26 +1244,7 @@ if (!hasLock) {
     ipcMain.on(IPC_CHANNELS.MAILBOX_CHANGE_HINT, (event) => {
       const accountId = accountsManager?.getAccountIdForWebContentsId(event.sender.id);
       if (accountId) {
-        atomPollers.get(accountId)?.requestImmediatePoll();
-        const view = accountsManager?.getWebContentsViewForAccount(accountId);
-        if (view) {
-          void readCachedInboxData(view.webContents, 5).then((snapshot) => {
-            if (snapshot) {
-              if (snapshot.stats?.reason === 'no-db') {
-                accountsManager?.handleOfflineCacheStatus(accountId, false);
-              } else if (!snapshot.stats?.reason) {
-                accountsManager?.handleOfflineCacheStatus(accountId, true);
-                if (snapshot.categoryCounts && accountsManager) {
-                  accountsManager.handleCacheCategoryCounts(
-                    accountId,
-                    snapshot.categoryCounts,
-                    Date.now(),
-                  );
-                }
-              }
-            }
-          });
-        }
+        void accountsManager?.getMailboxSource(accountId)?.handleMailboxChangeHint();
       }
     });
 
@@ -1389,9 +1258,7 @@ if (!hasLock) {
     ipcMain.on(IPC_CHANNELS.NETWORK_STATUS_CHANGED, (_event, isOnline: boolean) => {
       if (isOnline) {
         accountsManager?.handleNetworkStatusChange(true);
-        for (const poller of atomPollers.values()) {
-          poller.requestImmediatePoll();
-        }
+        accountsManager?.requestImmediatePoll();
       }
       const accounts = accountsManager?.getFocusedAccounts() || [];
       const total = calculateAggregateUnread(accounts);
@@ -1412,7 +1279,7 @@ if (!hasLock) {
     const nudgeActivePoller = () => {
       const activeId = accountsManager?.getActiveAccountId();
       if (activeId) {
-        atomPollers.get(activeId)?.requestImmediatePoll();
+        void accountsManager?.getMailboxSource(activeId)?.handleMailboxChangeHint();
       }
     };
 
@@ -1470,7 +1337,6 @@ if (!hasLock) {
     ipcMain.handle(IPC_CHANNELS.ACCOUNTS_ADD, (_event, name: string, color: string) => {
       const newAcc = accountsManager?.addAccount(name, color);
       if (newAcc) {
-        startPollerForAccount(newAcc.id, newAcc.partition);
         const accounts = accountsManager?.getAccounts() || [];
         const total = accounts.reduce((sum, a) => sum + a.unreadCount, 0);
         updateTrayData(accounts, total);
@@ -1480,7 +1346,6 @@ if (!hasLock) {
     });
 
     ipcMain.handle(IPC_CHANNELS.ACCOUNTS_REMOVE, (_event, accountId: string) => {
-      stopPollerForAccount(accountId);
       const res = accountsManager?.removeAccount(accountId);
       const accounts = accountsManager?.getAccounts() || [];
       const total = accounts.reduce((sum, a) => sum + a.unreadCount, 0);
@@ -1533,15 +1398,11 @@ if (!hasLock) {
       saveSetting(key, value);
       if (key === 'pollIntervalSeconds' && typeof value === 'number') {
         const current = loadSettings();
-        for (const poller of atomPollers.values()) {
-          poller.setIntervals(value, current.pollIntervalBatterySeconds);
-        }
+        accountsManager?.setPollIntervals(value, current.pollIntervalBatterySeconds);
       }
       if (key === 'pollIntervalBatterySeconds' && typeof value === 'number') {
         const current = loadSettings();
-        for (const poller of atomPollers.values()) {
-          poller.setIntervals(current.pollIntervalSeconds, value);
-        }
+        accountsManager?.setPollIntervals(current.pollIntervalSeconds, value);
       }
       if (key === 'inactiveAccountSuspendMinutes' && typeof value === 'number') {
         accountsManager?.setSuspendDelayMinutes(value);
@@ -1587,10 +1448,8 @@ if (!hasLock) {
       if (key.startsWith('notifications.')) {
         accountsManager?.recalculateMissingCategories();
         const updatedNotifications = loadSettings().notifications;
-        for (const poller of atomPollers.values()) {
-          poller.updateNotificationSettings(updatedNotifications);
-          void poller.pollNow();
-        }
+        accountsManager?.updateNotificationSettings(updatedNotifications);
+        accountsManager?.requestImmediatePoll();
       }
       return true;
     });
@@ -1652,7 +1511,6 @@ if (!hasLock) {
       }
       void routeThreadAction(accountId, messageId, wanted as TriageAction);
     });
-    startAllPollers();
 
     // 7. Dispatch the startup protocol URL captured before the window, now that the
     // account it named is the one already loaded.
@@ -1668,8 +1526,11 @@ if (!hasLock) {
 
     // 8. Sleep / Wake Lifecycle Listener
     powerMonitor.on('resume', () => {
-      log.info('System resumed from sleep, reloading active view');
+      log.info('System resumed from sleep, reloading active view and refreshing mailbox sources');
       accountsManager?.reloadActiveViewOnResume();
+      for (const source of accountsManager?.getMailboxSources().values() ?? []) {
+        void source.handleWindowWakeOrUnhide();
+      }
     });
 
     app.on('activate', () => {
@@ -1686,10 +1547,7 @@ if (!hasLock) {
       releaseQuickComposeShortcut();
       destroyTray();
       killHelper();
-      for (const poller of atomPollers.values()) {
-        poller.stop();
-      }
-      atomPollers.clear();
+      accountsManager?.stopMailboxSources();
       accountsManager?.persistActiveAccount();
       accountsManager?.suspendAllAccounts();
       try {

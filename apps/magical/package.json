@@ -31,9 +31,9 @@
     "@magimail/core": "workspace:*"
   },
   "devDependencies": {
-    "@types/node": "^22.13.5",
-    "electron": "^44.9.1",
-    "electron-builder": "^26.15.3",
+    "@types/node": "^26.6.6",
+    "electron": "^45.1.0",
+    "electron-builder": "^26.18.0",
     "node-addon-api": "^8.9.2",
     "node-gyp": "^13.1.0",
     "tsup": "^9.0.0",

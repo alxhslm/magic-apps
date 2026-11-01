@@ -185,6 +185,23 @@ describe('readRecentCachedMessages', () => {
     expect(snapshot?.messages).toEqual([]);
   });
 
+  it('surfaces the cache update time as asOf', async () => {
+    const snapshot = await readCachedInboxData(
+      fakeContents({
+        run: () => ({ ...payload([row()]), cacheUpdatedAt: 1_700_000_005_000 }),
+      }),
+      20,
+    );
+
+    expect(snapshot?.asOf).toBe(1_700_000_005_000);
+  });
+
+  it('leaves asOf undefined when the cache has no update time', async () => {
+    const snapshot = await readCachedInboxData(fakeContents({ run: () => payload([row()]) }), 20);
+
+    expect(snapshot?.asOf).toBeUndefined();
+  });
+
   it('bounds the read to the requested number of messages', async () => {
     const execute = vi.fn(async () => payload([]));
     const contents = { ...fakeContents(), executeJavaScript: execute };
@@ -344,7 +361,7 @@ describe('injected Gmail cache decoder', () => {
     expect(result.stats.inbox).toBe(2);
   });
 
-  it('reports reason no-db with found databases and href when _xdb is absent', async () => {
+  it('reports reason no-db with found databases and href when the cache database is absent', async () => {
     (globalThis as { indexedDB?: unknown }).indexedDB = {
       databases: async () => [{ name: 'some_other_storage' }],
     };

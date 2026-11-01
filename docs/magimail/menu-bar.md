@@ -11,7 +11,7 @@ Electron:
 ```mermaid
 flowchart TD
     subgraph Electron["Electron Main Process"]
-        Poller["Atom feed Poller (ses.fetch)"]
+        Poller["Mailbox poller (ses.fetch)"]
         Store["Account Store (accounts.json)"]
         Supervisor["Helper Supervisor (helper-process.ts)"]
     end
@@ -63,17 +63,17 @@ glyph's state or the account dot says whether there is unread mail.
 
 The single fixed width and the content-driven height are the shared popover rules in
 [`../shared/menu-bar.md`](../shared/menu-bar.md). Magimail's width is `TrayPopoverMetrics.width`,
-340pt, and its feed stops growing at `maxListHeight`, 320pt, then scrolls.
+340pt, and its list stops growing at `maxListHeight`, 320pt, then scrolls.
 
 ### Account filter menu
 
-A menu in the header narrows the feed to one account, sitting beside compose and the gear. It appears
+A menu in the header narrows the list to one account, sitting beside compose and the gear. It appears
 once there are two accounts to choose between.
 
 The menu lists "All Accounts" with the total unread count, then one item per account carrying its
 colour dot and its own count. The dot is filled when mail is waiting and a ring when it is not, the
 same mark the main window's toolbar switcher uses. An account whose session has expired shows an
-orange warning triangle instead, and sheds its count: the feed behind it has stopped, so the number
+orange warning triangle instead, and sheds its count: the poller behind it has stopped, so the number
 is one nobody should read.
 
 Each item is a `Toggle`, which AppKit draws as a tick beside the account showing. Selecting an
@@ -104,11 +104,11 @@ menu here.
 
 ## Getting a newer list
 
-The Atom poller runs on its configured interval (see [`atom-feed.md`](atom-feed.md)), so what the
-popover shows on opening is as old as the last tick. Two things shorten that.
+The mailbox poller runs on its configured interval (see [`unread-counts.md`](unread-counts.md)), so what
+the popover shows on opening is as old as the last tick. Two things shorten that.
 
 Opening the popover sends `tray.popoverOpened`, and every poller takes it as a hint. Hints are
-rate-limited inside `AtomFeedPoller.requestImmediatePoll()` rather than obeyed, so opening the
+rate-limited inside the poller's `requestImmediatePoll()` rather than obeyed, so opening the
 popover repeatedly is not a way to hammer Gmail.
 
 The gear menu's **Refresh Inbox**, on ⌘R, is the way to force one. It calls `pollNow()` on every
@@ -122,14 +122,12 @@ newer.
 
 ## Thread list source and `TrayModel` state
 
-### Gmail's cache, not the feed
+### The ledger's rows
 
-The Atom feed ([`atom-feed.md`](atom-feed.md)) only returns unread messages, so a thread dropping out
-of it is indistinguishable from one that was read, archived or deleted. The popover therefore draws
-its threads from Gmail's own `_xdb` IndexedDB cache in the account's renderer, read by
-`gmail-cache-reader.ts`: Gmail's data worker keeps that cache synchronised, so every row carries the
-thread's real read state, labels and category, and a deleted thread disappears rather than lingering
-as a muted row.
+The ledger keeps recent rows, read and unread, so the popover can show recent context after inbox
+zero. It also applies local triage immediately, so the popover and the badge cannot disagree about a
+thread the user just acted on. How the feed and local cache fill the ledger, and how the total is
+composed, is in [`unread-counts.md`](unread-counts.md).
 
 `TrayModel` keeps its own copy of the threads it was last handed, replacing the account's whole list
 on each payload:
@@ -138,16 +136,16 @@ on each payload:
 flowchart TD
     Push["New message payload"] --> Replace["Replace the account's list"]
     Replace --> Local["Apply an unsettled local read state, if any"]
-    Local --> Cache["Local Cache (Sorted by Timestamp)"]
-    Cache --> Popover["Render Inset Message List"]
+    Local --> List["Local list (sorted by timestamp)"]
+    List --> Popover["Render Inset Message List"]
 ```
 
 The payload is not persisted on the Electron side. Each `tray.getMessages` pull, and each forced
-refresh, decodes the current cache afresh, so the popover opens on what Gmail last wrote. A read that
-could not run — a suspended or still-loading view — leaves the last list in place rather than blanking
-it; only a cache that was read and held nothing clears the popover. An archive or trash from the
-popover pulls its row at once and suppresses a stale copy until the cache drops it, rather than
-leaving a deleted thread visible while Gmail's worker catches up.
+refresh, asks `MailboxSource.getRecentMessages()`, which refreshes the ledger from the local cache, so
+the popover opens on what Gmail last wrote plus any local triage not yet confirmed. A read that could
+not run — a suspended or still-loading view — leaves the last list in place rather than blanking it;
+only a read that returned nothing clears the popover. An archive or trash from the popover pulls its
+row at once and suppresses a stale copy until the ledger drops it.
 
 An unread thread is drawn the way Mail and Messages mark unread: a filled dot in the account's accent
 colour at the end of the subject line, the sender and subject at full strength, and a faint accent tint
@@ -155,13 +153,13 @@ on the row. A read thread has no dot, a faded accent pill, secondary text, and n
 primary signal — it holds up under vibrancy and in dark mode where a low-opacity fill can vanish — and
 sits away from the accent pill so the two do not read as one glyph.
 
-1. **A thread missing from a newer payload is gone**, not carried as a muted row: the cache lists read
-   threads itself, so absence means archived or deleted.
-2. **Inbox zero still shows recent context**, because read threads are in the cache rather than aged
-   in place.
+1. **A thread missing from a newer payload is gone**, not carried as a muted row: the ledger keeps
+   read rows too, so absence means archived or deleted.
+2. **Inbox zero still shows recent context**, because the ledger keeps read rows rather than ageing
+   them in place.
 3. **Items are pruned by count alone** in the popover, not by age. `TrayModel.retentionLimit` keeps
    twenty threads per account, matching `RECENT_TRAY_MESSAGES` (twenty), the number Electron asks the
-   cache for.
+   ledger for.
 
 ### Category symbols mapping
 

@@ -11,11 +11,11 @@ widget extension and the App Intents extension.
 `MutationObserver`, so triage in the sidebar reaches the badge without waiting for a network round
 trip. This is the only conventional Electron IPC in the app.
 
-| Channel                     | Direction       | Payload                                                                    | Consumer                                               |
-| --------------------------- | --------------- | -------------------------------------------------------------------------- | ------------------------------------------------------ |
-| `DOM_UNREAD_UPDATE`         | Renderer → Main | `{ timestamp, counts, presentCategories, hasCategoriesSection, isLoaded }` | `AccountsManager.handleDomUnreadUpdate`                |
-| `MAILBOX_CHANGE_HINT`       | Renderer → Main | _(none)_                                                                   | `AtomFeedPoller.requestImmediatePoll` for that account |
-| `UPDATE_MISSING_CATEGORIES` | Main → Renderer | `NotificationCategory[]`                                                   | The in-page setup banner                               |
+| Channel                     | Direction       | Payload                                                                    | Consumer                                              |
+| --------------------------- | --------------- | -------------------------------------------------------------------------- | ----------------------------------------------------- |
+| `DOM_UNREAD_UPDATE`         | Renderer → Main | `{ timestamp, counts, presentCategories, hasCategoriesSection, isLoaded }` | `AccountsManager.handleDomUnreadUpdate`               |
+| `MAILBOX_CHANGE_HINT`       | Renderer → Main | _(none)_                                                                   | `MailboxSource.requestImmediatePoll` for that account |
+| `UPDATE_MISSING_CATEGORIES` | Main → Renderer | `NotificationCategory[]`                                                   | The in-page setup banner                              |
 
 **The sender is identified, never asserted.** Neither renderer channel carries an account id.
 `event.sender.id` is resolved through `getAccountIdForWebContentsId`, so a view can only report about
@@ -27,19 +27,19 @@ comparison and no IPC.
 
 **The two say different things and are trusted differently:**
 
-- `DOM_UNREAD_UPDATE` carries counts, which the main process blends with the feed: the DOM is
-  authoritative for the rows it can see, and the Atom sub-feeds cover the categories it cannot (see
-  [`notifications.md`](notifications.md) and `AccountsManager.getAbsentCategoriesForAccount`). The
-  report also says whether a Categories section exists at all and whether the sidebar has finished
-  loading; `isLoaded: false` suppresses evaluation entirely, so a half-rendered sidebar never
-  registers as an account without categories.
+- `DOM_UNREAD_UPDATE` carries the sidebar's category counts. The DOM is a change detector, not a
+  count authority: the ledger owns the badge total, and the sidebar report tells the poller which
+  categories the page can see (see [`unread-counts.md`](unread-counts.md) and
+  `AccountsManager.getAbsentCategoriesForAccount`). The report also says whether a Categories section
+  exists at all and whether the sidebar has finished loading; `isLoaded: false` suppresses evaluation
+  entirely, so a half-rendered sidebar never registers as an account without categories.
 - `MAILBOX_CHANGE_HINT` carries nothing. It is a _trigger_, not a value: it only changes _when_ the
-  feed is asked, never what the answer is. Hints are cheap and may be spurious (editing a draft
+  source is asked, never what the answer is. Hints are cheap and may be spurious (editing a draft
   mutates the same subtree), so the poller rate-limits them rather than trusting them.
 
 That split is the invariant `tests/badge-source-of-truth.test.ts` defends: a hint may cross the
-boundary, but a count may only cross from the scoped navigation rows, never from `document.title`,
-which carries drafts as well as unread mail.
+boundary, but the badge count is read from the ledger, never from `document.title`, which carries
+drafts as well as unread mail.
 
 ## Native addon
 
@@ -136,7 +136,7 @@ leaves a snapshot where the extension can find it, and pokes WidgetKit to come a
 ```mermaid
 sequenceDiagram
     autonumber
-    participant Poller as AtomFeedPoller
+    participant Poller as Mailbox poller
     participant Main as Electron Main
     participant Addon as Native Addon (Dylib)
     participant Chrono as chronod (WidgetKit host)
@@ -160,7 +160,7 @@ Two things here are easy to get wrong, and each one fails silently:
    directory the sandboxed extension can open. That call reads the code signature's entitlements and
    team prefix, unlike the reload above, so it does not care which executable makes it. The extension
    is sandboxed, and the group is the shared location it and the app are both entitled for.
-2. **Ids are converted on the way in.** The Atom feed reports message ids in decimal, and every
+2. **Ids are converted on the way in.** Gmail reports message ids in decimal, and every
    Gmail URL that opens a message wants the same 64-bit value in hex. `toGmailUrlId` converts once
    into `threadId`, which the widgets, the tray and notifications all build their URLs from. `id`
    stays decimal; it is the feed's identity, persisted to decide what is new.
@@ -223,13 +223,13 @@ app does with the filter: which surfaces drop an excluded account, and which onl
 1. **The Swift binary is missing, or the helper crashes.** `isHelperAvailable()` returns `false` and
    `isHelperRunning()` gates every call site, so nothing throws. Nothing takes its place either: the
    menu bar item, the settings window and notifications are absent for that run. Mail itself is
-   unaffected, because it lives entirely in the Chromium views and the Atom poller.
+   unaffected, because it lives entirely in the Chromium views and the mailbox poller.
 2. **The widget snapshot is missing or unreadable.** `WidgetCache.load()` returns `.empty`, so a
    widget renders its "Open Magimail to sync" placeholder rather than failing to load. The 15-minute
    timeline policy keeps widgets refreshing even when the app is not running to poke them.
-3. **The machine sleeps and wakes.** `powerMonitor.on('suspend')` pauses the background Atom feed
+3. **The machine sleeps and wakes.** `powerMonitor.on('suspend')` pauses the background mailbox poller
    polling loops and timers; `powerMonitor.on('resume')` refreshes every account view at once, wakes
-   the Swift helper and syncs the Atom feed straight away.
+   the Swift helper and polls the mailbox straight away.
 
 A failure is recorded through `@magimail/core/logger` into `~/Library/Logs/<AppName>/main.log`, and
 helper-side diagnostics go to stderr rather than the JSON-RPC stdout. What is captured, at what

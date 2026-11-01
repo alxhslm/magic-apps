@@ -1,4 +1,4 @@
-import { app } from 'electron';
+import { app, screen } from 'electron';
 import { createLogger } from './logger.js';
 
 /**
@@ -49,5 +49,17 @@ export function installCrashHandlers(options: CrashHandlerOptions = {}): void {
     const message = `Child process gone: ${label} reason=${reason} exitCode=${exitCode}`;
     if (reason === 'clean-exit') log.info(message);
     else log.error(message);
+  });
+
+  // A window that stops presenting leaves no trace of its own, and a display that
+  // came, went or changed resolution is one of the few things that can cause it. The
+  // record is what dates the next occurrence against the rest of the log.
+  //
+  // Deferred, because this runs at module load in both apps and `screen` throws
+  // before the app is ready.
+  void app.whenReady().then(() => {
+    screen.on('display-added', () => log.info('Display added'));
+    screen.on('display-removed', () => log.info('Display removed'));
+    screen.on('display-metrics-changed', () => log.info('Display metrics changed'));
   });
 }

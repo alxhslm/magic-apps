@@ -1,4 +1,13 @@
-import { app, BaseWindow, dialog, Menu, nativeTheme, powerMonitor, shell } from 'electron';
+import {
+  app,
+  BaseWindow,
+  dialog,
+  Menu,
+  nativeTheme,
+  powerMonitor,
+  shell,
+  type Rectangle,
+} from 'electron';
 import path from 'node:path';
 import fs from 'node:fs';
 import {
@@ -15,6 +24,7 @@ import {
   WEBSITE_URL,
   type WindowActionTarget,
   viewIsAlive,
+  WindowRebuilder,
 } from '@magimail/core';
 import { localCacheKey } from './native-addon.js';
 import { AccountsManager, calendarPreloadPath } from './accounts-manager.js';
@@ -262,6 +272,20 @@ let findInPageController: FindInPageController | null = null;
 let calendarService: CalendarService | null = null;
 let accounts: AccountsManager | null = null;
 let menuBarManager: MenuBarManager | null = null;
+/** Set before quitting, so the window being torn down is not rebuilt afterwards. */
+let quitting = false;
+/**
+ * The window rebuild both apps share. It reads the handles below rather than capturing
+ * them, so it survives a window being replaced.
+ */
+const windowRebuilder = new WindowRebuilder<AccountsManager>({
+  window: () => mainWindow,
+  manager: () => accounts,
+  accountId: (manager) => manager.getActiveAccountId(),
+  quitting: () => quitting,
+  build: (accountId, bounds) => createWindow(accountId, { bounds }),
+  log,
+});
 
 /** Magical's window handles, for the shared action policy. */
 const windowActionTarget: WindowActionTarget<AccountsManager> = {
@@ -296,7 +320,7 @@ function applyMenu(): void {
           calendarService?.getCachedEvents(),
           accountsNeedingSignIn(),
         ),
-      onReload: () => manager.reloadActive(),
+      onReload: () => reloadCalendar(),
       onGoBack: () => manager.goBack(),
       onGoForward: () => manager.goForward(),
       canGoBack: manager.canGoBack(),
@@ -1124,7 +1148,24 @@ function handleToolbarAction(action: string, value: string): void {
   }
 }
 
-function createWindow(initialAccountId?: string, options: { show?: boolean } = {}): void {
+/**
+ * Serves a reload request: Cmd+R, or Reload Calendar in the View menu.
+ *
+ * It rebuilds the window rather than the account view. A view rebuild is the cheaper
+ * repair, and the right one when only the view's compositor has died, but it is what
+ * failed on 29 October: twenty of them in twenty seconds, each attaching and
+ * navigating a fresh view, with the window still blank until it was closed and
+ * rebuilt. A reload request is a user asking for the calendar back, so it does the
+ * repair that works rather than one that sometimes does.
+ */
+function reloadCalendar(): void {
+  windowRebuilder.rebuild('reload requested');
+}
+
+function createWindow(
+  initialAccountId?: string,
+  options: { show?: boolean; bounds?: Rectangle } = {},
+): void {
   log.info('Creating main window');
   // Built opaque from the start when transparency is off, rather than made
   // vibrant and corrected a frame later. Mirrors Magimail's createMainWindow.
@@ -1136,6 +1177,8 @@ function createWindow(initialAccountId?: string, options: { show?: boolean } = {
       height: 820,
       minWidth: 1280,
       minHeight: 600,
+      // Set when this window is a replacement, so it returns to where the user had it.
+      bounds: options.bounds,
       ...(settings.transparentBackground
         ? {}
         : {
@@ -1158,6 +1201,10 @@ function createWindow(initialAccountId?: string, options: { show?: boolean } = {
     // Before the manager goes, so a relaunch restores the account that was last on
     // screen.
     accounts?.persistActiveAccount();
+    // The account views outlive the window: nothing else closes them, so without
+    // this they hold a renderer each until quit, and their suspend timers fire a few
+    // minutes later against a destroyed window.
+    accounts?.suspendAllAccounts();
     if (accounts) {
       accounts.onAccountsChanged = undefined;
       accounts.onAccountSwitched = undefined;
@@ -1173,6 +1220,11 @@ function createWindow(initialAccountId?: string, options: { show?: boolean } = {
   });
 
   accounts = new AccountsManager(mainWindow, calendarPreloadPath(), { initialAccountId });
+
+  // Coming back to the window is when a blank one is most likely to be seen, so the
+  // pair is logged: it dates the failure against the suspension that preceded it.
+  mainWindow.on('show', () => log.info('Main window shown'));
+  mainWindow.on('hide', () => log.info('Main window hidden'));
   findInPageController = new FindInPageController(
     mainWindow,
     () => accounts?.getActiveView()?.webContents,
@@ -1333,6 +1385,7 @@ app.whenReady().then(async () => {
 });
 
 app.on('before-quit', () => {
+  quitting = true;
   log.info('App shutting down; terminating helper and suspending accounts');
   calendarService?.stop();
   menuBarManager?.destroyTray();

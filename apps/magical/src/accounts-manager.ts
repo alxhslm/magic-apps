@@ -178,6 +178,10 @@ export class AccountsManager {
           }
         },
         detach: (accountId, view) => {
+          // Suspending every view on window close runs after the window is gone, and
+          // its contentView throws once destroyed. The view is still closed either way;
+          // there is simply nothing left to take it off.
+          if (this.windowIsGone()) return;
           if (this.mainWindow.contentView.children.includes(view)) {
             this.mainWindow.contentView.removeChildView(view);
             log.info(`Detached view for account ${accountId} (${this.pool.attachedSummary()})`);
@@ -369,7 +373,9 @@ export class AccountsManager {
         nodeIntegration: false,
         sandbox: false,
         spellcheck: true,
-        backgroundThrottling: false,
+        // `backgroundThrottling` stays at its default. Disabling it stops
+        // Electron's hidden-view patch from reaching `DelegatedFrameHost::WasShown`,
+        // so a view shown after a spell with nothing attached can produce no frame.
       },
     });
     view.setBackgroundColor('#00000000');
@@ -597,6 +603,12 @@ export class AccountsManager {
     for (const [, view] of this.pool.entries()) {
       view.setBounds(bounds);
     }
+  }
+
+  /** Whether the window the pool attaches to is gone, taking its contentView with it. */
+  private windowIsGone(): boolean {
+    if (typeof this.mainWindow.isDestroyed !== 'function') return false;
+    return this.mainWindow.isDestroyed();
   }
 
   /**
@@ -1138,11 +1150,12 @@ export class AccountsManager {
   }
 
   /**
-   * Reloads the active account view.
+   * Rebuilds the active account view through the pool, rather than calling
+   * `webContents.reload()`.
    *
-   * Rebuilds the view through the pool rather than calling `webContents.reload()`,
-   * so an account whose WebContents or compositor has stopped presenting recovers
-   * cleanly when the user hits Cmd+R or chooses Reload from the menu.
+   * Serves the Settings toggles that change Google's own layout and the
+   * wake-from-sleep handler. A reload request does not come here: `Cmd+R` rebuilds
+   * the window, because a view rebuild is what failed to clear a blank one.
    */
   public reloadActive(): void {
     if (!this.activeAccountId) return;
