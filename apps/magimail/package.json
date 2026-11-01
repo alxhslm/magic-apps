@@ -15,7 +15,7 @@
     "build:intents": "cd app-intents-extension && ./build.sh debug && ./build.sh release",
     "build:all": "pnpm build && pnpm build:swift && pnpm build:native && pnpm build:share && pnpm build:widgets && pnpm build:intents",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
+    "test": "install-electron && vitest run",
     "start": "electron .",
     "app": "./scripts/build-app.sh",
     "app:install": "./scripts/build-app.sh --install",
