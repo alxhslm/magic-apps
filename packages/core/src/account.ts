@@ -18,6 +18,10 @@ export interface AccountConfig {
   email?: string;
   /** Whether this account requires authentication / re-signing in */
   needsAuth?: boolean;
+  /** Target browser for external and meeting links. 'system' or specific browser id. */
+  browser?: string;
+  /** Target profile directory for Chromium browsers, or '_auto' to match by account email. */
+  browserProfile?: string;
 }
 
 export const DEFAULT_ACCOUNTS: AccountConfig[] = [
