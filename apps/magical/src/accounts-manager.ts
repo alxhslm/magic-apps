@@ -5,7 +5,6 @@ import {
   ipcMain,
   nativeTheme,
   session,
-  shell,
   webFrameMain,
   type WebFrameMain,
 } from 'electron';
@@ -24,7 +23,7 @@ import { CALENDAR_BASE_URL, CALENDAR_LIST_CHANNEL, CALENDAR_LOGIN_URL } from './
 import { layoutCalendarView } from './window-layout.js';
 import { uiString } from './strings.js';
 import { getCalendarCss, getCalendarSubframeCss } from './calendar-css.js';
-import { isInternalUrl, withoutQuery } from './links.js';
+import { isInternalUrl, openExternalUrl, withoutQuery } from './links.js';
 import { createAccount, loadAccounts, saveAccounts, type CalendarAccount } from './accounts.js';
 import { DOMCalendarMetadataProvider } from './calendar-provider.js';
 import { observeCalendarIds } from './calendar-identity.js';
@@ -421,20 +420,21 @@ export class AccountsManager {
       },
     );
 
-    // An event description's Drive attachments, Maps pins and ticket links go
-    // to the browser. Without this they replace the calendar in a window with
-    // no way back.
+    // An event description's Drive attachments, Maps pins, meeting links and
+    // task links go through openExternalUrl to launch native clients when
+    // available, falling back to the default browser. Without this they replace
+    // the calendar in a window with no way back.
     view.webContents.setWindowOpenHandler(({ url }) => {
       if (isInternalUrl(url)) return { action: 'allow' };
       log.info('Opening external URL from window.open:', redactUrl(url));
-      shell.openExternal(url);
+      void openExternalUrl(url);
       return { action: 'deny' };
     });
     view.webContents.on('will-navigate', (event, url) => {
       if (isInternalUrl(url)) return;
       event.preventDefault();
       log.info('Redirecting navigation to external browser:', redactUrl(url));
-      shell.openExternal(url);
+      void openExternalUrl(url);
     });
 
     // The Tasks embed is a cross-origin document the top-frame stylesheet

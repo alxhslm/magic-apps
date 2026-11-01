@@ -84,7 +84,7 @@ vi.mock('../src/calendar-poller', () => ({
   CalendarSessionExpiredError: FakeSessionExpiredError,
 }));
 
-const { toNativeMeetingUrl, truncateTitle, formatInviteWhen, CalendarService } =
+const { toNativeMeetingUrl, openExternalUrl, truncateTitle, formatInviteWhen, CalendarService } =
   await import('../src/calendar-service');
 // Imported the same way, so the service and these tests share one configuration.
 const { configureSecretFiles, readSecretFile, resetSecretFiles } = await import('@magimail/core');
@@ -142,6 +142,45 @@ describe('toNativeMeetingUrl', () => {
   it('passes through anything it does not recognise rather than mangling it', () => {
     const url = 'https://example.com/conference/room-7';
     expect(toNativeMeetingUrl(url)).toBe(url);
+  });
+});
+
+describe('openExternalUrl', () => {
+  beforeEach(() => {
+    openExternal.mockClear();
+    hasApplicationForUrl.mockClear();
+    hasApplicationForUrl.mockReturnValue(true);
+    alwaysJoinInBrowser.mockReturnValue(false);
+  });
+
+  it('unwraps redirector URLs before dispatching to external browser', async () => {
+    const raw = 'https://www.google.com/url?q=https://app.todoist.com/app/task/1234567890&usd=1';
+    await openExternalUrl(raw);
+    expect(openExternal).toHaveBeenCalledWith('https://app.todoist.com/app/task/1234567890');
+  });
+
+  it('hands meeting links to desktop app when installed', async () => {
+    await openExternalUrl('https://zoom.us/j/1234567890');
+    expect(hasApplicationForUrl).toHaveBeenCalledWith(
+      'zoommtg://zoom.us/join?action=join&confno=1234567890',
+    );
+    expect(openExternal).toHaveBeenCalledWith(
+      'zoommtg://zoom.us/join?action=join&confno=1234567890',
+    );
+  });
+
+  it('falls back to browser when meeting app is not installed', async () => {
+    hasApplicationForUrl.mockReturnValue(false);
+    const url = 'https://zoom.us/j/1234567890';
+    await openExternalUrl(url);
+    expect(openExternal).toHaveBeenCalledWith(url);
+  });
+
+  it('opens non-meeting external URLs directly in browser', async () => {
+    const url = 'https://docs.google.com/document/d/123';
+    await openExternalUrl(url);
+    expect(hasApplicationForUrl).not.toHaveBeenCalled();
+    expect(openExternal).toHaveBeenCalledWith(url);
   });
 });
 

@@ -27,6 +27,7 @@ import {
   RendererPool,
   SUSPEND_NEVER,
   viewIsAlive,
+  unwrapRedirectors,
 } from '@magimail/core';
 import {
   GMAIL_LOGIN_URL,
@@ -835,7 +836,7 @@ export class AccountsManager {
         ) {
           return { action: 'allow' };
         }
-        shell.openExternal(childUrl);
+        shell.openExternal(unwrapRedirectors(childUrl));
         return { action: 'deny' };
       });
 
@@ -909,8 +910,9 @@ export class AccountsManager {
         return { action: 'deny' };
       }
 
-      log.info(`Account ${account.id} opening in the browser:`, redactUrl(url));
-      shell.openExternal(url);
+      const target = unwrapRedirectors(url);
+      log.info(`Account ${account.id} opening in the browser:`, redactUrl(target));
+      shell.openExternal(target);
       return { action: 'deny' };
     });
 
@@ -924,8 +926,9 @@ export class AccountsManager {
 
       if (!isGoogleAuthOrMail) {
         event.preventDefault();
-        log.info(`Account ${account.id} navigating out to the browser:`, redactUrl(url));
-        shell.openExternal(url);
+        const target = unwrapRedirectors(url);
+        log.info(`Account ${account.id} navigating out to the browser:`, redactUrl(target));
+        shell.openExternal(target);
       }
     });
 

@@ -1,4 +1,13 @@
+import { shell } from 'electron';
+import { unwrapRedirectors } from '@magimail/core';
+import { createLogger, redactUrl } from '@magimail/core/logger';
 import { INTERNAL_ORIGINS } from './constants.js';
+import { hasApplicationForUrl } from './native-handlers.js';
+import { loadSettings } from './settings-store.js';
+
+export { unwrapRedirectors } from '@magimail/core';
+
+const log = createLogger('Links');
 
 /**
  * Navigation policy.
@@ -6,8 +15,7 @@ import { INTERNAL_ORIGINS } from './constants.js';
  * Not a feature so much as a repair: event descriptions are full of Drive
  * attachments, Maps pins and ticket links, and without this a click on one
  * replaces the calendar with a web page inside a window that has no back
- * button. Parsing meeting URLs into `zoommtg://` and `msteams://` is a separate
- * job and belongs to Phase 2.
+ * button.
  */
 export function isInternalUrl(rawUrl: string): boolean {
   try {
@@ -34,5 +42,65 @@ export function withoutQuery(rawUrl: string): string {
     return url.toString();
   } catch {
     return rawUrl;
+  }
+}
+
+/**
+ * Rewrites a recognised video conference web URL to its native desktop scheme.
+ *
+ * Zoom and Teams support custom schemes that join the meeting in the native client
+ * directly. Google Meet has no native client and Webex is kept in the browser.
+ */
+export function toNativeMeetingUrl(url: string): string {
+  const unwrapped = unwrapRedirectors(url);
+  const zoom = /^https?:\/\/[^/]*zoom\.us\/[jw]\/(\d+)/.exec(unwrapped);
+  if (zoom) {
+    const pwd = /[?&]pwd=([^&]+)/.exec(unwrapped)?.[1];
+    return `zoommtg://zoom.us/join?action=join&confno=${zoom[1]}${pwd ? `&pwd=${pwd}` : ''}`;
+  }
+  if (/^https?:\/\/teams\.(microsoft|live)\.com\//.test(unwrapped)) {
+    return unwrapped.replace(/^https?:\/\//, 'msteams://');
+  }
+  return unwrapped;
+}
+
+/**
+ * Dispatches an external URL to macOS.
+ *
+ * Shared click gate used by `window.open`, in-view navigation, and the Join Call button.
+ * Redirector wrappers (such as Google outbound tracking links or Outlook Safelinks) are
+ * unwrapped before dispatch so macOS Universal Links can resolve desktop applications
+ * (e.g. Todoist, Notion, Linear, Figma). Meeting URLs (Zoom, Teams) are rewritten to their
+ * native custom schemes unless `alwaysJoinInBrowser` is enabled. If a custom meeting scheme
+ * has no registered client or throws, it falls back to opening the unwrapped web URL in the
+ * system default browser.
+ */
+export async function openExternalUrl(rawUrl: string): Promise<void> {
+  const unwrappedUrl = unwrapRedirectors(rawUrl);
+  const settings = loadSettings();
+  let target = unwrappedUrl;
+
+  if (!settings.alwaysJoinInBrowser) {
+    target = toNativeMeetingUrl(target);
+  }
+
+  if (target !== unwrappedUrl) {
+    const scheme = target.split(':')[0];
+    if (hasApplicationForUrl(target)) {
+      try {
+        await shell.openExternal(target);
+        return;
+      } catch (err) {
+        log.warn(`${scheme}: refused the request, opening in the browser:`, err);
+      }
+    } else {
+      log.info(`No application for ${scheme}:, opening in the browser`);
+    }
+  }
+
+  try {
+    await shell.openExternal(unwrappedUrl);
+  } catch (err) {
+    log.error('Could not open external link:', redactUrl(unwrappedUrl), err);
   }
 }

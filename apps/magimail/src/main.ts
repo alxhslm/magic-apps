@@ -32,6 +32,7 @@ import {
   type WindowActionTarget,
   viewIsAlive,
   WindowRebuilder,
+  unwrapRedirectors,
 } from '@magimail/core';
 import { DEFAULT_PARTITION, IPC_CHANNELS } from './constants.js';
 import {
@@ -1366,7 +1367,7 @@ if (!hasLock) {
     );
 
     ipcMain.handle('magimail:open-external', (_event, url: string) => {
-      shell.openExternal(url);
+      shell.openExternal(unwrapRedirectors(url));
     });
 
     ipcMain.handle(IPC_CHANNELS.FOCUS_FILTER_GET, () => {
