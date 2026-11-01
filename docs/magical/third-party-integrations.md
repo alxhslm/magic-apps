@@ -2,17 +2,16 @@
 
 Event descriptions, task bodies and meeting invitations frequently contain links to external
 tools, such as task managers (Todoist, Linear, Notion) and video conference providers (Zoom, Microsoft Teams).
-Google Calendar wraps outbound links in redirectors (`https://www.google.com/url?q=...`), and
-invitations routed through Exchange carry Outlook Safelinks. These tracking wrappers prevent macOS
-from recognising the destination domain and break Apple Universal Links.
 
-Magical unifies external link handling in `openExternalUrl` in `links.ts`, unwrapping redirectors
-before dispatch so desktop clients and conference handlers receive direct URLs.
+Magical unifies external link dispatch in `openExternalUrl` in `links.ts`, unwrapping redirectors
+via `@magimail/core` before dispatch so desktop clients and conference handlers receive direct URLs.
+The shared redirector unwrapping and Universal Links resolution mechanism is documented in
+[`../shared/third-party-links.md`](../shared/third-party-links.md).
 
 ```mermaid
 flowchart TD
   Trigger["External link trigger<br/>(window.open, will-navigate, joinCall)"] --> Open["openExternalUrl(url)"]
-  Open --> Unwrap["unwrapRedirectors(url)<br/>(strips Google redirectors & Safelinks)"]
+  Open --> Unwrap["unwrapRedirectors(url)<br/>(@magimail/core)"]
   Unwrap --> CallCheck{"Conference call link and<br/>alwaysJoinInBrowser off?"}
   CallCheck -->|Yes| RewriteMeeting["toNativeMeetingUrl(url)<br/>(zoommtg://, msteams://)"]
   CallCheck -->|No| Universal["shell.openExternal(unwrappedUrl)<br/>macOS Universal Links"]
@@ -27,16 +26,11 @@ flowchart TD
 
 ## Desktop apps via Universal Links
 
-macOS resolves Apple Universal Links for applications that register domain associations
-(`apple-app-site-association`). Stripping Google's outbound tracking redirector restores Universal
-Links resolution for apps supporting deep links including Todoist, Notion, Linear, Figma and Slack.
-
-When an application is installed, macOS routes outbound links directly to the desktop client. When no
-client is installed, the destination page opens in the user's default browser without an
-intermediate redirect.
-
-Because macOS manages Universal Links dynamically per domain, third-party desktop tools require no
-bespoke URL schemes or application-specific toggles.
+Outbound tracking redirectors are unwrapped using `unwrapRedirectors` from `@magimail/core`.
+macOS then resolves Apple Universal Links directly to installed desktop apps (such as Todoist,
+Notion, Linear, Figma, and Slack), falling back to the default web browser when the application
+is not installed. See [`../shared/third-party-links.md`](../shared/third-party-links.md) for the
+shared architecture.
 
 ## Video conference schemes
 

@@ -200,3 +200,13 @@ writing a file and sharing it. It takes only directories last written more than 
 arriving while Magimail is closed launches it, so staging written seconds ago can be the very file
 the share is waiting to attach, and a sweep with no age bound would race the share that started the
 app.
+
+## Outbound links
+
+External links clicked in email bodies, detached thread views, and compose popouts are intercepted by
+`setWindowOpenHandler` and `will-navigate` in `accounts-manager.ts` and `compose.ts`.
+
+Magimail unwraps tracking redirectors via `unwrapRedirectors` in `@magimail/core` before calling
+`shell.openExternal`, allowing macOS to resolve registered Universal Links directly to desktop apps
+such as Todoist, Notion, Linear, Figma, and Slack. See
+[`../shared/third-party-links.md`](../shared/third-party-links.md).

@@ -57,8 +57,4 @@ open "magimail://thread/18fa24b91ac051?action=archive"
 
 Emails frequently include links to external tools such as Todoist, Notion, Linear, Figma, GitHub, or Slack.
 
-When you click an external link inside Magimail:
-
-1. **Tracking redirects are unwrapped.** Gmail wraps outbound links in `https://www.google.com/url?q=...`. Magimail unwraps the redirect before opening the URL, recovering the direct address.
-2. **Installed desktop apps open directly.** macOS routes recognised web URLs to their native desktop applications through Apple Universal Links. When you have the matching app installed on your Mac, it opens without raising a browser tab.
-3. **Other links open in your default browser.** If no desktop app handles the address, Magimail passes the unwrapped link to your default web browser.
+Magimail strips Google's redirect prefix from outbound links so they open directly in their native macOS desktop apps when installed, or in your default browser when not.

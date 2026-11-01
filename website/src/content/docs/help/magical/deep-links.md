@@ -63,11 +63,7 @@ open "magical://search?q=Dentist"
 
 Event descriptions and Google Tasks frequently include links to external tools such as Todoist, Notion, Linear, Figma, or Slack.
 
-When you click an external link inside Magical:
-
-1. **Tracking redirects are unwrapped.** Google Calendar wraps outbound links in `https://www.google.com/url?q=...`. Magical unwraps the redirect before opening the URL, recovering the direct address.
-2. **Installed desktop apps open directly.** macOS routes recognised web URLs to their native desktop applications through Apple Universal Links. When you have the matching app installed on your Mac, it opens without raising a browser tab.
-3. **Other links open in your default browser.** If no desktop app handles the address, Magical passes the unwrapped link to your default web browser.
+Magical strips Google's redirect prefix from outbound links so they open directly in their native macOS desktop apps when installed, or in your default browser when not.
 
 :::tip[Video conference calls]
 Meeting links for Zoom and Microsoft Teams also open in their native desktop apps when installed. If you prefer to join meetings in your browser, turn on **Always open calls in the browser** in **Settings → Notifications**. See [Settings Reference](/help/magical/settings/).

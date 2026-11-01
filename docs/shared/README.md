@@ -16,6 +16,7 @@ an app page records what is true only of that app and links here for the concept
 | [`widgets.md`](widgets.md)                                   | The widget extension mechanism, the App Group snapshot and shared tokens     |
 | [`focus-filters.md`](focus-filters.md)                       | The App Intents Focus filter mechanism                                       |
 | [`deep-links.md`](deep-links.md)                             | Custom URL scheme lifecycle, cold-start buffering and triage semantics       |
+| [`third-party-links.md`](third-party-links.md)               | Unwrapping tracking redirectors and Universal Links dispatch to desktop apps |
 | [`sessions-and-security.md`](sessions-and-security.md)       | Partitions, browser identity, no OAuth, and encryption at rest               |
 | [`logging.md`](logging.md)                                   | What is written to disk when something goes wrong                            |
 | [`building-and-signing.md`](building-and-signing.md)         | The build script and the signing grades                                      |
