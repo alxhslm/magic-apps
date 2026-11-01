@@ -50,6 +50,13 @@ public final class SidebarModel: ObservableObject {
 
     public init() {
         recomputeWeekDays()
+        trayModel.onCalendarFilterChanged = { hidden in
+            if let data = try? JSONSerialization.data(withJSONObject: hidden),
+               let str = String(data: data, encoding: .utf8)
+            {
+                ActionBridge.emit("sidebarFilterChanged", str)
+            }
+        }
     }
 
     public func selectDate(_ date: Date) {
@@ -407,9 +414,9 @@ public struct SidebarRootView: View {
     @ViewBuilder
     private var groupingBackground: some View {
         if model.transparentBackground {
-            // Translucent wash: keeps the same vibrancy as the rest of the window,
-            // with a gentle tint that visually groups the sidebar panel.
-            Color.primary.opacity(model.isDarkMode ? 0.04 : 0.02)
+            // Frosted wash: slightly more opaque than the rest of the window,
+            // matching the Magimail menu bar list styling.
+            Color.primary.opacity(model.isDarkMode ? 0.08 : 0.05)
         } else {
             // Opaque Google surface color matching the rest of the app when transparentBackground is false
             Color(hexString: model.isDarkMode ? "#202124" : "#f1f3f4")
@@ -530,6 +537,7 @@ public final class SidebarManager {
     private var visualEffectView: NSVisualEffectView?
     private var hostingView: NSHostingView<SidebarRootView>?
     private var widthConstraint: NSLayoutConstraint?
+    private var windowCloseObserver: Any?
 
     public var isVisible: Bool = true
     public var position: String = "right"
@@ -550,6 +558,33 @@ public final class SidebarManager {
     public func attach(to window: NSWindow) {
         self.window = window
         guard let contentView = window.contentView else { return }
+
+        // Remove old visual effect view if from another window or detached
+        if let existing = visualEffectView, existing.window !== window || existing.superview !== contentView {
+            existing.removeFromSuperview()
+            visualEffectView = nil
+            hostingView = nil
+            widthConstraint = nil
+        }
+
+        if let obs = windowCloseObserver {
+            NotificationCenter.default.removeObserver(obs)
+            windowCloseObserver = nil
+        }
+        windowCloseObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.willCloseNotification,
+            object: window,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.visualEffectView?.removeFromSuperview()
+                self.visualEffectView = nil
+                self.hostingView = nil
+                self.widthConstraint = nil
+                self.window = nil
+            }
+        }
 
         if visualEffectView == nil {
             let effect = NSVisualEffectView(frame: .zero)
@@ -744,10 +779,10 @@ public final class SidebarManager {
 @_cdecl("sidebar_attach")
 public func sidebarAttach(_ nsViewPtr: UnsafeMutableRawPointer) {
     let contentView = Unmanaged<NSView>.fromOpaque(nsViewPtr).takeUnretainedValue()
-    guard let window = contentView.window else { return }
-
     DispatchQueue.main.async {
-        SidebarManager.shared.attach(to: window)
+        if let window = contentView.window {
+            SidebarManager.shared.attach(to: window)
+        }
     }
 }
 

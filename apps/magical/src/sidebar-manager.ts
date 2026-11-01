@@ -1,7 +1,7 @@
 import { BaseWindow, shell } from 'electron';
 import { createLogger } from '@magimail/core/logger';
 import { loadAddon } from './native-addon.js';
-import { loadSettings, saveSetting } from './settings-store.js';
+import { loadSettings, saveSetting, type CalendarRef } from './settings-store.js';
 import { loadAccounts, type CalendarAccount } from './accounts.js';
 import type { NormalizedCalendarEvent } from './calendar-decoder.js';
 import { buildSerializedCalendars, friendlyCalendarName } from './calendars.js';
@@ -25,6 +25,7 @@ export class SidebarManager {
   private cachedEvents = new Map<string, NormalizedCalendarEvent[]>();
   private activeTimeframe: string;
   private activeDateStr?: string;
+  public onFilterChanged?: (hidden: CalendarRef[]) => void;
 
   constructor(
     private readonly getMainWindow: () => BaseWindow | null,
@@ -234,10 +235,31 @@ export class SidebarManager {
         this.getCalendarService?.()?.pollNow();
         break;
       }
+
+      case 'sidebarFilterChanged': {
+        try {
+          const raw = JSON.parse(value);
+          const hidden: CalendarRef[] = Array.isArray(raw)
+            ? raw.filter(
+                (entry): entry is CalendarRef =>
+                  typeof entry === 'object' &&
+                  entry !== null &&
+                  typeof (entry as CalendarRef).accountId === 'string' &&
+                  typeof (entry as CalendarRef).calendarId === 'string',
+              )
+            : [];
+          saveSetting('hiddenCalendars', hidden);
+          log.info(`${hidden.length} calendar(s) hidden via sidebar`);
+          this.onFilterChanged?.(hidden);
+        } catch (err) {
+          log.warn('Could not parse sidebarFilterChanged:', err);
+        }
+        break;
+      }
     }
   }
 
-  private pushData(): void {
+  public pushData(): void {
     try {
       const addon = loadAddon();
       if (!addon.sidebarUpdateData) return;
@@ -247,18 +269,26 @@ export class SidebarManager {
       const hidden = new Set(hiddenCalendars.map((c) => hiddenKey(c.accountId, c.calendarId)));
 
       const accountsList = this.getAccounts();
+      const eventsMap =
+        this.cachedEvents.size > 0
+          ? this.cachedEvents
+          : (this.getCalendarService?.()?.getCachedEvents() ?? this.cachedEvents);
+      if (this.cachedEvents.size === 0 && eventsMap.size > 0) {
+        this.cachedEvents = eventsMap;
+      }
+
       const {
         calendars: serializedCalendars,
         calendarColorMap,
         calendarNameMap,
-      } = buildSerializedCalendars(accountsList, this.cachedEvents);
+      } = buildSerializedCalendars(accountsList, eventsMap);
 
       const serializedEvents: Array<Record<string, unknown>> = [];
       const now = Date.now();
       const windowStart = now - 30 * 86_400_000;
       const windowEnd = now + 90 * 86_400_000;
 
-      for (const [accountId, events] of this.cachedEvents.entries()) {
+      for (const [accountId, events] of eventsMap.entries()) {
         const accountColors = calendarColorMap.get(accountId);
         const accountNames = calendarNameMap.get(accountId);
         const account = accountsList.find((a) => a.id === accountId);
@@ -278,12 +308,6 @@ export class SidebarManager {
             calendarIds.find((id) => !hidden.has(hiddenKey(accountId, id))) ??
             calendarIds[0] ??
             primaryEmail;
-          if (
-            calendarIds.length > 0 &&
-            calendarIds.every((id) => hidden.has(hiddenKey(accountId, id)))
-          ) {
-            continue;
-          }
 
           const startTime = event.startTime.getTime();
           const endTime = event.endTime.getTime();
@@ -333,6 +357,10 @@ export class SidebarManager {
           email: a.email || '',
         })),
         calendars: serializedCalendars,
+        hiddenCalendars: hiddenCalendars.map((c) => ({
+          accountId: c.accountId,
+          calendarId: c.calendarId,
+        })),
         events: serializedEvents,
         activeAccountId: this.getAccountsManager()?.getActiveAccountId?.(),
         isCalendarCollapsed: Boolean(settings.isCalendarCollapsed),

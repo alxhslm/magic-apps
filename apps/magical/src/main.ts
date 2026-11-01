@@ -537,6 +537,7 @@ function applySettingChange(key: string, value: unknown): void {
             (query, accountId) => handleSearch(query, accountId),
           );
         }
+        menuBarManager.onHiddenCalendarsChanged = () => sidebarManager?.pushData();
         menuBarManager.createTray();
         if (accounts) menuBarManager.updateAccounts(accounts.getAccounts());
         if (calendarService) menuBarManager.updateEvents(calendarService.getCachedEvents());
@@ -1150,6 +1151,7 @@ function handleToolbarAction(action: string, value: string): void {
     case 'sidebarCompleteTask':
     case 'sidebarRsvp':
     case 'sidebarRefresh':
+    case 'sidebarFilterChanged':
       sidebarManager?.handleSidebarAction(action, value);
       break;
 
@@ -1221,6 +1223,7 @@ function createWindow(
     () => accounts,
     () => calendarService,
   );
+  sidebarManager.onFilterChanged = () => menuBarManager?.pushUpdate();
   sidebarManager.attach(mainWindow);
 
   // Coming back to the window is the moment a stale agenda is most visible, and the
@@ -1312,6 +1315,7 @@ function createWindow(
       (query, accountId) => handleSearch(query, accountId),
     );
   }
+  menuBarManager.onHiddenCalendarsChanged = () => sidebarManager?.pushData();
 
   if (loadSettings().showMenuBarIcon) {
     menuBarManager.createTray();

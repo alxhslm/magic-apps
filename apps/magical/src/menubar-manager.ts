@@ -102,6 +102,8 @@ export class MenuBarManager {
   private lastPayloadJson: string | null = null;
   private retryScheduler = new RetryScheduler({ maxRetries: 1, delayMs: 1000 });
 
+  public onHiddenCalendarsChanged?: (hidden: CalendarRef[]) => void;
+
   constructor(
     private getMainWindow: () => BaseWindow | null,
     private getAccountsManager: () => AccountsManager | null,
@@ -658,6 +660,7 @@ export class MenuBarManager {
           : [];
         saveSetting('hiddenCalendars', hidden);
         log.info(`${hidden.length} calendar(s) hidden in the popover`);
+        this.onHiddenCalendarsChanged?.(hidden);
         return true;
       }
 

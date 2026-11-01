@@ -183,19 +183,30 @@ public struct DayTimeGridView: View {
 
     // MARK: - Now Indicator
 
+    private static let nowFormatter: DateFormatter = {
+        let df = DateFormatter()
+        df.dateFormat = "HH:mm"
+        df.timeZone = .current
+        return df
+    }()
+
     private func nowIndicator(width: CGFloat) -> some View {
         let now = Date()
         let minutes = calendar.component(.hour, from: now) * 60 + calendar.component(.minute, from: now)
         let nowY = CGFloat(minutes) / 60.0 * hourHeight
 
-        return HStack(spacing: 0) {
+        return HStack(spacing: 6) {
             Circle()
                 .fill(Color.red)
                 .frame(width: 6, height: 6)
 
             Rectangle()
                 .fill(Color.red)
-                .frame(height: 1.5)
+                .frame(height: 1)
+
+            Text(Self.nowFormatter.string(from: now))
+                .font(.system(size: 9.5, weight: .semibold, design: .rounded).monospacedDigit())
+                .foregroundStyle(Color.red)
         }
         .frame(width: max(0, width - gutterWidth + 3))
         .offset(x: gutterWidth - 3, y: nowY - 3)
