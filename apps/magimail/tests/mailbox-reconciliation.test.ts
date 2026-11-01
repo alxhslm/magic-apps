@@ -1338,4 +1338,88 @@ describe('every category tab', () => {
       expect(ledger.getUnreadCountFor(counted)).toBe(0);
     });
   }
+
+  describe('getLatestVerificationCode', () => {
+    it('extracts latest verification code from unread message in ledger', () => {
+      const ledger = new UnreadLedger();
+      const now = Date.now();
+      ledger.reconcileWithCache(
+        [
+          {
+            id: 'msg-otp-1',
+            threadId: 'th-otp-1',
+            from: 'GitHub <noreply@github.com>',
+            subject: '849201 is your GitHub verification code',
+            snippet: 'Use this code to verify your account.',
+            unread: true,
+            category: 'primary',
+            modified: new Date(now - 60_000),
+          },
+        ],
+        now,
+        now,
+      );
+
+      const result = ledger.getLatestVerificationCode('acc-1', 15 * 60 * 1000, now);
+      expect(result).toEqual({
+        code: '849201',
+        service: 'GitHub',
+        subject: '849201 is your GitHub verification code',
+        from: 'GitHub <noreply@github.com>',
+        messageId: 'msg-otp-1',
+        threadId: 'th-otp-1',
+        accountId: 'acc-1',
+        receivedAt: now - 60_000,
+      });
+    });
+
+    it('does not return verification code when message is read or triaged', () => {
+      const ledger = new UnreadLedger();
+      const now = Date.now();
+      ledger.reconcileWithCache(
+        [
+          {
+            id: 'msg-otp-1',
+            threadId: 'th-otp-1',
+            from: 'GitHub <noreply@github.com>',
+            subject: '849201 is your GitHub verification code',
+            snippet: 'Use this code to verify your account.',
+            unread: true,
+            category: 'primary',
+            modified: new Date(now - 60_000),
+          },
+        ],
+        now,
+        now,
+      );
+
+      // Triage thread
+      ledger.recordLocalTriage('msg-otp-1', 'th-otp-1', 'archive');
+      expect(ledger.getLatestVerificationCode('acc-1', 15 * 60 * 1000, now)).toBeNull();
+    });
+
+    it('does not return verification code older than maxAgeMs', () => {
+      const ledger = new UnreadLedger();
+      const now = Date.now();
+      ledger.reconcileWithCache(
+        [
+          {
+            id: 'msg-otp-old',
+            threadId: 'th-otp-old',
+            from: 'Google <no-reply@accounts.google.com>',
+            subject: 'G-123456 is your Google verification code',
+            snippet: '',
+            unread: true,
+            category: 'primary',
+            modified: new Date(now - 20 * 60 * 1000), // 20 mins ago
+          },
+        ],
+        now,
+        now,
+      );
+
+      // 15 min limit
+      expect(ledger.getLatestVerificationCode('acc-1', 15 * 60 * 1000, now)).toBeNull();
+    });
+  });
 });

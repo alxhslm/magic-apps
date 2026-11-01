@@ -58,6 +58,7 @@ import {
   type MailboxSource,
   type MailboxChangeEvent,
   type MailboxPollEvent,
+  type VerificationCodeItem,
   HybridFeedSource,
 } from './mailbox/index.js';
 import {
@@ -436,6 +437,16 @@ export class AccountsManager {
 
   public getMailboxSources(): Map<string, MailboxSource> {
     return this.mailboxSources;
+  }
+
+  public async getLatestVerificationCode(maxAgeMs?: number): Promise<VerificationCodeItem | null> {
+    const results = await Promise.all(
+      [...this.mailboxSources.values()].map((s) => s.getLatestVerificationCode(maxAgeMs)),
+    );
+    const valid = results.filter((r): r is VerificationCodeItem => r !== null);
+    if (valid.length === 0) return null;
+    valid.sort((a, b) => b.receivedAt - a.receivedAt);
+    return valid[0];
   }
 
   public setPollIntervals(acSeconds: number, batterySeconds: number): void {

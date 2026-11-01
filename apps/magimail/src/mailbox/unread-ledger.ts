@@ -1,4 +1,5 @@
 import { createLogger } from '@magimail/core/logger';
+import { extractVerificationCode } from '../verification-code.js';
 import type {
   AtomMessage,
   NotificationCategory,
@@ -7,6 +8,7 @@ import type {
   TriagedRecord,
   UnreadBreakdown,
   UnreadLedgerItem,
+  VerificationCodeItem,
 } from './types.js';
 
 const log = createLogger('UnreadLedger');
@@ -726,6 +728,41 @@ export class UnreadLedger {
         category: item.category,
         unread: item.unread,
       }));
+  }
+
+  /**
+   * Returns the latest one-time verification code extracted from an unread,
+   * un-triaged email within maxAgeMs.
+   */
+  public getLatestVerificationCode(
+    accountId: string,
+    maxAgeMs = 15 * 60 * 1000,
+    now = Date.now(),
+  ): VerificationCodeItem | null {
+    const candidates = [...this.recent.values()]
+      .filter((item) => item.unread && item.localIntent !== 'removed')
+      .sort((a, b) => (b.timestampMs ?? b.observedAt) - (a.timestampMs ?? a.observedAt));
+
+    for (const item of candidates) {
+      const time = item.timestampMs ?? item.observedAt;
+      if (now - time > maxAgeMs) {
+        continue;
+      }
+      const extracted = extractVerificationCode(item.subject, item.snippet, item.from);
+      if (extracted) {
+        return {
+          code: extracted.code,
+          service: extracted.service,
+          subject: item.subject ?? '',
+          from: item.from ?? '',
+          messageId: item.id,
+          threadId: item.threadId,
+          accountId,
+          receivedAt: time,
+        };
+      }
+    }
+    return null;
   }
 
   public updateNotificationSettings(settings: Record<string, string>): void {
