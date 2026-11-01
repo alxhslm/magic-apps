@@ -36,21 +36,20 @@ export class SidebarManager {
     this.position = settings.sidebarPosition ?? 'right';
   }
 
-  public updateWindowMinSize(expandIfOpening = false): void {
+  public updateWindowMinSize(): void {
     const win = this.getMainWindow();
     if (!win || (typeof win.isDestroyed === 'function' && win.isDestroyed())) return;
     const minW = windowMinWidth(this.isVisible);
     if (typeof win.setMinimumSize === 'function') {
       win.setMinimumSize(minW, CALENDAR_MIN_HEIGHT);
     }
+    // If the window is smaller than the required min width (between X and X+Y),
+    // increase the window size to minW (X+Y) so Google Calendar is never clipped.
+    // If the window is already >= X+Y, no window resizing is needed.
     if (typeof win.getSize === 'function' && typeof win.setSize === 'function') {
       const [w, h] = win.getSize();
-      if (this.isVisible) {
-        if (expandIfOpening) {
-          win.setSize(Math.max(w + SIDEBAR_WIDTH, minW), h);
-        } else if (w < minW) {
-          win.setSize(minW, h);
-        }
+      if (this.isVisible && w < minW) {
+        win.setSize(minW, h);
       }
     }
   }
@@ -75,7 +74,7 @@ export class SidebarManager {
   public toggleSidebar(): void {
     this.isVisible = !this.isVisible;
     saveSetting('sidebarVisible', this.isVisible);
-    this.updateWindowMinSize(this.isVisible);
+    this.updateWindowMinSize();
 
     try {
       loadAddon().sidebarSetVisible?.(this.isVisible, true);
@@ -91,7 +90,7 @@ export class SidebarManager {
     if (this.isVisible === visible) return;
     this.isVisible = visible;
     saveSetting('sidebarVisible', this.isVisible);
-    this.updateWindowMinSize(this.isVisible);
+    this.updateWindowMinSize();
     try {
       loadAddon().sidebarSetVisible?.(this.isVisible, true);
     } catch (err) {

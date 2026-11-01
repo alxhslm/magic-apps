@@ -108,6 +108,23 @@ describe('SidebarManager', () => {
     expect(mockMainWindow.setMinimumSize).toHaveBeenCalledWith(1560, 600);
   });
 
+  it('does not resize window when window width is already greater than or equal to minRequiredWidth (1560)', () => {
+    mockMainWindow.getSize.mockReturnValue([1600, 820]);
+    const manager = new SidebarManager(
+      () => mockMainWindow as any,
+      () => mockAccountsManager as any,
+    );
+
+    // Toggle closed:
+    manager.toggleSidebar();
+    expect(mockMainWindow.setSize).not.toHaveBeenCalled();
+
+    // Toggle open again: window is 1600 (>= 1560), so setSize must not be called
+    manager.toggleSidebar();
+    expect(mockMainWindow.setSize).not.toHaveBeenCalled();
+    expect(mockMainWindow.setMinimumSize).toHaveBeenCalledWith(1560, 600);
+  });
+
   it('relays timeframe and anchor date changes to native addon', () => {
     const manager = new SidebarManager(
       () => mockMainWindow as any,

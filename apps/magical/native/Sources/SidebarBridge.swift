@@ -385,32 +385,23 @@ public struct SidebarRootView: View {
     @ObservedObject var model: SidebarModel = .shared
 
     public var body: some View {
-        HStack(spacing: 0) {
-            // Visual grouping: leading vertical border separating sidebar from main web view
-            Rectangle()
-                .fill(Color(nsColor: .separatorColor))
-                .frame(width: 1)
-
-            VStack(spacing: 0) {
-                // Top border cleanly separating the toolbar band from sidebar contents
-                Rectangle()
-                    .fill(Color(nsColor: .separatorColor))
-                    .frame(height: 1)
-
-                switch model.viewMode {
-                case .fantastical:
-                    fantasticalModeView
-                case .week, .fourDay:
-                    weekModeView
-                case .day:
-                    dayModeView
-                }
+        VStack(spacing: 0) {
+            switch model.viewMode {
+            case .fantastical:
+                fantasticalModeView
+            case .week, .fourDay:
+                weekModeView
+            case .day:
+                dayModeView
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .frame(width: 280)
-        .frame(maxHeight: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(groupingBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(Color(nsColor: .separatorColor).opacity(model.transparentBackground ? 0.35 : 0.2), lineWidth: 1)
+        )
     }
 
     @ViewBuilder
@@ -542,7 +533,17 @@ public final class SidebarManager {
 
     public var isVisible: Bool = true
     public var position: String = "right"
-    public let width: CGFloat = 280
+    public let cardWidth: CGFloat = 264
+    public let margin: CGFloat = 8
+    public let topMargin: CGFloat = 6
+    public let cornerRadius: CGFloat = 10
+    public let calendarMinWidth: CGFloat = 1280
+    public var minRequiredWidth: CGFloat {
+        calendarMinWidth + cardWidth + margin * 2
+    } // 1560
+    public var width: CGFloat {
+        cardWidth + margin * 2
+    } // 280
 
     public init() {}
 
@@ -556,6 +557,12 @@ public final class SidebarManager {
             effect.blendingMode = .behindWindow
             effect.state = .followsWindowActiveState
             effect.translatesAutoresizingMaskIntoConstraints = false
+            effect.wantsLayer = true
+            effect.layer?.cornerRadius = cornerRadius
+            effect.layer?.cornerCurve = .continuous
+            effect.layer?.masksToBounds = true
+            effect.layer?.borderWidth = 1.0
+            effect.layer?.borderColor = NSColor.separatorColor.withAlphaComponent(0.35).cgColor
 
             let host = NSHostingView(rootView: SidebarRootView())
             host.translatesAutoresizingMaskIntoConstraints = false
@@ -570,16 +577,16 @@ public final class SidebarManager {
 
             contentView.addSubview(effect)
 
-            let widthC = effect.widthAnchor.constraint(equalToConstant: isVisible ? width : 0)
+            let widthC = effect.widthAnchor.constraint(equalToConstant: isVisible ? cardWidth : 0)
             widthConstraint = widthC
 
             let toolbarHeight: CGFloat = 52
 
             NSLayoutConstraint.activate([
                 widthC,
-                effect.topAnchor.constraint(equalTo: contentView.topAnchor, constant: toolbarHeight),
-                effect.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
-                effect.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
+                effect.topAnchor.constraint(equalTo: contentView.topAnchor, constant: toolbarHeight + topMargin),
+                effect.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -margin),
+                effect.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -margin),
             ])
 
             visualEffectView = effect
@@ -587,6 +594,13 @@ public final class SidebarManager {
             effect.isHidden = !isVisible
 
             applyTransparency()
+        }
+
+        window.minSize = NSSize(width: isVisible ? minRequiredWidth : calendarMinWidth, height: 600)
+        if isVisible, window.frame.size.width < minRequiredWidth {
+            var frame = window.frame
+            frame.size.width = minRequiredWidth
+            window.setFrame(frame, display: true, animate: false)
         }
     }
 
@@ -619,7 +633,29 @@ public final class SidebarManager {
             effect.isHidden = false
         }
 
-        let targetWidth: CGFloat = visible ? width : 0
+        let targetWidth: CGFloat = visible ? cardWidth : 0
+
+        // If opening and current window width is less than minRequiredWidth (1280 + 280 = 1560),
+        // smoothly animate the window expansion to 1560 simultaneously.
+        if visible, let window {
+            var frame = window.frame
+            if frame.size.width < minRequiredWidth {
+                let targetWindowWidth = minRequiredWidth
+                if let screen = window.screen ?? NSScreen.main {
+                    let maxRight = screen.visibleFrame.maxX
+                    if frame.origin.x + targetWindowWidth > maxRight {
+                        frame.origin.x = max(screen.visibleFrame.minX, maxRight - targetWindowWidth)
+                    }
+                }
+                frame.size.width = targetWindowWidth
+                window.minSize = NSSize(width: minRequiredWidth, height: 600)
+                window.setFrame(frame, display: true, animate: animated)
+            } else {
+                window.minSize = NSSize(width: minRequiredWidth, height: 600)
+            }
+        } else if !visible, let window {
+            window.minSize = NSSize(width: calendarMinWidth, height: 600)
+        }
 
         if animated {
             NSAnimationContext.runAnimationGroup { context in
