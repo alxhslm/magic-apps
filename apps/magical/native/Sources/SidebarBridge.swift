@@ -61,6 +61,33 @@ public final class SidebarModel: ObservableObject {
         ActionBridge.emit("sidebarSelectDate", formatter.string(from: date))
     }
 
+    public func jumpToToday() {
+        let today = Date()
+        selectedDate = today
+        displayedMonthDate = today
+        recomputeWeekDays()
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.timeZone = .current
+        ActionBridge.emit("sidebarSelectDate", formatter.string(from: today))
+    }
+
+    public func previousMonth() {
+        if let prev = calendar.date(byAdding: .month, value: -1, to: displayedMonthDate) {
+            displayedMonthDate = prev
+        }
+    }
+
+    public func nextMonth() {
+        if let next = calendar.date(byAdding: .month, value: 1, to: displayedMonthDate) {
+            displayedMonthDate = next
+        }
+    }
+
+    public func toggleCalendarCollapse() {
+        isCalendarCollapsed.toggle()
+    }
+
     public func setViewMode(_ mode: SidebarViewMode, anchor: Date? = nil) {
         viewMode = mode
         if let anchor {
@@ -488,45 +515,63 @@ public struct SidebarRootView: View {
     /// Fantastical Style: Month grid + continuous Schedule feed
     private var fantasticalModeView: some View {
         VStack(spacing: 0) {
-            // Month header & collapse toggle
-            HStack {
-                Text(monthTitle(model.displayedMonthDate))
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(.primary)
+            // Month header & collapse toggle matching Menu Bar Tray
+            HStack(alignment: .center) {
+                // Month Title (Click jumps to today) + In-Place Toggle Chevron
+                HStack(spacing: 5) {
+                    Button(action: {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            model.jumpToToday()
+                        }
+                    }) {
+                        Text(monthTitle(model.displayedMonthDate))
+                            .font(.system(size: 13.5, weight: .bold))
+                            .foregroundStyle(.primary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Jump to Now")
+
+                    Button(action: {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
+                            model.toggleCalendarCollapse()
+                        }
+                    }) {
+                        Image(systemName: model.isCalendarCollapsed ? "chevron.right" : "chevron.down")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .help(model.isCalendarCollapsed ? "Expand Calendar" : "Collapse Calendar")
+                }
 
                 Spacer()
 
-                Button(action: {
-                    if let prev = Calendar.current.date(byAdding: .month, value: -1, to: model.displayedMonthDate) {
-                        model.displayedMonthDate = prev
+                // Month Navigation Arrows
+                HStack(spacing: 4) {
+                    Button(action: {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            model.previousMonth()
+                        }
+                    }) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(.secondary)
                     }
-                }) {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: 11, weight: .semibold))
-                }
-                .buttonStyle(.plain)
+                    .modifier(TrayAccessoryButton())
+                    .help("Previous Month")
 
-                Button(action: {
-                    if let next = Calendar.current.date(byAdding: .month, value: 1, to: model.displayedMonthDate) {
-                        model.displayedMonthDate = next
+                    Button(action: {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            model.nextMonth()
+                        }
+                    }) {
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(.secondary)
                     }
-                }) {
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 11, weight: .semibold))
+                    .modifier(TrayAccessoryButton())
+                    .help("Next Month")
                 }
-                .buttonStyle(.plain)
-
-                Button(action: {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        model.isCalendarCollapsed.toggle()
-                    }
-                }) {
-                    Image(systemName: model.isCalendarCollapsed ? "chevron.down" : "chevron.up")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-                .padding(.leading, 4)
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)

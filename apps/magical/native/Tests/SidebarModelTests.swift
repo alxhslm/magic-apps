@@ -121,4 +121,36 @@ final class SidebarModelTests: XCTestCase {
         XCTAssertTrue(SidebarModel.shared.transparentBackground)
         XCTAssertTrue(SidebarModel.shared.isDarkMode)
     }
+
+    func testMonthNavigationAndCollapse() throws {
+        let model = SidebarModel()
+        let cal = Calendar.current
+        let initialMonth = model.displayedMonthDate
+
+        model.previousMonth()
+        let prevExpected = try XCTUnwrap(cal.date(byAdding: .month, value: -1, to: initialMonth))
+        XCTAssertTrue(cal.isDate(model.displayedMonthDate, equalTo: prevExpected, toGranularity: .month))
+
+        model.nextMonth()
+        XCTAssertTrue(cal.isDate(model.displayedMonthDate, equalTo: initialMonth, toGranularity: .month))
+
+        XCTAssertFalse(model.isCalendarCollapsed)
+        model.toggleCalendarCollapse()
+        XCTAssertTrue(model.isCalendarCollapsed)
+        model.toggleCalendarCollapse()
+        XCTAssertFalse(model.isCalendarCollapsed)
+    }
+
+    func testJumpToToday() throws {
+        let model = SidebarModel()
+        let cal = Calendar.current
+        let pastDate = try XCTUnwrap(cal.date(byAdding: .month, value: -3, to: Date()))
+
+        model.selectDate(pastDate)
+        XCTAssertFalse(cal.isDateInToday(model.selectedDate))
+
+        model.jumpToToday()
+        XCTAssertTrue(cal.isDateInToday(model.selectedDate))
+        XCTAssertTrue(cal.isDateInToday(model.displayedMonthDate))
+    }
 }
