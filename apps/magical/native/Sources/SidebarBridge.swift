@@ -321,10 +321,6 @@ public struct DayFocusedEventsList: View {
     let events: [TrayEvent]
     let date: Date
 
-    private var isToday: Bool {
-        Calendar.current.isDateInToday(date)
-    }
-
     private var allDayEvents: [TrayEvent] {
         events.filter(\.isAllDay)
     }
@@ -333,91 +329,35 @@ public struct DayFocusedEventsList: View {
         events.filter { !$0.isAllDay }.sorted(by: { $0.startTime < $1.startTime })
     }
 
-    private var clusters: [TimedEventCluster] {
-        TimedEventCluster.cluster(timedEvents: timedEvents)
-    }
-
     public var body: some View {
-        ScrollView(.vertical, showsIndicators: true) {
-            LazyVStack(spacing: 8) {
-                if allDayEvents.isEmpty, timedEvents.isEmpty {
-                    VStack(spacing: 6) {
-                        Image(systemName: "calendar")
-                            .font(.system(size: 22))
-                            .foregroundStyle(.tertiary)
-                        Text("No events for this day")
-                            .font(.system(size: 12))
-                            .foregroundStyle(.tertiary)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 40)
-                } else {
-                    // 1. Pinned All-Day Banners at the top
-                    if !allDayEvents.isEmpty {
-                        VStack(spacing: 4) {
-                            ForEach(allDayEvents, id: \.identity) { event in
-                                AllDayBannerView(
-                                    event: event,
-                                    onSelect: { ActionBridge.emit("sidebarOpenEvent", event.id) },
-                                    onDelete: nil
-                                )
-                            }
-                        }
-                        .padding(.bottom, timedEvents.isEmpty ? 0 : 2)
-                    }
-
-                    // 2. Timed Events (with side-by-side tiles and start-time offset for concurrent events)
-                    let now = Date()
-                    let eventClusters = clusters
-                    let nowClusterIndex = eventClusters.firstIndex { $0.startTime > now } ?? eventClusters.count
-
-                    ForEach(0 ..< eventClusters.count, id: \.self) { idx in
-                        let cluster = eventClusters[idx]
-                        VStack(spacing: 6) {
-                            if isToday, idx == nowClusterIndex {
-                                nowRule(now)
-                            }
-
-                            ClusterEventRowView(
-                                cluster: cluster,
-                                onSelectEvent: { ActionBridge.emit("sidebarOpenEvent", $0.id) },
-                                onJoinCall: { ActionBridge.emit("sidebarJoinCall", $0) },
-                                onRsvp: { _, _ in },
-                                onDeleteEvent: nil,
-                                onCompleteTask: nil
-                            )
-                        }
-                    }
-
-                    if isToday, nowClusterIndex == eventClusters.count, !timedEvents.isEmpty || !allDayEvents.isEmpty {
-                        nowRule(now)
+        VStack(spacing: 0) {
+            // 1. Pinned All-Day Banners at the top
+            if !allDayEvents.isEmpty {
+                VStack(spacing: 4) {
+                    ForEach(allDayEvents, id: \.identity) { event in
+                        AllDayBannerView(
+                            event: event,
+                            onSelect: { ActionBridge.emit("sidebarOpenEvent", event.id) },
+                            onDelete: nil
+                        )
                     }
                 }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+
+                Divider()
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-        }
-    }
 
-    private func nowRule(_ now: Date) -> some View {
-        HStack(spacing: 6) {
-            Circle()
-                .fill(Color.red)
-                .frame(width: 6, height: 6)
-            Rectangle()
-                .fill(Color.red)
-                .frame(height: 1)
-            Text(nowTime(now))
-                .font(.system(size: 9.5, weight: .semibold, design: .rounded).monospacedDigit())
-                .foregroundStyle(Color.red)
+            // 2. Day Time Grid
+            DayTimeGridView(
+                date: date,
+                events: timedEvents,
+                onSelectEvent: { ActionBridge.emit("sidebarOpenEvent", $0.id) },
+                onJoinCall: { ActionBridge.emit("sidebarJoinCall", $0) }
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .padding(.vertical, 2)
-    }
-
-    private func nowTime(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "HH:mm"
-        return formatter.string(from: date)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
