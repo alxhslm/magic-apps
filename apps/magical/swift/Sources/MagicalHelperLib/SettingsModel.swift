@@ -25,10 +25,6 @@ public final class SettingsModel: ObservableObject {
         didSet { emit("launchAtLogin", launchAtLogin) }
     }
 
-    @Published public var openTodoistInDesktopApp: Bool = true {
-        didSet { emit("openTodoistInDesktopApp", openTodoistInDesktopApp) }
-    }
-
     @Published public var addEventAccountPicker: String = "active" {
         didSet { emit("addEventAccountPicker", addEventAccountPicker) }
     }
@@ -240,9 +236,6 @@ public final class SettingsModel: ObservableObject {
         }
         if let v = dict["launchAtLogin"] as? Bool {
             launchAtLogin = v
-        }
-        if let v = dict["openTodoistInDesktopApp"] as? Bool {
-            openTodoistInDesktopApp = v
         }
         if let v = dict["addEventAccountPicker"] as? String {
             addEventAccountPicker = v

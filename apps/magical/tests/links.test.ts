@@ -11,11 +11,9 @@ vi.mock('../src/native-handlers.js', () => ({
 }));
 
 const alwaysJoinInBrowser = vi.fn(() => false);
-const openTodoistInDesktopApp = vi.fn(() => true);
 vi.mock('../src/settings-store.js', () => ({
   loadSettings: () => ({
     alwaysJoinInBrowser: alwaysJoinInBrowser(),
-    openTodoistInDesktopApp: openTodoistInDesktopApp(),
   }),
 }));
 
@@ -23,7 +21,6 @@ import {
   isInternalUrl,
   openExternalUrl,
   toNativeMeetingUrl,
-  toNativeTodoistUrl,
   unwrapRedirectors,
   withoutQuery,
 } from '../src/links.js';
@@ -95,46 +92,6 @@ describe('toNativeMeetingUrl', () => {
   });
 });
 
-describe('toNativeTodoistUrl', () => {
-  it('rewrites task links to todoist://task?id=', () => {
-    expect(toNativeTodoistUrl('https://app.todoist.com/app/task/6372819283')).toBe(
-      'todoist://task?id=6372819283',
-    );
-    expect(toNativeTodoistUrl('https://todoist.com/showTask?id=6372819283')).toBe(
-      'todoist://task?id=6372819283',
-    );
-  });
-
-  it('rewrites project links to todoist://project?id=', () => {
-    expect(toNativeTodoistUrl('https://app.todoist.com/app/project/22334455')).toBe(
-      'todoist://project?id=22334455',
-    );
-    expect(toNativeTodoistUrl('https://todoist.com/showProject?id=22334455')).toBe(
-      'todoist://project?id=22334455',
-    );
-  });
-
-  it('preserves non-task and non-project links', () => {
-    expect(toNativeTodoistUrl('https://app.todoist.com/app/today')).toBe(
-      'https://app.todoist.com/app/today',
-    );
-    expect(toNativeTodoistUrl('https://example.com')).toBe('https://example.com');
-  });
-
-  it('unwraps Google redirector URLs before rewriting', () => {
-    expect(
-      toNativeTodoistUrl(
-        'https://www.google.com/url?q=https://app.todoist.com/app/task/6c33mFGQvgx4Qmmc&usd=1&usg=2',
-      ),
-    ).toBe('todoist://task?id=6c33mFGQvgx4Qmmc');
-    expect(
-      toNativeTodoistUrl(
-        'https://www.google.com/url?q=https://app.todoist.com/app/project/99887766&usd=1',
-      ),
-    ).toBe('todoist://project?id=99887766');
-  });
-});
-
 describe('unwrapRedirectors', () => {
   it('unwraps Google outbound URLs', () => {
     expect(unwrapRedirectors('https://www.google.com/url?q=https://example.com/page&usd=1')).toBe(
@@ -164,41 +121,46 @@ describe('openExternalUrl', () => {
     hasApplicationForUrl.mockClear();
     hasApplicationForUrl.mockReturnValue(true);
     alwaysJoinInBrowser.mockReturnValue(false);
-    openTodoistInDesktopApp.mockReturnValue(true);
   });
 
-  it('opens Todoist task link in desktop app when available', async () => {
-    await openExternalUrl('https://app.todoist.com/app/task/6372819283');
-    expect(hasApplicationForUrl).toHaveBeenCalledWith('todoist://task?id=6372819283');
-    expect(openExternal).toHaveBeenCalledWith('todoist://task?id=6372819283');
-  });
-
-  it('unwraps and opens Google redirector wrapped Todoist task links', async () => {
+  it('unwraps Google redirector wrapped links before opening', async () => {
     await openExternalUrl(
       'https://www.google.com/url?q=https://app.todoist.com/app/task/6c33mFGQvgx4Qmmc&usd=123',
     );
-    expect(hasApplicationForUrl).toHaveBeenCalledWith('todoist://task?id=6c33mFGQvgx4Qmmc');
-    expect(openExternal).toHaveBeenCalledWith('todoist://task?id=6c33mFGQvgx4Qmmc');
+    expect(openExternal).toHaveBeenCalledWith('https://app.todoist.com/app/task/6c33mFGQvgx4Qmmc');
   });
 
-  it('falls back to browser when Todoist app is missing', async () => {
+  it('opens Zoom links in native app when available and enabled', async () => {
+    await openExternalUrl('https://zoom.us/j/1234567890?pwd=abc');
+    expect(hasApplicationForUrl).toHaveBeenCalledWith(
+      'zoommtg://zoom.us/join?action=join&confno=1234567890&pwd=abc',
+    );
+    expect(openExternal).toHaveBeenCalledWith(
+      'zoommtg://zoom.us/join?action=join&confno=1234567890&pwd=abc',
+    );
+  });
+
+  it('falls back to unwrapped browser URL when meeting app is missing', async () => {
     hasApplicationForUrl.mockReturnValue(false);
-    await openExternalUrl('https://app.todoist.com/app/task/6372819283');
-    expect(openExternal).toHaveBeenCalledWith('https://app.todoist.com/app/task/6372819283');
+    await openExternalUrl('https://zoom.us/j/1234567890');
+    expect(openExternal).toHaveBeenCalledWith('https://zoom.us/j/1234567890');
   });
 
-  it('falls back to browser when Todoist app throws on open', async () => {
+  it('falls back to browser when native app throws on open', async () => {
     openExternal.mockRejectedValueOnce(new Error('Failed to open'));
-    await openExternalUrl('https://app.todoist.com/app/task/6372819283');
-    expect(openExternal).toHaveBeenNthCalledWith(1, 'todoist://task?id=6372819283');
-    expect(openExternal).toHaveBeenNthCalledWith(2, 'https://app.todoist.com/app/task/6372819283');
+    await openExternalUrl('https://zoom.us/j/1234567890');
+    expect(openExternal).toHaveBeenNthCalledWith(
+      1,
+      'zoommtg://zoom.us/join?action=join&confno=1234567890',
+    );
+    expect(openExternal).toHaveBeenNthCalledWith(2, 'https://zoom.us/j/1234567890');
   });
 
-  it('leaves web link untouched if openTodoistInDesktopApp is false', async () => {
-    openTodoistInDesktopApp.mockReturnValue(false);
-    await openExternalUrl('https://app.todoist.com/app/task/6372819283');
+  it('keeps meeting link in browser when alwaysJoinInBrowser is true', async () => {
+    alwaysJoinInBrowser.mockReturnValue(true);
+    await openExternalUrl('https://zoom.us/j/1234567890');
     expect(hasApplicationForUrl).not.toHaveBeenCalled();
-    expect(openExternal).toHaveBeenCalledWith('https://app.todoist.com/app/task/6372819283');
+    expect(openExternal).toHaveBeenCalledWith('https://zoom.us/j/1234567890');
   });
 
   it('opens regular external link in browser', async () => {

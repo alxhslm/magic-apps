@@ -226,11 +226,11 @@ application tracks CSS `prefers-color-scheme`, so Magical only has to drive that
 
 - Internal navigation is permitted for `calendar.google.com`, `accounts.google.com` and
   `myaccount.google.com`.
-- `setWindowOpenHandler` and `will-navigate` intercept external links: meeting links
-  ([`conference-links.md`](conference-links.md)), Todoist task and project links
-  ([`third-party-integrations.md`](third-party-integrations.md)), Drive attachments and map
-  coordinates all go to `openExternalUrl`, which checks LaunchServices and rewrites supported
-  services to their native schemes when installed, falling back to `shell.openExternal`.
+- `setWindowOpenHandler` and `will-navigate` intercept external links: outbound tracking
+  redirectors (`google.com/url?q=` and Outlook Safelinks) are unwrapped, restoring macOS Universal Links
+  for desktop apps (Todoist, Notion, Linear, Figma; [`third-party-integrations.md`](third-party-integrations.md)).
+  Meeting links ([`conference-links.md`](conference-links.md)) are rewritten to native custom schemes
+  and verified with LaunchServices when installed, falling back to `shell.openExternal`.
 
 A trackpad swipe or the mouse's own horizontal wheel moves a day, a week or a month, depending on the
 view: it makes the same semantic DOM clicks the `navGroup` arrows make, through `navPrev` and `navNext`.

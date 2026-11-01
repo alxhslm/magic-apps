@@ -31,7 +31,7 @@ public enum SettingsWindow {
                         id: "general",
                         label: String(localized: "General"),
                         icon: "gearshape",
-                        height: 260
+                        height: 200
                     ) {
                         GeneralTab().environmentObject(model)
                     },
@@ -91,17 +91,6 @@ struct GeneralTab: View {
         Form {
             Toggle("Launch Magical at login", isOn: $model.launchAtLogin)
                 .onAppear { model.refreshHandlers() }
-
-            Divider()
-
-            Toggle("Open Todoist links in desktop app", isOn: $model.openTodoistInDesktopApp)
-
-            Text(
-                "Task and project links open in the Todoist app when installed, falling back to the browser."
-            )
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .fixedSize(horizontal: false, vertical: true)
 
             Divider()
 

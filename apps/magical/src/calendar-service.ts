@@ -59,7 +59,7 @@ import {
   resolveCanonicalCalendarId,
   resolvePrimaryEmail,
 } from './calendars.js';
-import { openExternalUrl, toNativeMeetingUrl, toNativeTodoistUrl } from './links.js';
+import { openExternalUrl, toNativeMeetingUrl } from './links.js';
 
 const log = createLogger('CalendarService');
 
@@ -2348,6 +2348,6 @@ export class CalendarService {
   }
 }
 
-export { openExternalUrl, toNativeMeetingUrl, toNativeTodoistUrl } from './links.js';
+export { openExternalUrl, toNativeMeetingUrl } from './links.js';
 
 export type { NormalizedCalendarEvent };

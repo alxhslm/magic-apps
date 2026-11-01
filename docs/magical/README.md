@@ -25,7 +25,7 @@ Google Calendar instead of Gmail.
 | [`notifications.md`](notifications.md)                       | Meeting alerts, invitation watching and banners                                 |
 | [`menu-bar.md`](menu-bar.md)                                 | Status item title, search field, mini-month grid, hero band and agenda          |
 | [`conference-links.md`](conference-links.md)                 | Resolving conference URLs from event data and the join controls                 |
-| [`third-party-integrations.md`](third-party-integrations.md) | Zoom, Teams and Todoist native schemes, URL rewriting and fallback              |
+| [`third-party-integrations.md`](third-party-integrations.md) | Universal Links unwrapping and Zoom/Teams conference schemes                    |
 | [`widgets.md`](widgets.md)                                   | The six widgets, the App Group snapshot, the calendar picker, links and build   |
 | [`deep-links.md`](deep-links.md)                             | `magical://` route taxonomy, event reveal, actions and search                   |
 | [`ics-import.md`](ics-import.md)                             | `open-file` queueing, the account picker, Google's pane and the default claim   |

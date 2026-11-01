@@ -46,14 +46,6 @@ export interface MagicalSettings {
    * not in the desktop client.
    */
   alwaysJoinInBrowser: boolean;
-  /**
-   * Open Todoist task and project links in the Todoist desktop app rather than the browser.
-   *
-   * Rewrites web links (`https://app.todoist.com/app/task/<id>`, etc.) to `todoist://`
-   * when the Todoist desktop app is installed, falling back to the web URL if it is not
-   * installed or refuses to launch.
-   */
-  openTodoistInDesktopApp: boolean;
   /** Whether the mini calendar month grid in the menu bar tray is collapsed. */
   isCalendarCollapsed: boolean;
   /** Whether the menu bar status item is shown. */
@@ -129,7 +121,6 @@ const DEFAULT_SETTINGS: MagicalSettings = {
   meetingAlertsEnabled: true,
   meetingAlertLeadMinutes: 5,
   alwaysJoinInBrowser: false,
-  openTodoistInDesktopApp: true,
   isCalendarCollapsed: false,
   showMenuBarIcon: true,
   menuBarDisplayMode: 'iconOnly',

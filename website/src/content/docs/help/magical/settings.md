@@ -17,8 +17,6 @@ The General tab manages startup behaviour and default calendar file handling:
 
 ### Third-Party Links & Todoist
 
-- **Open Todoist links in desktop app**: When enabled, clicking a Todoist task or project link in an event description opens it directly in the Todoist desktop app rather than a browser tab. If the desktop app is not installed, the link opens in your default browser as usual.
-
 ### Calendar Files (`.ics`)
 
 - **Calendar files (.ics)**: Shows which app opens `.ics` calendar files, with a button to make Magical the one. Once Magical holds the type the button disappears, and the only way back is to name another app in Finder's Get Info panel.

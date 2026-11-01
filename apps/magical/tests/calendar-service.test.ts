@@ -23,7 +23,6 @@ vi.mock('electron', () => ({
 }));
 
 const alwaysJoinInBrowser = vi.fn(() => false);
-const openTodoistInDesktopApp = vi.fn(() => true);
 const dockBadgeMode = vi.fn(() => 'allPending' as 'allPending' | 'newInvitations');
 const disabledAlertCalendarIds = vi.fn(() => [] as string[]);
 vi.mock('../src/settings-store', () => ({
@@ -31,7 +30,6 @@ vi.mock('../src/settings-store', () => ({
     meetingAlertsEnabled: true,
     meetingAlertLeadMinutes: 5,
     alwaysJoinInBrowser: alwaysJoinInBrowser(),
-    openTodoistInDesktopApp: openTodoistInDesktopApp(),
     dockBadgeMode: dockBadgeMode(),
     disabledAlertCalendarIds: disabledAlertCalendarIds(),
   }),
@@ -86,14 +84,8 @@ vi.mock('../src/calendar-poller', () => ({
   CalendarSessionExpiredError: FakeSessionExpiredError,
 }));
 
-const {
-  toNativeMeetingUrl,
-  toNativeTodoistUrl,
-  openExternalUrl,
-  truncateTitle,
-  formatInviteWhen,
-  CalendarService,
-} = await import('../src/calendar-service');
+const { toNativeMeetingUrl, openExternalUrl, truncateTitle, formatInviteWhen, CalendarService } =
+  await import('../src/calendar-service');
 // Imported the same way, so the service and these tests share one configuration.
 const { configureSecretFiles, readSecretFile, resetSecretFiles } = await import('@magimail/core');
 
@@ -153,103 +145,38 @@ describe('toNativeMeetingUrl', () => {
   });
 });
 
-describe('toNativeTodoistUrl', () => {
-  it('rewrites modern Todoist web task links to native app scheme', () => {
-    expect(toNativeTodoistUrl('https://app.todoist.com/app/task/1234567890')).toBe(
-      'todoist://task?id=1234567890',
-    );
-    expect(toNativeTodoistUrl('https://todoist.com/app/task/1234567890')).toBe(
-      'todoist://task?id=1234567890',
-    );
-  });
-
-  it('strips trailing slashes when extracting the task id', () => {
-    expect(toNativeTodoistUrl('https://app.todoist.com/app/task/1234567890/')).toBe(
-      'todoist://task?id=1234567890',
-    );
-  });
-
-  it('rewrites modern Todoist web project links to native app scheme', () => {
-    expect(toNativeTodoistUrl('https://app.todoist.com/app/project/9876543210')).toBe(
-      'todoist://project?id=9876543210',
-    );
-    expect(toNativeTodoistUrl('https://todoist.com/app/project/9876543210')).toBe(
-      'todoist://project?id=9876543210',
-    );
-  });
-
-  it('rewrites showTask query redirect links to native app scheme', () => {
-    expect(toNativeTodoistUrl('https://todoist.com/showTask?id=1234567890')).toBe(
-      'todoist://task?id=1234567890',
-    );
-    expect(toNativeTodoistUrl('https://app.todoist.com/showTask?id=1234567890')).toBe(
-      'todoist://task?id=1234567890',
-    );
-  });
-
-  it('rewrites showProject query redirect links to native app scheme', () => {
-    expect(toNativeTodoistUrl('https://todoist.com/showProject?id=9876543210')).toBe(
-      'todoist://project?id=9876543210',
-    );
-  });
-
-  it('leaves other Todoist paths untouched', () => {
-    expect(toNativeTodoistUrl('https://app.todoist.com/app/today')).toBe(
-      'https://app.todoist.com/app/today',
-    );
-    expect(toNativeTodoistUrl('https://todoist.com/pricing')).toBe('https://todoist.com/pricing');
-  });
-
-  it('leaves a showTask URL without an id query param untouched', () => {
-    expect(toNativeTodoistUrl('https://todoist.com/showTask')).toBe('https://todoist.com/showTask');
-  });
-
-  it('passes through non-Todoist URLs unchanged', () => {
-    expect(toNativeTodoistUrl('https://github.com/todoist')).toBe('https://github.com/todoist');
-    expect(toNativeTodoistUrl('not a url')).toBe('not a url');
-  });
-});
-
 describe('openExternalUrl', () => {
   beforeEach(() => {
     openExternal.mockClear();
     hasApplicationForUrl.mockClear();
     hasApplicationForUrl.mockReturnValue(true);
     alwaysJoinInBrowser.mockReturnValue(false);
-    openTodoistInDesktopApp.mockReturnValue(true);
   });
 
-  it('hands Todoist task links to desktop app when installed', async () => {
-    await openExternalUrl('https://app.todoist.com/app/task/1234567890');
-    expect(hasApplicationForUrl).toHaveBeenCalledWith('todoist://task?id=1234567890');
-    expect(openExternal).toHaveBeenCalledWith('todoist://task?id=1234567890');
+  it('unwraps redirector URLs before dispatching to external browser', async () => {
+    const raw = 'https://www.google.com/url?q=https://app.todoist.com/app/task/1234567890&usd=1';
+    await openExternalUrl(raw);
+    expect(openExternal).toHaveBeenCalledWith('https://app.todoist.com/app/task/1234567890');
   });
 
-  it('falls back to browser when Todoist app is not installed', async () => {
+  it('hands meeting links to desktop app when installed', async () => {
+    await openExternalUrl('https://zoom.us/j/1234567890');
+    expect(hasApplicationForUrl).toHaveBeenCalledWith(
+      'zoommtg://zoom.us/join?action=join&confno=1234567890',
+    );
+    expect(openExternal).toHaveBeenCalledWith(
+      'zoommtg://zoom.us/join?action=join&confno=1234567890',
+    );
+  });
+
+  it('falls back to browser when meeting app is not installed', async () => {
     hasApplicationForUrl.mockReturnValue(false);
-    const url = 'https://app.todoist.com/app/task/1234567890';
+    const url = 'https://zoom.us/j/1234567890';
     await openExternalUrl(url);
-    expect(hasApplicationForUrl).toHaveBeenCalledWith('todoist://task?id=1234567890');
     expect(openExternal).toHaveBeenCalledWith(url);
   });
 
-  it('falls back to browser when Todoist app refuses to launch', async () => {
-    openExternal.mockRejectedValueOnce(new Error('Launch failed'));
-    const url = 'https://app.todoist.com/app/task/1234567890';
-    await openExternalUrl(url);
-    expect(openExternal).toHaveBeenNthCalledWith(1, 'todoist://task?id=1234567890');
-    expect(openExternal).toHaveBeenNthCalledWith(2, url);
-  });
-
-  it('keeps web URL when openTodoistInDesktopApp is disabled in settings', async () => {
-    openTodoistInDesktopApp.mockReturnValue(false);
-    const url = 'https://app.todoist.com/app/task/1234567890';
-    await openExternalUrl(url);
-    expect(hasApplicationForUrl).not.toHaveBeenCalled();
-    expect(openExternal).toHaveBeenCalledWith(url);
-  });
-
-  it('opens non-native external URLs directly in browser', async () => {
+  it('opens non-meeting external URLs directly in browser', async () => {
     const url = 'https://docs.google.com/document/d/123';
     await openExternalUrl(url);
     expect(hasApplicationForUrl).not.toHaveBeenCalled();

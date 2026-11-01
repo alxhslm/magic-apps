@@ -73,12 +73,6 @@ describe('mergeSettings', () => {
     // A stored value of the wrong type is ignored.
     expect(mergeSettings({ hideTasksTab: 'yes' }).hideTasksTab).toBe(false);
   });
-
-  it('defaults openTodoistInDesktopApp to true and honours a stored choice', () => {
-    expect(mergeSettings({}).openTodoistInDesktopApp).toBe(true);
-    expect(mergeSettings({ openTodoistInDesktopApp: false }).openTodoistInDesktopApp).toBe(false);
-    expect(mergeSettings({ openTodoistInDesktopApp: 'no' }).openTodoistInDesktopApp).toBe(true);
-  });
 });
 
 describe('array settings', () => {
