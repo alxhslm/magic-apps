@@ -6,7 +6,7 @@
 // alike. The fallback only applies where there is no Electron `process` — unit
 // tests — so it never reaches Google, and `browser-identity.test.ts` fails when
 // it falls behind the bundled Electron.
-export const CHROMIUM_VERSION_FALLBACK = '152.0.7977.167';
+export const CHROMIUM_VERSION_FALLBACK = '156.0.8078.49';
 
 export const CHROME_FULL_VERSION: string =
   (typeof process !== 'undefined' && process.versions && process.versions.chrome) ||
