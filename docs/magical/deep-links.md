@@ -63,3 +63,12 @@ Emitted by WidgetKit widgets and the menu bar popover:
 
 - **`magical://quick-add`**: Prompts the account picker (if multiple accounts) and opens event creation.
 - **`magical://open`**: Raises and focuses the main window.
+
+## Outbound links
+
+External links clicked in Google Calendar views, event descriptions and tasks pass through `openExternalUrl`
+in `links.ts`. Magical unwraps Google tracking redirectors via `@magimail/core`, routing recognised
+destinations to native desktop applications (such as Todoist, Notion, Linear, Figma, and Slack) via
+macOS Universal Links. See [`../shared/third-party-links.md`](../shared/third-party-links.md). Meeting
+links (Zoom and Microsoft Teams) are rewritten to custom URL schemes; see
+[`conference-links.md`](conference-links.md).
