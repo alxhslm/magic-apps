@@ -1,9 +1,10 @@
 import { shell } from 'electron';
-import { unwrapRedirectors } from '@magimail/core';
+import { unwrapRedirectors, openExternalUrl as openBrowserUrl } from '@magimail/core';
 import { createLogger, redactUrl } from '@magimail/core/logger';
 import { INTERNAL_ORIGINS } from './constants.js';
 import { hasApplicationForUrl } from './native-handlers.js';
 import { loadSettings } from './settings-store.js';
+import type { CalendarAccount } from './accounts.js';
 
 export { unwrapRedirectors } from '@magimail/core';
 
@@ -75,7 +76,7 @@ export function toNativeMeetingUrl(url: string): string {
  * has no registered client or throws, it falls back to opening the unwrapped web URL in the
  * system default browser.
  */
-export async function openExternalUrl(rawUrl: string): Promise<void> {
+export async function openExternalUrl(rawUrl: string, account?: CalendarAccount): Promise<void> {
   const unwrappedUrl = unwrapRedirectors(rawUrl);
   const settings = loadSettings();
   let target = unwrappedUrl;
@@ -99,7 +100,7 @@ export async function openExternalUrl(rawUrl: string): Promise<void> {
   }
 
   try {
-    await shell.openExternal(unwrappedUrl);
+    await openBrowserUrl(unwrappedUrl, { account });
   } catch (err) {
     log.error('Could not open external link:', redactUrl(unwrappedUrl), err);
   }

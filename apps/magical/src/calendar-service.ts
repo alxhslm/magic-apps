@@ -51,7 +51,7 @@ import {
   type EventLinkAction,
 } from './event-links.js';
 import { loadSettings, type MagicalSettings } from './settings-store.js';
-import type { CalendarAccount } from './accounts.js';
+import { loadAccounts, type CalendarAccount } from './accounts.js';
 import {
   calendarAlertKey,
   pollableCalendarIds,
@@ -1708,7 +1708,7 @@ export class CalendarService {
   }): void {
     switch (action.action) {
       case 'join':
-        if (action.conferenceUrl) void this.joinCall(action.conferenceUrl);
+        if (action.conferenceUrl) void this.joinCall(action.conferenceUrl, action.accountId);
         break;
 
       case 'snooze':
@@ -1984,8 +1984,9 @@ export class CalendarService {
    * user who turned the preference on is saying something different from a user who never
    * installed Zoom.
    */
-  public async joinCall(conferenceUrl: string): Promise<void> {
-    await openExternalUrl(conferenceUrl);
+  public async joinCall(conferenceUrl: string, accountId?: string): Promise<void> {
+    const account = accountId ? loadAccounts().find((a) => a.id === accountId) : undefined;
+    await openExternalUrl(conferenceUrl, account);
   }
 
   /**

@@ -95,7 +95,7 @@ flowchart LR
   Action --> Join["CalendarService.joinCall"]
   Handler --> Join
   Join --> Pref{"alwaysJoinInBrowser"}
-  Pref -->|on| Web["shell.openExternal(webUrl)"]
+  Pref -->|on| Web["openExternalUrl(webUrl, { account })"]
   Pref -->|off| Installed{"client installed?"}
   Installed -->|no| Web
   Installed -->|yes| Native["shell.openExternal(nativeUrl)"]
@@ -107,7 +107,8 @@ exactly as a banner does.
 
 The diagram leaves out one edge: a client macOS named can still refuse to launch, because a
 registration outlives the app it points at. `shell.openExternal` rejects when it does, and the web URL
-is opened instead. `joinCall` never rejects, whichever way it ends; both callers discard the promise,
+is opened instead via `openExternalUrl` (which honours the account's configured browser and Chromium profile).
+`joinCall` never rejects, whichever way it ends; both callers discard the promise,
 so a throw would reach the log as an unhandled rejection and the user would see a Join button that
 does nothing.
 
