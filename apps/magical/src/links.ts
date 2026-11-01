@@ -1,8 +1,11 @@
 import { shell } from 'electron';
+import { unwrapRedirectors } from '@magimail/core';
 import { createLogger, redactUrl } from '@magimail/core/logger';
 import { INTERNAL_ORIGINS } from './constants.js';
 import { hasApplicationForUrl } from './native-handlers.js';
 import { loadSettings } from './settings-store.js';
+
+export { unwrapRedirectors } from '@magimail/core';
 
 const log = createLogger('Links');
 
@@ -40,33 +43,6 @@ export function withoutQuery(rawUrl: string): string {
   } catch {
     return rawUrl;
   }
-}
-
-/**
- * Unwraps redirector URLs (e.g. Google's outbound `google.com/url?q=` or Outlook Safelinks)
- * to reveal the destination URL.
- */
-export function unwrapRedirectors(rawUrl: string): string {
-  let url = rawUrl;
-  for (let hop = 0; hop < 3; hop++) {
-    let parsed: URL;
-    try {
-      parsed = new URL(url);
-    } catch {
-      return url;
-    }
-    const isGoogle = parsed.hostname === 'google.com' || parsed.hostname.endsWith('.google.com');
-    const isSafelinks = parsed.hostname.endsWith('safelinks.protection.outlook.com');
-    const inner =
-      isGoogle && parsed.pathname === '/url'
-        ? parsed.searchParams.get('q') || parsed.searchParams.get('url')
-        : isSafelinks
-          ? parsed.searchParams.get('url')
-          : null;
-    if (!inner) return url;
-    url = inner;
-  }
-  return url;
 }
 
 /**

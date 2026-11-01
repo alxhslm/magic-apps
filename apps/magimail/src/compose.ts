@@ -1,4 +1,5 @@
 import { BrowserWindow, shell } from 'electron';
+import { unwrapRedirectors } from '@magimail/core';
 import { GMAIL_COMPOSE_URL, DEFAULT_PARTITION } from './constants.js';
 import { createComposeWindowOptions, createThreadWindowOptions } from './window.js';
 import { getHideSidebarCss, injectGmailStyles } from './css.js';
@@ -54,7 +55,7 @@ export function openDetachedComposeWindow(
     ) {
       return { action: 'allow' };
     }
-    shell.openExternal(url);
+    shell.openExternal(unwrapRedirectors(url));
     return { action: 'deny' };
   });
 
@@ -107,7 +108,7 @@ export function openDetachedThreadWindow(
     ) {
       return { action: 'allow' };
     }
-    shell.openExternal(url);
+    shell.openExternal(unwrapRedirectors(url));
     return { action: 'deny' };
   });
 

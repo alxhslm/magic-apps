@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterAll, type Mock } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import { BaseWindow } from 'electron';
+import { BaseWindow, shell } from 'electron';
 import { DOM_DRIVE_PREAMBLE } from '@magimail/core';
 import {
   AccountsManager,
@@ -1398,5 +1398,33 @@ describe('holding triage while the view is busy', () => {
     // Arriving five minutes late, over whatever the user moved on to, is worse than
     // not arriving.
     expect(routeAttempts(run)).toBe(refused);
+  });
+
+  it('unwraps tracking redirectors when opening external links', () => {
+    const wc = manager.getActiveWebContentsView()!.webContents;
+    const openHandler = (
+      wc.setWindowOpenHandler as unknown as Mock
+    ).mock.calls.pop()?.[0] as (details: { url: string }) => { action: string };
+
+    const result = openHandler({
+      url: 'https://www.google.com/url?q=https://app.todoist.com/app/task/12345&usd=1',
+    });
+    expect(result).toEqual({ action: 'deny' });
+    expect(shell.openExternal).toHaveBeenCalledWith('https://app.todoist.com/app/task/12345');
+  });
+
+  it('unwraps tracking redirectors when navigating to an external link', () => {
+    const wc = manager.getActiveWebContentsView()!.webContents;
+    const willNavigateHandler = (wc.on as unknown as Mock).mock.calls
+      .filter(([event]) => event === 'will-navigate')
+      .pop()?.[1] as (event: { preventDefault: () => void }, url: string) => void;
+
+    const event = { preventDefault: vi.fn() };
+    willNavigateHandler(
+      event,
+      'https://www.google.com/url?q=https://www.notion.so/my-page-123&usd=1',
+    );
+    expect(event.preventDefault).toHaveBeenCalled();
+    expect(shell.openExternal).toHaveBeenCalledWith('https://www.notion.so/my-page-123');
   });
 });
