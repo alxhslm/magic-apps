@@ -537,10 +537,10 @@ public final class SidebarManager {
     public let margin: CGFloat = 8
     public let topMargin: CGFloat = 6
     public let cornerRadius: CGFloat = 10
-    public let calendarMinWidth: CGFloat = 1000
+    public let calendarMinWidth: CGFloat = 1100
     public var minRequiredWidth: CGFloat {
         calendarMinWidth + cardWidth + margin * 2
-    } // 1280
+    } // 1380
     public var width: CGFloat {
         cardWidth + margin * 2
     } // 280

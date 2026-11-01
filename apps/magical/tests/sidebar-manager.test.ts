@@ -85,7 +85,7 @@ describe('SidebarManager', () => {
     expect(sidebarAttach).toHaveBeenCalledWith(Buffer.from('handle'));
     expect(sidebarSetVisible).toHaveBeenCalledWith(true, false);
     expect(sidebarSetViewMode).toHaveBeenCalledWith('day', undefined);
-    expect(mockMainWindow.setMinimumSize).toHaveBeenCalledWith(1280, 600);
+    expect(mockMainWindow.setMinimumSize).toHaveBeenCalledWith(1380, 600);
   });
 
   it('toggles sidebar visibility, saves setting, and triggers layout update', () => {
@@ -112,15 +112,15 @@ describe('SidebarManager', () => {
       () => mockAccountsManager as any,
     );
 
-    // Initial min size with sidebar visible (1000 + 280 = 1280)
+    // Initial min size with sidebar visible (1100 + 280 = 1380)
     manager.updateWindowMinSize();
-    expect(mockMainWindow.setMinimumSize).toHaveBeenCalledWith(1280, 600);
+    expect(mockMainWindow.setMinimumSize).toHaveBeenCalledWith(1380, 600);
     expect(mockMainWindow.setSize).not.toHaveBeenCalled();
 
-    // When addon is not handling sidebarSetVisible, fallback updates min width to 1000
+    // When addon is not handling sidebarSetVisible, fallback updates min width to 1100
     mockLoadAddon.mockReturnValue({});
     manager.toggleSidebar();
-    expect(mockMainWindow.setMinimumSize).toHaveBeenCalledWith(1000, 600);
+    expect(mockMainWindow.setMinimumSize).toHaveBeenCalledWith(1100, 600);
     expect(mockMainWindow.setSize).not.toHaveBeenCalled();
   });
 

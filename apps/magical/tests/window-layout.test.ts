@@ -80,13 +80,13 @@ describe('layoutSidebarView', () => {
 describe('windowMinWidth', () => {
   it('returns CALENDAR_MIN_WIDTH when sidebar is not visible', () => {
     expect(windowMinWidth(false)).toBe(CALENDAR_MIN_WIDTH);
-    expect(CALENDAR_MIN_WIDTH).toBe(1000);
+    expect(CALENDAR_MIN_WIDTH).toBe(1100);
     expect(CALENDAR_MIN_HEIGHT).toBe(600);
   });
 
   it('adds sidebar width when sidebar is visible', () => {
     expect(windowMinWidth(true)).toBe(CALENDAR_MIN_WIDTH + SIDEBAR_WIDTH);
-    expect(windowMinWidth(true)).toBe(1280);
+    expect(windowMinWidth(true)).toBe(1380);
     expect(windowMinWidth(true, 300)).toBe(CALENDAR_MIN_WIDTH + 300);
   });
 });
