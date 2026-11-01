@@ -17,6 +17,7 @@ import SwiftUI
 @MainActor
 public protocol AccountListModel: ObservableObject {
     var accounts: [[String: Any]] { get set }
+    var browserProfiles: [String: [[String: String]]] { get set }
     var transport: StdioTransport? { get }
 }
 
@@ -89,6 +90,58 @@ public struct AccountsTab<Model: AccountListModel>: View {
             .buttonStyle(.bordered)
             .controlSize(.small)
             .padding(.top, 6)
+
+            if let selectedId = selectedAccountId {
+                Divider()
+                    .padding(.vertical, 8)
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("External & Meeting Links")
+                        .font(.headline)
+
+                    Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 6) {
+                        GridRow {
+                            Text("Browser:")
+                                .gridColumnAlignment(.trailing)
+                                .foregroundStyle(.secondary)
+                            Picker("", selection: browserBinding(for: selectedId)) {
+                                Text("System Default").tag("system")
+                                Text("Google Chrome").tag("chrome")
+                                Text("Brave Browser").tag("brave")
+                                Text("Microsoft Edge").tag("edge")
+                                Text("Safari").tag("safari")
+                            }
+                            .labelsHidden()
+                            .frame(maxWidth: 180)
+                        }
+
+                        if isChromium(selectedId) {
+                            GridRow {
+                                Text("Profile:")
+                                    .gridColumnAlignment(.trailing)
+                                    .foregroundStyle(.secondary)
+                                Picker("", selection: profileBinding(for: selectedId)) {
+                                    Text("Automatic (Match Email)").tag("_auto")
+                                    let profiles = profilesForBrowser(browser(for: selectedId))
+                                    ForEach(profiles, id: \.self) { prof in
+                                        let dir = prof["directory"] ?? ""
+                                        let label = formatProfileLabel(prof)
+                                        Text(label).tag(dir)
+                                    }
+                                }
+                                .labelsHidden()
+                                .frame(maxWidth: 240)
+                            }
+                        }
+                    }
+                }
+                .padding(.horizontal, 4)
+            }
+        }
+        .onAppear {
+            if selectedAccountId == nil {
+                selectedAccountId = accountIds.first
+            }
         }
     }
 
@@ -114,18 +167,77 @@ public struct AccountsTab<Model: AccountListModel>: View {
         model.transport?.sendEvent(method: "account.signIn", params: ["accountId": id])
     }
 
-    private func update(id: String, name: String, color: String) {
+    private func isChromium(_ id: String) -> Bool {
+        let b = browser(for: id)
+        return b == "chrome" || b == "brave" || b == "edge"
+    }
+
+    private func browser(for id: String) -> String {
+        value(of: id, "browser") ?? "system"
+    }
+
+    private func profilesForBrowser(_ browser: String) -> [[String: String]] {
+        model.browserProfiles[browser] ?? []
+    }
+
+    private func formatProfileLabel(_ profile: [String: String]) -> String {
+        let name = profile["name"] ?? profile["directory"] ?? "Profile"
+        if let email = profile["email"], !email.isEmpty {
+            return "\(name) (\(email))"
+        }
+        return name
+    }
+
+    private func browserBinding(for id: String) -> Binding<String> {
+        Binding(
+            get: { value(of: id, "browser") ?? "system" },
+            set: { newBrowser in
+                guard let name = value(of: id, "name"),
+                      let color = value(of: id, "color")
+                else { return }
+                update(id: id, name: name, color: color, browser: newBrowser)
+            }
+        )
+    }
+
+    private func profileBinding(for id: String) -> Binding<String> {
+        Binding(
+            get: { value(of: id, "browserProfile") ?? "_auto" },
+            set: { newProfile in
+                guard let name = value(of: id, "name"),
+                      let color = value(of: id, "color")
+                else { return }
+                update(id: id, name: name, color: color, browserProfile: newProfile)
+            }
+        )
+    }
+
+    private func update(
+        id: String,
+        name: String,
+        color: String,
+        browser: String? = nil,
+        browserProfile: String? = nil
+    ) {
         guard !id.isEmpty,
               let index = model.accounts.firstIndex(where: { ($0["id"] as? String) == id })
         else { return }
 
         model.accounts[index]["name"] = name
         model.accounts[index]["color"] = color
-        model.transport?.sendEvent(method: "account.update", params: [
+        let currentBrowser = browser ?? (model.accounts[index]["browser"] as? String) ?? "system"
+        let currentProfile = browserProfile ?? (model.accounts[index]["browserProfile"] as? String) ?? "_auto"
+        model.accounts[index]["browser"] = currentBrowser
+        model.accounts[index]["browserProfile"] = currentProfile
+
+        let params: [String: Any] = [
             "accountId": id,
             "name": name,
             "color": color,
-        ])
+            "browser": currentBrowser,
+            "browserProfile": currentProfile,
+        ]
+        model.transport?.sendEvent(method: "account.update", params: params)
     }
 
     private func addAccount() {

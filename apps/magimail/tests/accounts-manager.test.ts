@@ -207,6 +207,17 @@ describe('AccountsManager', () => {
     expect(onChanged).toHaveBeenCalledTimes(3);
   });
 
+  it('updates and persists browser and profile settings', () => {
+    const added = accountsManager.addAccount('Work', '#ef4444');
+    accountsManager.updateAccountConfig(added.id, {
+      browser: 'chrome',
+      browserProfile: 'Profile 1',
+    });
+    const browserUpdated = accountsManager.getAccounts().find((a) => a.id === added.id);
+    expect(browserUpdated?.browser).toBe('chrome');
+    expect(browserUpdated?.browserProfile).toBe('Profile 1');
+  });
+
   it("deletes a removed account's poller state itself", () => {
     const added = accountsManager.addAccount('Work', '#ef4444');
     // What the account's poller leaves behind: seen ids and unhandled arrivals.

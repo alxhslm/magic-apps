@@ -491,12 +491,17 @@ export class MenuBarManager {
       // preference works on a banner and nowhere else.
       case 'tray.joinCall': {
         const url = typeof params.url === 'string' ? params.url : '';
+        const accountId = typeof params.accountId === 'string' ? params.accountId : undefined;
         const service = this.getCalendarService();
         if (url && service) {
           // The scheme alone, never the URL: a meeting link is a credential to anyone
           // holding it, and this file is written to disk.
           log.info(`Joining a call via ${url.split(':')[0]}`);
-          void service.joinCall(url);
+          if (accountId) {
+            void service.joinCall(url, accountId);
+          } else {
+            void service.joinCall(url);
+          }
         }
         return true;
       }

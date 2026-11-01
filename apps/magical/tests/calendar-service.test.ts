@@ -244,6 +244,12 @@ describe('joinCall', () => {
 
     await expect(makeService().joinCall('https://zoom.us/j/1234567890')).resolves.toBeUndefined();
   });
+
+  it('routes web calls through openExternalUrl using the matching account', async () => {
+    const url = 'https://meet.google.com/abc-defg-hij';
+    await makeService().joinCall(url, 'account_work');
+    expect(openExternal).toHaveBeenCalledWith(url);
+  });
 });
 
 describe('openDeepLink', () => {

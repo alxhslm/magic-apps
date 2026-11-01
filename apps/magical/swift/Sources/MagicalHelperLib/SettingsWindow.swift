@@ -39,7 +39,7 @@ public enum SettingsWindow {
                         id: "accounts",
                         label: String(localized: "Accounts"),
                         icon: "person.2",
-                        height: 260
+                        height: 340
                     ) {
                         AccountsTab(model: model, startingColors: Self.startingColors)
                     },

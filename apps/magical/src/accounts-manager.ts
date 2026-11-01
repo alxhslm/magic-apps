@@ -427,14 +427,14 @@ export class AccountsManager {
     view.webContents.setWindowOpenHandler(({ url }) => {
       if (isInternalUrl(url)) return { action: 'allow' };
       log.info('Opening external URL from window.open:', redactUrl(url));
-      void openExternalUrl(url);
+      void openExternalUrl(url, account);
       return { action: 'deny' };
     });
     view.webContents.on('will-navigate', (event, url) => {
       if (isInternalUrl(url)) return;
       event.preventDefault();
       log.info('Redirecting navigation to external browser:', redactUrl(url));
-      void openExternalUrl(url);
+      void openExternalUrl(url, account);
     });
 
     // The Tasks embed is a cross-origin document the top-frame stylesheet
@@ -1112,13 +1112,23 @@ export class AccountsManager {
   /** Fired when an account's calendar set grows, so a running poller can pick it up. */
   public onCalendarIdsChanged?: (accountId: string, calendarIds: string[]) => void;
 
-  public updateAccount(accountId: string, fields: { name?: string; color?: string }): void {
+  public updateAccount(
+    accountId: string,
+    fields: {
+      name?: string;
+      color?: string;
+      browser?: string;
+      browserProfile?: string;
+    },
+  ): void {
     const account = this.accounts.find((a) => a.id === accountId);
     if (!account) return;
 
     const name = fields.name?.trim();
     if (name) account.name = name;
     if (fields.color) account.color = fields.color;
+    if (fields.browser !== undefined) account.browser = fields.browser;
+    if (fields.browserProfile !== undefined) account.browserProfile = fields.browserProfile;
 
     saveAccounts(this.accounts);
     this.onAccountsChanged?.();

@@ -112,6 +112,7 @@ public final class SettingsModel: ObservableObject {
     // MARK: - Accounts
 
     @Published public var accounts: [[String: Any]] = []
+    @Published public var browserProfiles: [String: [[String: String]]] = [:]
 
     // MARK: - Default handlers
 

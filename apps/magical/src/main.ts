@@ -799,6 +799,8 @@ function handleHelperEvent(method: string, params: Record<string, unknown>): voi
       manager.updateAccount(String(params.accountId), {
         name: params.name as string | undefined,
         color: params.color as string | undefined,
+        browser: params.browser as string | undefined,
+        browserProfile: params.browserProfile as string | undefined,
       });
       break;
 
