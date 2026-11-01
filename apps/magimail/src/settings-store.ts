@@ -14,6 +14,8 @@ export interface AppSettings {
   menuBarShowCount: boolean;
   menuBarShowDots: boolean;
   menuBarUnreadOnly: boolean;
+  menuBarVerificationCodes: boolean;
+  verificationCodeDurationMinutes: number;
   hidePromotionAds: boolean;
   hideSidebar: boolean;
   transparentBackground: boolean;
@@ -89,6 +91,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   menuBarShowCount: true,
   menuBarShowDots: true,
   menuBarUnreadOnly: false,
+  menuBarVerificationCodes: true,
+  verificationCodeDurationMinutes: 15,
   hidePromotionAds: true,
   hideSidebar: false,
   transparentBackground: true,

@@ -179,6 +179,7 @@ import {
   restoreTray,
   pushTrayMessages,
   handleTrayEvent,
+  updateVerificationCode,
   RECENT_TRAY_MESSAGES,
   type TrayMessageItem,
 } from './menubar-manager.js';
@@ -337,6 +338,7 @@ function handlePollResult(result: MailboxPollEvent): void {
   if (result.newMessages.length > 0) {
     dispatchNotifications(result.accountId, result.newMessages);
   }
+  void refreshVerificationCode();
 }
 
 /**
@@ -347,6 +349,17 @@ async function sendTrayMessages(accountId: string): Promise<void> {
   if (!source) return;
   const messages = await source.getRecentMessages(RECENT_TRAY_MESSAGES);
   pushTrayMessages(accountId, messages);
+}
+
+async function refreshVerificationCode(): Promise<void> {
+  const settings = loadSettings();
+  if (!settings.menuBarVerificationCodes) {
+    updateVerificationCode(null);
+    return;
+  }
+  const maxAgeMs = (settings.verificationCodeDurationMinutes || 15) * 60 * 1000;
+  const latest = await accountsManager?.getLatestVerificationCode(maxAgeMs);
+  updateVerificationCode(latest ?? null);
 }
 
 function updateApplicationMenu(preloadPath: string, isThreadSelected?: boolean): void {
@@ -759,6 +772,7 @@ function createMainWindow(
   accountsManager.onUnreadChanged = (accounts, total) => {
     updateTrayData(accounts, total, { isRestricted: restrictedAccounts.size > 0 });
     refreshWidgetCache(accounts, total);
+    void refreshVerificationCode();
   };
   const syncActiveAccountFocus = () => {
     const isWindowActive = Boolean(
@@ -1126,6 +1140,9 @@ if (!hasLock) {
             accountsManager?.updateNotificationSettings(updatedNotifications);
             accountsManager?.requestImmediatePoll();
           }
+          if (key === 'menuBarVerificationCodes' || key === 'verificationCodeDurationMinutes') {
+            void refreshVerificationCode();
+          }
         }
       } else if (method === 'account.add') {
         const newAcc = accountsManager?.addAccount(params.name as string, params.color as string);
@@ -1450,6 +1467,9 @@ if (!hasLock) {
         const updatedNotifications = loadSettings().notifications;
         accountsManager?.updateNotificationSettings(updatedNotifications);
         accountsManager?.requestImmediatePoll();
+      }
+      if (key === 'menuBarVerificationCodes' || key === 'verificationCodeDurationMinutes') {
+        void refreshVerificationCode();
       }
       return true;
     });
