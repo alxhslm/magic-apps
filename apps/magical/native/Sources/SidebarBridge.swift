@@ -317,18 +317,6 @@ public struct DayCompanionHeaderView: View {
 
 // MARK: - Day Focused Events List
 
-public struct TimedEventCluster: Identifiable {
-    public let id: String
-    public let events: [TrayEvent]
-    public var isConcurrent: Bool {
-        events.count > 1
-    }
-
-    public var startTime: Date {
-        events.first?.startTime ?? Date()
-    }
-}
-
 public struct DayFocusedEventsList: View {
     let events: [TrayEvent]
     let date: Date
@@ -346,21 +334,7 @@ public struct DayFocusedEventsList: View {
     }
 
     private var clusters: [TimedEventCluster] {
-        var result: [TimedEventCluster] = []
-        var i = 0
-        while i < timedEvents.count {
-            var current = [timedEvents[i]]
-            var j = i + 1
-            var maxEnd = timedEvents[i].endTime
-            while j < timedEvents.count, timedEvents[j].startTime < maxEnd {
-                current.append(timedEvents[j])
-                maxEnd = max(maxEnd, timedEvents[j].endTime)
-                j += 1
-            }
-            result.append(TimedEventCluster(id: current[0].id, events: current))
-            i = j
-        }
-        return result
+        TimedEventCluster.cluster(timedEvents: timedEvents)
     }
 
     public var body: some View {
@@ -392,7 +366,7 @@ public struct DayFocusedEventsList: View {
                         .padding(.bottom, timedEvents.isEmpty ? 0 : 2)
                     }
 
-                    // 2. Timed Events (with side-by-side tiles for concurrent events)
+                    // 2. Timed Events (with side-by-side tiles and start-time offset for concurrent events)
                     let now = Date()
                     let eventClusters = clusters
                     let nowClusterIndex = eventClusters.firstIndex { $0.startTime > now } ?? eventClusters.count
@@ -404,33 +378,14 @@ public struct DayFocusedEventsList: View {
                                 nowRule(now)
                             }
 
-                            if cluster.events.count == 2 {
-                                // Side-by-side presentation for 2 concurrent overlapping events
-                                HStack(spacing: 6) {
-                                    ForEach(cluster.events, id: \.identity) { event in
-                                        CompactEventTileView(
-                                            event: event,
-                                            onSelect: { ActionBridge.emit("sidebarOpenEvent", event.id) },
-                                            onJoinCall: { ActionBridge.emit("sidebarJoinCall", $0) },
-                                            onRsvp: { _ in },
-                                            onDelete: nil,
-                                            onComplete: nil
-                                        )
-                                    }
-                                }
-                            } else {
-                                // Full width cards for single events or clusters of 3+
-                                ForEach(cluster.events, id: \.identity) { event in
-                                    EventCardView(
-                                        event: event,
-                                        onSelect: { ActionBridge.emit("sidebarOpenEvent", event.id) },
-                                        onJoinCall: { ActionBridge.emit("sidebarJoinCall", $0) },
-                                        onRsvp: { _ in },
-                                        onDelete: nil,
-                                        onComplete: nil
-                                    )
-                                }
-                            }
+                            ClusterEventRowView(
+                                cluster: cluster,
+                                onSelectEvent: { ActionBridge.emit("sidebarOpenEvent", $0.id) },
+                                onJoinCall: { ActionBridge.emit("sidebarJoinCall", $0) },
+                                onRsvp: { _, _ in },
+                                onDeleteEvent: nil,
+                                onCompleteTask: nil
+                            )
                         }
                     }
 

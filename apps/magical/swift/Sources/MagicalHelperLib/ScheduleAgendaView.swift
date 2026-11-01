@@ -292,26 +292,27 @@ public struct ScheduleAgendaView: View {
 
                 let now = Date()
                 let isToday = Calendar.current.isDateInToday(group.date)
-                // Before the first timed meeting that has not started. All-day banners are
+                let eventClusters = TimedEventCluster.cluster(timedEvents: timedEvents)
+                // Before the first timed cluster that has not started. All-day banners are
                 // pinned above, so the now rule operates strictly among timed meetings.
-                let nowIndex = timedEvents.firstIndex { $0.startTime > now } ?? timedEvents.count
+                let nowClusterIndex = eventClusters.firstIndex { $0.startTime > now } ?? eventClusters.count
 
-                ForEach(Array(timedEvents.enumerated()), id: \.element.identity) { index, event in
-                    if isToday, index == nowIndex {
+                ForEach(Array(eventClusters.enumerated()), id: \.element.id) { index, cluster in
+                    if isToday, index == nowClusterIndex {
                         nowRule(now)
                     }
-                    EventCardView(
-                        event: event,
-                        onSelect: { onSelectEvent(event) },
+                    ClusterEventRowView(
+                        cluster: cluster,
+                        onSelectEvent: onSelectEvent,
                         onJoinCall: onJoinCall,
-                        onRsvp: { status in onRsvp(event, status) },
-                        onDelete: onDeleteEvent,
-                        onComplete: onCompleteTask
+                        onRsvp: onRsvp,
+                        onDeleteEvent: onDeleteEvent,
+                        onCompleteTask: onCompleteTask
                     )
                 }
 
                 // The day is done; the rule sits under the last of it.
-                if isToday, nowIndex == timedEvents.count, !timedEvents.isEmpty || !allDayEvents.isEmpty {
+                if isToday, nowClusterIndex == eventClusters.count, !timedEvents.isEmpty || !allDayEvents.isEmpty {
                     nowRule(now)
                 }
             }
