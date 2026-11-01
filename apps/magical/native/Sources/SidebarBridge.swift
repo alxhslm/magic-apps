@@ -622,6 +622,8 @@ public final class SidebarManager {
         }
     }
 
+    private var lastExpandedDelta: CGFloat = 0
+
     public func setVisible(_ visible: Bool, animated: Bool) {
         guard isVisible != visible else { return }
         isVisible = visible
@@ -635,11 +637,13 @@ public final class SidebarManager {
 
         let targetWidth: CGFloat = visible ? cardWidth : 0
 
-        // If opening and current window width is less than minRequiredWidth (1280 + 280 = 1560),
-        // smoothly animate the window expansion to 1560 simultaneously.
+        var targetFrame: NSRect? = nil
         if visible, let window {
-            var frame = window.frame
-            if frame.size.width < minRequiredWidth {
+            let currentWidth = window.frame.size.width
+            if currentWidth < minRequiredWidth {
+                let delta = minRequiredWidth - currentWidth
+                lastExpandedDelta = delta
+                var frame = window.frame
                 let targetWindowWidth = minRequiredWidth
                 if let screen = window.screen ?? NSScreen.main {
                     let maxRight = screen.visibleFrame.maxX
@@ -648,13 +652,22 @@ public final class SidebarManager {
                     }
                 }
                 frame.size.width = targetWindowWidth
-                window.minSize = NSSize(width: minRequiredWidth, height: 600)
-                window.setFrame(frame, display: true, animate: animated)
+                targetFrame = frame
             } else {
-                window.minSize = NSSize(width: minRequiredWidth, height: 600)
+                lastExpandedDelta = 0
             }
         } else if !visible, let window {
+            // Lower minSize first so AppKit permits shrinking the window
             window.minSize = NSSize(width: calendarMinWidth, height: 600)
+            if lastExpandedDelta > 0 {
+                var frame = window.frame
+                if frame.size.width <= minRequiredWidth + 2 {
+                    let targetWindowWidth = max(calendarMinWidth, frame.size.width - lastExpandedDelta)
+                    frame.size.width = targetWindowWidth
+                    targetFrame = frame
+                }
+                lastExpandedDelta = 0
+            }
         }
 
         if animated {
@@ -664,7 +677,14 @@ public final class SidebarManager {
                 context.allowsImplicitAnimation = true
                 widthC.animator().constant = targetWidth
                 effect.animator().alphaValue = visible ? 1.0 : 0.0
-            } completionHandler: {
+                if let targetFrame, let window {
+                    window.animator().setFrame(targetFrame, display: true)
+                }
+            } completionHandler: { [weak self] in
+                guard let self else { return }
+                if let window {
+                    window.minSize = NSSize(width: visible ? minRequiredWidth : calendarMinWidth, height: 600)
+                }
                 if !visible {
                     effect.isHidden = true
                 }
@@ -673,6 +693,12 @@ public final class SidebarManager {
             widthC.constant = targetWidth
             effect.alphaValue = visible ? 1.0 : 0.0
             effect.isHidden = !visible
+            if let targetFrame, let window {
+                window.setFrame(targetFrame, display: true, animate: false)
+            }
+            if let window {
+                window.minSize = NSSize(width: visible ? minRequiredWidth : calendarMinWidth, height: 600)
+            }
         }
     }
 

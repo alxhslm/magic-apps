@@ -86,7 +86,6 @@ describe('SidebarManager', () => {
     expect(sidebarSetVisible).toHaveBeenCalledWith(true, false);
     expect(sidebarSetViewMode).toHaveBeenCalledWith('month', undefined);
     expect(mockMainWindow.setMinimumSize).toHaveBeenCalledWith(1560, 600);
-    expect(mockMainWindow.setSize).toHaveBeenCalledWith(1560, 820);
   });
 
   it('toggles sidebar visibility, saves setting, and triggers layout update', () => {
@@ -108,7 +107,7 @@ describe('SidebarManager', () => {
     expect(mockMainWindow.setMinimumSize).toHaveBeenCalledWith(1560, 600);
   });
 
-  it('does not resize window when window width is already greater than or equal to minRequiredWidth (1560)', () => {
+  it('updates window minimum size without conflicting manual setSize', () => {
     mockMainWindow.getSize.mockReturnValue([1600, 820]);
     const manager = new SidebarManager(
       () => mockMainWindow as any,
@@ -117,12 +116,13 @@ describe('SidebarManager', () => {
 
     // Toggle closed:
     manager.toggleSidebar();
+    expect(mockMainWindow.setMinimumSize).toHaveBeenCalledWith(1280, 600);
     expect(mockMainWindow.setSize).not.toHaveBeenCalled();
 
-    // Toggle open again: window is 1600 (>= 1560), so setSize must not be called
+    // Toggle open again: window min size updated without manual setSize race
     manager.toggleSidebar();
-    expect(mockMainWindow.setSize).not.toHaveBeenCalled();
     expect(mockMainWindow.setMinimumSize).toHaveBeenCalledWith(1560, 600);
+    expect(mockMainWindow.setSize).not.toHaveBeenCalled();
   });
 
   it('relays timeframe and anchor date changes to native addon', () => {
@@ -272,5 +272,70 @@ describe('SidebarManager', () => {
 
     manager.setTransparency(true, true);
     expect(sidebarSetTransparency).toHaveBeenCalledWith(true, true);
+  });
+
+  it('assigns authentic calendar colors rather than account fallback colors to events', () => {
+    const manager = new SidebarManager(
+      () => mockMainWindow as any,
+      () => mockAccountsManager as any,
+    );
+
+    const account: CalendarAccount = {
+      id: 'acc_1',
+      name: 'Personal',
+      partition: 'persist:magical_acc_1',
+      color: '#0096ff', // Account color (Blue)
+      email: 'alex@example.com',
+      calendarIds: ['alex@example.com', 'work@example.com'],
+      calendars: [
+        { id: 'alex@example.com', name: 'Personal Cal', color: '#f1c40f' }, // Yellow
+        { id: 'work@example.com', name: 'Work Cal', color: '#7cb342' }, // Green
+      ],
+    };
+
+    const event1: NormalizedCalendarEvent = {
+      id: 'evt_personal',
+      summary: 'Personal Item',
+      startTime: new Date('2026-11-01T10:00:00Z'),
+      endTime: new Date('2026-11-01T11:00:00Z'),
+      isAllDay: false,
+      calendarIds: ['alex@example.com'],
+      attendees: [],
+      eventType: 0,
+      created: null,
+      updated: null,
+      webUrl: '',
+    };
+
+    const event2: NormalizedCalendarEvent = {
+      id: 'evt_work',
+      summary: 'Work Meeting',
+      startTime: new Date('2026-11-01T14:00:00Z'),
+      endTime: new Date('2026-11-01T15:00:00Z'),
+      isAllDay: false,
+      calendarIds: ['work@example.com'],
+      attendees: [],
+      eventType: 0,
+      created: null,
+      updated: null,
+      webUrl: '',
+    };
+
+    manager.updateAccounts([account]);
+    manager.updateEvents(new Map([['acc_1', [event1, event2]]]));
+
+    expect(sidebarUpdateData).toHaveBeenCalled();
+    const payload = JSON.parse(sidebarUpdateData.mock.calls.at(-1)![0]);
+    expect(payload.calendars).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'alex@example.com', colorHex: '#f1c40f' }),
+        expect.objectContaining({ id: 'work@example.com', colorHex: '#7cb342' }),
+      ]),
+    );
+
+    const pEvt = payload.events.find((e: any) => e.id === 'evt_personal');
+    const wEvt = payload.events.find((e: any) => e.id === 'evt_work');
+    expect(pEvt?.colorHex).toBe('#f1c40f'); // Calendar color (Yellow), not account color (#0096ff)
+    expect(wEvt?.colorHex).toBe('#7cb342'); // Calendar color (Green), not account color (#0096ff)
   });
 });

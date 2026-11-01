@@ -723,6 +723,8 @@ function startCalendarService(): void {
     calendarService?.syncPollers();
     if (accounts) {
       pushCalendarsToSettings(accounts, calendarService?.getCachedEvents());
+      menuBarManager?.updateAccounts(accounts.getAccounts());
+      sidebarManager?.updateAccounts(accounts.getAccounts());
     }
   };
 
@@ -1268,6 +1270,7 @@ function createWindow(
     // so is the grid toolbar: each account keeps its own Calendar vs Tasks mode.
     applyMenu();
     setNativeToolbarMode(accounts.getActiveViewMode());
+    sidebarManager?.updateAccounts(accounts.getAccounts());
   };
   // Removing an account has to purge what was cached for it before the record goes: the
   // poller sweep below only drops accounts that are already gone from the list.
@@ -1318,6 +1321,9 @@ function createWindow(
     }
   }
 
+  if (accounts) {
+    sidebarManager?.updateAccounts(accounts.getAccounts());
+  }
   if (calendarService) {
     sidebarManager?.updateEvents(calendarService.getCachedEvents());
   }

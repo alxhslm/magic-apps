@@ -2,9 +2,9 @@ import { BaseWindow, shell } from 'electron';
 import { createLogger } from '@magimail/core/logger';
 import { loadAddon } from './native-addon.js';
 import { loadSettings, saveSetting } from './settings-store.js';
-import type { CalendarAccount } from './accounts.js';
+import { loadAccounts, type CalendarAccount } from './accounts.js';
 import type { NormalizedCalendarEvent } from './calendar-decoder.js';
-import { buildSerializedCalendars } from './calendars.js';
+import { buildSerializedCalendars, friendlyCalendarName } from './calendars.js';
 import { uiString } from './strings.js';
 import { buildEventLink, extractEid } from './event-links.js';
 import type { AccountsManager } from './accounts-manager.js';
@@ -43,15 +43,13 @@ export class SidebarManager {
     if (typeof win.setMinimumSize === 'function') {
       win.setMinimumSize(minW, CALENDAR_MIN_HEIGHT);
     }
-    // If the window is smaller than the required min width (between X and X+Y),
-    // increase the window size to minW (X+Y) so Google Calendar is never clipped.
-    // If the window is already >= X+Y, no window resizing is needed.
-    if (typeof win.getSize === 'function' && typeof win.setSize === 'function') {
-      const [w, h] = win.getSize();
-      if (this.isVisible && w < minW) {
-        win.setSize(minW, h);
-      }
-    }
+  }
+
+  public getAccounts(): CalendarAccount[] {
+    if (this.cachedAccounts.length > 0) return this.cachedAccounts;
+    const fromMgr = this.getAccountsManager?.()?.getAccounts();
+    if (fromMgr && fromMgr.length > 0) return fromMgr;
+    return loadAccounts();
   }
 
   public attach(window: BaseWindow): void {
@@ -224,11 +222,12 @@ export class SidebarManager {
       const hiddenCalendars = settings.hiddenCalendars ?? [];
       const hidden = new Set(hiddenCalendars.map((c) => hiddenKey(c.accountId, c.calendarId)));
 
+      const accountsList = this.getAccounts();
       const {
         calendars: serializedCalendars,
         calendarColorMap,
         calendarNameMap,
-      } = buildSerializedCalendars(this.cachedAccounts, this.cachedEvents);
+      } = buildSerializedCalendars(accountsList, this.cachedEvents);
 
       const serializedEvents: Array<Record<string, unknown>> = [];
       const now = Date.now();
@@ -238,7 +237,7 @@ export class SidebarManager {
       for (const [accountId, events] of this.cachedEvents.entries()) {
         const accountColors = calendarColorMap.get(accountId);
         const accountNames = calendarNameMap.get(accountId);
-        const account = this.cachedAccounts.find((a) => a.id === accountId);
+        const account = accountsList.find((a) => a.id === accountId);
         const defaultColor = account?.color || '#039be5';
         const primaryEmail =
           account?.email ||
@@ -266,8 +265,17 @@ export class SidebarManager {
           const endTime = event.endTime.getTime();
           if (endTime < windowStart || startTime > windowEnd) continue;
 
-          const colorHex = event.colorHex || accountColors?.get(shownOn) || defaultColor;
-          const calendarName = accountNames?.get(shownOn) || event.calendarName || '';
+          const colorHex =
+            event.colorHex ||
+            accountColors?.get(shownOn) ||
+            (shownOn === primaryEmail ? accountColors?.get('primary') : undefined) ||
+            accountColors?.get(primaryEmail) ||
+            defaultColor;
+          const calendarName =
+            accountNames?.get(shownOn) ||
+            (shownOn === primaryEmail ? accountNames?.get('primary') : undefined) ||
+            event.calendarName ||
+            friendlyCalendarName(shownOn);
 
           serializedEvents.push({
             id: event.id,
@@ -294,7 +302,7 @@ export class SidebarManager {
       serializedEvents.sort((a, b) => (a.startTime as number) - (b.startTime as number));
 
       const payload = {
-        accounts: this.cachedAccounts.map((a) => ({
+        accounts: accountsList.map((a) => ({
           id: a.id,
           name: a.name,
           color: a.color,
