@@ -1,4 +1,5 @@
 import { app } from 'electron';
+import { getAllChromiumProfiles } from '@magimail/core';
 import { createLogger } from '@magimail/core/logger';
 import { sendToHelper } from './swift-helper.js';
 import { loadSettings } from './settings-store.js';
@@ -12,6 +13,7 @@ export function openSettingsWindow(pane?: string, accounts?: unknown[]): void {
     pane,
     settings,
     accounts: accounts ?? [],
+    browserProfiles: getAllChromiumProfiles(),
     appVersion: app.getVersion(),
   });
 }

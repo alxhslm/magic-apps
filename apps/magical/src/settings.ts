@@ -1,4 +1,5 @@
 import { app } from 'electron';
+import { getAllChromiumProfiles } from '@magimail/core';
 import { createLogger } from '@magimail/core/logger';
 import { sendToHelper } from './swift-helper.js';
 import { loadSettings } from './settings-store.js';
@@ -26,6 +27,7 @@ export function openSettingsWindow(
     pane,
     settings: loadSettings(),
     accounts: accountPayload(accounts, needsSignIn),
+    browserProfiles: getAllChromiumProfiles(),
     calendars,
     appVersion: app.getVersion(),
   });
@@ -41,6 +43,7 @@ export function pushAccountsToSettings(
   const { calendars } = buildSerializedCalendars(accounts.getAccounts(), events);
   sendToHelper('accounts.update', {
     accounts: accountPayload(accounts, needsSignIn),
+    browserProfiles: getAllChromiumProfiles(),
     calendars,
   });
 }

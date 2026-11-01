@@ -95,6 +95,7 @@ public final class SettingsModel: ObservableObject {
     // MARK: - Accounts & Calendars
 
     @Published public var accounts: [[String: Any]] = []
+    @Published public var browserProfiles: [String: [[String: String]]] = [:]
 
     @Published public var calendars: [TrayCalendarItem] = []
 
