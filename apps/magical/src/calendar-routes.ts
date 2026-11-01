@@ -65,9 +65,6 @@ export function parseCalendarRoute(urlOrPath: string | null): CalendarRouteInfo 
       urlOrPath,
     );
   if (!match) {
-    if (/\/r\/?(?:\?|$)/.test(urlOrPath) && !/\/r\/(?:tasks|settings)\b/.test(urlOrPath)) {
-      return { timeframe: 'month' };
-    }
     return null;
   }
   const timeframe = match[1] as CalendarTimeframe;

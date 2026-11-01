@@ -23,7 +23,7 @@ export class SidebarManager {
   private position: 'left' | 'right';
   private cachedAccounts: CalendarAccount[] = [];
   private cachedEvents = new Map<string, NormalizedCalendarEvent[]>();
-  private activeTimeframe = 'month';
+  private activeTimeframe: string;
   private activeDateStr?: string;
 
   constructor(
@@ -34,6 +34,8 @@ export class SidebarManager {
     const settings = loadSettings();
     this.isVisible = settings.sidebarVisible ?? true;
     this.position = settings.sidebarPosition ?? 'right';
+    this.activeTimeframe = settings.lastTimeframe ?? 'day';
+    this.activeDateStr = settings.lastDateStr;
   }
 
   public updateWindowMinSize(): void {
@@ -72,12 +74,20 @@ export class SidebarManager {
   public toggleSidebar(): void {
     this.isVisible = !this.isVisible;
     saveSetting('sidebarVisible', this.isVisible);
-    this.updateWindowMinSize();
 
+    let handledByAddon = false;
     try {
-      loadAddon().sidebarSetVisible?.(this.isVisible, true);
+      const addon = loadAddon();
+      if (typeof addon.sidebarSetVisible === 'function') {
+        addon.sidebarSetVisible(this.isVisible, true);
+        handledByAddon = true;
+      }
     } catch (err) {
       log.warn('Could not set sidebar visible:', err);
+    }
+
+    if (!handledByAddon) {
+      this.updateWindowMinSize();
     }
 
     // Resize Google Calendar's view
@@ -88,12 +98,22 @@ export class SidebarManager {
     if (this.isVisible === visible) return;
     this.isVisible = visible;
     saveSetting('sidebarVisible', this.isVisible);
-    this.updateWindowMinSize();
+
+    let handledByAddon = false;
     try {
-      loadAddon().sidebarSetVisible?.(this.isVisible, true);
+      const addon = loadAddon();
+      if (typeof addon.sidebarSetVisible === 'function') {
+        addon.sidebarSetVisible(this.isVisible, true);
+        handledByAddon = true;
+      }
     } catch (err) {
       log.warn('Could not set sidebar visible:', err);
     }
+
+    if (!handledByAddon) {
+      this.updateWindowMinSize();
+    }
+
     this.getAccountsManager()?.updateLayout();
   }
 
@@ -108,8 +128,12 @@ export class SidebarManager {
   }
 
   public setTimeframe(timeframe: string, dateStr?: string): void {
+    if (this.activeTimeframe === timeframe && this.activeDateStr === dateStr) return;
+    log.info(`Setting sidebar timeframe: ${timeframe} (date: ${dateStr})`);
     this.activeTimeframe = timeframe;
     this.activeDateStr = dateStr;
+    saveSetting('lastTimeframe', timeframe);
+    if (dateStr) saveSetting('lastDateStr', dateStr);
     try {
       loadAddon().sidebarSetViewMode?.(timeframe, dateStr);
     } catch (err) {

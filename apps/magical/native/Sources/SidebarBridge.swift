@@ -32,7 +32,7 @@ public final class SidebarModel: ObservableObject {
 
     @Published public var transparentBackground: Bool = true
     @Published public var isDarkMode: Bool = true
-    @Published public var viewMode: SidebarViewMode = .fantastical
+    @Published public var viewMode: SidebarViewMode = .day
     @Published public var selectedDate: Date = .init()
     @Published public var displayedMonthDate: Date = .init()
     @Published public var anchorDate: Date = .init()
@@ -537,10 +537,10 @@ public final class SidebarManager {
     public let margin: CGFloat = 8
     public let topMargin: CGFloat = 6
     public let cornerRadius: CGFloat = 10
-    public let calendarMinWidth: CGFloat = 1280
+    public let calendarMinWidth: CGFloat = 1000
     public var minRequiredWidth: CGFloat {
         calendarMinWidth + cardWidth + margin * 2
-    } // 1560
+    } // 1280
     public var width: CGFloat {
         cardWidth + margin * 2
     } // 280
@@ -722,7 +722,7 @@ public final class SidebarManager {
         case "month", "year", "agenda", "schedule", "fantastical":
             .fantastical
         default:
-            .fantastical
+            .day
         }
 
         var anchor: Date? = Date()

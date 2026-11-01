@@ -117,8 +117,12 @@ function checkViewMode(): void {
   }
 
   if (!timeframe) {
-    const el = document.querySelector('[data-viewkey]');
-    const key = el?.getAttribute('data-viewkey')?.toUpperCase();
+    const el = document.querySelector('[data-viewkey], [data-view-key], [data-view]');
+    const rawKey =
+      el?.getAttribute('data-viewkey') ||
+      el?.getAttribute('data-view-key') ||
+      el?.getAttribute('data-view');
+    const key = rawKey?.toUpperCase();
     if (key && VIEW_KEY_TO_TIMEFRAME[key]) {
       timeframe = VIEW_KEY_TO_TIMEFRAME[key];
     }
@@ -151,6 +155,32 @@ function debouncedCheckViewMode(): void {
 }
 
 try {
+  contextBridge.executeInMainWorld({
+    func: () => {
+      try {
+        const origPush = history.pushState.bind(history);
+        history.pushState = function (...args) {
+          const result = origPush(...args);
+          window.dispatchEvent(new Event('magical:navigation'));
+          return result;
+        };
+        const origReplace = history.replaceState.bind(history);
+        history.replaceState = function (...args) {
+          const result = origReplace(...args);
+          window.dispatchEvent(new Event('magical:navigation'));
+          return result;
+        };
+      } catch {
+        // Guard against restricted window contexts
+      }
+    },
+    args: [],
+  });
+} catch {
+  // Guard against restricted window contexts
+}
+
+try {
   const origPushState = history.pushState.bind(history);
   history.pushState = function (...args) {
     const result = origPushState(...args);
@@ -170,17 +200,21 @@ try {
 
 window.addEventListener('popstate', debouncedCheckViewMode);
 window.addEventListener('hashchange', debouncedCheckViewMode);
+window.addEventListener('magical:navigation', debouncedCheckViewMode);
 
 function attachViewObservers(): void {
   checkViewMode();
-  let retryCount = 0;
-  const retryTimer = setInterval(() => {
-    retryCount++;
+  let initialRetryCount = 0;
+  const initialRetryTimer = setInterval(() => {
+    initialRetryCount++;
     checkViewMode();
-    if (retryCount > 20 || (lastReportedTimeframe && lastReportedDate)) {
-      clearInterval(retryTimer);
+    if (initialRetryCount > 20) {
+      clearInterval(initialRetryTimer);
     }
   }, 250);
+
+  // Periodic check to capture view transitions that do not trigger DOM mutations or history events
+  setInterval(checkViewMode, 1000);
 
   const observer = new MutationObserver(debouncedCheckViewMode);
   if (document.body) {
@@ -188,7 +222,7 @@ function attachViewObservers(): void {
       subtree: true,
       childList: true,
       attributes: true,
-      attributeFilter: ['data-viewkey'],
+      attributeFilter: ['data-viewkey', 'data-view-key', 'data-view'],
     });
   }
 

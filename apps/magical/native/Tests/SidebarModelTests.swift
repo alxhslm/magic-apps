@@ -7,7 +7,7 @@ import Testing
 struct SidebarModelTests {
     @Test func initialState() {
         let model = SidebarModel()
-        #expect(model.viewMode == .fantastical)
+        #expect(model.viewMode == .day)
         #expect(model.isVisible)
         #expect(model.currentWeekDays.count == 7)
     }
