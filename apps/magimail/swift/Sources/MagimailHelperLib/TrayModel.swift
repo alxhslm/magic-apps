@@ -41,6 +41,21 @@ public final class TrayModel: ObservableObject {
     /// credential the user can enter will lift an organisation policy).
     @Published public var isRestricted: Bool = false
 
+    /// Verification code extracted from a recent unread email.
+    @Published public var currentVerificationCode: TrayVerificationCode?
+    @Published public var menuBarVerificationCodes: Bool = true
+    @Published public var verificationCodeDurationMinutes: Int = 15
+
+    /// The verification code to show in the hero card if within its duration and enabled.
+    public var activeVerificationCode: TrayVerificationCode? {
+        guard menuBarVerificationCodes, let current = currentVerificationCode else { return nil }
+        let maxAge: TimeInterval = Double(verificationCodeDurationMinutes) * 60
+        if Date().timeIntervalSince(current.receivedAt) > maxAge {
+            return nil
+        }
+        return current
+    }
+
     /// Set while a forced poll is in flight, so the gear menu's Refresh item cannot be
     /// fired twice. Any state arriving from Electron clears it: the poll that answers a
     /// refresh lands as either a count change or a fresh message list.
@@ -166,11 +181,17 @@ public final class TrayModel: ObservableObject {
         case .markRead:
             messages[index] = messages[index].markedRead()
             state = .read(isUnread: false)
+            if currentVerificationCode?.messageId == messageId || currentVerificationCode?.threadId == messageId {
+                currentVerificationCode = nil
+            }
         case .archive, .trash:
             // Pull the row now: the thread is leaving the inbox, and the cache
             // may serve the old copy for a moment yet.
             messages.remove(at: index)
             state = .removed
+            if currentVerificationCode?.messageId == messageId || currentVerificationCode?.threadId == messageId {
+                currentVerificationCode = nil
+            }
         }
         messagesByAccount[accountId] = messages
         localState[accountId, default: [:]][messageId] = LocalStateEntry(state: state, setAt: Date())
@@ -226,6 +247,77 @@ public final class TrayModel: ObservableObject {
         if let restricted = params["isRestricted"] as? Bool {
             isRestricted = restricted
         }
+        if let vcDict = params["verificationCode"] as? [String: Any] {
+            updateVerificationCode(from: vcDict)
+        } else if params.keys.contains("verificationCode") {
+            updateVerificationCode(from: nil)
+        }
+        if let mbvc = params["menuBarVerificationCodes"] as? Bool {
+            menuBarVerificationCodes = mbvc
+        }
+        if let vcd = params["verificationCodeDurationMinutes"] as? Int {
+            verificationCodeDurationMinutes = vcd
+        }
+    }
+
+    public func updateVerificationCode(from dict: [String: Any]?) {
+        guard let dict,
+              let code = dict["code"] as? String, !code.isEmpty,
+              let messageId = dict["messageId"] as? String,
+              let threadId = dict["threadId"] as? String,
+              let accountId = dict["accountId"] as? String
+        else {
+            currentVerificationCode = nil
+            return
+        }
+
+        let service = dict["service"] as? String
+        let subject = dict["subject"] as? String ?? ""
+        let from = dict["from"] as? String ?? ""
+        let receivedAtMs = dict["receivedAt"] as? Double ?? (dict["receivedAt"] as? Int).map { Double($0) } ?? (Date().timeIntervalSince1970 * 1000)
+        let receivedAt = Date(timeIntervalSince1970: receivedAtMs / 1000)
+
+        currentVerificationCode = TrayVerificationCode(
+            code: code,
+            service: service,
+            subject: subject,
+            from: from,
+            messageId: messageId,
+            threadId: threadId,
+            accountId: accountId,
+            receivedAt: receivedAt
+        )
+    }
+}
+
+public struct TrayVerificationCode: Equatable, Sendable {
+    public let code: String
+    public let service: String?
+    public let subject: String
+    public let from: String
+    public let messageId: String
+    public let threadId: String
+    public let accountId: String
+    public let receivedAt: Date
+
+    public init(
+        code: String,
+        service: String?,
+        subject: String,
+        from: String,
+        messageId: String,
+        threadId: String,
+        accountId: String,
+        receivedAt: Date
+    ) {
+        self.code = code
+        self.service = service
+        self.subject = subject
+        self.from = from
+        self.messageId = messageId
+        self.threadId = threadId
+        self.accountId = accountId
+        self.receivedAt = receivedAt
     }
 }
 

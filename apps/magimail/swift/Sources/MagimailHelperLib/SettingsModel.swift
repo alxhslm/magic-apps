@@ -69,6 +69,14 @@ public final class SettingsModel: ObservableObject {
         didSet { emit("menuBarUnreadOnly", menuBarUnreadOnly) }
     }
 
+    @Published public var menuBarVerificationCodes: Bool = true {
+        didSet { emit("menuBarVerificationCodes", menuBarVerificationCodes) }
+    }
+
+    @Published public var verificationCodeDurationMinutes: Int = 15 {
+        didSet { emit("verificationCodeDurationMinutes", verificationCodeDurationMinutes) }
+    }
+
     // MARK: - Appearance
 
     @Published public var hidePromotionAds: Bool = true {
@@ -204,6 +212,12 @@ public final class SettingsModel: ObservableObject {
         }
         if let v = dict["menuBarUnreadOnly"] as? Bool {
             menuBarUnreadOnly = v
+        }
+        if let v = dict["menuBarVerificationCodes"] as? Bool {
+            menuBarVerificationCodes = v
+        }
+        if let v = dict["verificationCodeDurationMinutes"] as? Int {
+            verificationCodeDurationMinutes = v
         }
         if let v = dict["hidePromotionAds"] as? Bool {
             hidePromotionAds = v

@@ -118,6 +118,16 @@ transport.onMessage { request in
             transport.sendResponse(id: id, result: "ok")
         }
 
+    case "tray.verificationCode":
+        if let params = request.params?.dict {
+            MenuBarController.shared.updateVerificationCode(params: params)
+        } else {
+            MenuBarController.shared.updateVerificationCode(params: nil)
+        }
+        if let id = request.id {
+            transport.sendResponse(id: id, result: "ok")
+        }
+
     // MARK: - Notifications
 
     case "notify.setup":

@@ -66,6 +66,10 @@ public final class MenuBarController: NSObject, NSPopoverDelegate {
         }
     }
 
+    public func updateVerificationCode(params: [String: Any]?) {
+        TrayModel.shared.updateVerificationCode(from: params)
+    }
+
     public func updateTitle() {
         guard let button = statusItem?.button else { return }
 

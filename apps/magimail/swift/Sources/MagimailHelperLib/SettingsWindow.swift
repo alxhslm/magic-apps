@@ -224,6 +224,15 @@ struct AppearanceTab: View {
                 Toggle("Show unread count", isOn: $model.menuBarShowCount)
                 Toggle("Show color dots", isOn: $model.menuBarShowDots)
                 Toggle("Show unread only in the popover", isOn: $model.menuBarUnreadOnly)
+                Toggle("Show verification codes", isOn: $model.menuBarVerificationCodes)
+                if model.menuBarVerificationCodes {
+                    Picker("Keep in menu bar for:", selection: $model.verificationCodeDurationMinutes) {
+                        Text("5 minutes").tag(5)
+                        Text("10 minutes").tag(10)
+                        Text("15 minutes").tag(15)
+                        Text("30 minutes").tag(30)
+                    }
+                }
             }
         }
     }
