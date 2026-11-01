@@ -15,8 +15,6 @@ The General tab manages startup behaviour and default calendar file handling:
   - **Why turn it on**: Keeps your menu bar meeting countdown, upcoming alerts, and desktop widgets active and on time all day long.
   - **Silent startup**: Runs quietly in the menu bar without opening full desktop windows on startup.
 
-### Third-Party Links & Todoist
-
 ### Calendar Files (`.ics`)
 
 - **Calendar files (.ics)**: Shows which app opens `.ics` calendar files, with a button to make Magical the one. Once Magical holds the type the button disappears, and the only way back is to name another app in Finder's Get Info panel.

@@ -21,22 +21,19 @@ flowchart TD
   LSCheck -->|No| Universal
   LaunchNative -->|Throws / refused| Universal
   Universal --> Resolution{"Desktop client installed<br/>for target domain?"}
-  Resolution -->|Yes (e.g. Todoist, Notion, Linear)| App["Desktop Application"]
+  Resolution -->|Yes (apps supporting deep links<br/>including Todoist, Notion, etc.)| App["Desktop Application"]
   Resolution -->|No| Browser["Default Web Browser"]
 ```
 
 ## Desktop apps via Universal Links
 
 macOS resolves Apple Universal Links for applications that register domain associations
-(`apple-app-site-association`). By stripping Google's outbound tracking redirector, Magical restores
-Universal Links resolution across third-party productivity tools:
+(`apple-app-site-association`). Stripping Google's outbound tracking redirector restores Universal
+Links resolution for apps supporting deep links including Todoist, Notion, Linear, Figma and Slack.
 
-- **Todoist**: Links to tasks (`https://app.todoist.com/app/task/<id>`) and projects
-  (`https://app.todoist.com/app/project/<id>`) open in Todoist for Mac when installed.
-- **Notion, Linear, Figma, Slack**: Outbound links to these services resolve to their native macOS
-  desktop applications.
-- **Missing clients**: When a native client is not installed, macOS falls back to loading the page
-  in the user's default browser with no interstitial Google redirect.
+When an application is installed, macOS routes outbound links directly to the desktop client. When no
+client is installed, the destination page opens in the user's default browser without an
+intermediate redirect.
 
 Because macOS manages Universal Links dynamically per domain, third-party desktop tools require no
 bespoke URL schemes or application-specific toggles.

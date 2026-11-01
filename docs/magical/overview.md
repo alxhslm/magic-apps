@@ -228,7 +228,8 @@ application tracks CSS `prefers-color-scheme`, so Magical only has to drive that
   `myaccount.google.com`.
 - `setWindowOpenHandler` and `will-navigate` intercept external links: outbound tracking
   redirectors (`google.com/url?q=` and Outlook Safelinks) are unwrapped, restoring macOS Universal Links
-  for desktop apps (Todoist, Notion, Linear, Figma; [`third-party-integrations.md`](third-party-integrations.md)).
+  for apps supporting deep links including Todoist, Notion, Linear and Figma
+  ([`third-party-integrations.md`](third-party-integrations.md)).
   Meeting links ([`conference-links.md`](conference-links.md)) are rewritten to native custom schemes
   and verified with LaunchServices when installed, falling back to `shell.openExternal`.
 
