@@ -41,7 +41,6 @@ import type { RsvpTiming } from './calendar-actions/index.js';
 import { updateDockBadge } from './dock.js';
 import { isCalendarSilencedByFocus } from './focus-filter-manager.js';
 import { updateNativeToolbarInvites } from './native-toolbar.js';
-import { hasApplicationForUrl } from './native-handlers.js';
 import { uiString } from './strings.js';
 import {
   buildEventLink,
@@ -59,7 +58,7 @@ import {
   resolveCanonicalCalendarId,
   resolvePrimaryEmail,
 } from './calendars.js';
-import { openExternalUrl, toNativeMeetingUrl } from './links.js';
+import { openExternalUrl } from './links.js';
 
 const log = createLogger('CalendarService');
 

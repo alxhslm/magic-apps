@@ -5,7 +5,6 @@ import {
   ipcMain,
   nativeTheme,
   session,
-  shell,
   webFrameMain,
   type WebFrameMain,
 } from 'electron';
