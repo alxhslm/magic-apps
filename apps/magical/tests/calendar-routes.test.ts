@@ -56,6 +56,17 @@ describe('calendar-routes', () => {
       });
     });
 
+    it('defaults to month for root calendar route', () => {
+      expect(parseCalendarRoute('/calendar/u/0/r')).toEqual({
+        timeframe: 'month',
+        dateStr: undefined,
+      });
+      expect(parseCalendarRoute('https://calendar.google.com/calendar/u/1/r/')).toEqual({
+        timeframe: 'month',
+        dateStr: undefined,
+      });
+    });
+
     it('returns null for non-timeframe URLs', () => {
       expect(parseCalendarRoute(null)).toBeNull();
       expect(parseCalendarRoute('https://calendar.google.com/calendar/u/0/r/tasks')).toBeNull();

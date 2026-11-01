@@ -166,31 +166,15 @@ public struct WeekScrubberView: View {
 
     public var body: some View {
         VStack(spacing: 8) {
-            // Header with navigation arrows, week label, and calendar filter
-            HStack(spacing: 6) {
-                HStack(spacing: 4) {
-                    Button(action: navigatePrevDay) {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 11, weight: .semibold))
-                    }
-                    .buttonStyle(.plain)
-
-                    Button(action: navigateNextDay) {
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 11, weight: .semibold))
-                    }
-                    .buttonStyle(.plain)
-                }
-
-                Spacer()
-
+            // Header with week label and calendar filter/settings
+            HStack(alignment: .center) {
                 Button(action: {
                     withAnimation(.easeInOut(duration: 0.2)) {
                         model.jumpToToday()
                     }
                 }) {
                     Text(weekRangeText)
-                        .font(.system(size: 12, weight: .bold))
+                        .font(.system(size: 13, weight: .bold))
                         .foregroundStyle(.primary)
                 }
                 .buttonStyle(.plain)
@@ -269,18 +253,6 @@ public struct WeekScrubberView: View {
         }
         .buttonStyle(.plain)
     }
-
-    private func navigatePrevDay() {
-        if let prev = Calendar.current.date(byAdding: .day, value: -1, to: model.selectedDate) {
-            model.selectDate(prev)
-        }
-    }
-
-    private func navigateNextDay() {
-        if let next = Calendar.current.date(byAdding: .day, value: 1, to: model.selectedDate) {
-            model.selectDate(next)
-        }
-    }
 }
 
 // MARK: - Day Companion Header View
@@ -295,38 +267,14 @@ public struct DayCompanionHeaderView: View {
     }
 
     public var body: some View {
-        HStack(spacing: 6) {
-            HStack(spacing: 4) {
-                Button(action: {
-                    if let prev = Calendar.current.date(byAdding: .day, value: -1, to: model.selectedDate) {
-                        model.selectDate(prev)
-                    }
-                }) {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: 11, weight: .semibold))
-                }
-                .buttonStyle(.plain)
-
-                Button(action: {
-                    if let next = Calendar.current.date(byAdding: .day, value: 1, to: model.selectedDate) {
-                        model.selectDate(next)
-                    }
-                }) {
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 11, weight: .semibold))
-                }
-                .buttonStyle(.plain)
-            }
-
-            Spacer()
-
+        HStack(alignment: .center) {
             Button(action: {
                 withAnimation(.easeInOut(duration: 0.2)) {
                     model.jumpToToday()
                 }
             }) {
                 Text(dayTitle)
-                    .font(.system(size: 12, weight: .bold))
+                    .font(.system(size: 13, weight: .bold))
                     .foregroundStyle(.primary)
             }
             .buttonStyle(.plain)
@@ -474,34 +422,10 @@ public struct SidebarRootView: View {
 
                 Spacer()
 
-                // Month Navigation Arrows & Filter & Settings
+                // Filter & Settings
                 HStack(spacing: 4) {
                     CalendarFilterMenuView(model: model.trayModel)
                     SidebarSettingsMenuView(model: model.trayModel, onRefresh: { ActionBridge.emit("sidebarRefresh", "") })
-
-                    Button(action: {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            model.previousMonth()
-                        }
-                    }) {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(.secondary)
-                    }
-                    .modifier(TrayAccessoryButton())
-                    .help("Previous Month")
-
-                    Button(action: {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            model.nextMonth()
-                        }
-                    }) {
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(.secondary)
-                    }
-                    .modifier(TrayAccessoryButton())
-                    .help("Next Month")
                 }
             }
             .padding(.horizontal, 12)

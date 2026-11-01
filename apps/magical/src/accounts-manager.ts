@@ -912,6 +912,11 @@ export class AccountsManager {
 
     this.updateLayout();
 
+    const currentUrl = activeView.webContents.getURL();
+    if (currentUrl) {
+      this.updateViewMode(accountId, currentUrl);
+    }
+
     // Load URL only after view is attached and has full window bounds. A
     // resumed account returns to where it was rather than to the default view.
     const firstLoad = this.pool.firstLoadUrl(accountId, CALENDAR_LOGIN_URL);

@@ -64,7 +64,12 @@ export function parseCalendarRoute(urlOrPath: string | null): CalendarRouteInfo 
     /\/r\/(day|week|month|year|customday|customweek|agenda|schedule)(?:\/(\d{4})\/(\d{1,2})\/(\d{1,2}))?/.exec(
       urlOrPath,
     );
-  if (!match) return null;
+  if (!match) {
+    if (/\/r\/?(?:\?|$)/.test(urlOrPath) && !/\/r\/(?:tasks|settings)\b/.test(urlOrPath)) {
+      return { timeframe: 'month' };
+    }
+    return null;
+  }
   const timeframe = match[1] as CalendarTimeframe;
   let dateStr: string | undefined;
   if (match[2] && match[3] && match[4]) {

@@ -118,7 +118,7 @@ function checkViewMode(): void {
 
   if (!timeframe) {
     const el = document.querySelector('[data-viewkey]');
-    const key = el?.getAttribute('data-viewkey');
+    const key = el?.getAttribute('data-viewkey')?.toUpperCase();
     if (key && VIEW_KEY_TO_TIMEFRAME[key]) {
       timeframe = VIEW_KEY_TO_TIMEFRAME[key];
     }
@@ -171,25 +171,17 @@ try {
 window.addEventListener('popstate', debouncedCheckViewMode);
 window.addEventListener('hashchange', debouncedCheckViewMode);
 
-if (document.readyState === 'loading') {
-  document.addEventListener(
-    'DOMContentLoaded',
-    () => {
-      checkViewMode();
-      const observer = new MutationObserver(debouncedCheckViewMode);
-      if (document.body) {
-        observer.observe(document.body, {
-          subtree: true,
-          childList: true,
-          attributes: true,
-          attributeFilter: ['data-viewkey'],
-        });
-      }
-    },
-    { once: true },
-  );
-} else {
+function attachViewObservers(): void {
   checkViewMode();
+  let retryCount = 0;
+  const retryTimer = setInterval(() => {
+    retryCount++;
+    checkViewMode();
+    if (retryCount > 20 || (lastReportedTimeframe && lastReportedDate)) {
+      clearInterval(retryTimer);
+    }
+  }, 250);
+
   const observer = new MutationObserver(debouncedCheckViewMode);
   if (document.body) {
     observer.observe(document.body, {
@@ -199,4 +191,16 @@ if (document.readyState === 'loading') {
       attributeFilter: ['data-viewkey'],
     });
   }
+
+  const titleEl = document.querySelector('title');
+  if (titleEl) {
+    const titleObserver = new MutationObserver(debouncedCheckViewMode);
+    titleObserver.observe(titleEl, { childList: true, characterData: true, subtree: true });
+  }
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', attachViewObservers, { once: true });
+} else {
+  attachViewObservers();
 }
