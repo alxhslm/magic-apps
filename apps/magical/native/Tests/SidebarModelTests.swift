@@ -34,6 +34,27 @@ struct SidebarModelTests {
         #expect(selectedDays.first?.id == "2026-10-14")
     }
 
+    @Test func setViewModeFourDay() throws {
+        let model = SidebarModel()
+        let df = DateFormatter()
+        df.dateFormat = "yyyy-MM-dd"
+        df.timeZone = .current
+        let anchor = try #require(df.date(from: "2026-10-14"))
+
+        model.setViewMode(.fourDay, anchor: anchor)
+
+        #expect(model.viewMode == .fourDay)
+        #expect(model.currentWeekDays.count == 4)
+        #expect(model.currentWeekDays[0].id == "2026-10-14")
+        #expect(model.currentWeekDays[1].id == "2026-10-15")
+        #expect(model.currentWeekDays[2].id == "2026-10-16")
+        #expect(model.currentWeekDays[3].id == "2026-10-17")
+
+        let selectedDays = model.currentWeekDays.filter(\.isSelected)
+        #expect(selectedDays.count == 1)
+        #expect(selectedDays.first?.id == "2026-10-14")
+    }
+
     @Test func setViewModeDay() throws {
         let model = SidebarModel()
         let df = DateFormatter()

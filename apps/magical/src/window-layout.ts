@@ -1,6 +1,19 @@
 import { TITLEBAR_HEIGHT } from './constants.js';
 
 export const SIDEBAR_WIDTH = 280;
+export const CALENDAR_MIN_WIDTH = 1280;
+export const CALENDAR_MIN_HEIGHT = 600;
+
+/**
+ * Minimum window width guaranteeing Google Calendar has at least CALENDAR_MIN_WIDTH,
+ * adding extra room for the companion sidebar when visible.
+ */
+export function windowMinWidth(
+  sidebarVisible: boolean,
+  sidebarWidth: number = SIDEBAR_WIDTH,
+): number {
+  return CALENDAR_MIN_WIDTH + (sidebarVisible ? Math.max(0, sidebarWidth) : 0);
+}
 
 export interface ViewBounds {
   x: number;

@@ -48,6 +48,7 @@ import {
 } from './native-toolbar.js';
 import { chooseEventAccount } from './account-picker.js';
 import { SidebarManager } from './sidebar-manager.js';
+import { CALENDAR_MIN_HEIGHT, windowMinWidth } from './window-layout.js';
 import { CALENDAR_BASE_URL } from './constants.js';
 import { initDock } from './dock.js';
 import { syncExtensionLogs } from './extension-logs.js';
@@ -1190,13 +1191,15 @@ function createWindow(
   // Built opaque from the start when transparency is off, rather than made
   // vibrant and corrected a frame later. Mirrors Magimail's createMainWindow.
   const settings = loadSettings();
+  const isSidebarVisible = settings.sidebarVisible !== false;
+  const initialMinW = windowMinWidth(isSidebarVisible);
   mainWindow = new BaseWindow(
     createMainWindowOptions({
       title: uiString('window.main.title'),
-      width: settings.sidebarVisible !== false ? 1440 : 1280,
+      width: isSidebarVisible ? 1560 : 1280,
       height: 850,
-      minWidth: 1200,
-      minHeight: 600,
+      minWidth: initialMinW,
+      minHeight: CALENDAR_MIN_HEIGHT,
       // Set when this window is a replacement, so it returns to where the user had it.
       bounds: options.bounds,
       ...(settings.transparentBackground

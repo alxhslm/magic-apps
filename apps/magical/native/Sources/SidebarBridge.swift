@@ -7,7 +7,8 @@ import SwiftUI
 
 public enum SidebarViewMode: String {
     case fantastical // Month, Schedule, Year
-    case week // Week & 4-Day
+    case week // 7-Day Week
+    case fourDay // 4-Day View
     case day // Day
 }
 
@@ -63,6 +64,7 @@ public final class SidebarModel: ObservableObject {
 
     public func jumpToToday() {
         let today = Date()
+        anchorDate = today
         selectedDate = today
         displayedMonthDate = today
         recomputeWeekDays()
@@ -98,10 +100,6 @@ public final class SidebarModel: ObservableObject {
     }
 
     public func recomputeWeekDays() {
-        let reference = selectedDate
-        guard let weekInterval = calendar.dateInterval(of: .weekOfYear, for: reference) else { return }
-
-        let startOfWeek = weekInterval.start
         var items: [WeekDayItem] = []
 
         let dotsMap = trayModel.densityDotsByDay
@@ -117,22 +115,47 @@ public final class SidebarModel: ObservableObject {
         numberFormatter.dateFormat = "d"
         numberFormatter.timeZone = .current
 
-        for dayOffset in 0 ..< 7 {
-            guard let dayDate = calendar.date(byAdding: .day, value: dayOffset, to: startOfWeek) else { continue }
-            let key = keyFormatter.string(from: dayDate)
-            let isToday = calendar.isDateInToday(dayDate)
-            let isSelected = calendar.isDate(dayDate, inSameDayAs: selectedDate)
-            let dots = dotsMap[key] ?? []
+        if viewMode == .fourDay {
+            let start = calendar.startOfDay(for: anchorDate)
+            for dayOffset in 0 ..< 4 {
+                guard let dayDate = calendar.date(byAdding: .day, value: dayOffset, to: start) else { continue }
+                let key = keyFormatter.string(from: dayDate)
+                let isToday = calendar.isDateInToday(dayDate)
+                let isSelected = calendar.isDate(dayDate, inSameDayAs: selectedDate)
+                let dots = dotsMap[key] ?? []
 
-            items.append(WeekDayItem(
-                id: key,
-                date: dayDate,
-                dayLetter: letterFormatter.string(from: dayDate),
-                dayNumber: numberFormatter.string(from: dayDate),
-                isToday: isToday,
-                isSelected: isSelected,
-                dots: dots
-            ))
+                items.append(WeekDayItem(
+                    id: key,
+                    date: dayDate,
+                    dayLetter: letterFormatter.string(from: dayDate),
+                    dayNumber: numberFormatter.string(from: dayDate),
+                    isToday: isToday,
+                    isSelected: isSelected,
+                    dots: dots
+                ))
+            }
+        } else {
+            let reference = selectedDate
+            guard let weekInterval = calendar.dateInterval(of: .weekOfYear, for: reference) else { return }
+            let startOfWeek = weekInterval.start
+
+            for dayOffset in 0 ..< 7 {
+                guard let dayDate = calendar.date(byAdding: .day, value: dayOffset, to: startOfWeek) else { continue }
+                let key = keyFormatter.string(from: dayDate)
+                let isToday = calendar.isDateInToday(dayDate)
+                let isSelected = calendar.isDate(dayDate, inSameDayAs: selectedDate)
+                let dots = dotsMap[key] ?? []
+
+                items.append(WeekDayItem(
+                    id: key,
+                    date: dayDate,
+                    dayLetter: letterFormatter.string(from: dayDate),
+                    dayNumber: numberFormatter.string(from: dayDate),
+                    isToday: isToday,
+                    isSelected: isSelected,
+                    dots: dots
+                ))
+            }
         }
 
         currentWeekDays = items
@@ -157,11 +180,25 @@ public struct WeekScrubberView: View {
     private var weekRangeText: String {
         guard let first = model.currentWeekDays.first?.date,
               let last = model.currentWeekDays.last?.date else { return "" }
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMM d"
-        let endFormatter = DateFormatter()
-        endFormatter.dateFormat = "MMM d, yyyy"
-        return "\(formatter.string(from: first)) – \(endFormatter.string(from: last))"
+        let cal = Calendar.current
+        let startYear = cal.component(.year, from: first)
+        let endYear = cal.component(.year, from: last)
+        let startMonth = cal.component(.month, from: first)
+        let endMonth = cal.component(.month, from: last)
+
+        let monthFormatter = DateFormatter()
+        monthFormatter.dateFormat = "MMM"
+
+        let dayFormatter = DateFormatter()
+        dayFormatter.dateFormat = "d"
+
+        if startYear == endYear, startMonth == endMonth {
+            return "\(monthFormatter.string(from: first)) \(dayFormatter.string(from: first)) – \(dayFormatter.string(from: last)), \(startYear)"
+        } else if startYear == endYear {
+            return "\(monthFormatter.string(from: first)) \(dayFormatter.string(from: first)) – \(monthFormatter.string(from: last)) \(dayFormatter.string(from: last)), \(startYear)"
+        } else {
+            return "\(monthFormatter.string(from: first)) \(dayFormatter.string(from: first)), \(startYear) – \(monthFormatter.string(from: last)) \(dayFormatter.string(from: last)), \(endYear)"
+        }
     }
 
     public var body: some View {
@@ -363,7 +400,7 @@ public struct SidebarRootView: View {
                 switch model.viewMode {
                 case .fantastical:
                     fantasticalModeView
-                case .week:
+                case .week, .fourDay:
                     weekModeView
                 case .day:
                     dayModeView
@@ -614,7 +651,9 @@ public final class SidebarManager {
 
     public func setViewMode(mode: String, anchorDateStr: String?) {
         let viewMode: SidebarViewMode = switch mode.lowercased() {
-        case "week", "customday", "customweek", "custom_days", "custom_weeks":
+        case "customday", "custom_days", "fourday", "four_day", "4day", "4_day":
+            .fourDay
+        case "week", "customweek", "custom_weeks":
             .week
         case "day":
             .day

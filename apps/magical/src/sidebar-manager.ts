@@ -9,6 +9,7 @@ import { uiString } from './strings.js';
 import { buildEventLink, extractEid } from './event-links.js';
 import type { AccountsManager } from './accounts-manager.js';
 import type { CalendarService } from './calendar-service.js';
+import { CALENDAR_MIN_HEIGHT, SIDEBAR_WIDTH, windowMinWidth } from './window-layout.js';
 
 const log = createLogger('SidebarManager');
 
@@ -35,8 +36,28 @@ export class SidebarManager {
     this.position = settings.sidebarPosition ?? 'right';
   }
 
+  public updateWindowMinSize(expandIfOpening = false): void {
+    const win = this.getMainWindow();
+    if (!win || (typeof win.isDestroyed === 'function' && win.isDestroyed())) return;
+    const minW = windowMinWidth(this.isVisible);
+    if (typeof win.setMinimumSize === 'function') {
+      win.setMinimumSize(minW, CALENDAR_MIN_HEIGHT);
+    }
+    if (typeof win.getSize === 'function' && typeof win.setSize === 'function') {
+      const [w, h] = win.getSize();
+      if (this.isVisible) {
+        if (expandIfOpening) {
+          win.setSize(Math.max(w + SIDEBAR_WIDTH, minW), h);
+        } else if (w < minW) {
+          win.setSize(minW, h);
+        }
+      }
+    }
+  }
+
   public attach(window: BaseWindow): void {
     this.attachedWindow = window;
+    this.updateWindowMinSize();
     try {
       const addon = loadAddon();
       const handle = window.getNativeWindowHandle();
@@ -54,16 +75,7 @@ export class SidebarManager {
   public toggleSidebar(): void {
     this.isVisible = !this.isVisible;
     saveSetting('sidebarVisible', this.isVisible);
-
-    const win = this.getMainWindow();
-    if (win && (typeof win.isDestroyed !== 'function' || !win.isDestroyed())) {
-      if (typeof win.getSize === 'function' && typeof win.setSize === 'function') {
-        const [w, h] = win.getSize();
-        if (this.isVisible && w < 1350) {
-          win.setSize(w + 280, h);
-        }
-      }
-    }
+    this.updateWindowMinSize(this.isVisible);
 
     try {
       loadAddon().sidebarSetVisible?.(this.isVisible, true);
@@ -79,6 +91,7 @@ export class SidebarManager {
     if (this.isVisible === visible) return;
     this.isVisible = visible;
     saveSetting('sidebarVisible', this.isVisible);
+    this.updateWindowMinSize(this.isVisible);
     try {
       loadAddon().sidebarSetVisible?.(this.isVisible, true);
     } catch (err) {

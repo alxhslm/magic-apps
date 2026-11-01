@@ -62,6 +62,7 @@ describe('SidebarManager', () => {
       isDestroyed: vi.fn().mockReturnValue(false),
       getSize: vi.fn().mockReturnValue([1280, 820]),
       setSize: vi.fn(),
+      setMinimumSize: vi.fn(),
     };
 
     mockAccountsManager = {
@@ -84,6 +85,8 @@ describe('SidebarManager', () => {
     expect(sidebarAttach).toHaveBeenCalledWith(Buffer.from('handle'));
     expect(sidebarSetVisible).toHaveBeenCalledWith(true, false);
     expect(sidebarSetViewMode).toHaveBeenCalledWith('month', undefined);
+    expect(mockMainWindow.setMinimumSize).toHaveBeenCalledWith(1560, 600);
+    expect(mockMainWindow.setSize).toHaveBeenCalledWith(1560, 820);
   });
 
   it('toggles sidebar visibility, saves setting, and triggers layout update', () => {
@@ -96,11 +99,13 @@ describe('SidebarManager', () => {
 
     expect(mockSaveSetting).toHaveBeenCalledWith('sidebarVisible', false);
     expect(sidebarSetVisible).toHaveBeenCalledWith(false, true);
+    expect(mockMainWindow.setMinimumSize).toHaveBeenCalledWith(1280, 600);
     expect(mockAccountsManager.updateLayout).toHaveBeenCalled();
 
     manager.toggleSidebar();
     expect(mockSaveSetting).toHaveBeenCalledWith('sidebarVisible', true);
     expect(sidebarSetVisible).toHaveBeenCalledWith(true, true);
+    expect(mockMainWindow.setMinimumSize).toHaveBeenCalledWith(1560, 600);
   });
 
   it('relays timeframe and anchor date changes to native addon', () => {

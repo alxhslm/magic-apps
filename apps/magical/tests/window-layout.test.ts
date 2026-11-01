@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { layoutCalendarView, layoutSidebarView, SIDEBAR_WIDTH } from '../src/window-layout.js';
+import {
+  CALENDAR_MIN_HEIGHT,
+  CALENDAR_MIN_WIDTH,
+  layoutCalendarView,
+  layoutSidebarView,
+  SIDEBAR_WIDTH,
+  windowMinWidth,
+} from '../src/window-layout.js';
 import { TITLEBAR_HEIGHT } from '../src/constants.js';
 
 describe('layoutCalendarView', () => {
@@ -67,5 +74,19 @@ describe('layoutSidebarView', () => {
       width: SIDEBAR_WIDTH,
       height: 820 - TITLEBAR_HEIGHT,
     });
+  });
+});
+
+describe('windowMinWidth', () => {
+  it('returns CALENDAR_MIN_WIDTH when sidebar is not visible', () => {
+    expect(windowMinWidth(false)).toBe(CALENDAR_MIN_WIDTH);
+    expect(CALENDAR_MIN_WIDTH).toBe(1280);
+    expect(CALENDAR_MIN_HEIGHT).toBe(600);
+  });
+
+  it('adds sidebar width when sidebar is visible', () => {
+    expect(windowMinWidth(true)).toBe(CALENDAR_MIN_WIDTH + SIDEBAR_WIDTH);
+    expect(windowMinWidth(true)).toBe(1560);
+    expect(windowMinWidth(true, 300)).toBe(CALENDAR_MIN_WIDTH + 300);
   });
 });

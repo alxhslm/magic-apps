@@ -86,7 +86,7 @@ const VIEW_KEY_TO_TIMEFRAME: Record<string, string> = {
   DAY: 'day',
   WEEK: 'week',
   MONTH: 'month',
-  CUSTOM_DAYS: 'week',
+  CUSTOM_DAYS: 'customday',
   CUSTOM_WEEKS: 'week',
   YEAR: 'year',
   AGENDA: 'schedule',
