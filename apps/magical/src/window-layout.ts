@@ -1,7 +1,7 @@
 import { TITLEBAR_HEIGHT } from './constants.js';
 
-export const SIDEBAR_WIDTH = 280;
-export const CALENDAR_MIN_WIDTH = 1100;
+export const SIDEBAR_WIDTH = 270;
+export const CALENDAR_MIN_WIDTH = 1200;
 export const CALENDAR_MIN_HEIGHT = 600;
 
 /**

@@ -533,17 +533,17 @@ public final class SidebarManager {
 
     public var isVisible: Bool = true
     public var position: String = "right"
-    public let cardWidth: CGFloat = 264
+    public let cardWidth: CGFloat = 254
     public let margin: CGFloat = 8
     public let topMargin: CGFloat = 6
     public let cornerRadius: CGFloat = 10
-    public let calendarMinWidth: CGFloat = 1100
+    public let calendarMinWidth: CGFloat = 1200
     public var minRequiredWidth: CGFloat {
         calendarMinWidth + cardWidth + margin * 2
-    } // 1380
+    } // 1470
     public var width: CGFloat {
         cardWidth + margin * 2
-    } // 280
+    } // 270
 
     public init() {}
 
