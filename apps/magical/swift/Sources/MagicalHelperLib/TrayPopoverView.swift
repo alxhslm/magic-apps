@@ -178,81 +178,8 @@ public struct TrayPopoverView: View {
     /// the month. It persists across months and applies to the agenda, which scrolls
     /// through months of its own; next to the month title it would claim a scope it does
     /// not have.
-    @ViewBuilder
     private var calendarFilterMenu: some View {
-        if model.availableCalendars.count > 1 || model.hasTasks {
-            Menu {
-                ForEach(model.accounts) { account in
-                    let accountCalendars = model.availableCalendars.filter { $0.accountId == account.id }
-                    if !accountCalendars.isEmpty {
-                        Section(account.name) {
-                            ForEach(accountCalendars) { cal in
-                                calendarToggle(cal)
-                            }
-                        }
-                    }
-                }
-
-                let unassigned = model.availableCalendars.filter { cal in
-                    !model.accounts.contains(where: { $0.id == cal.accountId })
-                }
-                if !unassigned.isEmpty {
-                    Section("Other") {
-                        ForEach(unassigned) { cal in
-                            calendarToggle(cal)
-                        }
-                    }
-                }
-
-                if model.hasTasks {
-                    Divider()
-                    Toggle("Show Completed Tasks", isOn: Binding(
-                        get: { model.showCompletedTasks },
-                        set: { model.setShowCompletedTasks($0) }
-                    ))
-                }
-
-                if model.isUserFilteringCalendars {
-                    Divider()
-                    Button("Show All Calendars") {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            model.showAllCalendars()
-                        }
-                    }
-                }
-            } label: {
-                Image(systemName: model.isFilteringCalendars ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
-                    .font(.system(size: 13))
-                    .foregroundStyle(model.isFilteringCalendars ? Color.accentColor : .primary)
-            }
-            .modifier(TrayAccessoryButton())
-            .help(filterHelp)
-        }
-    }
-
-    /// One calendar's row.
-    ///
-    /// A calendar a Focus has silenced is shown unticked and disabled rather than left out.
-    /// Removing it would take away the only thing on screen that says why the agenda is
-    /// short, and leaving it tickable would offer a choice the Focus overrules.
-    @ViewBuilder
-    private func calendarToggle(_ cal: TrayCalendarItem) -> some View {
-        let silencedByFocus = model.isSilencedByFocus(cal)
-        Toggle(isOn: Binding(
-            get: { model.isCalendarVisible(cal) },
-            set: { _ in
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    model.toggleCalendar(cal)
-                }
-            }
-        )) {
-            Label {
-                Text(cal.name)
-            } icon: {
-                Image(nsImage: AccountDot.image(hex: cal.colorHex))
-            }
-        }
-        .disabled(silencedByFocus)
+        CalendarFilterMenuView(model: model)
     }
 
     private var quickAddHelp: LocalizedStringKey {

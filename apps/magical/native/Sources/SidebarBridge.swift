@@ -167,13 +167,21 @@ public struct WeekScrubberView: View {
 
     public var body: some View {
         VStack(spacing: 8) {
-            // Header with navigation arrows and week label
-            HStack {
-                Button(action: navigatePrevDay) {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: 11, weight: .semibold))
+            // Header with navigation arrows, week label, and calendar filter
+            HStack(spacing: 6) {
+                HStack(spacing: 4) {
+                    Button(action: navigatePrevDay) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 11, weight: .semibold))
+                    }
+                    .buttonStyle(.plain)
+
+                    Button(action: navigateNextDay) {
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 11, weight: .semibold))
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
 
                 Spacer()
 
@@ -183,11 +191,7 @@ public struct WeekScrubberView: View {
 
                 Spacer()
 
-                Button(action: navigateNextDay) {
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 11, weight: .semibold))
-                }
-                .buttonStyle(.plain)
+                CalendarFilterMenuView(model: model.trayModel)
             }
             .padding(.horizontal, 12)
             .padding(.top, 8)
@@ -281,16 +285,28 @@ public struct DayCompanionHeaderView: View {
     }
 
     public var body: some View {
-        HStack {
-            Button(action: {
-                if let prev = Calendar.current.date(byAdding: .day, value: -1, to: model.selectedDate) {
-                    model.selectDate(prev)
+        HStack(spacing: 6) {
+            HStack(spacing: 4) {
+                Button(action: {
+                    if let prev = Calendar.current.date(byAdding: .day, value: -1, to: model.selectedDate) {
+                        model.selectDate(prev)
+                    }
+                }) {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 11, weight: .semibold))
                 }
-            }) {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 11, weight: .semibold))
+                .buttonStyle(.plain)
+
+                Button(action: {
+                    if let next = Calendar.current.date(byAdding: .day, value: 1, to: model.selectedDate) {
+                        model.selectDate(next)
+                    }
+                }) {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 11, weight: .semibold))
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
 
             Spacer()
 
@@ -300,15 +316,7 @@ public struct DayCompanionHeaderView: View {
 
             Spacer()
 
-            Button(action: {
-                if let next = Calendar.current.date(byAdding: .day, value: 1, to: model.selectedDate) {
-                    model.selectDate(next)
-                }
-            }) {
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 11, weight: .semibold))
-            }
-            .buttonStyle(.plain)
+            CalendarFilterMenuView(model: model.trayModel)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
@@ -441,8 +449,10 @@ public struct SidebarRootView: View {
 
                 Spacer()
 
-                // Month Navigation Arrows
+                // Month Navigation Arrows & Filter
                 HStack(spacing: 4) {
+                    CalendarFilterMenuView(model: model.trayModel)
+
                     Button(action: {
                         withAnimation(.easeInOut(duration: 0.2)) {
                             model.previousMonth()
