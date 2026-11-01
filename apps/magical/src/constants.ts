@@ -29,3 +29,8 @@ export const TITLEBAR_HEIGHT = TOOLBAR_HEIGHT;
  * and a renderer naming its own account could name somebody else's.
  */
 export const CALENDAR_LIST_CHANNEL = 'magical:calendar-list';
+
+/**
+ * How a view tells the main process that its timeframe or anchor date changed.
+ */
+export const GCAL_VIEW_MODE_CHANNEL = 'magical:gcal-view-mode';

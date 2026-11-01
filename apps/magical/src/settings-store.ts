@@ -46,6 +46,14 @@ export interface MagicalSettings {
    * not in the desktop client.
    */
   alwaysJoinInBrowser: boolean;
+  /** Whether the native companion sidebar in the main window is visible. */
+  sidebarVisible: boolean;
+  /** Which side the native companion sidebar docks to. */
+  sidebarPosition: 'left' | 'right';
+  /** Last active calendar timeframe mode (day, week, month, etc.). */
+  lastTimeframe?: string;
+  /** Last active anchor date string (yyyy-MM-dd). */
+  lastDateStr?: string;
   /** Whether the mini calendar month grid in the menu bar tray is collapsed. */
   isCalendarCollapsed: boolean;
   /** Whether the menu bar status item is shown. */
@@ -121,6 +129,9 @@ const DEFAULT_SETTINGS: MagicalSettings = {
   meetingAlertsEnabled: true,
   meetingAlertLeadMinutes: 5,
   alwaysJoinInBrowser: false,
+  sidebarVisible: true,
+  sidebarPosition: 'right',
+  lastTimeframe: 'day',
   isCalendarCollapsed: false,
   showMenuBarIcon: true,
   menuBarDisplayMode: 'iconOnly',

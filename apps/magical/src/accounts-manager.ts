@@ -19,7 +19,12 @@ import {
   viewIsAlive,
 } from '@magimail/core';
 import { createLogger, redactUrl } from '@magimail/core/logger';
-import { CALENDAR_BASE_URL, CALENDAR_LIST_CHANNEL, CALENDAR_LOGIN_URL } from './constants.js';
+import {
+  CALENDAR_BASE_URL,
+  CALENDAR_LIST_CHANNEL,
+  GCAL_VIEW_MODE_CHANNEL,
+  CALENDAR_LOGIN_URL,
+} from './constants.js';
 import { layoutCalendarView } from './window-layout.js';
 import { uiString } from './strings.js';
 import { getCalendarCss, getCalendarSubframeCss } from './calendar-css.js';
@@ -38,7 +43,12 @@ import {
   type RsvpResponse,
   type RsvpTiming,
 } from './calendar-actions/index.js';
-import { pathnameOf, viewModeForPath, type ViewMode } from './calendar-routes.js';
+import {
+  pathnameOf,
+  viewModeForPath,
+  parseCalendarRoute,
+  type ViewMode,
+} from './calendar-routes.js';
 
 export type { ViewMode };
 
@@ -145,6 +155,8 @@ export class AccountsManager {
   public onModeChanged?: (mode: ViewMode) => void;
   /** Fired when the active account's history moves, so the menu can follow it. */
   public onHistoryChanged?: () => void;
+  /** Fired when the active account's timeframe or anchor date moves, so the companion sidebar can follow it. */
+  public onTimeframeChanged?: (timeframe: string, dateStr?: string) => void;
 
   /** RSVP, delete and task completion: the sync API first, the page as fallback. */
   private readonly actions: CalendarActionDriver;
@@ -452,6 +464,43 @@ export class AccountsManager {
       setTimeout(() => {
         void this.syncCalendarMetadata(account.id);
       }, 2500);
+
+      const pollViewMode = async () => {
+        if (!viewIsAlive(view) || account.id !== this.activeAccountId) return;
+        try {
+          const res = (await view.webContents.executeJavaScript(`
+            (() => {
+              const path = window.location.pathname;
+              const match = /\\/r\\/(day|week|month|year|customday|customweek|agenda|schedule)(?:\\/(\\d{4})\\/(\\d{1,2})\\/(\\d{1,2}))?/.exec(path);
+              if (match) {
+                return {
+                  timeframe: match[1],
+                  dateStr: match[2] && match[3] && match[4] ? (match[2] + '-' + match[3].padStart(2, '0') + '-' + match[4].padStart(2, '0')) : null
+                };
+              }
+              const el = document.querySelector('[data-viewkey], [data-view-key], [data-view]');
+              const key = (el?.getAttribute('data-viewkey') || el?.getAttribute('data-view-key') || el?.getAttribute('data-view'))?.toUpperCase();
+              const map = { DAY: 'day', WEEK: 'week', MONTH: 'month', CUSTOM_DAYS: 'customday', CUSTOM_WEEKS: 'week', YEAR: 'year', AGENDA: 'schedule', SCHEDULE: 'schedule' };
+              if (key && map[key]) {
+                return { timeframe: map[key] };
+              }
+              return null;
+            })()
+          `)) as { timeframe?: string; dateStr?: string } | null;
+          if (res?.timeframe && account.id === this.activeAccountId) {
+            log.info(
+              `Polled initial view mode for ${account.id}: ${res.timeframe} (date: ${res.dateStr})`,
+            );
+            this.onTimeframeChanged?.(res.timeframe, res.dateStr);
+          }
+        } catch {
+          // View may have navigated or been destroyed
+        }
+      };
+
+      setTimeout(pollViewMode, 500);
+      setTimeout(pollViewMode, 1500);
+      setTimeout(pollViewMode, 3000);
     });
 
     return view;
@@ -599,7 +648,11 @@ export class AccountsManager {
 
   public updateLayout(): void {
     const [width, height] = this.mainWindow.getContentSize();
-    const bounds = layoutCalendarView(width, height);
+    const settings = loadSettings();
+    const bounds = layoutCalendarView(width, height, {
+      sidebarVisible: settings.sidebarVisible,
+      sidebarPosition: settings.sidebarPosition,
+    });
     for (const [, view] of this.pool.entries()) {
       view.setBounds(bounds);
     }
@@ -670,7 +723,13 @@ export class AccountsManager {
     if (this.mainWindow.contentView.children.includes(view)) return () => {};
 
     const [width, height] = this.mainWindow.getContentSize();
-    view.setBounds(layoutCalendarView(width, height));
+    const settings = loadSettings();
+    view.setBounds(
+      layoutCalendarView(width, height, {
+        sidebarVisible: settings.sidebarVisible,
+        sidebarPosition: settings.sidebarPosition,
+      }),
+    );
     if (typeof view.setVisible === 'function') {
       view.setVisible(false);
     }
@@ -754,6 +813,15 @@ export class AccountsManager {
   }
 
   /**
+   * Navigates the active account view to a specific date.
+   */
+  public async navigateToDate(date: Date, mode?: string): Promise<boolean> {
+    const view = this.getActiveView();
+    if (!view || !viewIsAlive(view)) return false;
+    return this.dom.navigateToDate(view, date, mode);
+  }
+
+  /**
    * Shows one event in its own account's view, with its detail panel open.
    *
    * What a banner does when the user clicks its body.
@@ -797,6 +865,10 @@ export class AccountsManager {
    * background account is in changes nothing the user can see.
    */
   private updateViewMode(accountId: string, url: string): void {
+    const routeInfo = parseCalendarRoute(url);
+    if (routeInfo && accountId === this.activeAccountId) {
+      this.onTimeframeChanged?.(routeInfo.timeframe, routeInfo.dateStr);
+    }
     const next = viewModeForPath(pathnameOf(url));
     const previous = this.viewModes.get(accountId) ?? 'calendar';
     this.viewModes.set(accountId, next);
@@ -876,6 +948,11 @@ export class AccountsManager {
     if (!activeView) return;
 
     this.updateLayout();
+
+    const currentUrl = activeView.webContents.getURL();
+    if (currentUrl) {
+      this.updateViewMode(accountId, currentUrl);
+    }
 
     // Load URL only after view is attached and has full window bounds. A
     // resumed account returns to where it was rather than to the default view.
@@ -994,6 +1071,23 @@ export class AccountsManager {
    * response carrying the list -- later ones are deltas.
    */
   private receiveCalendarLists(): void {
+    ipcMain.on(
+      GCAL_VIEW_MODE_CHANNEL,
+      (event, payload: { timeframe?: string; dateStr?: string }) => {
+        const entry = [...this.pool.entries()].find(
+          ([, view]) => viewIsAlive(view) && view.webContents === event.sender,
+        );
+        if (!entry) return;
+        const [accountId] = entry;
+        if (accountId === this.activeAccountId && payload?.timeframe) {
+          log.info(
+            `Received GCAL_VIEW_MODE_CHANNEL: ${payload.timeframe} (date: ${payload.dateStr})`,
+          );
+          this.onTimeframeChanged?.(payload.timeframe, payload.dateStr);
+        }
+      },
+    );
+
     ipcMain.on(
       CALENDAR_LIST_CHANNEL,
       (
@@ -1204,7 +1298,13 @@ export class AccountsManager {
     // Laid out, though never shown: Google renders the pane against the viewport, and a
     // zero-sized one leaves the controls unrendered for the selectors to miss.
     const [width, height] = this.mainWindow.getContentSize();
-    worker.setBounds(layoutCalendarView(width, height));
+    const settings = loadSettings();
+    worker.setBounds(
+      layoutCalendarView(width, height, {
+        sidebarVisible: settings.sidebarVisible,
+        sidebarPosition: settings.sidebarPosition,
+      }),
+    );
 
     let outcome: IcsImportOutcome;
     try {

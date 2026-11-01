@@ -17,6 +17,11 @@ export interface MagicalNativeAddon extends NativeToolbarAddon {
   appGroupIdentifier?: () => string | null;
   /** Base64 of the 32-byte local cache key, created on first use. Null when unsigned. */
   localCacheKey?: () => string | null;
+  sidebarAttach?: (handle: Buffer) => void;
+  sidebarSetVisible?: (visible: boolean, animated: boolean) => void;
+  sidebarUpdateData?: (json: string) => void;
+  sidebarSetViewMode?: (mode: string, anchorDate?: string) => void;
+  sidebarSetTransparency?: (transparent: boolean, isDark: boolean) => void;
 }
 
 export type NativeAddon = MagicalNativeAddon;

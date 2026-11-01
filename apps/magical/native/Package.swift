@@ -12,15 +12,22 @@ let package = Package(
         ),
     ],
     dependencies: [
+        .package(path: "../swift"),
         .package(path: "../../../packages/swift-native"),
     ],
     targets: [
         .target(
             name: "MagicalNative",
             dependencies: [
+                .product(name: "MagicalHelperLib", package: "swift"),
                 .product(name: "SuiteNative", package: "swift-native"),
             ],
             path: "Sources"
+        ),
+        .testTarget(
+            name: "MagicalNativeTests",
+            dependencies: ["MagicalNative"],
+            path: "Tests"
         ),
     ]
 )

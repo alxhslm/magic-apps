@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import { applyMainWorldIdentity, chromeBrands, chromeFullVersionBrands } from '@magimail/core';
 import { extractRawCalendarList, extractGaiaId, extractGoogleApiKey } from './calendar-list.js';
-import { CALENDAR_LIST_CHANNEL } from './constants.js';
+import { CALENDAR_LIST_CHANNEL, GCAL_VIEW_MODE_CHANNEL } from './constants.js';
 
 /**
  * Completes the Chrome identity inside the Google Calendar page.
@@ -76,4 +76,165 @@ if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', reportCalendars, { once: true });
 } else {
   reportCalendars();
+}
+
+/**
+ * Observes Google Calendar's active timeframe and anchor date, relaying changes
+ * to the main process so the native companion sidebar adapts its presentation.
+ */
+const VIEW_KEY_TO_TIMEFRAME: Record<string, string> = {
+  DAY: 'day',
+  WEEK: 'week',
+  MONTH: 'month',
+  CUSTOM_DAYS: 'customday',
+  CUSTOM_WEEKS: 'week',
+  YEAR: 'year',
+  AGENDA: 'schedule',
+  SCHEDULE: 'schedule',
+};
+
+let lastReportedTimeframe: string | null = null;
+let lastReportedDate: string | null = null;
+
+function checkViewMode(): void {
+  const path = window.location.pathname;
+  const match =
+    /\/r\/(day|week|month|year|customday|customweek|agenda|schedule)(?:\/(\d{4})\/(\d{1,2})\/(\d{1,2}))?/.exec(
+      path,
+    );
+
+  let timeframe: string | null = null;
+  let dateStr: string | null = null;
+
+  if (match) {
+    timeframe = match[1];
+    if (match[2] && match[3] && match[4]) {
+      const y = match[2];
+      const m = match[3].padStart(2, '0');
+      const d = match[4].padStart(2, '0');
+      dateStr = `${y}-${m}-${d}`;
+    }
+  }
+
+  if (!timeframe) {
+    const el = document.querySelector('[data-viewkey], [data-view-key], [data-view]');
+    const rawKey =
+      el?.getAttribute('data-viewkey') ||
+      el?.getAttribute('data-view-key') ||
+      el?.getAttribute('data-view');
+    const key = rawKey?.toUpperCase();
+    if (key && VIEW_KEY_TO_TIMEFRAME[key]) {
+      timeframe = VIEW_KEY_TO_TIMEFRAME[key];
+    }
+  }
+
+  if (!timeframe) return;
+
+  if (!dateStr) {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    dateStr = `${y}-${m}-${d}`;
+  }
+
+  if (timeframe !== lastReportedTimeframe || dateStr !== lastReportedDate) {
+    lastReportedTimeframe = timeframe;
+    lastReportedDate = dateStr;
+    ipcRenderer.send(GCAL_VIEW_MODE_CHANNEL, {
+      timeframe,
+      dateStr,
+    });
+  }
+}
+
+let checkDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+function debouncedCheckViewMode(): void {
+  if (checkDebounceTimer) clearTimeout(checkDebounceTimer);
+  checkDebounceTimer = setTimeout(checkViewMode, 80);
+}
+
+try {
+  contextBridge.executeInMainWorld({
+    func: () => {
+      try {
+        const origPush = history.pushState.bind(history);
+        history.pushState = function (...args) {
+          const result = origPush(...args);
+          window.dispatchEvent(new Event('magical:navigation'));
+          return result;
+        };
+        const origReplace = history.replaceState.bind(history);
+        history.replaceState = function (...args) {
+          const result = origReplace(...args);
+          window.dispatchEvent(new Event('magical:navigation'));
+          return result;
+        };
+      } catch {
+        // Guard against restricted window contexts
+      }
+    },
+    args: [],
+  });
+} catch {
+  // Guard against restricted window contexts
+}
+
+try {
+  const origPushState = history.pushState.bind(history);
+  history.pushState = function (...args) {
+    const result = origPushState(...args);
+    debouncedCheckViewMode();
+    return result;
+  };
+
+  const origReplaceState = history.replaceState.bind(history);
+  history.replaceState = function (...args) {
+    const result = origReplaceState(...args);
+    debouncedCheckViewMode();
+    return result;
+  };
+} catch {
+  // Guard against restricted window contexts
+}
+
+window.addEventListener('popstate', debouncedCheckViewMode);
+window.addEventListener('hashchange', debouncedCheckViewMode);
+window.addEventListener('magical:navigation', debouncedCheckViewMode);
+
+function attachViewObservers(): void {
+  checkViewMode();
+  let initialRetryCount = 0;
+  const initialRetryTimer = setInterval(() => {
+    initialRetryCount++;
+    checkViewMode();
+    if (initialRetryCount > 20) {
+      clearInterval(initialRetryTimer);
+    }
+  }, 250);
+
+  // Periodic check to capture view transitions that do not trigger DOM mutations or history events
+  setInterval(checkViewMode, 1000);
+
+  const observer = new MutationObserver(debouncedCheckViewMode);
+  if (document.body) {
+    observer.observe(document.body, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: ['data-viewkey', 'data-view-key', 'data-view'],
+    });
+  }
+
+  const titleEl = document.querySelector('title');
+  if (titleEl) {
+    const titleObserver = new MutationObserver(debouncedCheckViewMode);
+    titleObserver.observe(titleEl, { childList: true, characterData: true, subtree: true });
+  }
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', attachViewObservers, { once: true });
+} else {
+  attachViewObservers();
 }
