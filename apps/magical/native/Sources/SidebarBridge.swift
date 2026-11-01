@@ -90,11 +90,10 @@ public final class SidebarModel: ObservableObject {
 
     public func setViewMode(_ mode: SidebarViewMode, anchor: Date? = nil) {
         viewMode = mode
-        if let anchor {
-            anchorDate = anchor
-            selectedDate = anchor
-            displayedMonthDate = anchor
-        }
+        let target = anchor ?? Date()
+        anchorDate = target
+        selectedDate = target
+        displayedMonthDate = target
         recomputeWeekDays()
     }
 
@@ -185,13 +184,24 @@ public struct WeekScrubberView: View {
 
                 Spacer()
 
-                Text(weekRangeText)
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(.primary)
+                Button(action: {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        model.jumpToToday()
+                    }
+                }) {
+                    Text(weekRangeText)
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(.primary)
+                }
+                .buttonStyle(.plain)
+                .help("Jump to Now")
 
                 Spacer()
 
-                CalendarFilterMenuView(model: model.trayModel)
+                HStack(spacing: 4) {
+                    CalendarFilterMenuView(model: model.trayModel)
+                    SidebarSettingsMenuView(model: model.trayModel, onRefresh: { ActionBridge.emit("sidebarRefresh", "") })
+                }
             }
             .padding(.horizontal, 12)
             .padding(.top, 8)
@@ -310,13 +320,24 @@ public struct DayCompanionHeaderView: View {
 
             Spacer()
 
-            Text(dayTitle)
-                .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(.primary)
+            Button(action: {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    model.jumpToToday()
+                }
+            }) {
+                Text(dayTitle)
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(.primary)
+            }
+            .buttonStyle(.plain)
+            .help("Jump to Now")
 
             Spacer()
 
-            CalendarFilterMenuView(model: model.trayModel)
+            HStack(spacing: 4) {
+                CalendarFilterMenuView(model: model.trayModel)
+                SidebarSettingsMenuView(model: model.trayModel, onRefresh: { ActionBridge.emit("sidebarRefresh", "") })
+            }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
@@ -346,7 +367,8 @@ public struct DayFocusedEventsList: View {
                         AllDayBannerView(
                             event: event,
                             onSelect: { ActionBridge.emit("sidebarOpenEvent", event.id) },
-                            onDelete: nil
+                            onDelete: { ActionBridge.emit("sidebarDeleteEvent", "\($0.accountId):\($0.id)") },
+                            onComplete: { ActionBridge.emit("sidebarCompleteTask", "\($0.accountId):\($0.id):\($1)") }
                         )
                     }
                 }
@@ -361,7 +383,10 @@ public struct DayFocusedEventsList: View {
                 date: date,
                 events: timedEvents,
                 onSelectEvent: { ActionBridge.emit("sidebarOpenEvent", $0.id) },
-                onJoinCall: { ActionBridge.emit("sidebarJoinCall", $0) }
+                onJoinCall: { ActionBridge.emit("sidebarJoinCall", $0) },
+                onRsvp: { ActionBridge.emit("sidebarRsvp", "\($0.accountId):\($0.id):\($1)") },
+                onDeleteEvent: { ActionBridge.emit("sidebarDeleteEvent", "\($0.accountId):\($0.id)") },
+                onCompleteTask: { ActionBridge.emit("sidebarCompleteTask", "\($0.accountId):\($0.id):\($1)") }
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
@@ -449,9 +474,10 @@ public struct SidebarRootView: View {
 
                 Spacer()
 
-                // Month Navigation Arrows & Filter
+                // Month Navigation Arrows & Filter & Settings
                 HStack(spacing: 4) {
                     CalendarFilterMenuView(model: model.trayModel)
+                    SidebarSettingsMenuView(model: model.trayModel, onRefresh: { ActionBridge.emit("sidebarRefresh", "") })
 
                     Button(action: {
                         withAnimation(.easeInOut(duration: 0.2)) {
@@ -505,9 +531,9 @@ public struct SidebarRootView: View {
                 requestedScrollDate: model.selectedDate,
                 onSelectEvent: { event in ActionBridge.emit("sidebarOpenEvent", event.id) },
                 onJoinCall: { ActionBridge.emit("sidebarJoinCall", $0) },
-                onRsvp: { _, _ in },
-                onDeleteEvent: nil,
-                onCompleteTask: nil,
+                onRsvp: { event, reply in ActionBridge.emit("sidebarRsvp", "\(event.accountId):\(event.id):\(reply)") },
+                onDeleteEvent: { event in ActionBridge.emit("sidebarDeleteEvent", "\(event.accountId):\(event.id)") },
+                onCompleteTask: { event, completed in ActionBridge.emit("sidebarCompleteTask", "\(event.accountId):\(event.id):\(completed)") },
                 onDayScrolledIntoView: { date in
                     model.selectedDate = date
                 },
@@ -674,12 +700,14 @@ public final class SidebarManager {
             .fantastical
         }
 
-        var anchor: Date?
+        var anchor: Date? = Date()
         if let str = anchorDateStr, !str.isEmpty {
             let df = DateFormatter()
             df.dateFormat = "yyyy-MM-dd"
             df.timeZone = .current
-            anchor = df.date(from: str)
+            if let parsed = df.date(from: str) {
+                anchor = parsed
+            }
         }
 
         SidebarModel.shared.setViewMode(viewMode, anchor: anchor)

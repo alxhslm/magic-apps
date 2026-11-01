@@ -59,6 +59,9 @@ describe('SidebarManager', () => {
 
     mockMainWindow = {
       getNativeWindowHandle: vi.fn().mockReturnValue(Buffer.from('handle')),
+      isDestroyed: vi.fn().mockReturnValue(false),
+      getSize: vi.fn().mockReturnValue([1280, 820]),
+      setSize: vi.fn(),
     };
 
     mockAccountsManager = {
@@ -162,17 +165,26 @@ describe('SidebarManager', () => {
     expect(lastCallJson.events[0].conferenceUrl).toBe('https://meet.google.com/abc-defg-hij');
   });
 
-  it('handles sidebar actions: date selection, event open, and join call', () => {
+  it('handles sidebar actions: date selection, event open, join call, delete, task, rsvp, and refresh', () => {
+    const mockCalendarService = {
+      openDeepLink: vi.fn(),
+      deleteEvent: vi.fn(),
+      setTaskCompleted: vi.fn(),
+      answerRsvp: vi.fn(),
+      pollNow: vi.fn(),
+    };
+
     const manager = new SidebarManager(
       () => mockMainWindow as any,
       () => mockAccountsManager as any,
+      () => mockCalendarService as any,
     );
 
-    // 1. Date select
+    // 1. Date select does not force web navigation
     manager.handleSidebarAction('sidebarSelectDate', '2026-10-14');
-    expect(mockAccountsManager.navigateToDate).toHaveBeenCalledWith(new Date(2026, 9, 14));
+    expect(mockAccountsManager.navigateToDate).not.toHaveBeenCalled();
 
-    // 2. Open event
+    // 2. Open event delegates to calendarService.openDeepLink
     const events = new Map<string, NormalizedCalendarEvent[]>([
       [
         'acc_personal',
@@ -196,15 +208,35 @@ describe('SidebarManager', () => {
     manager.updateEvents(events);
     manager.handleSidebarAction('sidebarOpenEvent', 'evt_special');
     expect(mockAccountsManager.switchAccount).toHaveBeenCalledWith('acc_personal');
-    expect(mockAccountsManager.revealEvent).toHaveBeenCalledWith(
-      'acc_personal',
-      'evt_special',
-      expect.any(Date),
-    );
+    expect(mockCalendarService.openDeepLink).toHaveBeenCalled();
 
     // 3. Join call
     manager.handleSidebarAction('sidebarJoinCall', 'https://meet.google.com/xyz-uvw-rst');
     expect(mockOpenExternal).toHaveBeenCalledWith('https://meet.google.com/xyz-uvw-rst');
+
+    // 4. Delete event
+    manager.handleSidebarAction('sidebarDeleteEvent', 'acc_personal:evt_special');
+    expect(mockCalendarService.deleteEvent).toHaveBeenCalledWith('acc_personal', 'evt_special');
+
+    // 5. Complete task
+    manager.handleSidebarAction('sidebarCompleteTask', 'acc_personal:evt_special:true');
+    expect(mockCalendarService.setTaskCompleted).toHaveBeenCalledWith(
+      'acc_personal',
+      'evt_special',
+      true,
+    );
+
+    // 6. RSVP
+    manager.handleSidebarAction('sidebarRsvp', 'acc_personal:evt_special:yes');
+    expect(mockCalendarService.answerRsvp).toHaveBeenCalledWith(
+      'acc_personal',
+      'evt_special',
+      'yes',
+    );
+
+    // 7. Refresh
+    manager.handleSidebarAction('sidebarRefresh', '');
+    expect(mockCalendarService.pollNow).toHaveBeenCalled();
   });
 
   it('relays transparency and appearance updates to native addon', () => {

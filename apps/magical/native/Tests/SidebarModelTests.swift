@@ -1,73 +1,75 @@
+import Foundation
 @testable import MagicalNative
-import XCTest
+import Testing
 
 @MainActor
-final class SidebarModelTests: XCTestCase {
-    func testInitialState() {
+@Suite("SidebarModel Tests")
+struct SidebarModelTests {
+    @Test func initialState() {
         let model = SidebarModel()
-        XCTAssertEqual(model.viewMode, .fantastical)
-        XCTAssertTrue(model.isVisible)
-        XCTAssertEqual(model.currentWeekDays.count, 7)
+        #expect(model.viewMode == .fantastical)
+        #expect(model.isVisible)
+        #expect(model.currentWeekDays.count == 7)
     }
 
-    func testSetViewModeWeek() throws {
+    @Test func setViewModeWeek() throws {
         let model = SidebarModel()
         let df = DateFormatter()
         df.dateFormat = "yyyy-MM-dd"
         df.timeZone = .current
-        let anchor = try XCTUnwrap(df.date(from: "2026-10-14"))
+        let anchor = try #require(df.date(from: "2026-10-14"))
 
         model.setViewMode(.week, anchor: anchor)
 
-        XCTAssertEqual(model.viewMode, .week)
-        XCTAssertEqual(model.currentWeekDays.count, 7)
+        #expect(model.viewMode == .week)
+        #expect(model.currentWeekDays.count == 7)
 
         // Selected date should match anchor
         let selectedStr = df.string(from: model.selectedDate)
-        XCTAssertEqual(selectedStr, "2026-10-14")
+        #expect(selectedStr == "2026-10-14")
 
         // Exactly one day in currentWeekDays should be selected
         let selectedDays = model.currentWeekDays.filter(\.isSelected)
-        XCTAssertEqual(selectedDays.count, 1)
-        XCTAssertEqual(selectedDays.first?.id, "2026-10-14")
+        #expect(selectedDays.count == 1)
+        #expect(selectedDays.first?.id == "2026-10-14")
     }
 
-    func testSetViewModeDay() throws {
+    @Test func setViewModeDay() throws {
         let model = SidebarModel()
         let df = DateFormatter()
         df.dateFormat = "yyyy-MM-dd"
         df.timeZone = .current
-        let anchor = try XCTUnwrap(df.date(from: "2026-11-05"))
+        let anchor = try #require(df.date(from: "2026-11-05"))
 
         model.setViewMode(.day, anchor: anchor)
 
-        XCTAssertEqual(model.viewMode, .day)
-        XCTAssertEqual(df.string(from: model.selectedDate), "2026-11-05")
+        #expect(model.viewMode == .day)
+        #expect(df.string(from: model.selectedDate) == "2026-11-05")
     }
 
-    func testSelectDateAdvancesWeekIfOutsideCurrent() throws {
+    @Test func selectDateAdvancesWeekIfOutsideCurrent() throws {
         let model = SidebarModel()
         let df = DateFormatter()
         df.dateFormat = "yyyy-MM-dd"
         df.timeZone = .current
 
-        let date1 = try XCTUnwrap(df.date(from: "2026-10-14"))
+        let date1 = try #require(df.date(from: "2026-10-14"))
         model.selectDate(date1)
-        XCTAssertTrue(model.currentWeekDays.contains { $0.id == "2026-10-14" })
+        #expect(model.currentWeekDays.contains { $0.id == "2026-10-14" })
 
-        let date2 = try XCTUnwrap(df.date(from: "2026-10-28"))
+        let date2 = try #require(df.date(from: "2026-10-28"))
         model.selectDate(date2)
-        XCTAssertTrue(model.currentWeekDays.contains { $0.id == "2026-10-28" })
-        XCTAssertFalse(model.currentWeekDays.contains { $0.id == "2026-10-14" })
+        #expect(model.currentWeekDays.contains { $0.id == "2026-10-28" })
+        #expect(!model.currentWeekDays.contains { $0.id == "2026-10-14" })
     }
 
-    func testUpdateDataPopulatesEventsAndDensityDots() throws {
+    @Test func updateDataPopulatesEventsAndDensityDots() throws {
         let model = SidebarModel()
         let df = DateFormatter()
         df.dateFormat = "yyyy-MM-dd"
         df.timeZone = .current
 
-        let targetDate = try XCTUnwrap(df.date(from: "2026-10-14"))
+        let targetDate = try #require(df.date(from: "2026-10-14"))
         let targetStartMs = Int(targetDate.timeIntervalSince1970 * 1000)
         let targetEndMs = targetStartMs + 3_600_000
 
@@ -99,58 +101,59 @@ final class SidebarModelTests: XCTestCase {
         model.selectDate(targetDate)
 
         let events = model.selectedDayEvents
-        XCTAssertEqual(events.count, 1)
-        XCTAssertEqual(events.first?.summary, "Product Review")
+        #expect(events.count == 1)
+        #expect(events.first?.summary == "Product Review")
 
         // Week pills should have dots
         let matchingPill = model.currentWeekDays.first { $0.id == "2026-10-14" }
-        XCTAssertNotNil(matchingPill)
-        XCTAssertFalse(try XCTUnwrap(matchingPill?.dots.isEmpty))
+        #expect(matchingPill != nil)
+        let dots = try #require(matchingPill?.dots)
+        #expect(!dots.isEmpty)
     }
 
-    func testTransparencyState() {
+    @Test func transparencyState() {
         let model = SidebarModel()
-        XCTAssertTrue(model.transparentBackground)
-        XCTAssertTrue(model.isDarkMode)
+        #expect(model.transparentBackground)
+        #expect(model.isDarkMode)
 
         SidebarManager.shared.setTransparency(false, isDark: false)
-        XCTAssertFalse(SidebarModel.shared.transparentBackground)
-        XCTAssertFalse(SidebarModel.shared.isDarkMode)
+        #expect(!SidebarModel.shared.transparentBackground)
+        #expect(!SidebarModel.shared.isDarkMode)
 
         SidebarManager.shared.setTransparency(true, isDark: true)
-        XCTAssertTrue(SidebarModel.shared.transparentBackground)
-        XCTAssertTrue(SidebarModel.shared.isDarkMode)
+        #expect(SidebarModel.shared.transparentBackground)
+        #expect(SidebarModel.shared.isDarkMode)
     }
 
-    func testMonthNavigationAndCollapse() throws {
+    @Test func monthNavigationAndCollapse() throws {
         let model = SidebarModel()
         let cal = Calendar.current
         let initialMonth = model.displayedMonthDate
 
         model.previousMonth()
-        let prevExpected = try XCTUnwrap(cal.date(byAdding: .month, value: -1, to: initialMonth))
-        XCTAssertTrue(cal.isDate(model.displayedMonthDate, equalTo: prevExpected, toGranularity: .month))
+        let prevExpected = try #require(cal.date(byAdding: .month, value: -1, to: initialMonth))
+        #expect(cal.isDate(model.displayedMonthDate, equalTo: prevExpected, toGranularity: .month))
 
         model.nextMonth()
-        XCTAssertTrue(cal.isDate(model.displayedMonthDate, equalTo: initialMonth, toGranularity: .month))
+        #expect(cal.isDate(model.displayedMonthDate, equalTo: initialMonth, toGranularity: .month))
 
-        XCTAssertFalse(model.isCalendarCollapsed)
+        #expect(!model.isCalendarCollapsed)
         model.toggleCalendarCollapse()
-        XCTAssertTrue(model.isCalendarCollapsed)
+        #expect(model.isCalendarCollapsed)
         model.toggleCalendarCollapse()
-        XCTAssertFalse(model.isCalendarCollapsed)
+        #expect(!model.isCalendarCollapsed)
     }
 
-    func testJumpToToday() throws {
+    @Test func jumpToToday() throws {
         let model = SidebarModel()
         let cal = Calendar.current
-        let pastDate = try XCTUnwrap(cal.date(byAdding: .month, value: -3, to: Date()))
+        let pastDate = try #require(cal.date(byAdding: .month, value: -3, to: Date()))
 
         model.selectDate(pastDate)
-        XCTAssertFalse(cal.isDateInToday(model.selectedDate))
+        #expect(!cal.isDateInToday(model.selectedDate))
 
         model.jumpToToday()
-        XCTAssertTrue(cal.isDateInToday(model.selectedDate))
-        XCTAssertTrue(cal.isDateInToday(model.displayedMonthDate))
+        #expect(cal.isDateInToday(model.selectedDate))
+        #expect(cal.isDateInToday(model.displayedMonthDate))
     }
 }

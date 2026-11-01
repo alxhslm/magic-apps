@@ -6,8 +6,9 @@ import type { CalendarAccount } from './accounts.js';
 import type { NormalizedCalendarEvent } from './calendar-decoder.js';
 import { buildSerializedCalendars } from './calendars.js';
 import { uiString } from './strings.js';
-import { buildEventLink } from './event-links.js';
+import { buildEventLink, extractEid } from './event-links.js';
 import type { AccountsManager } from './accounts-manager.js';
+import type { CalendarService } from './calendar-service.js';
 
 const log = createLogger('SidebarManager');
 
@@ -27,6 +28,7 @@ export class SidebarManager {
   constructor(
     private readonly getMainWindow: () => BaseWindow | null,
     private readonly getAccountsManager: () => AccountsManager | null,
+    private readonly getCalendarService?: () => CalendarService | null | undefined,
   ) {
     const settings = loadSettings();
     this.isVisible = settings.sidebarVisible ?? true;
@@ -52,6 +54,16 @@ export class SidebarManager {
   public toggleSidebar(): void {
     this.isVisible = !this.isVisible;
     saveSetting('sidebarVisible', this.isVisible);
+
+    const win = this.getMainWindow();
+    if (win && (typeof win.isDestroyed !== 'function' || !win.isDestroyed())) {
+      if (typeof win.getSize === 'function' && typeof win.setSize === 'function') {
+        const [w, h] = win.getSize();
+        if (this.isVisible && w < 1350) {
+          win.setSize(w + 280, h);
+        }
+      }
+    }
 
     try {
       loadAddon().sidebarSetVisible?.(this.isVisible, true);
@@ -110,29 +122,25 @@ export class SidebarManager {
         break;
 
       case 'sidebarSelectDate': {
-        // value is YYYY-MM-DD
-        const parts = value.split('-');
-        if (parts.length === 3) {
-          const y = parseInt(parts[0], 10);
-          const m = parseInt(parts[1], 10);
-          const d = parseInt(parts[2], 10);
-          if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
-            const date = new Date(y, m - 1, d);
-            void this.getAccountsManager()?.navigateToDate(date);
-          }
-        }
+        // Date selection updates sidebar view internally without forcing a web page reload.
         break;
       }
 
       case 'sidebarOpenEvent': {
         const eventId = value;
         const manager = this.getAccountsManager();
+        const service = this.getCalendarService?.();
         if (!manager) return;
         for (const [accountId, events] of this.cachedEvents.entries()) {
           const evt = events.find((e) => e.id === eventId);
           if (evt) {
             manager.switchAccount(accountId);
-            void manager.revealEvent(accountId, eventId, evt.startTime);
+            if (service) {
+              service.openDeepLink(buildEventLink(evt, accountId));
+            } else {
+              const eid = extractEid(evt) ?? evt.chipEid ?? evt.id;
+              void manager.revealEvent(accountId, eid, evt.startTime);
+            }
             break;
           }
         }
@@ -143,6 +151,53 @@ export class SidebarManager {
         if (value && /^https?:\/\//i.test(value)) {
           void shell.openExternal(value);
         }
+        break;
+      }
+
+      case 'sidebarDeleteEvent': {
+        const colonIdx = value.indexOf(':');
+        if (colonIdx > 0) {
+          const accountId = value.slice(0, colonIdx);
+          const eventId = value.slice(colonIdx + 1);
+          log.info(`Deleting event ${eventId} from ${accountId}`);
+          void this.getCalendarService?.()?.deleteEvent(accountId, eventId);
+        }
+        break;
+      }
+
+      case 'sidebarCompleteTask': {
+        const parts = value.split(':');
+        if (parts.length >= 3) {
+          const accountId = parts[0];
+          const eventId = parts[1];
+          const completed = parts[2] === 'true';
+          log.info(`Marking task ${eventId} on ${accountId} ${completed ? 'complete' : 'open'}`);
+          void this.getCalendarService?.()?.setTaskCompleted(accountId, eventId, completed);
+        }
+        break;
+      }
+
+      case 'sidebarRsvp': {
+        const parts = value.split(':');
+        if (parts.length >= 3) {
+          const accountId = parts[0];
+          const eventId = parts[1];
+          const raw = parts[2].toLowerCase();
+          const responseStr = raw === 'yes' || raw === 'no' || raw === 'maybe' ? raw : null;
+          if (responseStr) {
+            const service = this.getCalendarService?.();
+            if (service) {
+              log.info(`Answering ${responseStr} to ${eventId} on ${accountId}`);
+              void service.answerRsvp(accountId, eventId, responseStr);
+            }
+          }
+        }
+        break;
+      }
+
+      case 'sidebarRefresh': {
+        log.info('Refreshing calendars from sidebar');
+        this.getCalendarService?.()?.pollNow();
         break;
       }
     }

@@ -1143,6 +1143,10 @@ function handleToolbarAction(action: string, value: string): void {
     case 'sidebarSelectDate':
     case 'sidebarOpenEvent':
     case 'sidebarJoinCall':
+    case 'sidebarDeleteEvent':
+    case 'sidebarCompleteTask':
+    case 'sidebarRsvp':
+    case 'sidebarRefresh':
       sidebarManager?.handleSidebarAction(action, value);
       break;
 
@@ -1189,9 +1193,9 @@ function createWindow(
   mainWindow = new BaseWindow(
     createMainWindowOptions({
       title: uiString('window.main.title'),
-      width: 1280,
-      height: 820,
-      minWidth: 1280,
+      width: settings.sidebarVisible !== false ? 1440 : 1280,
+      height: 850,
+      minWidth: 1200,
       minHeight: 600,
       // Set when this window is a replacement, so it returns to where the user had it.
       bounds: options.bounds,
@@ -1210,6 +1214,7 @@ function createWindow(
   sidebarManager = new SidebarManager(
     () => mainWindow,
     () => accounts,
+    () => calendarService,
   );
   sidebarManager.attach(mainWindow);
 

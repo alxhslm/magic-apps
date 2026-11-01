@@ -7,8 +7,13 @@ public struct CalendarFilterMenuView: View {
     @ObservedObject public var model: TrayModel
 
     @MainActor
-    public init(model: TrayModel = .shared) {
+    public init(model: TrayModel) {
         self.model = model
+    }
+
+    @MainActor
+    public init() {
+        model = .shared
     }
 
     public var body: some View {

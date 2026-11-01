@@ -126,6 +126,14 @@ function checkViewMode(): void {
 
   if (!timeframe) return;
 
+  if (!dateStr) {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    dateStr = `${y}-${m}-${d}`;
+  }
+
   if (timeframe !== lastReportedTimeframe || dateStr !== lastReportedDate) {
     lastReportedTimeframe = timeframe;
     lastReportedDate = dateStr;
@@ -142,8 +150,26 @@ function debouncedCheckViewMode(): void {
   checkDebounceTimer = setTimeout(checkViewMode, 80);
 }
 
-window.addEventListener('popstate', checkViewMode);
-window.addEventListener('hashchange', checkViewMode);
+try {
+  const origPushState = history.pushState.bind(history);
+  history.pushState = function (...args) {
+    const result = origPushState(...args);
+    debouncedCheckViewMode();
+    return result;
+  };
+
+  const origReplaceState = history.replaceState.bind(history);
+  history.replaceState = function (...args) {
+    const result = origReplaceState(...args);
+    debouncedCheckViewMode();
+    return result;
+  };
+} catch {
+  // Guard against restricted window contexts
+}
+
+window.addEventListener('popstate', debouncedCheckViewMode);
+window.addEventListener('hashchange', debouncedCheckViewMode);
 
 if (document.readyState === 'loading') {
   document.addEventListener(

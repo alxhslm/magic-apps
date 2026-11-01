@@ -12,6 +12,9 @@ public struct DayTimeGridView: View {
     public let events: [TrayEvent]
     public let onSelectEvent: (TrayEvent) -> Void
     public let onJoinCall: ((String) -> Void)?
+    public let onRsvp: ((TrayEvent, String) -> Void)?
+    public let onDeleteEvent: ((TrayEvent) -> Void)?
+    public let onCompleteTask: ((TrayEvent, Bool) -> Void)?
 
     private let hourHeight: CGFloat = 54.0
     private let gutterWidth: CGFloat = 36.0
@@ -21,12 +24,18 @@ public struct DayTimeGridView: View {
         date: Date,
         events: [TrayEvent],
         onSelectEvent: @escaping (TrayEvent) -> Void,
-        onJoinCall: ((String) -> Void)? = nil
+        onJoinCall: ((String) -> Void)? = nil,
+        onRsvp: ((TrayEvent, String) -> Void)? = nil,
+        onDeleteEvent: ((TrayEvent) -> Void)? = nil,
+        onCompleteTask: ((TrayEvent, Bool) -> Void)? = nil
     ) {
         self.date = date
         self.events = events
         self.onSelectEvent = onSelectEvent
         self.onJoinCall = onJoinCall
+        self.onRsvp = onRsvp
+        self.onDeleteEvent = onDeleteEvent
+        self.onCompleteTask = onCompleteTask
     }
 
     private var dayStart: Date {
@@ -117,7 +126,10 @@ public struct DayTimeGridView: View {
                                     height: item.height,
                                     isCompact: item.totalColumns > 1,
                                     onSelect: { onSelectEvent(item.event) },
-                                    onJoinCall: onJoinCall
+                                    onJoinCall: onJoinCall,
+                                    onRsvp: onRsvp != nil ? { onRsvp?(item.event, $0) } : nil,
+                                    onDelete: onDeleteEvent,
+                                    onComplete: onCompleteTask
                                 )
                                 .frame(width: colWidth, height: item.height)
                                 .offset(x: xOffset, y: item.top)
@@ -198,6 +210,9 @@ private struct TimeGridEventTile: View {
     let isCompact: Bool
     let onSelect: () -> Void
     let onJoinCall: ((String) -> Void)?
+    let onRsvp: ((String) -> Void)?
+    let onDelete: ((TrayEvent) -> Void)?
+    let onComplete: ((TrayEvent, Bool) -> Void)?
 
     @State private var isHovering = false
 
@@ -259,5 +274,13 @@ private struct TimeGridEventTile: View {
         }
         .buttonStyle(.plain)
         .onHover { isHovering = $0 }
+        .eventContextMenu(
+            event: event,
+            onSelect: onSelect,
+            onJoinCall: onJoinCall,
+            onRsvp: onRsvp,
+            onDelete: onDelete,
+            onComplete: onComplete
+        )
     }
 }

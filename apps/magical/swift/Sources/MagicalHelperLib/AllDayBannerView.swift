@@ -6,17 +6,20 @@ public struct AllDayBannerView: View {
     public let event: TrayEvent
     public let onSelect: () -> Void
     public let onDelete: ((TrayEvent) -> Void)?
+    public let onComplete: ((TrayEvent, Bool) -> Void)?
 
     @State private var isHovering = false
 
     public init(
         event: TrayEvent,
         onSelect: @escaping () -> Void,
-        onDelete: ((TrayEvent) -> Void)? = nil
+        onDelete: ((TrayEvent) -> Void)? = nil,
+        onComplete: ((TrayEvent, Bool) -> Void)? = nil
     ) {
         self.event = event
         self.onSelect = onSelect
         self.onDelete = onDelete
+        self.onComplete = onComplete
     }
 
     public var body: some View {
@@ -71,7 +74,7 @@ public struct AllDayBannerView: View {
             onJoinCall: nil,
             onRsvp: nil,
             onDelete: onDelete,
-            onComplete: nil
+            onComplete: onComplete
         )
     }
 }
