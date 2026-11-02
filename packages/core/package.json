@@ -32,7 +32,7 @@
     "build": "tsup",
     "dev": "tsup --watch",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "install-electron && vitest run"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",
