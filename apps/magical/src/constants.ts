@@ -34,3 +34,8 @@ export const CALENDAR_LIST_CHANNEL = 'magical:calendar-list';
  * How a view tells the main process that its timeframe or anchor date changed.
  */
 export const GCAL_VIEW_MODE_CHANNEL = 'magical:gcal-view-mode';
+
+/**
+ * How a view tells the main process that its 24-hour time grid scroll position changed.
+ */
+export const GCAL_GRID_SCROLL_CHANNEL = 'magical:gcal-grid-scroll';

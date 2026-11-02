@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import HelperUI
 import SwiftUI
@@ -16,7 +17,11 @@ public struct DayTimeGridView: View {
     public let onDeleteEvent: ((TrayEvent) -> Void)?
     public let onCompleteTask: ((TrayEvent, Bool) -> Void)?
 
-    private let hourHeight: CGFloat = 54.0
+    @ObservedObject private var sidebarModel = SidebarModel.shared
+    private var hourHeight: CGFloat {
+        sidebarModel.gridHourHeight
+    }
+
     private let gutterWidth: CGFloat = 36.0
     private let calendar: Calendar = .current
 
@@ -142,14 +147,19 @@ public struct DayTimeGridView: View {
                         }
                     }
                 }
-                .padding(.vertical, 6)
+                .padding(.bottom, 6)
+                .background(ScrollOffsetHook(targetY: sidebarModel.gridScrollY))
             }
             .onAppear {
-                DispatchQueue.main.async {
-                    proxy.scrollTo(initialScrollHour, anchor: .top)
-                }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                    proxy.scrollTo(initialScrollHour, anchor: .top)
+                if sidebarModel.gridScrollY == 0 {
+                    DispatchQueue.main.async {
+                        proxy.scrollTo(initialScrollHour, anchor: .top)
+                    }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                        if sidebarModel.gridScrollY == 0 {
+                            proxy.scrollTo(initialScrollHour, anchor: .top)
+                        }
+                    }
                 }
             }
         }
@@ -158,16 +168,22 @@ public struct DayTimeGridView: View {
     // MARK: - Hour Row
 
     private func hourRow(hour: Int) -> some View {
-        HStack(spacing: 0) {
-            Text(formattedHour(hour))
-                .font(.system(size: 9.5, weight: .medium, design: .rounded).monospacedDigit())
-                .foregroundStyle(.tertiary)
-                .frame(width: gutterWidth - 6, alignment: .trailing)
-                .padding(.trailing, 6)
-
+        ZStack(alignment: .topLeading) {
             Rectangle()
                 .fill(Color.primary.opacity(0.08))
                 .frame(height: 0.75)
+                .padding(.leading, gutterWidth)
+
+            HStack(spacing: 0) {
+                Text(formattedHour(hour))
+                    .font(.system(size: 9.5, weight: .medium, design: .rounded).monospacedDigit())
+                    .foregroundStyle(.tertiary)
+                    .frame(width: gutterWidth - 6, alignment: .trailing)
+                    .padding(.trailing, 6)
+                    .offset(y: -6)
+
+                Spacer()
+            }
         }
         .frame(height: hourHeight, alignment: .top)
     }
@@ -293,5 +309,54 @@ private struct TimeGridEventTile: View {
             onDelete: onDelete,
             onComplete: onComplete
         )
+    }
+}
+
+// MARK: - Sub-pixel AppKit Scroll Offset Hook
+
+struct ScrollOffsetHook: NSViewRepresentable {
+    let targetY: CGFloat
+
+    final class Coordinator {
+        var lastTargetY: CGFloat = -1
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
+    func makeNSView(context _: Context) -> NSView {
+        let view = NSView()
+        view.translatesAutoresizingMaskIntoConstraints = false
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        guard let scrollView = nsView.enclosingScrollView else { return }
+        let clipView = scrollView.contentView
+
+        if abs(context.coordinator.lastTargetY - targetY) > 0.5 {
+            context.coordinator.lastTargetY = targetY
+            let docHeight = scrollView.documentView?.frame.height ?? 0
+            let clipHeight = clipView.bounds.height
+            let maxY = max(0, docHeight - clipHeight)
+            let clampedY = max(0, min(targetY, maxY))
+            if abs(clipView.bounds.origin.y - clampedY) > 0.5 {
+                clipView.scroll(to: NSPoint(x: 0, y: clampedY))
+                scrollView.reflectScrolledClipView(clipView)
+            }
+            if docHeight == 0 {
+                DispatchQueue.main.async { [weak nsView] in
+                    guard let nsView,
+                          let sc = nsView.enclosingScrollView else { return }
+                    let cv = sc.contentView
+                    let dh = sc.documentView?.frame.height ?? 0
+                    let my = max(0, dh - cv.bounds.height)
+                    let cy = max(0, min(targetY, my))
+                    cv.scroll(to: NSPoint(x: 0, y: cy))
+                    sc.reflectScrolledClipView(cv)
+                }
+            }
+        }
     }
 }

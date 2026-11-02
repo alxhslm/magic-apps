@@ -22,6 +22,7 @@ import { createLogger, redactUrl } from '@magimail/core/logger';
 import {
   CALENDAR_BASE_URL,
   CALENDAR_LIST_CHANNEL,
+  GCAL_GRID_SCROLL_CHANNEL,
   GCAL_VIEW_MODE_CHANNEL,
   CALENDAR_LOGIN_URL,
 } from './constants.js';
@@ -157,6 +158,8 @@ export class AccountsManager {
   public onHistoryChanged?: () => void;
   /** Fired when the active account's timeframe or anchor date moves, so the companion sidebar can follow it. */
   public onTimeframeChanged?: (timeframe: string, dateStr?: string) => void;
+  /** Fired when the active account's 24-hour time grid scrolls, so the companion sidebar can follow in lockstep. */
+  public onGridScroll?: (hour: number, hourHeight: number) => void;
   /** Fired when an account's web view posts a successful calendar or tasks sync mutation. */
   public onSyncMutation?: (accountId: string) => void;
 
@@ -1086,6 +1089,20 @@ export class AccountsManager {
             `Received GCAL_VIEW_MODE_CHANNEL: ${payload.timeframe} (date: ${payload.dateStr})`,
           );
           this.onTimeframeChanged?.(payload.timeframe, payload.dateStr);
+        }
+      },
+    );
+
+    ipcMain.on(
+      GCAL_GRID_SCROLL_CHANNEL,
+      (event, payload: { hour?: number; hourHeight?: number }) => {
+        const entry = [...this.pool.entries()].find(
+          ([, view]) => viewIsAlive(view) && view.webContents === event.sender,
+        );
+        if (!entry) return;
+        const [accountId] = entry;
+        if (accountId === this.activeAccountId && typeof payload?.hour === 'number') {
+          this.onGridScroll?.(payload.hour, payload.hourHeight ?? 48);
         }
       },
     );

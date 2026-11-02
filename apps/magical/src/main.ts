@@ -1318,6 +1318,9 @@ function createWindow(
   accounts.onTimeframeChanged = (timeframe, dateStr) => {
     sidebarManager?.setTimeframe(timeframe, dateStr);
   };
+  accounts.onGridScroll = (hour, hourHeight) => {
+    sidebarManager?.setScrollPosition(hour, hourHeight);
+  };
 
   if (!menuBarManager) {
     menuBarManager = new MenuBarManager(

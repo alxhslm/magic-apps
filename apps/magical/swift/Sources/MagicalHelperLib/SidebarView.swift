@@ -57,6 +57,8 @@ public final class SidebarModel: ObservableObject {
     @Published public var isCalendarCollapsed: Bool = false
     @Published public var isVisible: Bool = true
     @Published public var currentWeekDays: [WeekDayItem] = []
+    @Published public var gridHourHeight: CGFloat = 48.0
+    @Published public var gridScrollY: CGFloat = 0.0
 
     public let trayModel: TrayModel
 
@@ -203,6 +205,16 @@ public final class SidebarModel: ObservableObject {
         let key = keyFormatter.string(from: selectedDate)
 
         return trayModel.filteredEvents.filter { $0.dateKey == key }
+    }
+
+    public func setScrollPosition(hour: CGFloat, hourHeight: CGFloat) {
+        if abs(gridHourHeight - hourHeight) > 0.5, hourHeight > 20.0 {
+            gridHourHeight = hourHeight
+        }
+        let targetY = hour * gridHourHeight
+        if abs(gridScrollY - targetY) > 0.5 {
+            gridScrollY = targetY
+        }
     }
 }
 

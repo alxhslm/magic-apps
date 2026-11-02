@@ -23,6 +23,7 @@ typedef double (*SidebarSetVisibleFn)(bool, bool);
 typedef void (*SidebarUpdateDataFn)(const char*);
 typedef void (*SidebarSetViewModeFn)(const char*, const char*);
 typedef void (*SidebarSetTransparencyFn)(bool, bool);
+typedef void (*SidebarSetScrollPositionFn)(double, double);
 
 static SetCallbackFn fn_set_callback = nullptr;
 static AttachFn fn_attach = nullptr;
@@ -44,6 +45,7 @@ static SidebarSetVisibleFn fn_sidebar_set_visible = nullptr;
 static SidebarUpdateDataFn fn_sidebar_update_data = nullptr;
 static SidebarSetViewModeFn fn_sidebar_set_view_mode = nullptr;
 static SidebarSetTransparencyFn fn_sidebar_set_transparency = nullptr;
+static SidebarSetScrollPositionFn fn_sidebar_set_scroll_position = nullptr;
 static void* dylibHandle = nullptr;
 
 // JavaScript callback reference (called from Swift via C bridge)
@@ -94,6 +96,7 @@ static bool loadDylib(Napi::Env env, const std::string& path) {
   fn_sidebar_update_data = (SidebarUpdateDataFn)dlsym(dylibHandle, "sidebar_update_data");
   fn_sidebar_set_view_mode = (SidebarSetViewModeFn)dlsym(dylibHandle, "sidebar_set_view_mode");
   fn_sidebar_set_transparency = (SidebarSetTransparencyFn)dlsym(dylibHandle, "sidebar_set_transparency");
+  fn_sidebar_set_scroll_position = (SidebarSetScrollPositionFn)dlsym(dylibHandle, "sidebar_set_scroll_position");
 
   if (!fn_set_callback || !fn_attach || !fn_detach || !fn_update_accounts) {
     Napi::Error::New(env, "Missing symbols in Magical toolbar dylib").ThrowAsJavaScriptException();
@@ -423,6 +426,17 @@ static Napi::Value SidebarSetTransparency(const Napi::CallbackInfo& info) {
   return env.Undefined();
 }
 
+// JS: sidebarSetScrollPosition(hour: number, hourHeight: number)
+static Napi::Value SidebarSetScrollPosition(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  if (!fn_sidebar_set_scroll_position) return env.Undefined();
+  if (info.Length() < 2 || !info[0].IsNumber() || !info[1].IsNumber()) return env.Undefined();
+  double hour = info[0].As<Napi::Number>().DoubleValue();
+  double hourHeight = info[1].As<Napi::Number>().DoubleValue();
+  fn_sidebar_set_scroll_position(hour, hourHeight);
+  return env.Undefined();
+}
+
 Napi::Object InitAll(Napi::Env env, Napi::Object exports) {
   exports.Set("init", Napi::Function::New(env, Init));
   exports.Set("attach", Napi::Function::New(env, Attach));
@@ -445,6 +459,7 @@ Napi::Object InitAll(Napi::Env env, Napi::Object exports) {
   exports.Set("sidebarUpdateData", Napi::Function::New(env, SidebarUpdateData));
   exports.Set("sidebarSetViewMode", Napi::Function::New(env, SidebarSetViewMode));
   exports.Set("sidebarSetTransparency", Napi::Function::New(env, SidebarSetTransparency));
+  exports.Set("sidebarSetScrollPosition", Napi::Function::New(env, SidebarSetScrollPosition));
   return exports;
 }
 

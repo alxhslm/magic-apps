@@ -280,6 +280,10 @@ public final class SidebarManager {
 
         SidebarModel.shared.setViewMode(viewMode, anchor: anchor)
     }
+
+    public func setScrollPosition(hour: CGFloat, hourHeight: CGFloat) {
+        SidebarModel.shared.setScrollPosition(hour: hour, hourHeight: hourHeight)
+    }
 }
 
 // MARK: - C Cdecl Exports for Node Addon
@@ -342,5 +346,12 @@ public func sidebarSetViewMode(_ modePtr: UnsafePointer<CChar>, _ anchorPtr: Uns
 public func sidebarSetTransparency(_ transparent: Bool, _ isDark: Bool) {
     DispatchQueue.main.async {
         SidebarManager.shared.setTransparency(transparent, isDark: isDark)
+    }
+}
+
+@_cdecl("sidebar_set_scroll_position")
+public func sidebarSetScrollPosition(_ hour: Double, _ hourHeight: Double) {
+    DispatchQueue.main.async {
+        SidebarManager.shared.setScrollPosition(hour: CGFloat(hour), hourHeight: CGFloat(hourHeight))
     }
 }

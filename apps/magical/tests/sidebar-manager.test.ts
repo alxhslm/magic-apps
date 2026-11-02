@@ -32,6 +32,7 @@ describe('SidebarManager', () => {
   let sidebarSetViewMode: ReturnType<typeof vi.fn>;
   let sidebarUpdateData: ReturnType<typeof vi.fn>;
   let sidebarSetTransparency: ReturnType<typeof vi.fn>;
+  let sidebarSetScrollPosition: ReturnType<typeof vi.fn>;
   let mockMainWindow: { getNativeWindowHandle: ReturnType<typeof vi.fn> };
   let mockAccountsManager: {
     updateLayout: ReturnType<typeof vi.fn>;
@@ -47,6 +48,7 @@ describe('SidebarManager', () => {
     sidebarSetViewMode = vi.fn();
     sidebarUpdateData = vi.fn();
     sidebarSetTransparency = vi.fn();
+    sidebarSetScrollPosition = vi.fn();
 
     mockLoadAddon.mockReturnValue({
       sidebarAttach,
@@ -54,6 +56,7 @@ describe('SidebarManager', () => {
       sidebarSetViewMode,
       sidebarUpdateData,
       sidebarSetTransparency,
+      sidebarSetScrollPosition,
     });
 
     mockMainWindow = {
@@ -338,5 +341,15 @@ describe('SidebarManager', () => {
     const wEvt = payload.events.find((e: any) => e.id === 'evt_work');
     expect(pEvt?.colorHex).toBe('#f1c40f'); // Calendar color (Yellow), not account color (#0096ff)
     expect(wEvt?.colorHex).toBe('#7cb342'); // Calendar color (Green), not account color (#0096ff)
+  });
+
+  it('relays grid scroll position to native addon when sidebar is visible', () => {
+    const manager = new SidebarManager(
+      () => mockMainWindow as any,
+      () => mockAccountsManager as any,
+    );
+
+    manager.setScrollPosition(9.5, 48);
+    expect(sidebarSetScrollPosition).toHaveBeenCalledWith(9.5, 48);
   });
 });

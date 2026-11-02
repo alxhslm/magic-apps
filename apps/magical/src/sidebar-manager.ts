@@ -180,6 +180,15 @@ export class SidebarManager {
     }
   }
 
+  public setScrollPosition(hour: number, hourHeight: number): void {
+    if (!this.isVisible) return;
+    try {
+      loadAddon().sidebarSetScrollPosition?.(hour, hourHeight);
+    } catch (err) {
+      log.warn('Could not set sidebar scroll position:', err);
+    }
+  }
+
   public handleSidebarAction(action: string, value: string): void {
     switch (action) {
       case 'toggleSidebar':

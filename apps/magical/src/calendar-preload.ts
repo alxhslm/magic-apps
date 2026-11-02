@@ -1,7 +1,11 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import { applyMainWorldIdentity, chromeBrands, chromeFullVersionBrands } from '@magimail/core';
 import { extractRawCalendarList, extractGaiaId, extractGoogleApiKey } from './calendar-list.js';
-import { CALENDAR_LIST_CHANNEL, GCAL_VIEW_MODE_CHANNEL } from './constants.js';
+import {
+  CALENDAR_LIST_CHANNEL,
+  GCAL_GRID_SCROLL_CHANNEL,
+  GCAL_VIEW_MODE_CHANNEL,
+} from './constants.js';
 
 /**
  * Completes the Chrome identity inside the Google Calendar page.
@@ -145,6 +149,153 @@ function checkViewMode(): void {
       timeframe,
       dateStr,
     });
+  }
+
+  checkGridScrollContainer();
+}
+
+/**
+ * Observes the main 24-hour time grid scroll container in Day, Week, and 4-Day views,
+ * relaying the vertical scroll position and computed hour row height so the companion
+ * sidebar's timeline aligns in lockstep.
+ */
+let activeScrollContainer: HTMLElement | null = null;
+let lastReportedScrollTop = -1;
+let lastReportedHourHeight = -1;
+let scrollRaf: number | null = null;
+
+function isTimeGridView(timeframe: string | null): boolean {
+  if (!timeframe) return false;
+  return ['day', 'week', 'customday', 'custom_days', 'fourday', '4day'].includes(
+    timeframe.toLowerCase(),
+  );
+}
+
+function measureHourHeight(container: HTMLElement): number {
+  const rows = Array.from(container.querySelectorAll<HTMLElement>('[role="row"]'));
+  if (rows.length >= 2) {
+    const r0 = rows[0].getBoundingClientRect();
+    const r1 = rows[1].getBoundingClientRect();
+    const diff = Math.abs(r1.top - r0.top);
+    if (diff >= 24 && diff <= 120) {
+      return diff;
+    }
+  }
+
+  const scrollHeight = container.scrollHeight;
+  if (scrollHeight >= 480) {
+    return scrollHeight / 24;
+  }
+
+  return 48;
+}
+
+function findGridScrollContainer(): HTMLElement | null {
+  const grid = document.querySelector('[role="grid"]');
+  if (grid) {
+    const gridDivs = Array.from(grid.querySelectorAll<HTMLElement>('div'));
+    for (const el of gridDivs) {
+      if (el.scrollHeight >= 700 && el.clientHeight > 150) {
+        const style = window.getComputedStyle(el);
+        if (style.overflowY === 'auto' || style.overflowY === 'scroll') {
+          return el;
+        }
+      }
+    }
+    for (const el of gridDivs) {
+      if (el.scrollHeight > el.clientHeight && el.clientHeight > 150) {
+        const style = window.getComputedStyle(el);
+        if (style.overflowY === 'auto' || style.overflowY === 'scroll') {
+          return el;
+        }
+      }
+    }
+    let curr: HTMLElement | null = grid as HTMLElement;
+    while (curr && curr !== document.body) {
+      if (curr.scrollHeight > curr.clientHeight && curr.clientHeight > 150) {
+        const style = window.getComputedStyle(curr);
+        if (style.overflowY === 'auto' || style.overflowY === 'scroll') {
+          return curr;
+        }
+      }
+      curr = curr.parentElement;
+    }
+  }
+
+  const main = document.querySelector('[role="main"]') || document.body;
+  const candidates = Array.from(main.querySelectorAll<HTMLElement>('div'));
+  for (const el of candidates) {
+    if (el.scrollHeight >= 700 && el.clientHeight > 150) {
+      const style = window.getComputedStyle(el);
+      if (style.overflowY === 'auto' || style.overflowY === 'scroll') {
+        return el;
+      }
+    }
+  }
+  for (const el of candidates) {
+    if (el.scrollHeight > el.clientHeight && el.clientHeight > 200) {
+      const style = window.getComputedStyle(el);
+      if (style.overflowY === 'auto' || style.overflowY === 'scroll') {
+        return el;
+      }
+    }
+  }
+  return null;
+}
+
+function reportGridScroll(): void {
+  if (!activeScrollContainer || !isTimeGridView(lastReportedTimeframe)) return;
+  const scrollTop = activeScrollContainer.scrollTop;
+  const hourHeight = measureHourHeight(activeScrollContainer);
+
+  if (
+    Math.abs(scrollTop - lastReportedScrollTop) < 0.5 &&
+    Math.abs(hourHeight - lastReportedHourHeight) < 0.5
+  ) {
+    return;
+  }
+  lastReportedScrollTop = scrollTop;
+  lastReportedHourHeight = hourHeight;
+
+  const hour = scrollTop / hourHeight;
+
+  ipcRenderer.send(GCAL_GRID_SCROLL_CHANNEL, {
+    hour,
+    hourHeight,
+  });
+}
+
+function onScrollThrottled(): void {
+  if (scrollRaf) return;
+  scrollRaf = requestAnimationFrame(() => {
+    scrollRaf = null;
+    reportGridScroll();
+  });
+}
+
+function checkGridScrollContainer(): void {
+  if (!isTimeGridView(lastReportedTimeframe)) {
+    if (activeScrollContainer) {
+      activeScrollContainer.removeEventListener('scroll', onScrollThrottled);
+      window.removeEventListener('resize', onScrollThrottled);
+      activeScrollContainer = null;
+      lastReportedScrollTop = -1;
+      lastReportedHourHeight = -1;
+    }
+    return;
+  }
+
+  const container = findGridScrollContainer();
+  if (container && container !== activeScrollContainer) {
+    if (activeScrollContainer) {
+      activeScrollContainer.removeEventListener('scroll', onScrollThrottled);
+    }
+    activeScrollContainer = container;
+    activeScrollContainer.addEventListener('scroll', onScrollThrottled, { passive: true });
+    window.addEventListener('resize', onScrollThrottled, { passive: true });
+    reportGridScroll();
+  } else if (activeScrollContainer) {
+    reportGridScroll();
   }
 }
 

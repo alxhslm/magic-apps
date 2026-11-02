@@ -178,4 +178,20 @@ struct SidebarModelTests {
         #expect(cal.isDateInToday(model.selectedDate))
         #expect(cal.isDateInToday(model.displayedMonthDate))
     }
+
+    @Test func setScrollPositionUpdatesHourHeightAndScrollY() {
+        let model = SidebarModel()
+        #expect(model.gridHourHeight == 48.0)
+        #expect(model.gridScrollY == 0.0)
+
+        // Set scroll position for 9:30 AM (9.5 hours) with 48pt row height
+        model.setScrollPosition(hour: 9.5, hourHeight: 48.0)
+        #expect(model.gridHourHeight == 48.0)
+        #expect(model.gridScrollY == 9.5 * 48.0)
+
+        // Set scroll position with compact 40pt row height
+        model.setScrollPosition(hour: 14.0, hourHeight: 40.0)
+        #expect(model.gridHourHeight == 40.0)
+        #expect(model.gridScrollY == 14.0 * 40.0)
+    }
 }
