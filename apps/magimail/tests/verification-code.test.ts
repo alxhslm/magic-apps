@@ -114,6 +114,54 @@ describe('extractVerificationCode', () => {
     });
   });
 
+  it('extracts sign-in code with service hyphenation', () => {
+    const result = extractVerificationCode(
+      '139191 is your Luma sign-in code',
+      'Never share this code or enter it anywhere other than luma.com',
+      'Luma <support@luma.com>',
+    );
+    expect(result).toEqual({
+      code: '139191',
+      service: 'Luma',
+    });
+  });
+
+  it('extracts code after colon in snippet while ignoring card ending numbers', () => {
+    const result = extractVerificationCode(
+      'Your SafeKey Verification Code',
+      'Your SafeKey Verification CodeDo not share this codeMR J DOEAccount ending: 12345Your verification code for transaction is:502828Here is what you should know',
+      'American Express <AmericanExpress@welcome.americanexpress.com>',
+    );
+    expect(result).toEqual({
+      code: '502828',
+      service: 'American Express',
+    });
+  });
+
+  it('extracts passcode from UNiDAYS pattern', () => {
+    const result = extractVerificationCode(
+      '575720 is your UNiDAYS passcode',
+      'ONE-TIME PASSCODE\n\n575720\n\nHere is your passcode.\nIt will expire in 5 minutes.',
+      'UNiDAYS <no-reply@auth.myunidays.com>',
+    );
+    expect(result).toEqual({
+      code: '575720',
+      service: 'UNiDAYS',
+    });
+  });
+
+  it('extracts code formatted with asterisks in snippet', () => {
+    const result = extractVerificationCode(
+      'Your Rippling verification code',
+      'Use the code below to verify your email in the next 15 minutes. Do not share this security code with anyone; the Rippling team will never ask you for it. *975713*',
+      'Rippling <no-reply@rippling.com>',
+    );
+    expect(result).toEqual({
+      code: '975713',
+      service: 'Rippling',
+    });
+  });
+
   // Guarding against false positives:
   it('ignores standard non-verification emails', () => {
     expect(

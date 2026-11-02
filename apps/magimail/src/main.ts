@@ -1528,6 +1528,9 @@ if (!hasLock) {
       );
     });
     setNotificationActionHandler(({ accountId, messageId, action }) => {
+      if (action === 'copyCode') {
+        return;
+      }
       const wanted = asThreadAction(action, TRIAGE_ACTIONS);
       if (!wanted) {
         log.warn(`Ignoring notification action this build does not offer: ${action}`);

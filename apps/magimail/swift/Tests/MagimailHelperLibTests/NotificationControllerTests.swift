@@ -8,7 +8,7 @@ import UserNotifications
 struct NotificationControllerTests {
     @Test func notificationCategoriesCarryExpectedActions() {
         let categories = NotificationController.makeCategories()
-        #expect(categories.count == 1)
+        #expect(categories.count == 2)
         let byId = Dictionary(uniqueKeysWithValues: categories.map { ($0.identifier, $0) })
 
         let msgCategory = byId[NotificationController.categoryId]
@@ -28,6 +28,16 @@ struct NotificationControllerTests {
         let trash = actions.first(where: { $0.identifier == NotificationController.trashAction })
         #expect(trash?.title == "Delete")
         #expect(trash?.options.contains(.destructive) == true)
+
+        let verifCategory = byId[NotificationController.verificationCategoryId]
+        #expect(verifCategory != nil)
+
+        let verifActions = verifCategory?.actions ?? []
+        #expect(verifActions.count == 3)
+
+        let copyCode = verifActions.first(where: { $0.identifier == NotificationController.copyCodeAction })
+        #expect(copyCode?.title == "Copy Code")
+        #expect(copyCode?.options.isEmpty == true)
     }
 
     @Test func parseSenderNameHandlesVariousFormats() {
@@ -97,6 +107,7 @@ struct NotificationControllerTests {
             NotificationController.archiveAction,
             NotificationController.markReadAction,
             NotificationController.trashAction,
+            NotificationController.copyCodeAction,
         ]))
 
         let userInfo: [String: Any] = [
@@ -129,6 +140,7 @@ struct NotificationControllerTests {
             (NotificationController.archiveAction, "archive"),
             (NotificationController.markReadAction, "markRead"),
             (NotificationController.trashAction, "trash"),
+            (NotificationController.copyCodeAction, "copyCode"),
         ]
 
         for (actionId, expectedAction) in actionCases {
@@ -148,6 +160,20 @@ struct NotificationControllerTests {
         #expect(NotificationController.makeActionPayload(actionIdentifier: "unknown.action", userInfo: userInfo) == nil)
     }
 
+    @Test func messageWithVerificationCodeUsesVerificationCategory() {
+        let msg: [String: Any] = [
+            "id": "msg_otp",
+            "from": "GitHub <noreply@github.com>",
+            "subject": "849201 is your GitHub verification code",
+            "snippet": "Use this code to verify your account.",
+            "verificationCode": "849201",
+        ]
+
+        let content = NotificationController.makeContent(from: msg, accountId: "acc_1", level: "loud")
+        #expect(content.categoryIdentifier == NotificationController.verificationCategoryId)
+        #expect(content.userInfo["verificationCode"] as? String == "849201")
+    }
+
     @Test func clearAllDropsCategoriesWithoutABundleIdentity() {
         // An `xctest` bundle carries no Info.plist, so `Bundle.main.bundleIdentifier` is
         // nil here — the same position the helper is in under `pnpm dev`. Reaching the
@@ -155,7 +181,7 @@ struct NotificationControllerTests {
         // be a safe no-op that still empties the categories.
         let controller = NotificationController.shared
         controller.applyCategories(Set(NotificationController.makeCategories()))
-        #expect(controller.registeredCategories.count == 1)
+        #expect(controller.registeredCategories.count == 2)
 
         controller.clearAll()
         #expect(controller.registeredCategories.isEmpty)

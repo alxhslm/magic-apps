@@ -11,15 +11,15 @@ export interface ExtractedVerificationCode {
 
 /** Trigger terms that indicate an email is conveying a one-time verification code. */
 const VERIFICATION_CONTEXT_REGEX =
-  /\b(?:verification\s+code|security\s+code|confirmation\s+code|login\s+code|access\s+code|auth(?:entication)?\s+code|one[- ]time\s+(?:passcode|password|code)|passcode|otp|pin|verify\s+your\s+(?:account|identity|email)|to\s+verify\s+your|use\s+(?:this\s+)?code|your\s+code\s+is|enter\s+code|(?:is\s+your|your)\s+(?:[A-Za-z0-9]+\s+)?code)\b/i;
+  /\b(?:verification\s+code|security\s+code|confirmation\s+code|login\s+code|sign[- ]in\s+code|access\s+code|auth(?:entication)?\s+code|one[- ]time\s+(?:passcode|password|code)|passcode|otp|pin|guard\s+code|verify\s+your\s+(?:account|identity|email)|to\s+verify\s+your|use\s+(?:this\s+)?code|your\s+code\s+is|enter\s+(?:this\s+)?code|(?:is\s+your|your|here\s+is\s+the|the)\s+(?:[A-Za-z0-9-]+\s+)?code)\b/i;
 
 /** Phrases that indicate the code is right after. */
 const CODE_AFTER_REGEX =
-  /(?:verification\s+code|security\s+code|confirmation\s+code|login\s+code|access\s+code|auth(?:entication)?\s+code|one[- ]time\s+(?:passcode|password|code)|passcode|otp|pin|your\s+code|code)(?:\s+is|\s*:|\s*[-–—]|\s+to\s+verify)?\s*[:\s#]*([A-Z]{1,3}-[0-9]{4,8}|[0-9]{3,4}[-\s][0-9]{3,4}|[0-9]{4,8}|[A-Z0-9]{5,8})\b/i;
+  /(?:verification\s+code|security\s+code|confirmation\s+code|login\s+code|sign[- ]in\s+code|access\s+code|auth(?:entication)?\s+code|one[- ]time\s+(?:passcode|password|code)|passcode|otp|pin|your\s+code|enter\s+(?:this\s+)?code|code)(?:[^\n\r]{0,80}?(?:is\s*:?|:\s*|[-–—]\s*))?\s*[:\s#]*([A-Z]{1,3}-[0-9]{4,8}|[0-9]{3,4}[-\s][0-9]{3,4}|[0-9]{4,8}|[A-Z0-9]{5,8})\b/i;
 
 /** Phrases that indicate the code is right before (e.g. "849201 is your GitHub verification code"). */
 const CODE_BEFORE_REGEX =
-  /\b([A-Z]{1,3}-[0-9]{4,8}|[0-9]{3,4}[-\s][0-9]{3,4}|[0-9]{4,8}|[A-Z0-9]{5,8})\b\s+(?:is\s+your|is\s+the|is\s+a)\s+(?:[A-Za-z0-9\s]*\s+)?(?:verification|security|confirmation|login|access|auth|passcode|otp|code)/i;
+  /\b([A-Z]{1,3}-[0-9]{4,8}|[0-9]{3,4}[-\s][0-9]{3,4}|[0-9]{4,8}|[A-Z0-9]{5,8})\b\s+(?:is\s+your|is\s+the|is\s+a)\s+(?:[A-Za-z0-9\s-]*\s+)?(?:verification|security|confirmation|login|sign[- ]in|access|auth|passcode|otp|code)/i;
 
 /** Prefixed codes like G-123456. */
 const PREFIXED_CODE_REGEX = /\b([A-Z]{1,3}-[0-9]{4,8})\b/;
@@ -86,6 +86,12 @@ function cleanCandidateCode(raw: string): string | null {
 }
 
 function isDisqualified(text: string, matchIndex: number, matchLength: number): boolean {
+  // Check account, card, order, invoice, or tracking label (e.g. "Account ending: 12345", "Order #948201")
+  const before = text.slice(Math.max(0, matchIndex - 25), matchIndex);
+  if (/(?:ending|account|card|order|invoice|tracking)\s*[:#]?\s*$/i.test(before)) {
+    return true;
+  }
+
   // Check currency prefix
   if (matchIndex > 0) {
     const prevChar = text[matchIndex - 1];
@@ -106,11 +112,15 @@ function isDisqualified(text: string, matchIndex: number, matchLength: number): 
     return true;
   }
 
-  // Check time format: 12:34
-  if (matchIndex > 0 && text[matchIndex - 1] === ':') {
+  // Check time format: digit(s) before or after colon (e.g. 12:34)
+  if (matchIndex > 1 && /\d:$/.test(text.slice(0, matchIndex))) {
     return true;
   }
-  if (matchIndex + matchLength < text.length && text[matchIndex + matchLength] === ':') {
+  if (
+    matchIndex + matchLength < text.length &&
+    text[matchIndex + matchLength] === ':' &&
+    /\d/.test(text[matchIndex + matchLength + 1] ?? '')
+  ) {
     return true;
   }
 
@@ -125,8 +135,8 @@ export function extractVerificationCode(
   snippet?: string,
   from?: string,
 ): ExtractedVerificationCode | null {
-  const subj = subject ?? '';
-  const snip = snippet ?? '';
+  const subj = (subject ?? '').replace(/[\u200B-\u200D\uFEFF\u00AD]|\u034F/g, '');
+  const snip = (snippet ?? '').replace(/[\u200B-\u200D\uFEFF\u00AD]|\u034F/g, '');
   const combined = `${subj} ${snip}`.trim();
 
   // Guard: email must contain verification context
@@ -142,7 +152,8 @@ export function extractVerificationCode(
     const beforeMatch = CODE_BEFORE_REGEX.exec(subj);
     if (beforeMatch && beforeMatch[1]) {
       const code = cleanCandidateCode(beforeMatch[1]);
-      if (code && !isDisqualified(subj, beforeMatch.index, beforeMatch[1].length)) {
+      const matchIndex = beforeMatch.index + beforeMatch[0].indexOf(beforeMatch[1]);
+      if (code && !isDisqualified(subj, matchIndex, beforeMatch[1].length)) {
         return { code, service };
       }
     }
@@ -151,7 +162,8 @@ export function extractVerificationCode(
     const afterMatch = CODE_AFTER_REGEX.exec(subj);
     if (afterMatch && afterMatch[1]) {
       const code = cleanCandidateCode(afterMatch[1]);
-      if (code && !isDisqualified(subj, afterMatch.index, afterMatch[1].length)) {
+      const matchIndex = afterMatch.index + afterMatch[0].lastIndexOf(afterMatch[1]);
+      if (code && !isDisqualified(subj, matchIndex, afterMatch[1].length)) {
         return { code, service };
       }
     }
@@ -160,7 +172,8 @@ export function extractVerificationCode(
     const prefixMatch = PREFIXED_CODE_REGEX.exec(subj);
     if (prefixMatch && prefixMatch[1]) {
       const code = cleanCandidateCode(prefixMatch[1]);
-      if (code && !isDisqualified(subj, prefixMatch.index, prefixMatch[1].length)) {
+      const matchIndex = prefixMatch.index + prefixMatch[0].indexOf(prefixMatch[1]);
+      if (code && !isDisqualified(subj, matchIndex, prefixMatch[1].length)) {
         return { code, service };
       }
     }
@@ -170,7 +183,8 @@ export function extractVerificationCode(
     const leadingCodeMatch = /^\[?([0-9]{4,8}|[0-9]{3,4}[-\s][0-9]{3,4})\]?\b/.exec(subj);
     if (leadingCodeMatch && leadingCodeMatch[1]) {
       const code = cleanCandidateCode(leadingCodeMatch[1]);
-      if (code && !isDisqualified(subj, 0, leadingCodeMatch[1].length)) {
+      const matchIndex = leadingCodeMatch.index + leadingCodeMatch[0].indexOf(leadingCodeMatch[1]);
+      if (code && !isDisqualified(subj, matchIndex, leadingCodeMatch[1].length)) {
         return { code, service };
       }
     }
@@ -181,7 +195,8 @@ export function extractVerificationCode(
     const afterMatch = CODE_AFTER_REGEX.exec(snip);
     if (afterMatch && afterMatch[1]) {
       const code = cleanCandidateCode(afterMatch[1]);
-      if (code && !isDisqualified(snip, afterMatch.index, afterMatch[1].length)) {
+      const matchIndex = afterMatch.index + afterMatch[0].lastIndexOf(afterMatch[1]);
+      if (code && !isDisqualified(snip, matchIndex, afterMatch[1].length)) {
         return { code, service };
       }
     }
@@ -189,7 +204,8 @@ export function extractVerificationCode(
     const beforeMatch = CODE_BEFORE_REGEX.exec(snip);
     if (beforeMatch && beforeMatch[1]) {
       const code = cleanCandidateCode(beforeMatch[1]);
-      if (code && !isDisqualified(snip, beforeMatch.index, beforeMatch[1].length)) {
+      const matchIndex = beforeMatch.index + beforeMatch[0].indexOf(beforeMatch[1]);
+      if (code && !isDisqualified(snip, matchIndex, beforeMatch[1].length)) {
         return { code, service };
       }
     }
@@ -197,8 +213,35 @@ export function extractVerificationCode(
     const prefixMatch = PREFIXED_CODE_REGEX.exec(snip);
     if (prefixMatch && prefixMatch[1]) {
       const code = cleanCandidateCode(prefixMatch[1]);
-      if (code && !isDisqualified(snip, prefixMatch.index, prefixMatch[1].length)) {
+      const matchIndex = prefixMatch.index + prefixMatch[0].indexOf(prefixMatch[1]);
+      if (code && !isDisqualified(snip, matchIndex, prefixMatch[1].length)) {
         return { code, service };
+      }
+    }
+
+    // Fallback: look for colon followed by a 4-8 digit code (e.g. "code is:502828" or "ready: 054328")
+    const colonMatches = snip.matchAll(/:\s*([0-9]{4,8})(?![0-9])/g);
+    for (const match of colonMatches) {
+      if (match[1]) {
+        const code = cleanCandidateCode(match[1]);
+        const index = match.index + (match[0].length - match[1].length);
+        if (code && !isDisqualified(snip, index, match[1].length)) {
+          return { code, service };
+        }
+      }
+    }
+
+    // Look for codes isolated by newlines, markdown emphasis, or delimiters (e.g. *975713*, `975713`, or on its own line)
+    const isolatedMatches = snip.matchAll(
+      /(?:^|[\r\n*`"'])\s*([0-9]{4,8}|[A-Z]{1,3}-[0-9]{4,8})\s*(?:[\r\n*`"']|$)/g,
+    );
+    for (const match of isolatedMatches) {
+      if (match[1]) {
+        const code = cleanCandidateCode(match[1]);
+        const index = match.index + match[0].indexOf(match[1]);
+        if (code && !isDisqualified(snip, index, match[1].length)) {
+          return { code, service };
+        }
       }
     }
   }
