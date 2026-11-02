@@ -14,7 +14,7 @@
     "build:intents": "cd app-intents-extension && ./build.sh release",
     "build:widgets": "cd widgets && ./build.sh release",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
+    "test": "install-electron && vitest run",
     "test:native": "node scripts/test-native-alerts.mjs",
     "test:focus-filter": "node ../../tools/test-focus-filter-appcontext.mjs magical",
     "start": "electron .",

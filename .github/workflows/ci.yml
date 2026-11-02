@@ -19,7 +19,6 @@ jobs:
   changes:
     name: Detect Changes
     runs-on: ubuntu-latest
-    if: github.event.pull_request.draft != true
     outputs:
       code: ${{ steps.filter.outputs.code }}
       magimail_native: ${{ steps.filter.outputs.magimail_native }}
@@ -128,6 +127,9 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Pre-install Electron binary
+        run: pnpm exec install-electron
 
       - name: Run ESLint
         run: pnpm lint
@@ -279,9 +281,9 @@ jobs:
           RESULTS: changes=${{ needs.changes.result }} check-format=${{ needs.check-format.result }} check-ts=${{ needs.check-ts.result }} check-swift=${{ needs.check-swift.result }}
         run: |
           echo "$RESULTS" | tr ' ' '\n'
-          # `changes` has its own condition and is skipped for a draft pull request,
-          # which leaves every other job skipped too. A gate that read that as a pass
-          # would report green having run nothing, so it is checked separately.
+          # `changes` runs path filtering so downstream jobs are accurately gated.
+          # A gate that read that as a pass without running the filter would report
+          # green having run nothing, so it is checked separately.
           if [ "${{ needs.changes.result }}" != 'success' ]; then
             echo "::error::Detect Changes did not run. CI Complete only passes when the path filter ran."
             exit 1
