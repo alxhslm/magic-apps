@@ -1289,6 +1289,10 @@ function createWindow(
   // Removing an account has to purge what was cached for it before the record goes: the
   // poller sweep below only drops accounts that are already gone from the list.
   accounts.onAccountRemoving = (accountId) => calendarService?.forgetAccount(accountId);
+  // Accelerated sync when the user mutates calendar events or tasks in the Google Calendar web UI.
+  accounts.onSyncMutation = (accountId) => {
+    calendarService?.requestImmediatePoll(accountId);
+  };
   // The mode of the account on screen, so the toolbar dims `< Today >` and Search in
   // Tasks without the user having to touch anything first.
   accounts.onModeChanged = (mode) => setNativeToolbarMode(mode);

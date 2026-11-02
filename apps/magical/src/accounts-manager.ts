@@ -157,6 +157,8 @@ export class AccountsManager {
   public onHistoryChanged?: () => void;
   /** Fired when the active account's timeframe or anchor date moves, so the companion sidebar can follow it. */
   public onTimeframeChanged?: (timeframe: string, dateStr?: string) => void;
+  /** Fired when an account's web view posts a successful calendar or tasks sync mutation. */
+  public onSyncMutation?: (accountId: string) => void;
 
   /** RSVP, delete and task completion: the sync API first, the page as fallback. */
   private readonly actions: CalendarActionDriver;
@@ -1013,7 +1015,9 @@ export class AccountsManager {
 
     // The same view's `sync.sync` traffic carries the sync state a direct write reuses;
     // see `calendar-sync-state.ts`.
-    const stopSyncState = observeSyncState(account.partition);
+    const stopSyncState = observeSyncState(account.partition, () => {
+      this.onSyncMutation?.(account.id);
+    });
 
     this.calendarObservers.set(account.id, () => {
       stopIds();
