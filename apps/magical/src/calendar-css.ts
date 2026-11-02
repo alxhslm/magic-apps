@@ -51,6 +51,63 @@ div[role="dialog"]:has(a[href*="play.google.com"]) {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(128,128,128,0.3); border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(128,128,128,0.55); }
+
+/* Redundant Google apps 3x3 launcher */
+#gbwa {
+  display: none !important;
+}
+
+/* Responsive Google Calendar banner: keep branding intact while preventing button overlap */
+header[role="banner"] > div,
+div[role="banner"] > div {
+  min-width: 0 !important;
+  max-width: 100% !important;
+}
+/* Middle container: allow flexing while preserving tool clusters */
+header[role="banner"] > div > div:nth-child(2) {
+  min-width: 0 !important;
+  flex: 1 1 auto !important;
+  display: flex !important;
+}
+/* Allow the nav cluster (Today, < >, and date heading) to shrink */
+header[role="banner"] > div > div:nth-child(2) > div:first-child {
+  min-width: 0 !important;
+  flex: 0 1 auto !important;
+  display: flex !important;
+  overflow: hidden !important;
+}
+/* Allow containers inside the nav cluster to shrink */
+header[role="banner"] > div > div:nth-child(2) > div:first-child div {
+  min-width: 0 !important;
+}
+/* Date picker button: allow shrinking and text truncation when space is tight */
+header[role="banner"] > div > div:nth-child(2) > div:first-child button[aria-haspopup="menu"] {
+  min-width: 0 !important;
+  flex-shrink: 1 !important;
+  overflow: hidden !important;
+}
+header[role="banner"] > div > div:nth-child(2) > div:first-child button[aria-haspopup="menu"] div,
+header[role="banner"] > div > div:nth-child(2) > div:first-child button[aria-haspopup="menu"] span {
+  min-width: 0 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+/* Prevent tools cluster (Week dropdown) from collapsing */
+header[role="banner"] > div > div:nth-child(2) > div:last-child {
+  flex-shrink: 0 !important;
+}
+/* Avatar container: maintain comfortable margin from the window edge */
+header[role="banner"] > div > div:last-child {
+  flex-shrink: 0 !important;
+  padding-right: 16px !important;
+}
+/* Search container: allow collapsing on narrow viewports */
+header[role="banner"] [role="search"],
+form[role="search"] {
+  min-width: 0 !important;
+  flex-shrink: 1 !important;
+}
 `;
 
 /**
