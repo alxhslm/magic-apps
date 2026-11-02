@@ -464,43 +464,6 @@ export class AccountsManager {
       setTimeout(() => {
         void this.syncCalendarMetadata(account.id);
       }, 2500);
-
-      const pollViewMode = async () => {
-        if (!viewIsAlive(view) || account.id !== this.activeAccountId) return;
-        try {
-          const res = (await view.webContents.executeJavaScript(`
-            (() => {
-              const path = window.location.pathname;
-              const match = /\\/r\\/(day|week|month|year|customday|customweek|agenda|schedule)(?:\\/(\\d{4})\\/(\\d{1,2})\\/(\\d{1,2}))?/.exec(path);
-              if (match) {
-                return {
-                  timeframe: match[1],
-                  dateStr: match[2] && match[3] && match[4] ? (match[2] + '-' + match[3].padStart(2, '0') + '-' + match[4].padStart(2, '0')) : null
-                };
-              }
-              const el = document.querySelector('[data-viewkey], [data-view-key], [data-view]');
-              const key = (el?.getAttribute('data-viewkey') || el?.getAttribute('data-view-key') || el?.getAttribute('data-view'))?.toUpperCase();
-              const map = { DAY: 'day', WEEK: 'week', MONTH: 'month', CUSTOM_DAYS: 'customday', CUSTOM_WEEKS: 'week', YEAR: 'year', AGENDA: 'schedule', SCHEDULE: 'schedule' };
-              if (key && map[key]) {
-                return { timeframe: map[key] };
-              }
-              return null;
-            })()
-          `)) as { timeframe?: string; dateStr?: string } | null;
-          if (res?.timeframe && account.id === this.activeAccountId) {
-            log.info(
-              `Polled initial view mode for ${account.id}: ${res.timeframe} (date: ${res.dateStr})`,
-            );
-            this.onTimeframeChanged?.(res.timeframe, res.dateStr);
-          }
-        } catch {
-          // View may have navigated or been destroyed
-        }
-      };
-
-      setTimeout(pollViewMode, 500);
-      setTimeout(pollViewMode, 1500);
-      setTimeout(pollViewMode, 3000);
     });
 
     return view;
@@ -651,7 +614,6 @@ export class AccountsManager {
     const settings = loadSettings();
     const bounds = layoutCalendarView(width, height, {
       sidebarVisible: settings.sidebarVisible,
-      sidebarPosition: settings.sidebarPosition,
     });
     for (const [, view] of this.pool.entries()) {
       view.setBounds(bounds);
@@ -727,7 +689,6 @@ export class AccountsManager {
     view.setBounds(
       layoutCalendarView(width, height, {
         sidebarVisible: settings.sidebarVisible,
-        sidebarPosition: settings.sidebarPosition,
       }),
     );
     if (typeof view.setVisible === 'function') {
@@ -1302,7 +1263,6 @@ export class AccountsManager {
     worker.setBounds(
       layoutCalendarView(width, height, {
         sidebarVisible: settings.sidebarVisible,
-        sidebarPosition: settings.sidebarPosition,
       }),
     );
 

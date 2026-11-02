@@ -20,7 +20,6 @@ function hiddenKey(accountId: string, calendarId: string): string {
 export class SidebarManager {
   private attachedWindow: BaseWindow | null = null;
   private isVisible: boolean;
-  private position: 'left' | 'right';
   private cachedAccounts: CalendarAccount[] = [];
   private cachedEvents = new Map<string, NormalizedCalendarEvent[]>();
   private activeTimeframe: string;
@@ -34,7 +33,6 @@ export class SidebarManager {
   ) {
     const settings = loadSettings();
     this.isVisible = settings.sidebarVisible ?? true;
-    this.position = settings.sidebarPosition ?? 'right';
     this.activeTimeframe = settings.lastTimeframe ?? 'day';
     this.activeDateStr = settings.lastDateStr;
   }

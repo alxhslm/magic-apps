@@ -24,7 +24,6 @@ export interface ViewBounds {
 
 export interface LayoutOptions {
   sidebarVisible?: boolean;
-  sidebarPosition?: 'left' | 'right';
   sidebarWidth?: number;
 }
 
@@ -32,7 +31,7 @@ export interface LayoutOptions {
  * Where the Google Calendar view sits inside the window's content area.
  *
  * The whole content area minus the titlebar strip, adjusting for the companion
- * sidebar when visible.
+ * sidebar on the right when visible.
  */
 export function layoutCalendarView(
   contentWidth: number,
@@ -41,19 +40,9 @@ export function layoutCalendarView(
 ): ViewBounds {
   const isVisible = options?.sidebarVisible ?? false;
   const width = options?.sidebarWidth ?? SIDEBAR_WIDTH;
-  const position = options?.sidebarPosition ?? 'right';
   const effectiveWidth = isVisible ? Math.max(0, width) : 0;
   const availHeight = Math.max(0, contentHeight - TITLEBAR_HEIGHT);
   const availWidth = Math.max(0, contentWidth - effectiveWidth);
-
-  if (position === 'left') {
-    return {
-      x: effectiveWidth,
-      y: TITLEBAR_HEIGHT,
-      width: availWidth,
-      height: availHeight,
-    };
-  }
 
   return {
     x: 0,
@@ -65,6 +54,8 @@ export function layoutCalendarView(
 
 /**
  * Where the companion sidebar sits inside the window's content area.
+ *
+ * Always pinned to the right edge of the window.
  */
 export function layoutSidebarView(
   contentWidth: number,
@@ -73,24 +64,14 @@ export function layoutSidebarView(
 ): ViewBounds {
   const isVisible = options?.sidebarVisible ?? false;
   const width = options?.sidebarWidth ?? SIDEBAR_WIDTH;
-  const position = options?.sidebarPosition ?? 'right';
   const effectiveWidth = isVisible ? Math.max(0, width) : 0;
   const availHeight = Math.max(0, contentHeight - TITLEBAR_HEIGHT);
 
   if (!isVisible || effectiveWidth === 0) {
     return {
-      x: position === 'left' ? 0 : Math.max(0, contentWidth),
+      x: Math.max(0, contentWidth),
       y: TITLEBAR_HEIGHT,
       width: 0,
-      height: availHeight,
-    };
-  }
-
-  if (position === 'left') {
-    return {
-      x: 0,
-      y: TITLEBAR_HEIGHT,
-      width: effectiveWidth,
       height: availHeight,
     };
   }

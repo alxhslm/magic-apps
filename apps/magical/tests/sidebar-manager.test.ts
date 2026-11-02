@@ -7,7 +7,6 @@ const mockLoadAddon = vi.fn();
 const mockSaveSetting = vi.fn();
 const mockLoadSettings = vi.fn().mockReturnValue({
   sidebarVisible: true,
-  sidebarPosition: 'right',
   isCalendarCollapsed: false,
 });
 const mockOpenExternal = vi.fn();

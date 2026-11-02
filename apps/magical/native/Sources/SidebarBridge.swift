@@ -17,7 +17,6 @@ public final class SidebarManager {
     private var windowCloseObserver: Any?
 
     public var isVisible: Bool = true
-    public var position: String = "right"
     public let cardWidth: CGFloat = 254
     public let margin: CGFloat = 8
     public let topMargin: CGFloat = 6

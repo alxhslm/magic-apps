@@ -20,7 +20,7 @@ By default, the Magical toolbar contains:
 - <span class="sym sym-tray" aria-hidden="true"></span> <span class="sym sym-tray-full" aria-hidden="true"></span> **Invitations Tray**: Carries a count of the invitations awaiting your reply, and opens a menu listing them with 1-click **Accept**, **Maybe**, **Decline**, **Mark as Read** and **Open in Calendar**. See [Invitation Tray](/help/magical/invitation-tray/).
 - <span class="sym sym-circle-badge-plus" aria-hidden="true"></span> **New Task**: Opens Google Calendar's new-task field for the account the window is showing. See [Google Tasks](/help/magical/tasks/).
 - <span class="sym sym-calendar-badge-plus" aria-hidden="true"></span> **New Event**: Opens the event creation modal (<kbd>⌘N</kbd>).
-- <span class="sym sym-sidebar-right" aria-hidden="true"></span> **Companion Sidebar**: Toggles the companion sidebar (<kbd>⌥⌘S</kbd>). See [Companion Sidebar](/help/magical/sidebar/).
+- <span class="sym sym-sidebar-right" aria-hidden="true"></span> **Companion Sidebar**: Toggles the companion sidebar (<kbd>⌘\\</kbd>). See [Companion Sidebar](/help/magical/sidebar/).
 
 :::note
 The navigation control is dimmed while you are viewing Google Tasks, which have no day, week or month to step through. See [Google Tasks](/help/magical/tasks/).

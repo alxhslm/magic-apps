@@ -20,20 +20,10 @@ describe('layoutCalendarView', () => {
     });
   });
 
-  it('adjusts width when sidebar is visible on the right', () => {
+  it('adjusts width when sidebar is visible', () => {
     const bounds = layoutCalendarView(1280, 820, { sidebarVisible: true });
     expect(bounds).toEqual({
       x: 0,
-      y: TITLEBAR_HEIGHT,
-      width: 1280 - SIDEBAR_WIDTH,
-      height: 820 - TITLEBAR_HEIGHT,
-    });
-  });
-
-  it('adjusts x offset when sidebar is visible on the left', () => {
-    const bounds = layoutCalendarView(1280, 820, { sidebarVisible: true, sidebarPosition: 'left' });
-    expect(bounds).toEqual({
-      x: SIDEBAR_WIDTH,
       y: TITLEBAR_HEIGHT,
       width: 1280 - SIDEBAR_WIDTH,
       height: 820 - TITLEBAR_HEIGHT,
@@ -57,19 +47,9 @@ describe('layoutSidebarView', () => {
   });
 
   it('positions sidebar on the right when visible', () => {
-    const bounds = layoutSidebarView(1280, 820, { sidebarVisible: true, sidebarPosition: 'right' });
+    const bounds = layoutSidebarView(1280, 820, { sidebarVisible: true });
     expect(bounds).toEqual({
       x: 1280 - SIDEBAR_WIDTH,
-      y: TITLEBAR_HEIGHT,
-      width: SIDEBAR_WIDTH,
-      height: 820 - TITLEBAR_HEIGHT,
-    });
-  });
-
-  it('positions sidebar on the left when specified', () => {
-    const bounds = layoutSidebarView(1280, 820, { sidebarVisible: true, sidebarPosition: 'left' });
-    expect(bounds).toEqual({
-      x: 0,
       y: TITLEBAR_HEIGHT,
       width: SIDEBAR_WIDTH,
       height: 820 - TITLEBAR_HEIGHT,

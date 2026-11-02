@@ -48,8 +48,6 @@ export interface MagicalSettings {
   alwaysJoinInBrowser: boolean;
   /** Whether the native companion sidebar in the main window is visible. */
   sidebarVisible: boolean;
-  /** Which side the native companion sidebar docks to. */
-  sidebarPosition: 'left' | 'right';
   /** Last active calendar timeframe mode (day, week, month, etc.). */
   lastTimeframe?: string;
   /** Last active anchor date string (yyyy-MM-dd). */
@@ -130,7 +128,6 @@ const DEFAULT_SETTINGS: MagicalSettings = {
   meetingAlertLeadMinutes: 5,
   alwaysJoinInBrowser: false,
   sidebarVisible: true,
-  sidebarPosition: 'right',
   lastTimeframe: 'day',
   isCalendarCollapsed: false,
   showMenuBarIcon: true,
