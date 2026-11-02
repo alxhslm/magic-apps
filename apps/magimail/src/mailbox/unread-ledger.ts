@@ -740,7 +740,7 @@ export class UnreadLedger {
     now = Date.now(),
   ): VerificationCodeItem | null {
     const candidates = [...this.recent.values()]
-      .filter((item) => item.unread && item.localIntent !== 'removed')
+      .filter((item) => item.localIntent !== 'removed')
       .sort((a, b) => (b.timestampMs ?? b.observedAt) - (a.timestampMs ?? a.observedAt));
 
     for (const item of candidates) {

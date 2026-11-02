@@ -1373,7 +1373,7 @@ describe('every category tab', () => {
       });
     });
 
-    it('does not return verification code when message is read or triaged', () => {
+    it('returns verification code even if message is marked read, but removes it when triaged', () => {
       const ledger = new UnreadLedger();
       const now = Date.now();
       ledger.reconcileWithCache(
@@ -1384,7 +1384,7 @@ describe('every category tab', () => {
             from: 'GitHub <noreply@github.com>',
             subject: '849201 is your GitHub verification code',
             snippet: 'Use this code to verify your account.',
-            unread: true,
+            unread: false,
             category: 'primary',
             modified: new Date(now - 60_000),
           },
@@ -1393,7 +1393,10 @@ describe('every category tab', () => {
         now,
       );
 
-      // Triage thread
+      // Still returns code while in inbox (even when read)
+      expect(ledger.getLatestVerificationCode('acc-1', 15 * 60 * 1000, now)).not.toBeNull();
+
+      // Triage thread (archive)
       ledger.recordLocalTriage('msg-otp-1', 'th-otp-1', 'archive');
       expect(ledger.getLatestVerificationCode('acc-1', 15 * 60 * 1000, now)).toBeNull();
     });

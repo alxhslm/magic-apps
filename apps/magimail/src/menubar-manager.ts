@@ -62,22 +62,6 @@ function sendTrayUpdate(
     totalUnread,
     showCount: settings.menuBarShowCount,
     showDots: settings.menuBarShowDots,
-    showUnreadOnly: settings.menuBarUnreadOnly,
-    menuBarVerificationCodes: settings.menuBarVerificationCodes,
-    verificationCodeDurationMinutes: settings.verificationCodeDurationMinutes,
-    verificationCode:
-      settings.menuBarVerificationCodes && cachedVerificationCode
-        ? {
-            code: cachedVerificationCode.code,
-            service: cachedVerificationCode.service,
-            subject: cachedVerificationCode.subject,
-            from: cachedVerificationCode.from,
-            messageId: cachedVerificationCode.messageId,
-            threadId: cachedVerificationCode.threadId,
-            accountId: cachedVerificationCode.accountId,
-            receivedAt: cachedVerificationCode.receivedAt,
-          }
-        : null,
     isOffline: options?.isOffline ?? cachedTrayData.isOffline ?? false,
     isRestricted: options?.isRestricted ?? cachedTrayData.isRestricted ?? false,
   });

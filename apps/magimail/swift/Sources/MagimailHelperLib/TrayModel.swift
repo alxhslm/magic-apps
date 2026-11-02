@@ -181,9 +181,6 @@ public final class TrayModel: ObservableObject {
         case .markRead:
             messages[index] = messages[index].markedRead()
             state = .read(isUnread: false)
-            if currentVerificationCode?.messageId == messageId || currentVerificationCode?.threadId == messageId {
-                currentVerificationCode = nil
-            }
         case .archive, .trash:
             // Pull the row now: the thread is leaving the inbox, and the cache
             // may serve the old copy for a moment yet.
