@@ -9,7 +9,7 @@ import { uiString } from './strings.js';
 import { buildEventLink, extractEid } from './event-links.js';
 import type { AccountsManager } from './accounts-manager.js';
 import type { CalendarService } from './calendar-service.js';
-import { CALENDAR_MIN_HEIGHT, SIDEBAR_WIDTH, windowMinWidth } from './window-layout.js';
+import { CALENDAR_MIN_HEIGHT, windowMinWidth } from './window-layout.js';
 
 const log = createLogger('SidebarManager');
 
