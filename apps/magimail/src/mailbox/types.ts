@@ -104,6 +104,20 @@ export interface MailboxChangeEvent {
 }
 
 /**
+ * A one-time verification code extracted from a recent unread email.
+ */
+export interface VerificationCodeItem {
+  code: string;
+  service?: string;
+  subject: string;
+  from: string;
+  messageId: string;
+  threadId: string;
+  accountId: string;
+  receivedAt: number;
+}
+
+/**
  * Clean contract between AccountsManager/main.ts and a mailbox provider.
  */
 export interface MailboxSource {
@@ -121,6 +135,11 @@ export interface MailboxSource {
    * Cache and Atom feed the ledger; callers never read either source directly.
    */
   getRecentMessages(limit?: number): Promise<TrayMessageItem[]>;
+
+  /**
+   * Returns the latest one-time verification code from recent unread messages, if any.
+   */
+  getLatestVerificationCode(maxAgeMs?: number): Promise<VerificationCodeItem | null>;
 
   /**
    * Triages a thread via direct sync mutation.

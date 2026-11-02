@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import HelperNotifications
 import HelperRPC
@@ -15,9 +16,11 @@ public final class NotificationController: NotificationControllerBase {
     public static let shared = NotificationController()
 
     static let categoryId = "magimail.message"
+    static let verificationCategoryId = "magimail.message.verification"
     static let archiveAction = "magimail.archive"
     static let markReadAction = "magimail.markRead"
     static let trashAction = "magimail.trash"
+    static let copyCodeAction = "magimail.copyCode"
 
     /// Set of dispatched message IDs to avoid duplicates.
     private var dispatchedIds = Set<String>()
@@ -27,6 +30,11 @@ public final class NotificationController: NotificationControllerBase {
     }
 
     static func makeCategories() -> [UNNotificationCategory] {
+        let copyCode = UNNotificationAction(
+            identifier: copyCodeAction,
+            title: String(localized: "Copy Code"),
+            options: []
+        )
         let archive = UNNotificationAction(
             identifier: archiveAction,
             title: String(localized: "Archive"),
@@ -46,6 +54,12 @@ public final class NotificationController: NotificationControllerBase {
             UNNotificationCategory(
                 identifier: categoryId,
                 actions: [archive, markRead, trash],
+                intentIdentifiers: [],
+                options: []
+            ),
+            UNNotificationCategory(
+                identifier: verificationCategoryId,
+                actions: [copyCode, markRead, archive],
                 intentIdentifiers: [],
                 options: []
             ),
@@ -125,6 +139,7 @@ public final class NotificationController: NotificationControllerBase {
         let senderName = parseSenderName(msg["from"] as? String ?? "")
         let subject = msg["subject"] as? String ?? String(localized: "(no subject)")
         let snippet = msg["snippet"] as? String ?? ""
+        let verificationCode = msg["verificationCode"] as? String
 
         // macOS lays a banner out as title, then subtitle, then body, so
         // the subject has to be the *subtitle* to sit above the preview.
@@ -137,7 +152,11 @@ public final class NotificationController: NotificationControllerBase {
             content.subtitle = subject
             content.body = snippet
         }
-        content.categoryIdentifier = categoryId
+        if let code = verificationCode, !code.isEmpty {
+            content.categoryIdentifier = verificationCategoryId
+        } else {
+            content.categoryIdentifier = categoryId
+        }
         // Notification Center stacks by thread, so grouping on the Gmail
         // category lets a pile of promotions be cleared in one gesture
         // without disturbing the rest. Left unset, every banner Magimail has
@@ -146,13 +165,17 @@ public final class NotificationController: NotificationControllerBase {
         if let attachment = CategoryAttachment.make(for: category) {
             content.attachments = [attachment]
         }
-        content.userInfo = [
+        var userInfo: [String: Any] = [
             "accountId": accountId,
             "messageId": openId,
             // Carried so `willPresent` can honour the same level when the
             // banner arrives with Magimail already frontmost.
             "level": level,
         ]
+        if let code = verificationCode, !code.isEmpty {
+            userInfo["verificationCode"] = code
+        }
+        content.userInfo = userInfo
         if level == "loud" {
             content.sound = .default
         }
@@ -181,6 +204,18 @@ public final class NotificationController: NotificationControllerBase {
         let messageId = userInfo["messageId"] as? String ?? ""
 
         switch actionIdentifier {
+        case copyCodeAction:
+            let code = userInfo["verificationCode"] as? String ?? ""
+            if !code.isEmpty {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(code, forType: .string)
+            }
+            return ("notify.action", [
+                "accountId": accountId,
+                "messageId": messageId,
+                "action": "copyCode",
+                "code": code,
+            ])
         case archiveAction:
             return ("notify.action", [
                 "accountId": accountId,

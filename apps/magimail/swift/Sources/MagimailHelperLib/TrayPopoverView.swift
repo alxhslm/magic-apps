@@ -62,6 +62,15 @@ public struct TrayPopoverView: View {
             header
             Divider()
 
+            if let hero = model.activeVerificationCode {
+                HeroVerificationCodeCard(
+                    item: hero,
+                    accountColor: accountColor(for: hero.accountId),
+                    onSelectThread: onShowThread
+                )
+                Divider()
+            }
+
             if model.accounts.isEmpty {
                 Text("No accounts configured")
                     .font(.system(size: 12))
@@ -248,6 +257,13 @@ public struct TrayPopoverView: View {
         let configured = symbol.withSymbolConfiguration(config) ?? symbol
         configured.isTemplate = false
         return configured
+    }
+
+    private func accountColor(for accountId: String) -> Color {
+        if let hex = model.accounts.first(where: { $0.id == accountId })?.color {
+            return Color(hex: hex)
+        }
+        return .accentColor
     }
 
     /// The account a direct compose targets: whichever the filter has selected,

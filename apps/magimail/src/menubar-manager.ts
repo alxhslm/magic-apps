@@ -4,11 +4,13 @@ import { sendToHelper, isHelperRunning } from './swift-helper.js';
 import { createLogger } from '@magimail/core/logger';
 import { asThreadAction, TRIAGE_ACTIONS, type ThreadAction } from './accounts-manager.js';
 import type { TriageAction } from './thread-actions/types.js';
+import type { VerificationCodeItem } from './mailbox/types.js';
 import { uiString } from './strings.js';
 
 const log = createLogger('MenuBar');
 
 let trayCreated = false;
+let cachedVerificationCode: VerificationCodeItem | null = null;
 let cachedTrayData: {
   accounts: AccountConfig[];
   totalUnread: number;
@@ -60,7 +62,6 @@ function sendTrayUpdate(
     totalUnread,
     showCount: settings.menuBarShowCount,
     showDots: settings.menuBarShowDots,
-    showUnreadOnly: settings.menuBarUnreadOnly,
     isOffline: options?.isOffline ?? cachedTrayData.isOffline ?? false,
     isRestricted: options?.isRestricted ?? cachedTrayData.isRestricted ?? false,
   });
@@ -100,6 +101,27 @@ export function updateTrayData(
   }
 }
 
+export function updateVerificationCode(code: VerificationCodeItem | null): void {
+  cachedVerificationCode = code;
+  if (trayCreated && isHelperRunning()) {
+    sendToHelper(
+      'tray.verificationCode',
+      code
+        ? {
+            code: code.code,
+            service: code.service,
+            subject: code.subject,
+            from: code.from,
+            messageId: code.messageId,
+            threadId: code.threadId,
+            accountId: code.accountId,
+            receivedAt: code.receivedAt,
+          }
+        : {},
+    );
+  }
+}
+
 /**
  * Put the status item back after the helper process is replaced.
  *
@@ -116,6 +138,9 @@ export function restoreTray(): void {
   sendTrayUpdate(cachedTrayData.accounts, cachedTrayData.totalUnread, {
     isRestricted: cachedTrayData.isRestricted,
   });
+  if (cachedVerificationCode) {
+    updateVerificationCode(cachedVerificationCode);
+  }
 }
 
 export function getTrayData(): {

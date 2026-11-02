@@ -69,7 +69,8 @@ The Appearance tab customises the look and behaviour of the window, Gmail interf
 - **Show menu bar tray**: Displays the Magimail status item in the macOS menu bar.
 - **Show unread count**: Shows a numeric unread counter directly in the menu bar next to the icon.
 - **Show colour dots**: Displays colour-coded dots corresponding to accounts that have unread mail.
-- **Show unread only in the popover**: Filters the menu bar popover list to show only unread message threads.
+- **Show verification codes**: Toggles the hero card banner at the top of the menu bar popover whenever a one-time verification code arrives.
+- **Keep in menu bar for**: Sets how long the verification code hero card remains pinned before expiring (`5 minutes`, `10 minutes`, `15 minutes`, or `30 minutes`).
 
 ---
 

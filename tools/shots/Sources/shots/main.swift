@@ -659,6 +659,16 @@ MainActor.assumeIsolated {
         accountId: "work",
         incoming: magimailMessages.filter { $0.id.hasPrefix("m5") || $0.id.hasPrefix("m6") || $0.id.hasPrefix("m7") }
     )
+    magimailModel.updateVerificationCode(from: [
+        "code": "482109",
+        "service": "GitHub",
+        "subject": "482109 is your GitHub verification code",
+        "from": "GitHub <noreply@github.com>",
+        "messageId": "msg-otp",
+        "threadId": "th-otp",
+        "accountId": "personal",
+        "receivedAt": Int(Date().timeIntervalSince1970 * 1000) - 2 * 60 * 1000,
+    ])
 
     let magimailPopover = MagimailHelperLib.TrayPopoverView(
         onCompose: { _ in },
@@ -673,7 +683,7 @@ MainActor.assumeIsolated {
         onUnreadOnlyChanged: { _ in }
     )
     .environmentObject(magimailModel)
-    .frame(width: MagimailHelperLib.TrayPopoverMetrics.width, height: 420)
+    .frame(width: MagimailHelperLib.TrayPopoverMetrics.width, height: 480)
     .background(Color(red: 0.98, green: 0.98, blue: 0.99))
     .clipShape(RoundedRectangle(cornerRadius: 12))
     .shadow(color: .black.opacity(0.18), radius: 12, x: 0, y: 6)
@@ -683,7 +693,7 @@ MainActor.assumeIsolated {
 
     write("shot-popover", magimailPopover,
           size: CGSize(width: MagimailHelperLib.TrayPopoverMetrics.width + 52,
-                       height: 420 + 52))
+                       height: 480 + 52))
 
     // 5. Focus Filter panes
     //

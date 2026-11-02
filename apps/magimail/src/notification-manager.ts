@@ -2,6 +2,7 @@ import { loadSettings } from './settings-store.js';
 import { type AtomMessage } from './atom-poller.js';
 import { sendToHelper, isHelperRunning } from './swift-helper.js';
 import { createLogger } from '@magimail/core/logger';
+import { extractVerificationCode } from './verification-code.js';
 import { uiString } from './strings.js';
 
 const log = createLogger('Notifications');
@@ -9,7 +10,8 @@ const log = createLogger('Notifications');
 export interface NotificationAction {
   accountId: string;
   messageId: string;
-  action?: 'archive' | 'trash' | 'markRead' | 'open';
+  action?: 'archive' | 'trash' | 'markRead' | 'open' | 'copyCode';
+  code?: string;
 }
 
 export type NotificationClickCallback = (action: NotificationAction) => void;
@@ -49,16 +51,22 @@ export function dispatchNotifications(accountId: string, newMessages: AtomMessag
   // the filter only for the surfaces it owns. See `docs/magimail/focus-filters.md`.
   sendToHelper('notify.dispatch', {
     accountId,
-    messages: newMessages.map((msg) => ({
-      id: msg.id,
-      threadId: msg.threadId,
-      from: msg.from,
-      subject: msg.subject || uiString('notification.noSubject'),
-      snippet: msg.snippet,
-      // Unclassifiable messages go out as `primary` rather than unset, so the
-      // helper always has a row of the settings matrix to look up.
-      category: msg.category ?? 'primary',
-    })),
+    messages: newMessages.map((msg) => {
+      const extracted = settings.menuBarVerificationCodes
+        ? extractVerificationCode(msg.subject, msg.snippet, msg.from)
+        : null;
+      return {
+        id: msg.id,
+        threadId: msg.threadId,
+        from: msg.from,
+        subject: msg.subject || uiString('notification.noSubject'),
+        snippet: msg.snippet,
+        // Unclassifiable messages go out as `primary` rather than unset, so the
+        // helper always has a row of the settings matrix to look up.
+        category: msg.category ?? 'primary',
+        verificationCode: extracted?.code,
+      };
+    }),
     notifications: settings.notifications,
   });
 }
@@ -85,13 +93,15 @@ export function handleNotificationEvent(method: string, params: Record<string, u
   if (method === 'notify.action') {
     const accountId = params.accountId as string;
     const messageId = params.messageId as string;
-    const action = params.action as 'archive' | 'trash' | 'markRead';
+    const action = params.action as 'archive' | 'trash' | 'markRead' | 'copyCode';
+    const code = params.code as string | undefined;
 
     log.info(`Received notify.action: account=${accountId} message=${messageId} action=${action}`);
     onActionCallback?.({
       accountId,
       messageId,
       action,
+      code,
     });
     return true;
   }
