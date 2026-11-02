@@ -14,6 +14,7 @@ import { DomThreadActionDriver } from '../thread-actions/dom-driver.js';
 import { FallbackThreadActionDriver } from '../thread-actions/fallback-driver.js';
 import { pressRefreshControl, SyncThreadActionDriver } from '../thread-actions/sync-driver.js';
 import type { ThreadActionDriver } from '../thread-actions/types.js';
+import { extractVerificationCode } from '../verification-code.js';
 import type {
   MailboxChangeEvent,
   MailboxPollEvent,
@@ -21,6 +22,7 @@ import type {
   TrayMessageItem,
   TriageAction,
   UnreadBreakdown,
+  VerificationCodeItem,
 } from './types.js';
 import { UnreadLedger } from './unread-ledger.js';
 import { saveUnreadCounts } from './unread-count-store.js';
@@ -172,6 +174,33 @@ export class HybridFeedSource implements MailboxSource {
 
     // Before the first cache read or poll the ledger has nothing to show.
     return this.poller.getLatestEntries().slice(0, limit).map(atomMessageToTrayMessageItem);
+  }
+
+  public async getLatestVerificationCode(maxAgeMs?: number): Promise<VerificationCodeItem | null> {
+    const fromLedger = this.ledger.getLatestVerificationCode(this.accountId, maxAgeMs);
+    if (fromLedger) return fromLedger;
+
+    const entries = this.poller.getLatestEntries();
+    const now = Date.now();
+    const limitAge = maxAgeMs ?? 15 * 60 * 1000;
+    for (const msg of entries) {
+      const time = msg.modified ? new Date(msg.modified).getTime() : now;
+      if (now - time > limitAge) continue;
+      const extracted = extractVerificationCode(msg.subject, msg.snippet, msg.from);
+      if (extracted) {
+        return {
+          code: extracted.code,
+          service: extracted.service,
+          subject: msg.subject || '',
+          from: msg.from || '',
+          messageId: msg.id,
+          threadId: msg.threadId,
+          accountId: this.accountId,
+          receivedAt: time,
+        };
+      }
+    }
+    return null;
   }
 
   public async triageThread(threadId: string, action: TriageAction): Promise<boolean> {

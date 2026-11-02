@@ -7,12 +7,13 @@ Magimail places a lightweight status icon in your macOS menu bar, allowing you t
 
 ## Status Icon Controls
 
-In **Settings → Appearance** (under **Dock & Menu Bar**), which the [Settings Reference](/help/magimail/settings/) describes, four switches decide what the menu bar shows:
+In **Settings → Appearance** (under **Dock & Menu Bar**), which the [Settings Reference](/help/magimail/settings/) describes, five controls decide what the menu bar shows:
 
 - **Show menu bar tray**: shows or hides the Magimail item itself.
 - **Show unread count**: a numeric unread counter beside the icon.
 - **Show colour dots**: a coloured dot for each account with unread mail.
-- **Show unread only in the popover**: filters the popover list to unread threads.
+- **Show verification codes**: displays an OTP hero card above your message feeds whenever a verification code arrives.
+- **Keep in menu bar for**: chooses how long (5, 10, 15, or 30 minutes) the code remains pinned before expiring.
 
 With the count and the dots both off, the menu bar shows only the Magimail glyph.
 
@@ -25,7 +26,13 @@ Clicking the menu bar icon opens a floating popover listing your most recent ema
 - The footer includes a direct **Open Inbox** button to raise Magimail with one click.
 - The same feeds are on the desktop as [widgets](/help/magimail/widgets/), drawn from the same local copy of your mail.
 
-![Magimail menu bar popover preview with multi-account message feeds](/assets/shot-popover.webp)
+![Magimail menu bar popover preview with verification code hero card and multi-account message feeds](/assets/shot-popover.webp)
+
+## One-Time Verification Codes
+
+When an authentication or login email arrives, Magimail inspects the subject line and message snippet for one-time verification codes and pins a hero card to the top of the popover. Clicking **Copy** writes the code straight to your clipboard and confirms with a brief "Copied" indicator.
+
+The card stays in the menu bar until you archive or delete the email, or until the configured timer (15 minutes by default) elapses. Opening or reading the message does not dismiss it, so you can check the email first and still copy the code from the menu bar.
 
 ## Filtering & Multi-Account Search
 
