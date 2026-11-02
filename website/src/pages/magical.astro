@@ -129,14 +129,48 @@ const notify = {
           </ul>
         </div>
         <div class="stage">
-          <img
-            class="shot shot--free shot--panel"
-            src="assets/shot-sidebar-magical.webp"
-            width="306"
-            height="652"
-            alt="The Magical companion sidebar showing month grid, schedule agenda, and multi-account events in harmony"
-            loading="lazy"
-          />
+          <div class="sidebar-carousel">
+            <div class="sidebar-carousel__pick" role="tablist" aria-label="Sidebar view mode">
+              <input type="radio" name="sidebar-view" id="sidebar-view-week" checked />
+              <label for="sidebar-view-week">Week</label>
+              <input type="radio" name="sidebar-view" id="sidebar-view-month" />
+              <label for="sidebar-view-month">Month</label>
+              <input type="radio" name="sidebar-view" id="sidebar-view-day" />
+              <label for="sidebar-view-day">Day</label>
+            </div>
+            <div class="sidebar-carousel__views">
+              <div class="sidebar-carousel__slide sidebar-carousel__slide--week">
+                <img
+                  class="shot shot--free shot--panel"
+                  src="assets/shot-sidebar-week-magical.webp"
+                  width="306"
+                  height="652"
+                  alt="The Magical companion sidebar in Week view with week scrubber and focused agenda"
+                  loading="lazy"
+                />
+              </div>
+              <div class="sidebar-carousel__slide sidebar-carousel__slide--month">
+                <img
+                  class="shot shot--free shot--panel"
+                  src="assets/shot-sidebar-month-magical.webp"
+                  width="306"
+                  height="652"
+                  alt="The Magical companion sidebar in Month view with mini month grid and continuous schedule agenda"
+                  loading="lazy"
+                />
+              </div>
+              <div class="sidebar-carousel__slide sidebar-carousel__slide--day">
+                <img
+                  class="shot shot--free shot--panel"
+                  src="assets/shot-sidebar-day-magical.webp"
+                  width="306"
+                  height="652"
+                  alt="The Magical companion sidebar in Day view with single-day hourly schedule"
+                  loading="lazy"
+                />
+              </div>
+            </div>
+          </div>
         </div>
       </article>
 

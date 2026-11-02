@@ -789,23 +789,30 @@ MainActor.assumeIsolated {
 
     write("shot-tasks-magical", magicalTasks, size: CGSize(width: 340 + 52, height: 300 + 52))
 
-    // 7. Magical companion sidebar
-    let magicalSidebarModel = MagicalHelperLib.SidebarModel()
-    magicalSidebarModel.trayModel.update(from: magicalSidebarTrayPayload)
-    magicalSidebarModel.setViewMode(.fantastical, anchor: now)
+    // 7. Magical companion sidebar (Week, Month, Day views)
+    @MainActor
+    func makeSidebarShot(mode: MagicalHelperLib.SidebarViewMode) -> some View {
+        let model = MagicalHelperLib.SidebarModel()
+        model.trayModel.update(from: magicalSidebarTrayPayload)
+        model.setViewMode(mode, anchor: now)
 
-    let magicalSidebar = MagicalHelperLib.SidebarRootView(model: magicalSidebarModel)
-        .frame(width: 254, height: 600)
-        .background(Color(red: 0.98, green: 0.98, blue: 0.99))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
-        .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .stroke(Color.black.opacity(0.12), lineWidth: 1)
-        )
-        .shadow(color: .black.opacity(0.18), radius: 12, x: 0, y: 6)
-        .padding(26)
-        .background(Color(red: 0.937, green: 0.937, blue: 0.949))
-        .environment(\.colorScheme, .light)
+        return MagicalHelperLib.SidebarRootView(model: model)
+            .frame(width: 254, height: 600)
+            .background(Color(red: 0.98, green: 0.98, blue: 0.99))
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(Color.black.opacity(0.12), lineWidth: 1)
+            )
+            .shadow(color: .black.opacity(0.18), radius: 12, x: 0, y: 6)
+            .padding(26)
+            .background(Color(red: 0.937, green: 0.937, blue: 0.949))
+            .environment(\.colorScheme, .light)
+    }
 
-    write("shot-sidebar-magical", magicalSidebar, size: CGSize(width: 254 + 52, height: 600 + 52))
+    let sidebarShotSize = CGSize(width: 254 + 52, height: 600 + 52)
+    write("shot-sidebar-week-magical", makeSidebarShot(mode: .week), size: sidebarShotSize)
+    write("shot-sidebar-magical", makeSidebarShot(mode: .week), size: sidebarShotSize)
+    write("shot-sidebar-month-magical", makeSidebarShot(mode: .fantastical), size: sidebarShotSize)
+    write("shot-sidebar-day-magical", makeSidebarShot(mode: .day), size: sidebarShotSize)
 }

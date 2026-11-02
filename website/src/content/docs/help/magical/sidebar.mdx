@@ -5,7 +5,19 @@ description: Using Magical's adaptive native companion sidebar to view all your 
 
 Magical includes an adaptive native sidebar that sits directly inside your calendar window, giving you a unified view of your schedule across all your Google accounts.
 
-![Magical companion sidebar showing mini month grid and unified multi-account schedule](/assets/shot-sidebar-magical.webp)
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+<Tabs>
+  <TabItem label="Week View">
+    ![Magical companion sidebar in Week view with week scrubber and focused agenda](/assets/shot-sidebar-week-magical.webp)
+  </TabItem>
+  <TabItem label="Month View">
+    ![Magical companion sidebar in Month view with mini month grid and continuous schedule agenda](/assets/shot-sidebar-month-magical.webp)
+  </TabItem>
+  <TabItem label="Day View">
+    ![Magical companion sidebar in Day view with single-day hourly schedule](/assets/shot-sidebar-day-magical.webp)
+  </TabItem>
+</Tabs>
 
 ---
 
