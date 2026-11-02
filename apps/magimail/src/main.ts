@@ -1216,9 +1216,13 @@ if (!hasLock) {
               for (const accountId of sources?.keys() ?? []) {
                 sendTrayMessages(accountId);
               }
+              void refreshVerificationCode();
             });
           },
-          sendMessages: (accountId) => sendTrayMessages(accountId),
+          sendMessages: (accountId) => {
+            void sendTrayMessages(accountId);
+            void refreshVerificationCode();
+          },
           openSettings: () => {
             // The settings pane is fed from the accounts, so a window is built for it when
             // there is none. In the background: opening Preferences does not ask to see the
