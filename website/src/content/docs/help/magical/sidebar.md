@@ -53,6 +53,7 @@ The companion sidebar unifies every Google account you have connected to Magical
 
 Every event card in the sidebar is fully interactive:
 
+- **Jump Straight to Event**: Click any event in the sidebar to reveal and focus it in Google Calendar, switching accounts automatically if it belongs to another calendar.
 - **1-Click Video Calls**: Click **Join** on any meeting with a Google Meet, Zoom, Microsoft Teams, or Webex link to jump straight into the call.
 - **RSVP in Place**: Answer meeting invites with **Yes**, **Maybe**, or **No** directly from the card.
 - **Google Tasks**: View and complete your [Google Tasks](/help/magical/tasks/) alongside your meetings.
