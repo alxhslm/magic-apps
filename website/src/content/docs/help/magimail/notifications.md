@@ -12,6 +12,7 @@ When an incoming email arrives, the notification banner displays the sender, sub
 - **Archive**: Archives the message immediately from the notification banner.
 - **Mark Read**: Marks the email as read in your Gmail inbox.
 - **Delete**: Moves the message directly to Trash.
+- **Copy Code**: Appears automatically on verification emails (OTP codes) to copy the one-time code directly to your clipboard without switching apps.
 - **Click to Open**: Clicking the banner raises Magimail and navigates straight to that conversation.
 
 ![Magimail notification banner with Archive and Mark Read triage buttons](/assets/shot-notification.webp)
