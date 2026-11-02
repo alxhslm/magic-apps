@@ -13,21 +13,21 @@ public final class SidebarManager {
     public private(set) weak var window: NSWindow?
     private var visualEffectView: NSVisualEffectView?
     private var hostingView: NSHostingView<SidebarRootView>?
-    private var widthConstraint: NSLayoutConstraint?
+    private var trailingConstraint: NSLayoutConstraint?
     private var windowCloseObserver: Any?
 
     public var isVisible: Bool = true
-    public let cardWidth: CGFloat = 254
+    public let cardWidth: CGFloat = 324
     public let margin: CGFloat = 8
     public let topMargin: CGFloat = 6
     public let cornerRadius: CGFloat = 10
-    public let calendarMinWidth: CGFloat = 1200
+    public let calendarMinWidth: CGFloat = 980
     public var minRequiredWidth: CGFloat {
         calendarMinWidth + cardWidth + margin * 2
-    } // 1470
+    } // 1320
     public var width: CGFloat {
         cardWidth + margin * 2
-    } // 270
+    } // 340
 
     public init() {
         SidebarModel.shared.onAction = { action, value in
@@ -44,7 +44,7 @@ public final class SidebarManager {
             existing.removeFromSuperview()
             visualEffectView = nil
             hostingView = nil
-            widthConstraint = nil
+            trailingConstraint = nil
         }
 
         if let obs = windowCloseObserver {
@@ -61,7 +61,7 @@ public final class SidebarManager {
                 self.visualEffectView?.removeFromSuperview()
                 self.visualEffectView = nil
                 self.hostingView = nil
-                self.widthConstraint = nil
+                self.trailingConstraint = nil
                 self.window = nil
             }
         }
@@ -90,22 +90,23 @@ public final class SidebarManager {
                 host.bottomAnchor.constraint(equalTo: effect.bottomAnchor),
             ])
 
-            contentView.addSubview(effect)
-
-            let widthC = effect.widthAnchor.constraint(equalToConstant: isVisible ? cardWidth : 0)
-            widthConstraint = widthC
+            contentView.addSubview(effect, positioned: .above, relativeTo: nil)
 
             let toolbarHeight: CGFloat = 52
+            let initialTrailing: CGFloat = isVisible ? -margin : (cardWidth + margin * 2)
+            let trailingC = effect.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: initialTrailing)
+            trailingConstraint = trailingC
 
             NSLayoutConstraint.activate([
-                widthC,
+                effect.widthAnchor.constraint(equalToConstant: cardWidth),
                 effect.topAnchor.constraint(equalTo: contentView.topAnchor, constant: toolbarHeight + topMargin),
                 effect.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -margin),
-                effect.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -margin),
+                trailingC,
             ])
 
             visualEffectView = effect
             hostingView = host
+            effect.alphaValue = isVisible ? 1.0 : 0.0
             effect.isHidden = !isVisible
 
             applyTransparency()
@@ -139,25 +140,27 @@ public final class SidebarManager {
 
     private var lastExpandedDelta: CGFloat = 0
 
-    public func setVisible(_ visible: Bool, animated: Bool) {
-        guard isVisible != visible else { return }
+    @discardableResult
+    public func setVisible(_ visible: Bool, animated: Bool) -> Double {
+        guard isVisible != visible else { return 0 }
         isVisible = visible
         SidebarModel.shared.isVisible = visible
 
-        guard let effect = visualEffectView, let widthC = widthConstraint else { return }
+        guard let effect = visualEffectView, let trailingC = trailingConstraint else { return 0 }
 
         if visible {
             effect.isHidden = false
         }
 
-        let targetWidth: CGFloat = visible ? cardWidth : 0
-
         var targetFrame: NSRect? = nil
+        var animatingDelta: CGFloat = 0
+
         if visible, let window {
             let currentWidth = window.frame.size.width
             if currentWidth < minRequiredWidth {
                 let delta = minRequiredWidth - currentWidth
                 lastExpandedDelta = delta
+                animatingDelta = delta
                 var frame = window.frame
                 let targetWindowWidth = minRequiredWidth
                 if let screen = window.screen ?? NSScreen.main {
@@ -174,14 +177,37 @@ public final class SidebarManager {
         } else if !visible, let window {
             // Lower minSize first so AppKit permits shrinking the window
             window.minSize = NSSize(width: calendarMinWidth, height: 600)
-            if lastExpandedDelta > 0 {
-                var frame = window.frame
-                if frame.size.width <= minRequiredWidth + 2 {
-                    let targetWindowWidth = max(calendarMinWidth, frame.size.width - lastExpandedDelta)
-                    frame.size.width = targetWindowWidth
-                    targetFrame = frame
-                }
-                lastExpandedDelta = 0
+            let delta = lastExpandedDelta > 0 ? lastExpandedDelta : (minRequiredWidth - calendarMinWidth)
+            var frame = window.frame
+            if frame.size.width <= minRequiredWidth + 2 {
+                animatingDelta = delta
+                let targetWindowWidth = max(calendarMinWidth, frame.size.width - delta)
+                frame.size.width = targetWindowWidth
+                targetFrame = frame
+            }
+            lastExpandedDelta = 0
+        }
+
+        let targetTrailing: CGFloat
+        if visible {
+            targetTrailing = -margin
+            if animatingDelta > 0 {
+                // Window is expanding from W to W + delta.
+                // Setting pre-expansion trailing to (animatingDelta - margin) keeps the card's visual
+                // X constant at (calendarMinWidth + margin), seamlessly revealing it as the window opens.
+                trailingC.constant = animatingDelta - margin
+                effect.alphaValue = 0.0
+                window?.contentView?.layoutSubtreeIfNeeded()
+            } else {
+                trailingC.constant = cardWidth + margin
+                effect.alphaValue = 0.0
+                window?.contentView?.layoutSubtreeIfNeeded()
+            }
+        } else {
+            if animatingDelta > 0 {
+                targetTrailing = animatingDelta - margin
+            } else {
+                targetTrailing = cardWidth + margin
             }
         }
 
@@ -190,7 +216,7 @@ public final class SidebarManager {
                 context.duration = 0.25
                 context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
                 context.allowsImplicitAnimation = true
-                widthC.animator().constant = targetWidth
+                trailingC.animator().constant = targetTrailing
                 effect.animator().alphaValue = visible ? 1.0 : 0.0
                 if let targetFrame, let window {
                     window.animator().setFrame(targetFrame, display: true)
@@ -205,7 +231,7 @@ public final class SidebarManager {
                 }
             }
         } else {
-            widthC.constant = targetWidth
+            trailingC.constant = targetTrailing
             effect.alphaValue = visible ? 1.0 : 0.0
             effect.isHidden = !visible
             if let targetFrame, let window {
@@ -215,6 +241,8 @@ public final class SidebarManager {
                 window.minSize = NSSize(width: visible ? minRequiredWidth : calendarMinWidth, height: 600)
             }
         }
+
+        return targetFrame != nil ? Double(targetFrame!.width) : 0.0
     }
 
     public func updateData(json: String) {
@@ -259,17 +287,37 @@ public final class SidebarManager {
 @_cdecl("sidebar_attach")
 public func sidebarAttach(_ nsViewPtr: UnsafeMutableRawPointer) {
     let contentView = Unmanaged<NSView>.fromOpaque(nsViewPtr).takeUnretainedValue()
-    DispatchQueue.main.async {
-        if let window = contentView.window {
-            SidebarManager.shared.attach(to: window)
+    if Thread.isMainThread {
+        MainActor.assumeIsolated {
+            if let window = contentView.window {
+                SidebarManager.shared.attach(to: window)
+            }
+        }
+    } else {
+        DispatchQueue.main.async {
+            MainActor.assumeIsolated {
+                if let window = contentView.window {
+                    SidebarManager.shared.attach(to: window)
+                }
+            }
         }
     }
 }
 
 @_cdecl("sidebar_set_visible")
-public func sidebarSetVisible(_ visible: Bool, _ animated: Bool) {
-    DispatchQueue.main.async {
-        SidebarManager.shared.setVisible(visible, animated: animated)
+public func sidebarSetVisible(_ visible: Bool, _ animated: Bool) -> Double {
+    if Thread.isMainThread {
+        return MainActor.assumeIsolated {
+            SidebarManager.shared.setVisible(visible, animated: animated)
+        }
+    } else {
+        var result: Double = 0
+        DispatchQueue.main.sync {
+            MainActor.assumeIsolated {
+                result = SidebarManager.shared.setVisible(visible, animated: animated)
+            }
+        }
+        return result
     }
 }
 

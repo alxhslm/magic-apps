@@ -84,10 +84,11 @@ describe('SidebarManager', () => {
     expect(sidebarAttach).toHaveBeenCalledWith(Buffer.from('handle'));
     expect(sidebarSetVisible).toHaveBeenCalledWith(true, false);
     expect(sidebarSetViewMode).toHaveBeenCalledWith('day', undefined);
-    expect(mockMainWindow.setMinimumSize).toHaveBeenCalledWith(1470, 600);
+    expect(mockMainWindow.setMinimumSize).toHaveBeenCalledWith(1320, 600);
   });
 
   it('toggles sidebar visibility, saves setting, and triggers layout update', () => {
+    vi.useFakeTimers();
     const manager = new SidebarManager(
       () => mockMainWindow as any,
       () => mockAccountsManager as any,
@@ -97,11 +98,13 @@ describe('SidebarManager', () => {
 
     expect(mockSaveSetting).toHaveBeenCalledWith('sidebarVisible', false);
     expect(sidebarSetVisible).toHaveBeenCalledWith(false, true);
+    vi.advanceTimersByTime(300);
     expect(mockAccountsManager.updateLayout).toHaveBeenCalled();
 
     manager.toggleSidebar();
     expect(mockSaveSetting).toHaveBeenCalledWith('sidebarVisible', true);
     expect(sidebarSetVisible).toHaveBeenCalledWith(true, true);
+    vi.useRealTimers();
   });
 
   it('updates window minimum size without conflicting manual setSize', () => {
@@ -111,15 +114,15 @@ describe('SidebarManager', () => {
       () => mockAccountsManager as any,
     );
 
-    // Initial min size with sidebar visible (1200 + 270 = 1470)
+    // Initial min size with sidebar visible (980 + 340 = 1320)
     manager.updateWindowMinSize();
-    expect(mockMainWindow.setMinimumSize).toHaveBeenCalledWith(1470, 600);
+    expect(mockMainWindow.setMinimumSize).toHaveBeenCalledWith(1320, 600);
     expect(mockMainWindow.setSize).not.toHaveBeenCalled();
 
-    // When addon is not handling sidebarSetVisible, fallback updates min width to 1200
+    // When addon is not handling sidebarSetVisible, fallback updates min width to 980
     mockLoadAddon.mockReturnValue({});
     manager.toggleSidebar();
-    expect(mockMainWindow.setMinimumSize).toHaveBeenCalledWith(1200, 600);
+    expect(mockMainWindow.setMinimumSize).toHaveBeenCalledWith(980, 600);
     expect(mockMainWindow.setSize).not.toHaveBeenCalled();
   });
 

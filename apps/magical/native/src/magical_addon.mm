@@ -19,7 +19,7 @@ typedef char* (*GroupContainerPathFn)(const char*);
 typedef char* (*AppGroupIdentifierFn)(void);
 typedef char* (*LocalCacheKeyFn)(void);
 typedef void (*SidebarAttachFn)(void*);
-typedef void (*SidebarSetVisibleFn)(bool, bool);
+typedef double (*SidebarSetVisibleFn)(bool, bool);
 typedef void (*SidebarUpdateDataFn)(const char*);
 typedef void (*SidebarSetViewModeFn)(const char*, const char*);
 typedef void (*SidebarSetTransparencyFn)(bool, bool);
@@ -382,14 +382,14 @@ static Napi::Value SidebarAttach(const Napi::CallbackInfo& info) {
   return env.Undefined();
 }
 
-// JS: sidebarSetVisible(visible: boolean, animated: boolean)
+// JS: sidebarSetVisible(visible: boolean, animated: boolean): number
 static Napi::Value SidebarSetVisible(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
   if (!fn_sidebar_set_visible) return env.Undefined();
   bool visible = info.Length() > 0 && info[0].IsBoolean() ? info[0].As<Napi::Boolean>().Value() : true;
   bool animated = info.Length() > 1 && info[1].IsBoolean() ? info[1].As<Napi::Boolean>().Value() : true;
-  fn_sidebar_set_visible(visible, animated);
-  return env.Undefined();
+  double targetWidth = fn_sidebar_set_visible(visible, animated);
+  return Napi::Number::New(env, targetWidth);
 }
 
 // JS: sidebarUpdateData(json: string)

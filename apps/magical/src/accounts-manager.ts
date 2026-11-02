@@ -519,6 +519,11 @@ export class AccountsManager {
 
   /** Tear down every account view that isn't needed right now. Used on quit. */
   public suspendAllAccounts(): void {
+    if (this.windowAnimationTimer) {
+      clearTimeout(this.windowAnimationTimer);
+      this.windowAnimationTimer = null;
+      this.windowAnimationTarget = null;
+    }
     this.pool.suspendAllAccounts();
   }
 
@@ -611,7 +616,39 @@ export class AccountsManager {
       .catch((err) => log.error('Could not leave the Tasks route:', err));
   }
 
+  private windowAnimationTarget: { targetWidth: number; sidebarVisible: boolean } | null = null;
+  private windowAnimationTimer: NodeJS.Timeout | null = null;
+
+  /**
+   * Freezes Calendar bounds during Cocoa window expand/shrink animations so the
+   * WebContentsView stays rock-solid instead of thrashing through intermediate widths.
+   */
+  public beginWindowAnimation(targetWidth: number, sidebarVisible: boolean): void {
+    this.windowAnimationTarget = { targetWidth, sidebarVisible };
+
+    if (this.windowAnimationTimer) {
+      clearTimeout(this.windowAnimationTimer);
+    }
+
+    if (!sidebarVisible) {
+      const [, height] = this.mainWindow.getContentSize();
+      const bounds = layoutCalendarView(targetWidth, height, { sidebarVisible: false });
+      for (const [, view] of this.pool.entries()) {
+        view.setBounds(bounds);
+      }
+    }
+
+    this.windowAnimationTimer = setTimeout(() => {
+      this.windowAnimationTarget = null;
+      this.windowAnimationTimer = null;
+      this.updateLayout();
+    }, 280);
+  }
+
   public updateLayout(): void {
+    if (this.windowIsGone()) return;
+    if (this.windowAnimationTarget) return;
+
     const [width, height] = this.mainWindow.getContentSize();
     const settings = loadSettings();
     const bounds = layoutCalendarView(width, height, {

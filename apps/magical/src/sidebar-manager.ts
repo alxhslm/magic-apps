@@ -75,11 +75,15 @@ export class SidebarManager {
     this.isVisible = !this.isVisible;
     saveSetting('sidebarVisible', this.isVisible);
 
+    let targetWindowWidth = 0;
     let handledByAddon = false;
     try {
       const addon = loadAddon();
       if (typeof addon.sidebarSetVisible === 'function') {
-        addon.sidebarSetVisible(this.isVisible, true);
+        const res = addon.sidebarSetVisible(this.isVisible, true);
+        if (typeof res === 'number') {
+          targetWindowWidth = res;
+        }
         handledByAddon = true;
       }
     } catch (err) {
@@ -90,8 +94,20 @@ export class SidebarManager {
       this.updateWindowMinSize();
     }
 
-    // Resize Google Calendar's view
-    this.getAccountsManager()?.updateLayout();
+    const accountsMgr = this.getAccountsManager();
+    if (accountsMgr) {
+      if (targetWindowWidth > 0 && typeof accountsMgr.beginWindowAnimation === 'function') {
+        accountsMgr.beginWindowAnimation(targetWindowWidth, this.isVisible);
+      } else if (!this.isVisible && handledByAddon) {
+        // In a wide window that does not shrink, let the sidebar collapse out of sight
+        // first (250ms), and then expand GCal to fill the window.
+        setTimeout(() => {
+          accountsMgr.updateLayout();
+        }, 250);
+      } else {
+        accountsMgr.updateLayout();
+      }
+    }
   }
 
   public setVisible(visible: boolean): void {
@@ -99,11 +115,15 @@ export class SidebarManager {
     this.isVisible = visible;
     saveSetting('sidebarVisible', this.isVisible);
 
+    let targetWindowWidth = 0;
     let handledByAddon = false;
     try {
       const addon = loadAddon();
       if (typeof addon.sidebarSetVisible === 'function') {
-        addon.sidebarSetVisible(this.isVisible, true);
+        const res = addon.sidebarSetVisible(this.isVisible, true);
+        if (typeof res === 'number') {
+          targetWindowWidth = res;
+        }
         handledByAddon = true;
       }
     } catch (err) {
@@ -114,7 +134,18 @@ export class SidebarManager {
       this.updateWindowMinSize();
     }
 
-    this.getAccountsManager()?.updateLayout();
+    const accountsMgr = this.getAccountsManager();
+    if (accountsMgr) {
+      if (targetWindowWidth > 0 && typeof accountsMgr.beginWindowAnimation === 'function') {
+        accountsMgr.beginWindowAnimation(targetWindowWidth, this.isVisible);
+      } else if (!this.isVisible && handledByAddon) {
+        setTimeout(() => {
+          accountsMgr.updateLayout();
+        }, 250);
+      } else {
+        accountsMgr.updateLayout();
+      }
+    }
   }
 
   public updateAccounts(accounts: CalendarAccount[]): void {

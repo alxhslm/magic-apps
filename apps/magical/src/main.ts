@@ -1211,7 +1211,7 @@ function createWindow(
   mainWindow = new BaseWindow(
     createMainWindowOptions({
       title: uiString('window.main.title'),
-      width: isSidebarVisible ? 1470 : 1200,
+      width: isSidebarVisible ? 1320 : 1024,
       height: 850,
       minWidth: initialMinW,
       minHeight: CALENDAR_MIN_HEIGHT,
