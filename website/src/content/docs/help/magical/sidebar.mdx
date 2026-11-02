@@ -8,14 +8,14 @@ Magical includes an adaptive native sidebar that sits directly inside your calen
 import { Tabs, TabItem } from '@astrojs/starlight/components';
 
 <Tabs>
+  <TabItem label="Day View">
+    ![Magical companion sidebar in Day view with single-day hourly schedule](/assets/shot-sidebar-day-magical.webp)
+  </TabItem>
   <TabItem label="Week View">
     ![Magical companion sidebar in Week view with week scrubber and focused agenda](/assets/shot-sidebar-week-magical.webp)
   </TabItem>
   <TabItem label="Month View">
     ![Magical companion sidebar in Month view with mini month grid and continuous schedule agenda](/assets/shot-sidebar-month-magical.webp)
-  </TabItem>
-  <TabItem label="Day View">
-    ![Magical companion sidebar in Day view with single-day hourly schedule](/assets/shot-sidebar-day-magical.webp)
   </TabItem>
 </Tabs>
 
@@ -27,37 +27,34 @@ You can toggle the sidebar at any time:
 
 - **Menu**: Choose **View → Toggle Sidebar** from the macOS menu bar.
 - **Keyboard Shortcut**: Press <kbd>⌥⌘S</kbd>.
-- **Toolbar**: Add the **Sidebar** button to your native window toolbar from **View → Customise Toolbar…** for one-click access.
-
-When opened, Magical automatically adjusts the window's minimum width (expanding by 270pt to 1,470pt) so your primary Google Calendar grid has plenty of space. Closing the sidebar smoothly restores the window.
+- **Toolbar**: Click the <span class="sym sym-sidebar-right" aria-hidden="true"></span> **Sidebar** button in your window toolbar (or add it via **View → Customise Toolbar…**).
 
 ---
 
 ## Keeping in Sync with Google Calendar
 
-The companion sidebar is not a static list—it dynamically adapts to whatever view you are using in the main Google Calendar interface:
+The companion sidebar dynamically adapts to whatever view you are using in Google Calendar:
 
+- **Day View**:
+  - Focuses on the single active day, featuring pinned all-day events at the top and an hourly day grid matching your daily schedule.
+- **Week & 4-Day Views**:
+  - Automatically switches to a **Week Scrubber**, showing each day of the current week with date numbers, selection rings, and activity dots.
+  - Clicking any day in the scrubber focuses the agenda on that specific date.
 - **Month & Schedule Views (Fantastical Style)**:
   - Displays a collapsible **Mini Month Grid** at the top with density dots showing busy days.
   - Features an **Endless Schedule Agenda** below, grouping upcoming meetings and tasks chronologically.
   - A red line marks the current time of day (`● ────────────── 14:35`).
-- **Week & 4-Day Views**:
-  - Automatically switches to a **Week Scrubber**, showing each day of the current week with date numbers, selection rings, and activity dots.
-  - Clicking any day in the scrubber focuses the agenda on that specific date.
-- **Day View**:
-  - Focuses on the single active day, featuring pinned all-day events at the top and an hourly day grid matching your daily schedule.
 
 Navigating to another date in Google Calendar immediately syncs the companion sidebar, and clicking a date in the sidebar smoothly navigates Google Calendar to that day.
 
 ---
 
-## Work & Personal Calendars in Harmony
+## Viewing All Accounts & Filtering
 
-The companion sidebar unifies every Google account you have connected to Magical:
+The companion sidebar displays events from all your connected Google accounts in a single, unified timeline:
 
-- **Avoid Double-Booking**: Even if your main window is displaying your Work account, the companion sidebar shows your Personal and Family events in the same timeline.
-- **Calendar Colours**: Every meeting is tinted with the exact colour of its underlying calendar, making it easy to distinguish personal appointments from team stand-ups at a glance.
-- **Bidirectional Filtering**: Click the <span class="sym sym-filter" aria-hidden="true"></span> **Filter Menu** in the sidebar header to temporarily hide individual calendars. Your filter choices synchronise instantly with the [Menu Bar Popover](/help/magical/menu-bar/).
+- **Calendar Colours**: Every meeting is tinted with the colour of its calendar, keeping schedules easy to scan at a glance.
+- **Filter Menu**: Click the <span class="sym sym-filter" aria-hidden="true"></span> **Filter Menu** in the sidebar header to hide or show individual calendars. Your filter choices stay in lockstep with the [menu bar popover](/help/magical/menu-bar/).
 
 ---
 
