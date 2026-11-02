@@ -83,6 +83,7 @@ import { MenuBarManager } from './menubar-manager.js';
 import { canRemoveAllAppData, removeAllAppDataAndQuit } from './remove-all-data.js';
 import { SyncCalendarActionDriver } from './calendar-actions/sync-driver.js';
 import { loadAccounts } from './accounts.js';
+import { canonicaliseCalendarId } from './calendars.js';
 
 // Replaced by tsup at build time with the Unix milliseconds the bundle was
 // compiled at; see `prerelease-build-expiry.ts` in @magimail/core.
@@ -419,8 +420,18 @@ function forgetAccountSettings(live: ReadonlySet<string>): void {
   for (const id of [...accountHealth.keys()]) if (!live.has(id)) accountHealth.delete(id);
 
   const hidden = loadSettings().hiddenCalendars ?? [];
-  const keptHidden = hidden.filter((ref) => live.has(ref.accountId));
-  if (keptHidden.length !== hidden.length) saveSetting('hiddenCalendars', keptHidden);
+  const keptHidden = hidden
+    .filter((ref) => live.has(ref.accountId))
+    .map((ref) => ({
+      accountId: ref.accountId,
+      calendarId: canonicaliseCalendarId(ref.calendarId),
+    }));
+  if (
+    keptHidden.length !== hidden.length ||
+    JSON.stringify(keptHidden) !== JSON.stringify(hidden)
+  ) {
+    saveSetting('hiddenCalendars', keptHidden);
+  }
 
   // A mute names `accountId|calendarId`; a bare calendar id is the older, account-wide
   // shape and is left alone because no account can be read out of it.

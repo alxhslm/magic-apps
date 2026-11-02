@@ -21,6 +21,8 @@ import {
   GOOGLE_CALENDAR_DEFAULT_SWATCHES,
   friendlyCalendarName,
   buildSerializedCalendars,
+  canonicaliseCalendarId,
+  hiddenKey,
 } from './calendars.js';
 
 export {
@@ -67,17 +69,6 @@ export interface SerializedTrayAccount {
   email: string;
   unreadCount: number;
   needsAuth: boolean;
-}
-
-/**
- * How one hidden calendar is keyed: both halves.
- *
- * A calendar id does not identify a calendar on its own. Google gives Birthdays, Tasks and
- * each locale's holidays the same id in every account, so keying on the id alone hides one
- * account's Birthdays by hiding another's.
- */
-function hiddenKey(accountId: string, calendarId: string): string {
-  return `${accountId}\u0000${calendarId}`;
 }
 
 /**
@@ -207,7 +198,10 @@ export class MenuBarManager {
     this.retryScheduler.cancel();
 
     const settings = loadSettings();
-    const hiddenCalendars = settings.hiddenCalendars ?? [];
+    const hiddenCalendars = (settings.hiddenCalendars ?? []).map((c) => ({
+      accountId: c.accountId,
+      calendarId: canonicaliseCalendarId(c.calendarId),
+    }));
     const hidden = new Set(hiddenCalendars.map((c) => hiddenKey(c.accountId, c.calendarId)));
     const accountColorMap = new Map(this.cachedAccounts.map((a) => [a.id, a.color]));
 
@@ -256,8 +250,12 @@ export class MenuBarManager {
       // Google reports the account's own calendar as `primary`, as the account id or as
       // its address depending on which endpoint answered, and the filter is stored under
       // one of them.
-      const canonicalise = (id: string): string =>
-        id === primaryEmail || id === 'primary' || id === accountId ? primaryEmail : id;
+      const canonicalise = (id: string): string => {
+        const canonical = canonicaliseCalendarId(id);
+        return canonical === primaryEmail || canonical === 'primary' || canonical === accountId
+          ? primaryEmail
+          : canonical;
+      };
 
       for (const event of events) {
         const calendarIds = [...new Set(event.calendarIds.map(canonicalise))];
@@ -649,14 +647,19 @@ export class MenuBarManager {
       // forgets itself on every rebuild reads as broken.
       case 'tray.setHiddenCalendars': {
         const raw = params.hiddenCalendars;
-        const hidden = Array.isArray(raw)
-          ? raw.filter(
-              (entry): entry is CalendarRef =>
-                typeof entry === 'object' &&
-                entry !== null &&
-                typeof (entry as CalendarRef).accountId === 'string' &&
-                typeof (entry as CalendarRef).calendarId === 'string',
-            )
+        const hidden: CalendarRef[] = Array.isArray(raw)
+          ? raw
+              .filter(
+                (entry): entry is CalendarRef =>
+                  typeof entry === 'object' &&
+                  entry !== null &&
+                  typeof (entry as CalendarRef).accountId === 'string' &&
+                  typeof (entry as CalendarRef).calendarId === 'string',
+              )
+              .map((ref) => ({
+                accountId: ref.accountId,
+                calendarId: canonicaliseCalendarId(ref.calendarId),
+              }))
           : [];
         saveSetting('hiddenCalendars', hidden);
         log.info(`${hidden.length} calendar(s) hidden in the popover`);

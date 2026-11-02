@@ -4,7 +4,12 @@ import { loadAddon } from './native-addon.js';
 import { loadSettings, saveSetting, type CalendarRef } from './settings-store.js';
 import { loadAccounts, type CalendarAccount } from './accounts.js';
 import type { NormalizedCalendarEvent } from './calendar-decoder.js';
-import { buildSerializedCalendars, friendlyCalendarName } from './calendars.js';
+import {
+  buildSerializedCalendars,
+  friendlyCalendarName,
+  canonicaliseCalendarId,
+  hiddenKey,
+} from './calendars.js';
 import { uiString } from './strings.js';
 import { buildEventLink, extractEid } from './event-links.js';
 import type { AccountsManager } from './accounts-manager.js';
@@ -12,10 +17,6 @@ import type { CalendarService } from './calendar-service.js';
 import { CALENDAR_MIN_HEIGHT, windowMinWidth } from './window-layout.js';
 
 const log = createLogger('SidebarManager');
-
-function hiddenKey(accountId: string, calendarId: string): string {
-  return `${accountId}:${calendarId}`;
-}
 
 export class SidebarManager {
   private attachedWindow: BaseWindow | null = null;
@@ -238,13 +239,18 @@ export class SidebarManager {
         try {
           const raw = JSON.parse(value);
           const hidden: CalendarRef[] = Array.isArray(raw)
-            ? raw.filter(
-                (entry): entry is CalendarRef =>
-                  typeof entry === 'object' &&
-                  entry !== null &&
-                  typeof (entry as CalendarRef).accountId === 'string' &&
-                  typeof (entry as CalendarRef).calendarId === 'string',
-              )
+            ? raw
+                .filter(
+                  (entry): entry is CalendarRef =>
+                    typeof entry === 'object' &&
+                    entry !== null &&
+                    typeof (entry as CalendarRef).accountId === 'string' &&
+                    typeof (entry as CalendarRef).calendarId === 'string',
+                )
+                .map((ref) => ({
+                  accountId: ref.accountId,
+                  calendarId: canonicaliseCalendarId(ref.calendarId),
+                }))
             : [];
           saveSetting('hiddenCalendars', hidden);
           log.info(`${hidden.length} calendar(s) hidden via sidebar`);
@@ -263,7 +269,10 @@ export class SidebarManager {
       if (!addon.sidebarUpdateData) return;
 
       const settings = loadSettings();
-      const hiddenCalendars = settings.hiddenCalendars ?? [];
+      const hiddenCalendars = (settings.hiddenCalendars ?? []).map((c) => ({
+        accountId: c.accountId,
+        calendarId: canonicaliseCalendarId(c.calendarId),
+      }));
       const hidden = new Set(hiddenCalendars.map((c) => hiddenKey(c.accountId, c.calendarId)));
 
       const accountsList = this.getAccounts();
@@ -297,8 +306,12 @@ export class SidebarManager {
             (id) => id.includes('@') && !id.includes('@group.') && !id.includes('@import.'),
           ) ||
           accountId;
-        const canonicalise = (id: string): string =>
-          id === primaryEmail || id === 'primary' || id === accountId ? primaryEmail : id;
+        const canonicalise = (id: string): string => {
+          const canonical = canonicaliseCalendarId(id);
+          return canonical === primaryEmail || canonical === 'primary' || canonical === accountId
+            ? primaryEmail
+            : canonical;
+        };
 
         for (const event of events) {
           const calendarIds = [...new Set(event.calendarIds.map(canonicalise))];
