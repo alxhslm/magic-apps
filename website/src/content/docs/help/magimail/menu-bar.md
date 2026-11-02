@@ -30,12 +30,9 @@ Clicking the menu bar icon opens a floating popover listing your most recent ema
 
 ## One-Time Verification Codes
 
-When an authentication or verification email arrives (such as a code from GitHub, Google, Slack, or banking services), Magimail detects the code automatically and displays a hero card at the top of the popover:
+When an authentication or login email arrives, Magimail inspects the subject line and message snippet for one-time verification codes and pins a hero card to the top of the popover. Clicking **Copy** writes the code straight to your clipboard and confirms with a brief "Copied" indicator.
 
-- **Service & Recency**: Displays the issuing service and elapsed time since arrival (e.g. `GitHub · 2m ago`).
-- **Account Pill**: Accented with the colour of the receiving account.
-- **1-Click Copy**: Clicking **Copy** writes the code straight to your macOS clipboard and displays a brief "Copied" confirmation.
-- **Independent of Read State**: Opening or reading the message does not dismiss the card; the code remains available until you explicitly archive or trash the email, or until the retention timer elapses.
+The card stays in the menu bar until you archive or delete the email, or until the configured timer (15 minutes by default) elapses. Opening or reading the message does not dismiss it, so you can check the email first and still copy the code from the menu bar.
 
 ## Filtering & Multi-Account Search
 
