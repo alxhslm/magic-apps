@@ -1,4 +1,5 @@
 import Foundation
+import MagicalHelperLib
 @testable import MagicalNative
 import Testing
 

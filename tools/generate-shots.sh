@@ -25,6 +25,7 @@ echo "📦 Converting generated PNGs to WebP..."
 SHOTS=(
   "shot-widgets-magical"
   "shot-popover-magical"
+  "shot-sidebar-magical"
   "shot-invitations-magical"
   "shot-focus-magical"
   "shot-tasks-magical"

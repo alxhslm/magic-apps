@@ -115,6 +115,7 @@ export default defineConfig({
             { label: 'Multiple Accounts', link: '/help/magical/accounts/' },
             { label: 'Keyboard Shortcuts', link: '/help/magical/shortcuts/' },
             { label: 'Window Toolbar', link: '/help/magical/toolbar/' },
+            { label: 'Companion Sidebar', link: '/help/magical/sidebar/' },
             { label: 'Invitations & Badges', link: '/help/magical/invitation-tray/' },
             { label: 'Menu Bar & Popover', link: '/help/magical/menu-bar/' },
             { label: 'Meeting Alerts & Invitations', link: '/help/magical/notifications/' },

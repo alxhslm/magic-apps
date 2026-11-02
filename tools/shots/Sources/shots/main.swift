@@ -507,6 +507,48 @@ let magimailTrayParams: [String: Any] = [
     "isOffline": false,
 ]
 
+let magicalSidebarTrayPayload: [String: Any] = [
+    "accounts": [
+        ["id": "personal", "name": "Personal", "color": Fixtures.calendarPersonal,
+         "email": "you@example.com", "unreadCount": 0, "needsAuth": false],
+        ["id": "work", "name": "Work", "color": Fixtures.calendarWork,
+         "email": "you@work.example.com", "unreadCount": 0, "needsAuth": false],
+    ],
+    "calendars": [
+        ["id": "personal", "accountId": "personal", "name": "Personal",
+         "colorHex": Fixtures.calendarPersonal],
+        ["id": "family", "accountId": "personal", "name": "Family",
+         "colorHex": Fixtures.calendarFamily],
+        ["id": "work", "accountId": "work", "name": "Work",
+         "colorHex": Fixtures.calendarWork],
+        ["id": "team", "accountId": "work", "name": "Team",
+         "colorHex": Fixtures.calendarTeam],
+    ] as [[String: Any]],
+    "events": fixtures.map { event -> [String: Any] in
+        let isWork = event.calendar == "Work" || event.calendar == "Team"
+        let accountId = isWork ? "work" : "personal"
+        var raw: [String: Any] = [
+            "id": event.id,
+            "accountId": accountId,
+            "calendarIds": [event.calendar.lowercased()],
+            "calendarName": event.calendar,
+            "summary": event.title,
+            "startTime": event.start.timeIntervalSince1970 * 1000,
+            "endTime": event.end.timeIntervalSince1970 * 1000,
+            "isAllDay": event.allDay,
+            "colorHex": event.colour,
+            "myResponseStatus": 1,
+        ]
+        if let conference = event.conference {
+            raw["conferenceUrl"] = conference
+        }
+        return raw
+    },
+    "activeAccountId": "work",
+    "isCalendarCollapsed": false,
+    "isOffline": false,
+]
+
 // MARK: - App & Render
 
 let app = NSApplication.shared
@@ -746,4 +788,24 @@ MainActor.assumeIsolated {
     .environment(\.colorScheme, .light)
 
     write("shot-tasks-magical", magicalTasks, size: CGSize(width: 340 + 52, height: 300 + 52))
+
+    // 7. Magical companion sidebar
+    let magicalSidebarModel = MagicalHelperLib.SidebarModel()
+    magicalSidebarModel.trayModel.update(from: magicalSidebarTrayPayload)
+    magicalSidebarModel.setViewMode(.fantastical, anchor: now)
+
+    let magicalSidebar = MagicalHelperLib.SidebarRootView(model: magicalSidebarModel)
+        .frame(width: 254, height: 600)
+        .background(Color(red: 0.98, green: 0.98, blue: 0.99))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(Color.black.opacity(0.12), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.18), radius: 12, x: 0, y: 6)
+        .padding(26)
+        .background(Color(red: 0.937, green: 0.937, blue: 0.949))
+        .environment(\.colorScheme, .light)
+
+    write("shot-sidebar-magical", magicalSidebar, size: CGSize(width: 254 + 52, height: 600 + 52))
 }
