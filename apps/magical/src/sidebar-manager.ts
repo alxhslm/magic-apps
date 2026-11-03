@@ -15,6 +15,7 @@ import { buildEventLink, extractEid } from './event-links.js';
 import type { AccountsManager } from './accounts-manager.js';
 import type { CalendarService } from './calendar-service.js';
 import { CALENDAR_MIN_HEIGHT, windowMinWidth } from './window-layout.js';
+import { GCAL_SCROLL_TO_HOUR_CHANNEL } from './constants.js';
 
 const log = createLogger('SidebarManager');
 
@@ -312,6 +313,23 @@ export class SidebarManager {
         }
         break;
       }
+
+      case 'sidebarScroll': {
+        const hour = parseFloat(value);
+        if (!isNaN(hour) && hour >= 0 && hour <= 24) {
+          this.scrollMainGridToHour(hour);
+        }
+        break;
+      }
+    }
+  }
+
+  private scrollMainGridToHour(hour: number): void {
+    const manager = this.getAccountsManager();
+    if (!manager) return;
+    const view = manager.getActiveView();
+    if (view && !view.webContents.isDestroyed()) {
+      view.webContents.send(GCAL_SCROLL_TO_HOUR_CHANNEL, { hour });
     }
   }
 

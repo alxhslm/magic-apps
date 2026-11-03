@@ -1163,6 +1163,7 @@ function handleToolbarAction(action: string, value: string): void {
     case 'sidebarRsvp':
     case 'sidebarRefresh':
     case 'sidebarFilterChanged':
+    case 'sidebarScroll':
       sidebarManager?.handleSidebarAction(action, value);
       break;
 

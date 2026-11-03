@@ -39,3 +39,8 @@ export const GCAL_VIEW_MODE_CHANNEL = 'magical:gcal-view-mode';
  * How a view tells the main process that its 24-hour time grid scroll position changed.
  */
 export const GCAL_GRID_SCROLL_CHANNEL = 'magical:gcal-grid-scroll';
+
+/**
+ * How the main process asks a calendar view to scroll its 24-hour time grid to a target hour.
+ */
+export const GCAL_SCROLL_TO_HOUR_CHANNEL = 'magical:gcal-scroll-to-hour';

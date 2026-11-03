@@ -75,8 +75,10 @@ public struct DayTimeGridView: View {
         for cluster in clusters {
             let colCount = min(2, cluster.events.count)
             for (idx, event) in cluster.events.enumerated() {
-                let startSeconds = max(0, event.startTime.timeIntervalSince(dayStart))
-                let endSeconds = max(startSeconds + 900, event.endTime.timeIntervalSince(dayStart))
+                let rawStart = event.startTime.timeIntervalSince(dayStart)
+                let rawEnd = event.endTime.timeIntervalSince(dayStart)
+                let startSeconds = max(0, min(86400, rawStart))
+                let endSeconds = max(startSeconds + 900, min(86400, rawEnd))
                 let top = CGFloat(startSeconds / 3600.0) * hourHeight
                 let rawHeight = CGFloat((endSeconds - startSeconds) / 3600.0) * hourHeight
                 let height = max(26.0, rawHeight)
@@ -133,6 +135,7 @@ public struct DayTimeGridView: View {
 
                             TimeGridEventTile(
                                 event: item.event,
+                                date: date,
                                 height: item.height,
                                 isCompact: item.totalColumns > 1,
                                 onSelect: { onSelectEvent(item.event) },
@@ -152,7 +155,16 @@ public struct DayTimeGridView: View {
                     }
                 }
             }
-            .background(ScrollOffsetHook(targetY: effectiveScrollY))
+            .background(
+                ScrollOffsetHook(
+                    targetY: effectiveScrollY,
+                    hourHeight: hourHeight,
+                    onUserScroll: { hour, currentY in
+                        sidebarModel.gridScrollY = currentY
+                        sidebarModel.onAction?("sidebarScroll", String(format: "%.4f", hour))
+                    }
+                )
+            )
         }
     }
 
@@ -224,6 +236,7 @@ public struct DayTimeGridView: View {
 
 private struct TimeGridEventTile: View {
     let event: TrayEvent
+    let date: Date
     let height: CGFloat
     let isCompact: Bool
     let onSelect: () -> Void
@@ -244,7 +257,7 @@ private struct TimeGridEventTile: View {
 
                 VStack(alignment: .leading, spacing: 1) {
                     HStack(spacing: 3) {
-                        Text(event.formattedTime)
+                        Text(event.formattedTime(on: date))
                             .font(.system(size: 8.5, design: .rounded).monospacedDigit())
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
@@ -312,16 +325,65 @@ final class ScrollHookNSView: NSView {
         }
     }
 
+    var hourHeight: CGFloat = 48.0
+    var onUserScroll: ((_ hour: CGFloat, _ currentY: CGFloat) -> Void)?
+
     private var retryCount = 0
+    private var isProgrammatic = false
+    private var lastUserScrollTime: TimeInterval = 0
+    private var pendingScrollWorkItem: DispatchWorkItem?
 
     override func viewDidMoveToSuperview() {
         super.viewDidMoveToSuperview()
+        setupNotificationObserver()
         attemptScroll()
     }
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
+        setupNotificationObserver()
         attemptScroll()
+    }
+
+    private func setupNotificationObserver() {
+        NotificationCenter.default.removeObserver(self, name: NSView.boundsDidChangeNotification, object: nil)
+        guard let clipView = enclosingScrollView?.contentView else { return }
+        clipView.postsBoundsChangedNotifications = true
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleClipViewBoundsDidChange(_:)),
+            name: NSView.boundsDidChangeNotification,
+            object: clipView
+        )
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+        pendingScrollWorkItem?.cancel()
+    }
+
+    @objc private func handleClipViewBoundsDidChange(_ notification: Notification) {
+        guard !isProgrammatic, let clipView = notification.object as? NSClipView, hourHeight > 10 else { return }
+
+        let currentY = clipView.bounds.origin.y
+        let hour = max(0.0, min(24.0, currentY / hourHeight))
+
+        let now = ProcessInfo.processInfo.systemUptime
+        if now - lastUserScrollTime >= 0.016 {
+            lastUserScrollTime = now
+            pendingScrollWorkItem?.cancel()
+            pendingScrollWorkItem = nil
+            onUserScroll?(hour, currentY)
+        } else {
+            pendingScrollWorkItem?.cancel()
+            let workItem = DispatchWorkItem { [weak self] in
+                guard let self, !self.isProgrammatic else { return }
+                lastUserScrollTime = ProcessInfo.processInfo.systemUptime
+                onUserScroll?(hour, currentY)
+            }
+            pendingScrollWorkItem = workItem
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.016, execute: workItem)
+        }
     }
 
     func attemptScroll() {
@@ -343,23 +405,33 @@ final class ScrollHookNSView: NSView {
         let maxY = max(0, docHeight - clipView.bounds.height)
         let clampedY = max(0, min(targetY, maxY))
         if abs(clipView.bounds.origin.y - clampedY) > 0.5 {
+            isProgrammatic = true
             clipView.scroll(to: NSPoint(x: 0, y: clampedY))
             scrollView.reflectScrolledClipView(clipView)
+            DispatchQueue.main.async { [weak self] in
+                self?.isProgrammatic = false
+            }
         }
     }
 }
 
 struct ScrollOffsetHook: NSViewRepresentable {
     let targetY: CGFloat
+    let hourHeight: CGFloat
+    let onUserScroll: ((_ hour: CGFloat, _ currentY: CGFloat) -> Void)?
 
     func makeNSView(context _: Context) -> ScrollHookNSView {
         let view = ScrollHookNSView()
         view.translatesAutoresizingMaskIntoConstraints = false
         view.targetY = targetY
+        view.hourHeight = hourHeight
+        view.onUserScroll = onUserScroll
         return view
     }
 
     func updateNSView(_ nsView: ScrollHookNSView, context _: Context) {
+        nsView.hourHeight = hourHeight
+        nsView.onUserScroll = onUserScroll
         nsView.targetY = targetY
     }
 }

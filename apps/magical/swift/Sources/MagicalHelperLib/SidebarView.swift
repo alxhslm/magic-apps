@@ -203,12 +203,8 @@ public final class SidebarModel: ObservableObject {
 
     /// Events belonging specifically to `selectedDate` for Day & Week companion views.
     public var selectedDayEvents: [TrayEvent] {
-        let keyFormatter = DateFormatter()
-        keyFormatter.dateFormat = "yyyy-MM-dd"
-        keyFormatter.timeZone = .current
-        let key = keyFormatter.string(from: selectedDate)
-
-        return trayModel.filteredEvents.filter { $0.dateKey == key }
+        let calendar = Calendar.current
+        return trayModel.filteredEvents.filter { $0.occurs(on: selectedDate, calendar: calendar) }
     }
 
     public func setScrollPosition(
@@ -304,8 +300,9 @@ public struct WeekScrubberView: View {
                 }
             }
             .padding(.horizontal, 6)
+            .padding(.bottom, 2)
         }
-        .frame(height: 59)
+        .frame(height: 66)
         .background(
             GeometryReader { geo in
                 Color.clear.preference(key: HeaderHeightPreferenceKey.self, value: geo.size.height + 1.0)
@@ -315,7 +312,7 @@ public struct WeekScrubberView: View {
 
     private func dayPill(_ item: WeekDayItem) -> some View {
         Button(action: { model.selectDate(item.date) }) {
-            VStack(spacing: 1) {
+            VStack(spacing: 1.5) {
                 Text(item.dayLetter)
                     .font(.system(size: 9, weight: .semibold))
                     .foregroundStyle(item.isSelected ? .primary : .tertiary)
@@ -359,6 +356,7 @@ public struct WeekScrubberView: View {
                 }
                 .frame(height: 3)
             }
+            .padding(.bottom, 2)
             .frame(maxWidth: .infinity)
             .contentShape(Rectangle())
         }
@@ -527,7 +525,7 @@ public struct DayFocusedEventsList: View {
 
 private struct WeekCompanionContainerView: View {
     @ObservedObject var model: SidebarModel
-    @State private var headerHeight: CGFloat = 60.0
+    @State private var headerHeight: CGFloat = 67.0
 
     var body: some View {
         VStack(spacing: 0) {

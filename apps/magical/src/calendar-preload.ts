@@ -4,6 +4,7 @@ import { extractRawCalendarList, extractGaiaId, extractGoogleApiKey } from './ca
 import {
   CALENDAR_LIST_CHANNEL,
   GCAL_GRID_SCROLL_CHANNEL,
+  GCAL_SCROLL_TO_HOUR_CHANNEL,
   GCAL_VIEW_MODE_CHANNEL,
 } from './constants.js';
 
@@ -167,6 +168,26 @@ let lastReportedGridTop = -1;
 let lastReportedGridHeight = -1;
 let lastReportedCardTop = -1;
 let scrollRaf: number | null = null;
+let isProgrammaticScroll = false;
+let programmaticScrollTimeout: ReturnType<typeof setTimeout> | null = null;
+
+ipcRenderer.on(GCAL_SCROLL_TO_HOUR_CHANNEL, (_event, payload: { hour?: number }) => {
+  if (typeof payload?.hour !== 'number' || !activeScrollContainer) return;
+  const hourHeight = measureHourHeight(activeScrollContainer);
+  const targetScrollTop = Math.round(payload.hour * hourHeight);
+  if (Math.abs(activeScrollContainer.scrollTop - targetScrollTop) > 2) {
+    isProgrammaticScroll = true;
+    if (programmaticScrollTimeout) {
+      clearTimeout(programmaticScrollTimeout);
+    }
+    activeScrollContainer.scrollTop = targetScrollTop;
+    lastReportedScrollTop = targetScrollTop;
+    programmaticScrollTimeout = setTimeout(() => {
+      isProgrammaticScroll = false;
+      programmaticScrollTimeout = null;
+    }, 100);
+  }
+});
 
 function isTimeGridView(timeframe: string | null): boolean {
   if (!timeframe) return false;
@@ -234,6 +255,7 @@ function findGridScrollContainer(): HTMLElement | null {
 }
 
 function reportGridScroll(): void {
+  if (isProgrammaticScroll) return;
   if (!activeScrollContainer || !isTimeGridView(lastReportedTimeframe)) return;
   const scrollTop = activeScrollContainer.scrollTop;
   const hourHeight = measureHourHeight(activeScrollContainer);

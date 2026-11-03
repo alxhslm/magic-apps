@@ -251,6 +251,31 @@ public struct TrayEvent: Identifiable, Equatable {
         allDayCalendarDay(startTime, isAllDay: isAllDay)
     }
 
+    /// The last calendar day this entry covers, as local midnight.
+    public var lastCoveredDay: Date {
+        if isAllDay {
+            let lastDayInstant = endTime.addingTimeInterval(-1)
+            return allDayCalendarDay(lastDayInstant, isAllDay: true)
+        } else {
+            let endEffective = endTime.addingTimeInterval(-1)
+            return Calendar.current.startOfDay(for: max(startTime, endEffective))
+        }
+    }
+
+    /// Whether this event occurs on, or spans across, the given calendar day.
+    public func occurs(on date: Date, calendar: Calendar = .current) -> Bool {
+        let dayStart = calendar.startOfDay(for: date)
+        guard let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart) else { return false }
+
+        if isAllDay {
+            let startDay = scheduleDay
+            let endDay = lastCoveredDay
+            return dayStart >= startDay && dayStart <= endDay
+        } else {
+            return startTime < dayEnd && endTime > dayStart
+        }
+    }
+
     public var dateKey: String {
         TrayFormatters.dateFormatter.string(from: scheduleDay)
     }
@@ -262,6 +287,30 @@ public struct TrayEvent: Identifiable, Equatable {
         let start = TrayFormatters.timeFormatter.string(from: startTime)
         let end = TrayFormatters.timeFormatter.string(from: endTime)
         return "\(start) – \(end)"
+    }
+
+    /// Formatted time string adjusted for a specific day when an event spans across midnight.
+    public func formattedTime(on date: Date, calendar: Calendar = .current) -> String {
+        if isAllDay {
+            return String(localized: "All day")
+        }
+        let dayStart = calendar.startOfDay(for: date)
+        guard let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart) else {
+            return formattedTime
+        }
+        let startsBefore = startTime < dayStart
+        let endsAfter = endTime > dayEnd
+
+        let timeDf = TrayFormatters.timeFormatter
+        if startsBefore, endsAfter {
+            return String(localized: "All day (multi-day)")
+        } else if startsBefore {
+            return "→ \(timeDf.string(from: endTime))"
+        } else if endsAfter {
+            return "\(timeDf.string(from: startTime)) →"
+        } else {
+            return "\(timeDf.string(from: startTime)) – \(timeDf.string(from: endTime))"
+        }
     }
 
     /// Named only where the name earns its place, and worded exactly as
@@ -599,14 +648,26 @@ public final class TrayModel: ObservableObject {
             return cached
         }
         var map: [String: [Color]] = [:]
+        let calendar = Calendar.current
+        let df = TrayFormatters.dateFormatter
+
         for event in filteredEvents {
-            let key = event.dateKey
             let color = Color(hex: event.colorHex)
-            var list = map[key] ?? []
-            if !list.contains(color), list.count < 4 {
-                list.append(color)
+            var currentDay = event.scheduleDay
+            let lastDay = event.lastCoveredDay
+            var dayCount = 0
+
+            while currentDay <= lastDay, dayCount < 60 {
+                let key = df.string(from: currentDay)
+                var list = map[key] ?? []
+                if !list.contains(color), list.count < 4 {
+                    list.append(color)
+                    map[key] = list
+                }
+                guard let nextDay = calendar.date(byAdding: .day, value: 1, to: currentDay) else { break }
+                currentDay = nextDay
+                dayCount += 1
             }
-            map[key] = list
         }
         cachedDensityDots = map
         return map
