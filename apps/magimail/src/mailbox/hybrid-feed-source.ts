@@ -96,8 +96,8 @@ export class HybridFeedSource implements MailboxSource {
   /** One write of the stored counts at a time. */
   private countPersistTimer: ReturnType<typeof setTimeout> | null = null;
   private notificationSettings: Record<string, string> = {};
-  /** Total unread count at the time of the last emitted change event. */
-  private lastEmittedTotal: number | null = null;
+  /** Ledger revision number at the time of the last emitted change event. */
+  private lastEmittedRevision: number | null = null;
 
   constructor(accountId: string, options: HybridFeedSourceOptions = {}) {
     this.accountId = accountId;
@@ -160,22 +160,16 @@ export class HybridFeedSource implements MailboxSource {
   public async getRecentMessages(limit = 20): Promise<TrayMessageItem[]> {
     const view = this.options.getView?.(this.accountId);
     if (view && !view.webContents.isDestroyed()) {
-      const before = this.ledger.getBreakdown().total;
-      let moved = 0;
       try {
         const snapshot = await readCachedInboxData(view.webContents, limit);
         if (snapshot) {
           this.reportCache(snapshot);
-          moved = this.ledger.reconcileWithCache(
-            snapshot.messages,
-            Date.now(),
-            snapshot.asOf,
-          ).moved;
+          this.ledger.reconcileWithCache(snapshot.messages, Date.now(), snapshot.asOf);
         }
       } catch (err) {
         log.warn(`Failed to read cached inbox data for ${this.accountId}:`, err);
       }
-      this.emitIfCountChanged(before, moved);
+      this.emitIfStateChanged();
     }
 
     const items = this.ledger.getRecentMessages(limit);
@@ -245,22 +239,16 @@ export class HybridFeedSource implements MailboxSource {
 
     const view = this.options.getView?.(this.accountId);
     if (view && !view.webContents.isDestroyed()) {
-      const before = this.ledger.getBreakdown().total;
-      let moved = 0;
       try {
         const snapshot = await readCachedInboxData(view.webContents, CACHE_HINT_MAX_ROWS);
         if (snapshot?.messages) {
           this.reportCache(snapshot);
-          moved = this.ledger.reconcileWithCache(
-            snapshot.messages,
-            Date.now(),
-            snapshot.asOf,
-          ).moved;
+          this.ledger.reconcileWithCache(snapshot.messages, Date.now(), snapshot.asOf);
         }
       } catch (err) {
         log.warn(`Cache refresh failed for ${this.accountId}:`, err);
       }
-      this.emitIfCountChanged(before, moved);
+      this.emitIfStateChanged();
     }
   }
 
@@ -337,22 +325,22 @@ export class HybridFeedSource implements MailboxSource {
           await new Promise((resolve) => setTimeout(resolve, CACHE_REREAD_INTERVAL_MS));
           if (view.webContents.isDestroyed()) return;
         }
-        const before = this.ledger.getBreakdown().total;
         let moved = 0;
         try {
           const snapshot = await readCachedInboxData(view.webContents, CACHE_HINT_MAX_ROWS);
           if (snapshot?.messages) {
             this.reportCache(snapshot);
-            moved = this.ledger.reconcileWithCache(
+            const res = this.ledger.reconcileWithCache(
               snapshot.messages,
               Date.now(),
               snapshot.asOf,
-            ).moved;
+            );
+            moved = res.moved;
           }
         } catch {
           // Ignore cache failure; the poll already requested covers it.
         }
-        this.emitIfCountChanged(before);
+        this.emitIfStateChanged();
         if (moved > 0) return;
       }
     } finally {
@@ -377,10 +365,27 @@ export class HybridFeedSource implements MailboxSource {
     }
   }
 
-  private emitIfCountChanged(before: number, moved = 0): void {
-    if (this.ledger.getBreakdown().total === before && moved === 0) return;
-    this.emitChange({ addedMessageIds: [], removedMessageIds: [], countChanged: true });
+  public getRevision(): number {
+    return this.ledger.getRevision();
+  }
+
+  private emitIfStateChanged(delta?: {
+    addedMessageIds?: string[];
+    removedMessageIds?: string[];
+    countChanged?: boolean;
+  }): boolean {
+    const currentRevision = this.ledger.getRevision();
+    const hasState = this.ledger.getBreakdown().hasState;
+    if (this.lastEmittedRevision === currentRevision) return false;
+    if (this.lastEmittedRevision === null && !hasState) return false;
+
+    this.emitChange({
+      addedMessageIds: delta?.addedMessageIds ?? [],
+      removedMessageIds: delta?.removedMessageIds ?? [],
+      countChanged: delta?.countChanged ?? true,
+    });
     this.persistCountsSoon();
+    return true;
   }
 
   /**
@@ -454,16 +459,20 @@ export class HybridFeedSource implements MailboxSource {
       );
 
       const breakdown = this.ledger.getBreakdown();
-      const needsInitialEmit = this.lastEmittedTotal === null && breakdown.hasState;
-      const countChanged =
-        delta.countChanged ||
-        (this.lastEmittedTotal !== null && this.lastEmittedTotal !== breakdown.total);
+      const needsInitialEmit = this.lastEmittedRevision === null && breakdown.hasState;
+      const revisionChanged =
+        this.lastEmittedRevision !== null && this.lastEmittedRevision !== this.ledger.getRevision();
 
-      if (needsInitialEmit || countChanged || delta.added.length > 0 || delta.removed.length > 0) {
+      if (
+        needsInitialEmit ||
+        revisionChanged ||
+        delta.added.length > 0 ||
+        delta.removed.length > 0
+      ) {
         this.emitChange({
           addedMessageIds: delta.added,
           removedMessageIds: delta.removed,
-          countChanged: countChanged || needsInitialEmit,
+          countChanged: delta.countChanged || needsInitialEmit,
         });
         await this.dispatchUniversalSyncNudge();
       }
@@ -485,7 +494,7 @@ export class HybridFeedSource implements MailboxSource {
     countChanged: boolean;
   }): void {
     const unread = this.ledger.getBreakdown();
-    this.lastEmittedTotal = unread.total;
+    this.lastEmittedRevision = this.ledger.getRevision();
     const event: MailboxChangeEvent = {
       accountId: this.accountId,
       unread,

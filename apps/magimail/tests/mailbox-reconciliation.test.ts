@@ -2112,6 +2112,168 @@ describe('Local and Remote Read State Changes under Edge-Cache Lag (Primary & Pr
       h.cleanup();
     });
   });
+
+  describe('Scenario 3: Ledger State Revision & Zero-Sum Mutations', () => {
+    it('advances revision and emits change event when one message is marked read and another arrives (zero-sum total)', async () => {
+      const h = createHarness('acc-zero-sum');
+      const msgA: AtomMessage = {
+        id: 'msg-a',
+        threadId: 'th-a',
+        from: 'Alice <alice@example.com>',
+        subject: 'Email A',
+        snippet: 'Snippet A',
+        modified: new Date(1000),
+        category: 'primary',
+      };
+      const msgB: AtomMessage = {
+        id: 'msg-b',
+        threadId: 'th-b',
+        from: 'Bob <bob@example.com>',
+        subject: 'Email B',
+        snippet: 'Snippet B',
+        modified: new Date(2000),
+        category: 'primary',
+      };
+
+      // 1. Initial poll establishes msgA unread (total = 1)
+      h.setPollerState([msgA], 1);
+      h.triggerPoll([msgA], 1);
+      expect(h.source.getUnreadCounts().total).toBe(1);
+      const initialRev = h.source.getRevision();
+      expect(initialRev).toBeGreaterThan(0);
+      expect(h.events.length).toBe(1);
+      h.events.length = 0;
+
+      // 2. Poll: msgA is no longer unread, new msgB arrives unread (total remains 1)
+      h.setPollerState([msgB], 1);
+      h.triggerPoll([msgB], 1);
+
+      expect(h.source.getUnreadCounts().total).toBe(1);
+      expect(h.source.getRevision()).toBeGreaterThan(initialRev);
+      expect(h.events.length).toBe(1);
+      expect(h.events[0].unread.total).toBe(1);
+      expect(h.events[0].recentMessages.some((m) => m.id === 'msg-b' && m.unread)).toBe(true);
+
+      h.cleanup();
+    });
+
+    it('advances revision and emits change event when category changes with total unchanged', async () => {
+      const h = createHarness('acc-cat-shift');
+      const now = Date.now();
+      h.setCache([
+        {
+          id: 'msg-1',
+          threadId: 'th-1',
+          from: 'Sender <s@example.com>',
+          subject: 'Newsletter',
+          snippet: 'Updates',
+          unread: true,
+          category: 'primary',
+          modified: new Date(now),
+        },
+      ]);
+      await h.source.getRecentMessages(5);
+      expect(h.source.getUnreadCounts().total).toBe(1);
+      expect(h.source.getUnreadCounts().byCategory.get('primary')).toBe(1);
+      expect(h.source.getUnreadCounts().byCategory.get('promotions') ?? 0).toBe(0);
+      const rev1 = h.source.getRevision();
+      h.events.length = 0;
+
+      // Update cache: msg-1 category reassigned to promotions, total is still 1
+      h.setCache([
+        {
+          id: 'msg-1',
+          threadId: 'th-1',
+          from: 'Sender <s@example.com>',
+          subject: 'Newsletter',
+          snippet: 'Updates',
+          unread: true,
+          category: 'promotions',
+          modified: new Date(now),
+        },
+      ]);
+      await h.source.getRecentMessages(5);
+
+      expect(h.source.getUnreadCounts().total).toBe(1);
+      expect(h.source.getUnreadCounts().byCategory.get('primary') ?? 0).toBe(0);
+      expect(h.source.getUnreadCounts().byCategory.get('promotions')).toBe(1);
+      expect(h.source.getRevision()).toBeGreaterThan(rev1);
+      expect(h.events.length).toBe(1);
+
+      h.cleanup();
+    });
+
+    it('advances revision and emits change event when message snippet or subject updates in cache', async () => {
+      const h = createHarness('acc-enrich');
+      const now = Date.now();
+      h.setCache([
+        {
+          id: 'msg-1',
+          threadId: 'th-1',
+          from: 'Sender <s@example.com>',
+          subject: 'Original Subject',
+          snippet: '',
+          unread: true,
+          category: 'primary',
+          modified: new Date(now),
+        },
+      ]);
+      await h.source.getRecentMessages(5);
+      const rev1 = h.source.getRevision();
+      h.events.length = 0;
+
+      // Cache enriches subject and snippet
+      h.setCache([
+        {
+          id: 'msg-1',
+          threadId: 'th-1',
+          from: 'Sender <s@example.com>',
+          subject: 'Updated Subject with Code',
+          snippet: 'Here is your OTP: 123456',
+          unread: true,
+          category: 'primary',
+          modified: new Date(now),
+        },
+      ]);
+      await h.source.getRecentMessages(5);
+
+      expect(h.source.getRevision()).toBeGreaterThan(rev1);
+      expect(h.events.length).toBe(1);
+      expect(h.events[0].recentMessages[0].subject).toBe('Updated Subject with Code');
+
+      h.cleanup();
+    });
+
+    it('does not advance revision or emit spurious event when identical data is reread', async () => {
+      const h = createHarness('acc-idempotent');
+      const now = Date.now();
+      h.setCache([
+        {
+          id: 'msg-1',
+          threadId: 'th-1',
+          from: 'Sender <s@example.com>',
+          subject: 'Stable Message',
+          snippet: 'Stable Snippet',
+          unread: true,
+          category: 'primary',
+          modified: new Date(now),
+        },
+      ]);
+      await h.source.getRecentMessages(5);
+      const rev1 = h.source.getRevision();
+      expect(h.events.length).toBe(1);
+      h.events.length = 0;
+
+      // Subsequent identical cache reads
+      await h.source.getRecentMessages(5);
+      await h.source.getRecentMessages(5);
+
+      expect(h.source.getRevision()).toBe(rev1);
+      expect(h.events.length).toBe(0);
+
+      h.cleanup();
+    });
+  });
 });
 
 /**
