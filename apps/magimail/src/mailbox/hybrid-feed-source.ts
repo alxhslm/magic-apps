@@ -96,6 +96,8 @@ export class HybridFeedSource implements MailboxSource {
   /** One write of the stored counts at a time. */
   private countPersistTimer: ReturnType<typeof setTimeout> | null = null;
   private notificationSettings: Record<string, string> = {};
+  /** Ledger revision number at the time of the last emitted change event. */
+  private lastEmittedRevision: number | null = null;
 
   constructor(accountId: string, options: HybridFeedSourceOptions = {}) {
     this.accountId = accountId;
@@ -167,6 +169,7 @@ export class HybridFeedSource implements MailboxSource {
       } catch (err) {
         log.warn(`Failed to read cached inbox data for ${this.accountId}:`, err);
       }
+      this.emitIfStateChanged();
     }
 
     const items = this.ledger.getRecentMessages(limit);
@@ -179,6 +182,7 @@ export class HybridFeedSource implements MailboxSource {
   public async getLatestVerificationCode(maxAgeMs?: number): Promise<VerificationCodeItem | null> {
     const fromLedger = this.ledger.getLatestVerificationCode(this.accountId, maxAgeMs);
     if (fromLedger) return fromLedger;
+    if (this.ledger.getBreakdown().hasState) return null;
 
     const entries = this.poller.getLatestEntries();
     const now = Date.now();
@@ -236,7 +240,6 @@ export class HybridFeedSource implements MailboxSource {
 
     const view = this.options.getView?.(this.accountId);
     if (view && !view.webContents.isDestroyed()) {
-      const before = this.ledger.getBreakdown().total;
       try {
         const snapshot = await readCachedInboxData(view.webContents, CACHE_HINT_MAX_ROWS);
         if (snapshot?.messages) {
@@ -246,7 +249,7 @@ export class HybridFeedSource implements MailboxSource {
       } catch (err) {
         log.warn(`Cache refresh failed for ${this.accountId}:`, err);
       }
-      this.emitIfCountChanged(before);
+      this.emitIfStateChanged();
     }
   }
 
@@ -323,22 +326,22 @@ export class HybridFeedSource implements MailboxSource {
           await new Promise((resolve) => setTimeout(resolve, CACHE_REREAD_INTERVAL_MS));
           if (view.webContents.isDestroyed()) return;
         }
-        const before = this.ledger.getBreakdown().total;
         let moved = 0;
         try {
           const snapshot = await readCachedInboxData(view.webContents, CACHE_HINT_MAX_ROWS);
           if (snapshot?.messages) {
             this.reportCache(snapshot);
-            moved = this.ledger.reconcileWithCache(
+            const res = this.ledger.reconcileWithCache(
               snapshot.messages,
               Date.now(),
               snapshot.asOf,
-            ).moved;
+            );
+            moved = res.moved;
           }
         } catch {
           // Ignore cache failure; the poll already requested covers it.
         }
-        this.emitIfCountChanged(before);
+        this.emitIfStateChanged();
         if (moved > 0) return;
       }
     } finally {
@@ -363,10 +366,27 @@ export class HybridFeedSource implements MailboxSource {
     }
   }
 
-  private emitIfCountChanged(before: number): void {
-    if (this.ledger.getBreakdown().total === before) return;
-    this.emitChange({ addedMessageIds: [], removedMessageIds: [], countChanged: true });
+  public getRevision(): number {
+    return this.ledger.getRevision();
+  }
+
+  private emitIfStateChanged(delta?: {
+    addedMessageIds?: string[];
+    removedMessageIds?: string[];
+    countChanged?: boolean;
+  }): boolean {
+    const currentRevision = this.ledger.getRevision();
+    const hasState = this.ledger.getBreakdown().hasState;
+    if (this.lastEmittedRevision === currentRevision) return false;
+    if (this.lastEmittedRevision === null && !hasState) return false;
+
+    this.emitChange({
+      addedMessageIds: delta?.addedMessageIds ?? [],
+      removedMessageIds: delta?.removedMessageIds ?? [],
+      countChanged: delta?.countChanged ?? true,
+    });
     this.persistCountsSoon();
+    return true;
   }
 
   /**
@@ -439,13 +459,23 @@ export class HybridFeedSource implements MailboxSource {
         result.sourceAsOf,
       );
 
-      if (delta.countChanged || delta.added.length > 0 || delta.removed.length > 0) {
-        await this.dispatchUniversalSyncNudge();
+      const breakdown = this.ledger.getBreakdown();
+      const needsInitialEmit = this.lastEmittedRevision === null && breakdown.hasState;
+      const revisionChanged =
+        this.lastEmittedRevision !== null && this.lastEmittedRevision !== this.ledger.getRevision();
+
+      if (
+        needsInitialEmit ||
+        revisionChanged ||
+        delta.added.length > 0 ||
+        delta.removed.length > 0
+      ) {
         this.emitChange({
           addedMessageIds: delta.added,
           removedMessageIds: delta.removed,
-          countChanged: delta.countChanged,
+          countChanged: delta.countChanged || needsInitialEmit,
         });
+        await this.dispatchUniversalSyncNudge();
       }
     }
 
@@ -465,6 +495,7 @@ export class HybridFeedSource implements MailboxSource {
     countChanged: boolean;
   }): void {
     const unread = this.ledger.getBreakdown();
+    this.lastEmittedRevision = this.ledger.getRevision();
     const event: MailboxChangeEvent = {
       accountId: this.accountId,
       unread,

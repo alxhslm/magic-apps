@@ -129,6 +129,8 @@ export interface MailboxSource {
   getUnreadCounts(): UnreadBreakdown;
   /** The unread total filtered by the given categories. */
   getUnreadCountFor(categories: ReadonlySet<NotificationCategory>): number;
+  /** Current monotonic revision number of the underlying ledger, if available. */
+  getRevision?(): number;
 
   /**
    * The ledger's recent rows, read and unread, for the menu bar popover and widgets.
