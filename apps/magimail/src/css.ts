@@ -38,10 +38,9 @@ export function getGmailCustomCss(): string {
   return `
 /* Magimail Clean Integration CSS */
 
-/* 1. Hide redundant browser/download banners and web app launcher */
+/* 1. Hide redundant browser/download banners */
 div[role="alert"]:has(a[href*="google.com/chrome"]),
-div[role="alert"]:has(a[href*="chrome"]),
-#gbwa {
+div[role="alert"]:has(a[href*="chrome"]) {
   display: none !important;
 }
 

@@ -52,11 +52,6 @@ div[role="dialog"]:has(a[href*="play.google.com"]) {
 ::-webkit-scrollbar-thumb { background: rgba(128,128,128,0.3); border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(128,128,128,0.55); }
 
-/* Redundant Google apps 3x3 launcher */
-#gbwa {
-  display: none !important;
-}
-
 /* Responsive Google Calendar banner: keep branding intact while preventing button overlap */
 header[role="banner"] > div,
 div[role="banner"] > div {
