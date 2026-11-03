@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { UnreadLedger, ATOM_READ_PATH_GRACE_MS } from '../src/mailbox/unread-ledger.js';
-import type { AtomMessage, TrayMessageItem } from '../src/mailbox/types.js';
+import type { AtomMessage, MailboxChangeEvent, TrayMessageItem } from '../src/mailbox/types.js';
 import { HybridFeedSource } from '../src/mailbox/hybrid-feed-source.js';
 import * as syncDriverModule from '../src/thread-actions/sync-driver.js';
 
@@ -1373,6 +1373,744 @@ describe('Scenario 5: Universal Sync Nudge Dispatch', () => {
     expect(changedEvent.unread.total).toBe(0);
 
     source.destroy();
+  });
+});
+
+describe('Local and Remote Read State Changes under Edge-Cache Lag (Primary & Promotions)', () => {
+  let pressRefreshSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    pressRefreshSpy = vi.spyOn(syncDriverModule, 'pressRefreshControl').mockResolvedValue(true);
+  });
+
+  afterEach(() => {
+    pressRefreshSpy.mockRestore();
+  });
+
+  function createHarness(accountId: string) {
+    let currentCachePayload: {
+      messages: any[];
+      categoryCounts: Record<string, number>;
+      stats?: { scanned?: number; inbox?: number };
+      cacheUpdatedAt?: number;
+    } = {
+      messages: [],
+      categoryCounts: {},
+      stats: { scanned: 0, inbox: 0 },
+    };
+    let currentPollerEntries: AtomMessage[] = [];
+    let currentFullCount = 0;
+    let pollCallback: (result: any) => void = () => {};
+
+    const mockWebContents = {
+      isDestroyed: () => false,
+      isLoading: () => false,
+      executeJavaScript: vi.fn(async () => currentCachePayload),
+    };
+    const mockView = { webContents: mockWebContents } as any;
+
+    const mockPoller = {
+      pollNow: vi.fn(async () => {
+        pollCallback({
+          accountId,
+          totalUnread: currentFullCount,
+          newMessages: currentPollerEntries,
+          newArrivalCount: currentFullCount,
+          rawFullCount: currentFullCount,
+          arrivalsIncomplete: false,
+          status: 'ok',
+        });
+      }),
+      stop: vi.fn(),
+      destroy: vi.fn(),
+      updateNotificationSettings: vi.fn(),
+      setFocusAndMissingCategories: vi.fn(),
+      getLatestEntries: vi.fn(() => currentPollerEntries),
+      getLastFullCount: vi.fn(() => currentFullCount),
+    };
+
+    const source = new HybridFeedSource(accountId, {
+      partition: `persist:${accountId}`,
+      getView: () => mockView,
+      threadActionDriver: { perform: async () => true },
+      pollerFactory: (_accId, _part, cb) => {
+        pollCallback = cb;
+        return mockPoller as any;
+      },
+    });
+
+    const events: MailboxChangeEvent[] = [];
+    const unsubscribe = source.onChanged((evt) => {
+      events.push(evt);
+    });
+
+    const triggerPoll = (entries?: AtomMessage[], fullCount?: number, sourceAsOf?: number) => {
+      if (entries !== undefined) currentPollerEntries = entries;
+      if (fullCount !== undefined) currentFullCount = fullCount;
+      pollCallback({
+        accountId,
+        totalUnread: currentFullCount,
+        newMessages: currentPollerEntries,
+        newArrivalCount: currentFullCount,
+        rawFullCount: currentFullCount,
+        arrivalsIncomplete: false,
+        sourceAsOf,
+        status: 'ok',
+      });
+    };
+
+    const setCache = (
+      messages: any[],
+      categoryCounts: Record<string, number> = {},
+      cacheUpdatedAt: number = Date.now(),
+    ) => {
+      currentCachePayload = {
+        messages,
+        categoryCounts,
+        stats: { scanned: messages.length, inbox: messages.length },
+        cacheUpdatedAt,
+      };
+    };
+
+    return {
+      source,
+      events,
+      triggerPoll,
+      setCache,
+      setPollerState: (entries: AtomMessage[], fullCount: number) => {
+        currentPollerEntries = entries;
+        currentFullCount = fullCount;
+      },
+      cleanup: () => {
+        unsubscribe();
+        source.destroy();
+      },
+    };
+  }
+
+  const primaryMsg = (id = 'p-1', threadId = 'th-p-1', unread = true): AtomMessage => ({
+    id,
+    threadId,
+    from: 'Alice <alice@example.com>',
+    subject: 'Primary Subject',
+    snippet: 'Primary snippet',
+    link: `https://mail.google.com/mail/u/0/#inbox/${threadId}`,
+    issued: new Date().toISOString(),
+    modified: new Date().toISOString(),
+    category: 'primary',
+  });
+
+  const promoMsg = (id = 'pr-1', threadId = 'th-pr-1', unread = true): AtomMessage => ({
+    id,
+    threadId,
+    from: 'Store <store@example.com>',
+    subject: 'Promo Offer',
+    snippet: 'Promo snippet',
+    link: `https://mail.google.com/mail/u/0/#inbox/${threadId}`,
+    issued: new Date().toISOString(),
+    modified: new Date().toISOString(),
+    category: 'promotions',
+  });
+
+  const cacheRow = (
+    id: string,
+    threadId: string,
+    category: 'primary' | 'promotions',
+    unread: boolean,
+    timestampMs = Date.now(),
+  ) => ({
+    id,
+    threadId,
+    from: category === 'primary' ? 'Alice <alice@example.com>' : 'Store <store@example.com>',
+    subject: category === 'primary' ? 'Primary Subject' : 'Promo Offer',
+    snippet: 'Snippet...',
+    timestampMs,
+    category,
+    unread,
+  });
+
+  describe('Scenario 1: Local triage with edge server / cache lag (anti-bounce)', () => {
+    it('Primary: local markRead and archive reflect immediately and resist lagging cache and Atom edge responses', async () => {
+      const h = createHarness('acc-p1-local');
+      const p1 = primaryMsg();
+
+      // 1. Initial poll establishes 1 unread message in Primary
+      h.setPollerState([p1], 1);
+      h.setCache([cacheRow('p-1', 'th-p-1', 'primary', true)]);
+      h.triggerPoll([p1], 1);
+      await h.source.getRecentMessages(5);
+
+      expect(h.source.getUnreadCounts().total).toBe(1);
+      expect(h.source.getUnreadCounts().byCategory.get('primary')).toBe(1);
+      h.events.length = 0;
+
+      // 2. Local markRead: immediate count update (0ms UI latency)
+      const ok = await h.source.triageThread('th-p-1', 'markRead');
+      expect(ok).toBe(true);
+      expect(h.source.getUnreadCounts().total).toBe(0);
+      expect(h.source.getUnreadCounts().byCategory.get('primary')).toBe(0);
+      expect(h.events.length).toBe(1);
+      expect(h.events[0].unread.total).toBe(0);
+      expect(h.events[0].delta.removedMessageIds).toContain('th-p-1');
+      h.events.length = 0;
+
+      // 3. Stale cache read: subsequent getRecentMessages reads lagging cache returning unread: true
+      const recent = await h.source.getRecentMessages(5);
+      const row = recent.find((m) => m.id === 'p-1' || m.threadId === 'th-p-1');
+      expect(row?.unread).toBe(false);
+      expect(h.source.getUnreadCounts().total).toBe(0);
+      expect(h.source.getUnreadCounts().byCategory.get('primary')).toBe(0);
+      // Anti-bounce: stale cache read must NOT bounce count or emit event
+      expect(h.events.length).toBe(0);
+
+      // 4. Lagging Atom poll within grace window (< ATOM_READ_PATH_GRACE_MS):
+      // Edge server still returns p1 and fullCount = 1
+      h.triggerPoll([p1], 1);
+      expect(h.source.getUnreadCounts().total).toBe(0);
+      expect(h.source.getUnreadCounts().byCategory.get('primary')).toBe(0);
+      expect(h.events.length).toBe(0);
+
+      // 5. Subsequent getRecentMessages calls continue to suppress resurrection
+      const recent2 = await h.source.getRecentMessages(5);
+      expect(recent2.find((m) => m.id === 'p-1')?.unread).toBe(false);
+      expect(h.source.getUnreadCounts().total).toBe(0);
+      expect(h.events.length).toBe(0);
+
+      // 6. Clean poll after edge catch-up: fullCount = 0, entries = []
+      h.triggerPoll([], 0);
+      expect(h.source.getUnreadCounts().total).toBe(0);
+      expect(h.events.length).toBe(0);
+
+      h.cleanup();
+    });
+
+    it('Primary: local archive reflects immediately and suppresses resurrection under lagging cache and Atom edge responses', async () => {
+      const h = createHarness('acc-p1-archive');
+      const p1 = primaryMsg();
+
+      h.setPollerState([p1], 1);
+      h.setCache([cacheRow('p-1', 'th-p-1', 'primary', true)]);
+      h.triggerPoll([p1], 1);
+      await h.source.getRecentMessages(5);
+      expect(h.source.getUnreadCounts().total).toBe(1);
+      h.events.length = 0;
+
+      // User archives locally
+      await h.source.triageThread('th-p-1', 'archive');
+      expect(h.source.getUnreadCounts().total).toBe(0);
+      expect(h.source.getUnreadCounts().byCategory.get('primary')).toBe(0);
+      expect(h.events.length).toBe(1);
+      h.events.length = 0;
+
+      // Stale cache read
+      await h.source.getRecentMessages(5);
+      expect(h.source.getUnreadCounts().total).toBe(0);
+      expect(h.events.length).toBe(0);
+
+      // Lagging Atom poll
+      h.triggerPoll([p1], 1);
+      expect(h.source.getUnreadCounts().total).toBe(0);
+      expect(h.events.length).toBe(0);
+
+      h.cleanup();
+    });
+
+    it('Primary: local markUnread reflects immediately and resists lagging cache and Atom edge responses', async () => {
+      const h = createHarness('acc-p1-unread');
+      const p1 = primaryMsg('p-1', 'th-p-1', false);
+
+      // Starts read (0 unread)
+      h.setPollerState([], 0);
+      h.setCache([cacheRow('p-1', 'th-p-1', 'primary', false)]);
+      h.triggerPoll([], 0);
+      await h.source.getRecentMessages(5);
+      expect(h.source.getUnreadCounts().total).toBe(0);
+      h.events.length = 0;
+
+      // Local markUnread
+      await h.source.triageThread('th-p-1', 'markUnread');
+      expect(h.source.getUnreadCounts().total).toBe(1);
+      expect(h.source.getUnreadCounts().byCategory.get('primary')).toBe(1);
+      expect(h.events.length).toBe(1);
+      expect(h.events[0].unread.total).toBe(1);
+      h.events.length = 0;
+
+      // Lagging cache still says unread: false
+      const recent = await h.source.getRecentMessages(5);
+      expect(recent.find((m) => m.id === 'p-1' || m.threadId === 'th-p-1')?.unread).toBe(true);
+      expect(h.source.getUnreadCounts().total).toBe(1);
+      expect(h.events.length).toBe(0);
+
+      // Lagging Atom poll still says fullCount: 0 and omits p1
+      h.triggerPoll([], 0);
+      expect(h.source.getUnreadCounts().total).toBe(1);
+      expect(h.source.getUnreadCounts().byCategory.get('primary')).toBe(1);
+      expect(h.events.length).toBe(0);
+
+      h.cleanup();
+    });
+
+    it('Promotions: local markRead reflects immediately and resists lagging cache and Atom edge responses', async () => {
+      const h = createHarness('acc-pr1-local');
+      const pr1 = promoMsg();
+
+      // 1. Initial poll establishes 1 unread message in Promotions
+      h.setPollerState([pr1], 1);
+      h.setCache([cacheRow('pr-1', 'th-pr-1', 'promotions', true)], { promotions: 1 });
+      h.triggerPoll([pr1], 1);
+      await h.source.getRecentMessages(5);
+
+      expect(h.source.getUnreadCounts().total).toBe(1);
+      expect(h.source.getUnreadCounts().byCategory.get('promotions')).toBe(1);
+      expect(h.source.getUnreadCounts().byCategory.get('primary')).toBe(0);
+      h.events.length = 0;
+
+      // 2. Local markRead: immediate count update (0ms UI latency)
+      const ok = await h.source.triageThread('th-pr-1', 'markRead');
+      expect(ok).toBe(true);
+      expect(h.source.getUnreadCounts().total).toBe(0);
+      expect(h.source.getUnreadCounts().byCategory.get('promotions')).toBe(0);
+      expect(h.events.length).toBe(1);
+      expect(h.events[0].unread.total).toBe(0);
+      expect(h.events[0].unread.byCategory.get('promotions')).toBe(0);
+      expect(h.events[0].delta.removedMessageIds).toContain('th-pr-1');
+      h.events.length = 0;
+
+      // 3. Stale cache read: subsequent getRecentMessages reads lagging cache returning unread: true
+      const recent = await h.source.getRecentMessages(5);
+      const row = recent.find((m) => m.id === 'pr-1' || m.threadId === 'th-pr-1');
+      expect(row?.unread).toBe(false);
+      expect(h.source.getUnreadCounts().total).toBe(0);
+      expect(h.source.getUnreadCounts().byCategory.get('promotions')).toBe(0);
+      expect(h.events.length).toBe(0);
+
+      // 4. Lagging Atom poll within grace window (< ATOM_READ_PATH_GRACE_MS)
+      h.triggerPoll([pr1], 1);
+      expect(h.source.getUnreadCounts().total).toBe(0);
+      expect(h.source.getUnreadCounts().byCategory.get('promotions')).toBe(0);
+      expect(h.events.length).toBe(0);
+
+      // 5. Subsequent getRecentMessages calls continue to suppress resurrection
+      const recent2 = await h.source.getRecentMessages(5);
+      expect(recent2.find((m) => m.id === 'pr-1')?.unread).toBe(false);
+      expect(h.source.getUnreadCounts().total).toBe(0);
+      expect(h.events.length).toBe(0);
+
+      h.cleanup();
+    });
+
+    it('Promotions: local archive reflects immediately and resists lagging cache and Atom edge responses', async () => {
+      const h = createHarness('acc-pr1-archive');
+      const pr1 = promoMsg();
+
+      h.setPollerState([pr1], 1);
+      h.setCache([cacheRow('pr-1', 'th-pr-1', 'promotions', true)], { promotions: 1 });
+      h.triggerPoll([pr1], 1);
+      await h.source.getRecentMessages(5);
+      expect(h.source.getUnreadCounts().total).toBe(1);
+      expect(h.source.getUnreadCounts().byCategory.get('promotions')).toBe(1);
+      h.events.length = 0;
+
+      await h.source.triageThread('th-pr-1', 'archive');
+      expect(h.source.getUnreadCounts().total).toBe(0);
+      expect(h.source.getUnreadCounts().byCategory.get('promotions')).toBe(0);
+      expect(h.events.length).toBe(1);
+      h.events.length = 0;
+
+      // Stale cache read
+      await h.source.getRecentMessages(5);
+      expect(h.source.getUnreadCounts().total).toBe(0);
+      expect(h.events.length).toBe(0);
+
+      // Lagging Atom poll
+      h.triggerPoll([pr1], 1);
+      expect(h.source.getUnreadCounts().total).toBe(0);
+      expect(h.events.length).toBe(0);
+
+      h.cleanup();
+    });
+
+    it('Promotions: local markUnread reflects immediately and resists lagging cache and Atom edge responses', async () => {
+      const h = createHarness('acc-pr1-unread');
+      const pr1 = promoMsg('pr-1', 'th-pr-1', false);
+
+      h.setPollerState([], 0);
+      h.setCache([cacheRow('pr-1', 'th-pr-1', 'promotions', false)]);
+      h.triggerPoll([], 0);
+      await h.source.getRecentMessages(5);
+      expect(h.source.getUnreadCounts().total).toBe(0);
+      h.events.length = 0;
+
+      await h.source.triageThread('th-pr-1', 'markUnread');
+      expect(h.source.getUnreadCounts().total).toBe(1);
+      expect(h.source.getUnreadCounts().byCategory.get('promotions')).toBe(1);
+      expect(h.events.length).toBe(1);
+      expect(h.events[0].unread.total).toBe(1);
+      h.events.length = 0;
+
+      // Lagging cache says unread: false
+      const recent = await h.source.getRecentMessages(5);
+      expect(recent.find((m) => m.id === 'pr-1' || m.threadId === 'th-pr-1')?.unread).toBe(true);
+      expect(h.source.getUnreadCounts().total).toBe(1);
+      expect(h.events.length).toBe(0);
+
+      // Lagging Atom poll omits pr1
+      h.triggerPoll([], 0);
+      expect(h.source.getUnreadCounts().total).toBe(1);
+      expect(h.source.getUnreadCounts().byCategory.get('promotions')).toBe(1);
+      expect(h.events.length).toBe(0);
+
+      h.cleanup();
+    });
+
+    it('Combined Primary & Promotions: interleaved local triage preserves category counts and anti-bounce protection', async () => {
+      const h = createHarness('acc-both-local');
+      const p1 = primaryMsg();
+      const pr1 = promoMsg();
+
+      // Initial: 1 in primary, 1 in promotions (total = 2)
+      h.setPollerState([p1, pr1], 2);
+      h.setCache(
+        [
+          cacheRow('p-1', 'th-p-1', 'primary', true),
+          cacheRow('pr-1', 'th-pr-1', 'promotions', true),
+        ],
+        { primary: 1, promotions: 1 },
+      );
+      h.triggerPoll([p1, pr1], 2);
+      await h.source.getRecentMessages(5);
+
+      expect(h.source.getUnreadCounts().total).toBe(2);
+      expect(h.source.getUnreadCounts().byCategory.get('primary')).toBe(1);
+      expect(h.source.getUnreadCounts().byCategory.get('promotions')).toBe(1);
+      h.events.length = 0;
+
+      // Triage Primary thread locally
+      await h.source.triageThread('th-p-1', 'archive');
+      expect(h.source.getUnreadCounts().total).toBe(1);
+      expect(h.source.getUnreadCounts().byCategory.get('primary')).toBe(0);
+      expect(h.source.getUnreadCounts().byCategory.get('promotions')).toBe(1);
+      expect(h.events.length).toBe(1);
+      h.events.length = 0;
+
+      // Lagging cache + Atom poll for Primary
+      await h.source.getRecentMessages(5);
+      h.triggerPoll([p1, pr1], 2);
+      expect(h.source.getUnreadCounts().total).toBe(1);
+      expect(h.source.getUnreadCounts().byCategory.get('primary')).toBe(0);
+      expect(h.source.getUnreadCounts().byCategory.get('promotions')).toBe(1);
+      expect(h.events.length).toBe(0);
+
+      // Triage Promotions thread locally
+      await h.source.triageThread('th-pr-1', 'markRead');
+      expect(h.source.getUnreadCounts().total).toBe(0);
+      expect(h.source.getUnreadCounts().byCategory.get('primary')).toBe(0);
+      expect(h.source.getUnreadCounts().byCategory.get('promotions')).toBe(0);
+      expect(h.events.length).toBe(1);
+      h.events.length = 0;
+
+      // Lagging cache + Atom poll for Promotions
+      await h.source.getRecentMessages(5);
+      h.triggerPoll([p1, pr1], 2);
+      expect(h.source.getUnreadCounts().total).toBe(0);
+      expect(h.events.length).toBe(0);
+
+      h.cleanup();
+    });
+  });
+
+  describe('Scenario 2: Remote read state changes via cache read (clean move & anti-oscillation)', () => {
+    it('Primary: remote markRead discovered via getRecentMessages emits single change event and does not oscillate under lagging Atom responses', async () => {
+      const h = createHarness('acc-p1-remote');
+      const p1 = primaryMsg();
+
+      // 1. Initial poll establishes 1 unread message in Primary, and initial cache read records baseline
+      h.setPollerState([p1], 1);
+      h.setCache([cacheRow('p-1', 'th-p-1', 'primary', true)]);
+      h.triggerPoll([p1], 1);
+      await h.source.getRecentMessages(5);
+      expect(h.source.getUnreadCounts().total).toBe(1);
+      expect(h.source.getUnreadCounts().byCategory.get('primary')).toBe(1);
+      h.events.length = 0;
+
+      // 2. Remote action: user marks p1 read on web/mobile
+      // Local cache is updated with unread: false
+      h.setCache([cacheRow('p-1', 'th-p-1', 'primary', false)], { primary: 0 });
+
+      // 3. getRecentMessages reconciles cache and discovers the remote read flip
+      const messages = await h.source.getRecentMessages(5);
+      const row = messages.find((m) => m.id === 'p-1' || m.threadId === 'th-p-1');
+      expect(row?.unread).toBe(false);
+
+      // Count moves cleanly 1 -> 0
+      expect(h.source.getUnreadCounts().total).toBe(0);
+      expect(h.source.getUnreadCounts().byCategory.get('primary')).toBe(0);
+
+      // Exactly ONE change event emitted
+      expect(h.events.length).toBe(1);
+      expect(h.events[0].unread.total).toBe(0);
+      expect(h.events[0].unread.byCategory.get('primary')).toBe(0);
+      h.events.length = 0;
+
+      // 4. Subsequent lagging Atom response (still returning p1, fullCount = 1)
+      h.triggerPoll([p1], 1);
+
+      // Count must NOT oscillate back to 1!
+      expect(h.source.getUnreadCounts().total).toBe(0);
+      expect(h.source.getUnreadCounts().byCategory.get('primary')).toBe(0);
+      expect(h.events.length).toBe(0);
+
+      // 5. Subsequent getRecentMessages calls must NOT oscillate or re-emit
+      const messages2 = await h.source.getRecentMessages(5);
+      expect(messages2.find((m) => m.id === 'p-1' || m.threadId === 'th-p-1')?.unread).toBe(false);
+      expect(h.source.getUnreadCounts().total).toBe(0);
+      expect(h.events.length).toBe(0);
+
+      h.cleanup();
+    });
+
+    it('Promotions: remote markRead discovered via getRecentMessages emits single change event and does not oscillate under lagging Atom responses', async () => {
+      const h = createHarness('acc-pr1-remote');
+      const pr1 = promoMsg();
+
+      // 1. Initial poll establishes 1 unread message in Promotions, and initial cache baseline is established
+      h.setPollerState([pr1], 1);
+      h.setCache([cacheRow('pr-1', 'th-pr-1', 'promotions', true)], { promotions: 1 });
+      h.triggerPoll([pr1], 1);
+      await h.source.getRecentMessages(5);
+      expect(h.source.getUnreadCounts().total).toBe(1);
+      expect(h.source.getUnreadCounts().byCategory.get('promotions')).toBe(1);
+      h.events.length = 0;
+
+      // 2. Remote action: user marks pr1 read on web/mobile
+      h.setCache([cacheRow('pr-1', 'th-pr-1', 'promotions', false)], { promotions: 0 });
+
+      // 3. getRecentMessages reconciles cache and discovers the remote read flip
+      const messages = await h.source.getRecentMessages(5);
+      const row = messages.find((m) => m.id === 'pr-1' || m.threadId === 'th-pr-1');
+      expect(row?.unread).toBe(false);
+
+      expect(h.source.getUnreadCounts().total).toBe(0);
+      expect(h.source.getUnreadCounts().byCategory.get('promotions')).toBe(0);
+
+      // Exactly ONE change event emitted
+      expect(h.events.length).toBe(1);
+      expect(h.events[0].unread.total).toBe(0);
+      expect(h.events[0].unread.byCategory.get('promotions')).toBe(0);
+      h.events.length = 0;
+
+      // 4. Subsequent lagging Atom response (still returning pr1, fullCount = 1)
+      h.triggerPoll([pr1], 1);
+      expect(h.source.getUnreadCounts().total).toBe(0);
+      expect(h.source.getUnreadCounts().byCategory.get('promotions')).toBe(0);
+      expect(h.events.length).toBe(0);
+
+      // 5. Subsequent getRecentMessages calls must NOT oscillate
+      const messages2 = await h.source.getRecentMessages(5);
+      expect(messages2.find((m) => m.id === 'pr-1' || m.threadId === 'th-pr-1')?.unread).toBe(
+        false,
+      );
+      expect(h.source.getUnreadCounts().total).toBe(0);
+      expect(h.events.length).toBe(0);
+
+      h.cleanup();
+    });
+
+    it('Primary & Promotions: remote read changes discovered via refresh() update breakdown cleanly without flapping', async () => {
+      const h = createHarness('acc-refresh-remote');
+      const p1 = primaryMsg();
+      const pr1 = promoMsg();
+
+      // Initial: 1 in primary, 1 in promotions (total = 2)
+      h.setPollerState([p1, pr1], 2);
+      h.setCache(
+        [
+          cacheRow('p-1', 'th-p-1', 'primary', true),
+          cacheRow('pr-1', 'th-pr-1', 'promotions', true),
+        ],
+        { primary: 1, promotions: 1 },
+      );
+      h.triggerPoll([p1, pr1], 2);
+      await h.source.getRecentMessages(5);
+      expect(h.source.getUnreadCounts().total).toBe(2);
+      expect(h.source.getUnreadCounts().byCategory.get('primary')).toBe(1);
+      expect(h.source.getUnreadCounts().byCategory.get('promotions')).toBe(1);
+      h.events.length = 0;
+
+      // Remote read for both p1 and pr1
+      h.setCache(
+        [
+          cacheRow('p-1', 'th-p-1', 'primary', false),
+          cacheRow('pr-1', 'th-pr-1', 'promotions', false),
+        ],
+        { primary: 0, promotions: 0 },
+      );
+
+      // refresh() polls Atom (which is lagging, returning [p1, pr1]) and then reconciles cache
+      await h.source.refresh();
+
+      expect(h.source.getUnreadCounts().total).toBe(0);
+      expect(h.source.getUnreadCounts().byCategory.get('primary')).toBe(0);
+      expect(h.source.getUnreadCounts().byCategory.get('promotions')).toBe(0);
+
+      // Exactly ONE change event emitted during refresh
+      expect(h.events.length).toBe(1);
+      expect(h.events[0].unread.total).toBe(0);
+      expect(h.events[0].unread.byCategory.get('primary')).toBe(0);
+      expect(h.events[0].unread.byCategory.get('promotions')).toBe(0);
+      h.events.length = 0;
+
+      // Subsequent lagging Atom poll does not bounce
+      h.triggerPoll([p1, pr1], 2);
+      expect(h.source.getUnreadCounts().total).toBe(0);
+      expect(h.events.length).toBe(0);
+
+      // Subsequent getRecentMessages does not oscillate
+      const messages = await h.source.getRecentMessages(5);
+      expect(messages.find((m) => m.id === 'p-1' || m.threadId === 'th-p-1')?.unread).toBe(false);
+      expect(messages.find((m) => m.id === 'pr-1' || m.threadId === 'th-pr-1')?.unread).toBe(false);
+      expect(h.source.getUnreadCounts().total).toBe(0);
+      expect(h.events.length).toBe(0);
+
+      h.cleanup();
+    });
+
+    it('Remote markUnread flip in Primary and Promotions discovered via getRecentMessages moves count and resists lagging Atom omission', async () => {
+      const h = createHarness('acc-remote-unread');
+      const p1 = primaryMsg('p-1', 'th-p-1', false);
+      const pr1 = promoMsg('pr-1', 'th-pr-1', false);
+
+      // Both start read (total = 0)
+      h.setPollerState([], 0);
+      h.setCache([
+        cacheRow('p-1', 'th-p-1', 'primary', false),
+        cacheRow('pr-1', 'th-pr-1', 'promotions', false),
+      ]);
+      h.triggerPoll([], 0);
+      await h.source.getRecentMessages(5);
+      expect(h.source.getUnreadCounts().total).toBe(0);
+      h.events.length = 0;
+
+      // Remote flip: p1 marked unread on web/mobile
+      h.setCache(
+        [
+          cacheRow('p-1', 'th-p-1', 'primary', true),
+          cacheRow('pr-1', 'th-pr-1', 'promotions', false),
+        ],
+        { primary: 1, promotions: 0 },
+      );
+
+      const messages = await h.source.getRecentMessages(5);
+      expect(messages.find((m) => m.id === 'p-1' || m.threadId === 'th-p-1')?.unread).toBe(true);
+      expect(h.source.getUnreadCounts().total).toBe(1);
+      expect(h.source.getUnreadCounts().byCategory.get('primary')).toBe(1);
+      expect(h.source.getUnreadCounts().byCategory.get('promotions')).toBe(0);
+      expect(h.events.length).toBe(1);
+      expect(h.events[0].unread.total).toBe(1);
+      h.events.length = 0;
+
+      // Lagging Atom poll still reports fullCount = 0 and omits p1
+      h.triggerPoll([], 0);
+      expect(h.source.getUnreadCounts().total).toBe(1);
+      expect(h.source.getUnreadCounts().byCategory.get('primary')).toBe(1);
+      expect(h.events.length).toBe(0);
+
+      // Remote flip: pr1 marked unread on web/mobile
+      h.setCache(
+        [
+          cacheRow('p-1', 'th-p-1', 'primary', true),
+          cacheRow('pr-1', 'th-pr-1', 'promotions', true),
+        ],
+        { primary: 1, promotions: 1 },
+      );
+
+      const messages2 = await h.source.getRecentMessages(5);
+      expect(messages2.find((m) => m.id === 'pr-1' || m.threadId === 'th-pr-1')?.unread).toBe(true);
+      expect(h.source.getUnreadCounts().total).toBe(2);
+      expect(h.source.getUnreadCounts().byCategory.get('primary')).toBe(1);
+      expect(h.source.getUnreadCounts().byCategory.get('promotions')).toBe(1);
+      expect(h.events.length).toBe(1);
+      expect(h.events[0].unread.total).toBe(2);
+      h.events.length = 0;
+
+      // Lagging Atom poll still reports 0 unread
+      h.triggerPoll([], 0);
+      expect(h.source.getUnreadCounts().total).toBe(2);
+      expect(h.source.getUnreadCounts().byCategory.get('primary')).toBe(1);
+      expect(h.source.getUnreadCounts().byCategory.get('promotions')).toBe(1);
+      expect(h.events.length).toBe(0);
+
+      h.cleanup();
+    });
+
+    it('Concurrent multi-category remote read/unread flips accurately update breakdown and total in single event', async () => {
+      const h = createHarness('acc-multi-flip');
+      const p1 = primaryMsg('p-1', 'th-p-1', true);
+      const p2 = primaryMsg('p-2', 'th-p-2', false);
+      const pr1 = promoMsg('pr-1', 'th-pr-1', true);
+      const pr2 = promoMsg('pr-2', 'th-pr-2', false);
+
+      // Initial state: p1 unread, p2 read, pr1 unread, pr2 read (total = 2)
+      h.setPollerState([p1, pr1], 2);
+      h.setCache(
+        [
+          cacheRow('p-1', 'th-p-1', 'primary', true),
+          cacheRow('p-2', 'th-p-2', 'primary', false),
+          cacheRow('pr-1', 'th-pr-1', 'promotions', true),
+          cacheRow('pr-2', 'th-pr-2', 'promotions', false),
+        ],
+        { primary: 1, promotions: 1 },
+      );
+      h.triggerPoll([p1, pr1], 2);
+      await h.source.getRecentMessages(10);
+
+      expect(h.source.getUnreadCounts().total).toBe(2);
+      expect(h.source.getUnreadCounts().byCategory.get('primary')).toBe(1);
+      expect(h.source.getUnreadCounts().byCategory.get('promotions')).toBe(1);
+      h.events.length = 0;
+
+      // Multi-category concurrent flip:
+      // p1 -> read (was unread)
+      // p2 -> unread (was read)
+      // pr1 -> read (was unread)
+      // pr2 -> read (unchanged)
+      // Net: primary = 1, promotions = 0, total = 1
+      h.setCache(
+        [
+          cacheRow('p-1', 'th-p-1', 'primary', false),
+          cacheRow('p-2', 'th-p-2', 'primary', true),
+          cacheRow('pr-1', 'th-pr-1', 'promotions', false),
+          cacheRow('pr-2', 'th-pr-2', 'promotions', false),
+        ],
+        { primary: 1, promotions: 0 },
+      );
+
+      const messages = await h.source.getRecentMessages(10);
+      expect(messages.find((m) => m.id === 'p-1' || m.threadId === 'th-p-1')?.unread).toBe(false);
+      expect(messages.find((m) => m.id === 'p-2' || m.threadId === 'th-p-2')?.unread).toBe(true);
+      expect(messages.find((m) => m.id === 'pr-1' || m.threadId === 'th-pr-1')?.unread).toBe(false);
+      expect(messages.find((m) => m.id === 'pr-2' || m.threadId === 'th-pr-2')?.unread).toBe(false);
+
+      expect(h.source.getUnreadCounts().total).toBe(1);
+      expect(h.source.getUnreadCounts().byCategory.get('primary')).toBe(1);
+      expect(h.source.getUnreadCounts().byCategory.get('promotions')).toBe(0);
+
+      // Exactly ONE change event emitted
+      expect(h.events.length).toBe(1);
+      expect(h.events[0].unread.total).toBe(1);
+      expect(h.events[0].unread.byCategory.get('primary')).toBe(1);
+      expect(h.events[0].unread.byCategory.get('promotions')).toBe(0);
+      h.events.length = 0;
+
+      // Lagging Atom poll (still with old state [p1, pr1], fullCount = 2) does not oscillate
+      h.triggerPoll([p1, pr1], 2);
+      expect(h.source.getUnreadCounts().total).toBe(1);
+      expect(h.source.getUnreadCounts().byCategory.get('primary')).toBe(1);
+      expect(h.source.getUnreadCounts().byCategory.get('promotions')).toBe(0);
+      expect(h.events.length).toBe(0);
+
+      h.cleanup();
+    });
   });
 });
 
