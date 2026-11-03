@@ -16,6 +16,12 @@ describe('getGmailCustomCss', () => {
     expect(css).toContain('div[role="alert"]:has(a[href*="google.com/chrome"])');
   });
 
+  it('hides the redundant Google apps launcher', () => {
+    const css = getGmailCustomCss();
+    expect(css).toContain('#gbwa');
+    expect(css).toMatch(/#gbwa\s*\{[^}]*display:\s*none\s*!important/);
+  });
+
   it('includes refined scrollbars', () => {
     const css = getGmailCustomCss();
     expect(css).toContain('::-webkit-scrollbar');
