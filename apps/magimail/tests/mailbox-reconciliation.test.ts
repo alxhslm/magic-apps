@@ -1254,6 +1254,126 @@ describe('Scenario 5: Universal Sync Nudge Dispatch', () => {
     expect(ok).toBe(false);
     source.destroy();
   });
+
+  it('emits change when getRecentMessages reconciles cache and moves unread count', async () => {
+    let changedEvent: any = null;
+    const mockWebContents = {
+      isDestroyed: () => false,
+      isLoading: () => false,
+      executeJavaScript: vi.fn().mockResolvedValue({
+        messages: [
+          {
+            id: 'm1',
+            threadId: 't1',
+            unread: false,
+            category: 'promotions',
+            modified: new Date(1000).toISOString(),
+          },
+        ],
+        categoryCounts: {},
+      }),
+    };
+    const mockView = { webContents: mockWebContents } as any;
+
+    let pollCallback: (result: any) => void = () => {};
+    const mockPoller = {
+      pollNow: vi.fn().mockResolvedValue(undefined),
+      stop: vi.fn(),
+      destroy: vi.fn(),
+      updateNotificationSettings: vi.fn(),
+      setFocusAndMissingCategories: vi.fn(),
+      getLatestEntries: vi.fn().mockReturnValue([
+        {
+          id: 'm1',
+          threadId: 't1',
+          from: 'Promo',
+          subject: 'Offer',
+          category: 'promotions',
+          modified: new Date(1000).toISOString(),
+        },
+      ]),
+    };
+
+    const source = new HybridFeedSource('acc-cache-emit', {
+      getView: () => mockView,
+      pollerFactory: (_accId, _part, cb) => {
+        pollCallback = cb;
+        return mockPoller as any;
+      },
+    });
+
+    source.onChanged((event) => {
+      changedEvent = event;
+    });
+
+    // 1. Initial poll establishes 1 unread message
+    pollCallback({
+      accountId: 'acc-cache-emit',
+      totalUnread: 1,
+      newMessages: [],
+      newArrivalCount: 1,
+      arrivalsIncomplete: false,
+      rawFullCount: 1,
+      status: 'ok',
+    });
+    expect(source.getUnreadCounts().total).toBe(1);
+    expect(changedEvent?.unread.total).toBe(1);
+
+    changedEvent = null;
+
+    // 2. getRecentMessages reads cache where m1 is read (total moves 1 -> 0)
+    const messages = await source.getRecentMessages(5);
+    expect(messages.length).toBe(1);
+    expect(messages[0].unread).toBe(false);
+    expect(source.getUnreadCounts().total).toBe(0);
+
+    // HybridFeedSource must manage its own change event when getRecentMessages moves count
+    expect(changedEvent).not.toBeNull();
+    expect(changedEvent.unread.total).toBe(0);
+
+    source.destroy();
+  });
+
+  it('emits initial change event on first poll establishing state even with 0 unread', async () => {
+    let changedEvent: any = null;
+    let pollCallback: (result: any) => void = () => {};
+    const mockPoller = {
+      pollNow: vi.fn().mockResolvedValue(undefined),
+      stop: vi.fn(),
+      destroy: vi.fn(),
+      updateNotificationSettings: vi.fn(),
+      setFocusAndMissingCategories: vi.fn(),
+      getLatestEntries: vi.fn().mockReturnValue([]),
+    };
+
+    const source = new HybridFeedSource('acc-zero-poll', {
+      pollerFactory: (_accId, _part, cb) => {
+        pollCallback = cb;
+        return mockPoller as any;
+      },
+    });
+
+    source.onChanged((event) => {
+      changedEvent = event;
+    });
+
+    // Initial poll with 0 unread
+    pollCallback({
+      accountId: 'acc-zero-poll',
+      totalUnread: 0,
+      newMessages: [],
+      newArrivalCount: 0,
+      arrivalsIncomplete: false,
+      rawFullCount: 0,
+      status: 'ok',
+    });
+
+    expect(source.getUnreadCounts().total).toBe(0);
+    expect(changedEvent).not.toBeNull();
+    expect(changedEvent.unread.total).toBe(0);
+
+    source.destroy();
+  });
 });
 
 /**

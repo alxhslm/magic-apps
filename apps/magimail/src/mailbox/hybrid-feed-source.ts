@@ -96,6 +96,8 @@ export class HybridFeedSource implements MailboxSource {
   /** One write of the stored counts at a time. */
   private countPersistTimer: ReturnType<typeof setTimeout> | null = null;
   private notificationSettings: Record<string, string> = {};
+  /** Total unread count at the time of the last emitted change event. */
+  private lastEmittedTotal: number | null = null;
 
   constructor(accountId: string, options: HybridFeedSourceOptions = {}) {
     this.accountId = accountId;
@@ -158,15 +160,22 @@ export class HybridFeedSource implements MailboxSource {
   public async getRecentMessages(limit = 20): Promise<TrayMessageItem[]> {
     const view = this.options.getView?.(this.accountId);
     if (view && !view.webContents.isDestroyed()) {
+      const before = this.ledger.getBreakdown().total;
+      let moved = 0;
       try {
         const snapshot = await readCachedInboxData(view.webContents, limit);
         if (snapshot) {
           this.reportCache(snapshot);
-          this.ledger.reconcileWithCache(snapshot.messages, Date.now(), snapshot.asOf);
+          moved = this.ledger.reconcileWithCache(
+            snapshot.messages,
+            Date.now(),
+            snapshot.asOf,
+          ).moved;
         }
       } catch (err) {
         log.warn(`Failed to read cached inbox data for ${this.accountId}:`, err);
       }
+      this.emitIfCountChanged(before, moved);
     }
 
     const items = this.ledger.getRecentMessages(limit);
@@ -237,16 +246,21 @@ export class HybridFeedSource implements MailboxSource {
     const view = this.options.getView?.(this.accountId);
     if (view && !view.webContents.isDestroyed()) {
       const before = this.ledger.getBreakdown().total;
+      let moved = 0;
       try {
         const snapshot = await readCachedInboxData(view.webContents, CACHE_HINT_MAX_ROWS);
         if (snapshot?.messages) {
           this.reportCache(snapshot);
-          this.ledger.reconcileWithCache(snapshot.messages, Date.now(), snapshot.asOf);
+          moved = this.ledger.reconcileWithCache(
+            snapshot.messages,
+            Date.now(),
+            snapshot.asOf,
+          ).moved;
         }
       } catch (err) {
         log.warn(`Cache refresh failed for ${this.accountId}:`, err);
       }
-      this.emitIfCountChanged(before);
+      this.emitIfCountChanged(before, moved);
     }
   }
 
@@ -363,8 +377,8 @@ export class HybridFeedSource implements MailboxSource {
     }
   }
 
-  private emitIfCountChanged(before: number): void {
-    if (this.ledger.getBreakdown().total === before) return;
+  private emitIfCountChanged(before: number, moved = 0): void {
+    if (this.ledger.getBreakdown().total === before && moved === 0) return;
     this.emitChange({ addedMessageIds: [], removedMessageIds: [], countChanged: true });
     this.persistCountsSoon();
   }
@@ -439,13 +453,19 @@ export class HybridFeedSource implements MailboxSource {
         result.sourceAsOf,
       );
 
-      if (delta.countChanged || delta.added.length > 0 || delta.removed.length > 0) {
-        await this.dispatchUniversalSyncNudge();
+      const breakdown = this.ledger.getBreakdown();
+      const needsInitialEmit = this.lastEmittedTotal === null && breakdown.hasState;
+      const countChanged =
+        delta.countChanged ||
+        (this.lastEmittedTotal !== null && this.lastEmittedTotal !== breakdown.total);
+
+      if (needsInitialEmit || countChanged || delta.added.length > 0 || delta.removed.length > 0) {
         this.emitChange({
           addedMessageIds: delta.added,
           removedMessageIds: delta.removed,
-          countChanged: delta.countChanged,
+          countChanged: countChanged || needsInitialEmit,
         });
+        await this.dispatchUniversalSyncNudge();
       }
     }
 
@@ -465,6 +485,7 @@ export class HybridFeedSource implements MailboxSource {
     countChanged: boolean;
   }): void {
     const unread = this.ledger.getBreakdown();
+    this.lastEmittedTotal = unread.total;
     const event: MailboxChangeEvent = {
       accountId: this.accountId,
       unread,
