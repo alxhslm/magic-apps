@@ -182,6 +182,7 @@ export class HybridFeedSource implements MailboxSource {
   public async getLatestVerificationCode(maxAgeMs?: number): Promise<VerificationCodeItem | null> {
     const fromLedger = this.ledger.getLatestVerificationCode(this.accountId, maxAgeMs);
     if (fromLedger) return fromLedger;
+    if (this.ledger.getBreakdown().hasState) return null;
 
     const entries = this.poller.getLatestEntries();
     const now = Date.now();

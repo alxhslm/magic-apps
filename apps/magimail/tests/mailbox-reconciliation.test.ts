@@ -1387,7 +1387,18 @@ describe('Local and Remote Read State Changes under Edge-Cache Lag (Primary & Pr
     pressRefreshSpy.mockRestore();
   });
 
-  function createHarness(accountId: string) {
+  function createHarness(
+    accountId: string,
+    options: {
+      threadDriverPerform?: (
+        webContents: any,
+        accountId: string,
+        threadId: string,
+        action: any,
+      ) => Promise<boolean>;
+      notificationSettings?: Record<string, string>;
+    } = {},
+  ) {
     let currentCachePayload: {
       messages: any[];
       categoryCounts: Record<string, number>;
@@ -1417,7 +1428,7 @@ describe('Local and Remote Read State Changes under Edge-Cache Lag (Primary & Pr
           newMessages: currentPollerEntries,
           newArrivalCount: currentFullCount,
           rawFullCount: currentFullCount,
-          arrivalsIncomplete: false,
+          arrivalsIncomplete: currentFullCount > 20,
           status: 'ok',
         });
       }),
@@ -1431,8 +1442,11 @@ describe('Local and Remote Read State Changes under Edge-Cache Lag (Primary & Pr
 
     const source = new HybridFeedSource(accountId, {
       partition: `persist:${accountId}`,
+      notificationSettings: options.notificationSettings,
       getView: () => mockView,
-      threadActionDriver: { perform: async () => true },
+      threadActionDriver: {
+        perform: options.threadDriverPerform ?? (async () => true),
+      },
       pollerFactory: (_accId, _part, cb) => {
         pollCallback = cb;
         return mockPoller as any;
@@ -1444,7 +1458,13 @@ describe('Local and Remote Read State Changes under Edge-Cache Lag (Primary & Pr
       events.push(evt);
     });
 
-    const triggerPoll = (entries?: AtomMessage[], fullCount?: number, sourceAsOf?: number) => {
+    const triggerPoll = (
+      entries?: AtomMessage[],
+      fullCount?: number,
+      sourceAsOf?: number,
+      categoryCounts?: Map<NotificationCategory, number>,
+      arrivalsIncomplete?: boolean,
+    ) => {
       if (entries !== undefined) currentPollerEntries = entries;
       if (fullCount !== undefined) currentFullCount = fullCount;
       pollCallback({
@@ -1453,8 +1473,10 @@ describe('Local and Remote Read State Changes under Edge-Cache Lag (Primary & Pr
         newMessages: currentPollerEntries,
         newArrivalCount: currentFullCount,
         rawFullCount: currentFullCount,
-        arrivalsIncomplete: false,
+        arrivalsIncomplete:
+          arrivalsIncomplete !== undefined ? arrivalsIncomplete : currentFullCount > 20,
         sourceAsOf,
+        categoryCounts,
         status: 'ok',
       });
     };
@@ -1528,6 +1550,50 @@ describe('Local and Remote Read State Changes under Edge-Cache Lag (Primary & Pr
     category,
     unread,
   });
+
+  const createCategoryAtomMsg = (
+    id: string,
+    category: NotificationCategory = 'primary',
+    subject = `${category} Subject`,
+    threadId = `th-${id}`,
+    modified: Date = new Date(),
+    snippet = `${category} Snippet`,
+  ): AtomMessage => ({
+    id,
+    threadId,
+    from: `${category} Sender <sender@example.com>`,
+    subject,
+    snippet,
+    link: `https://mail.google.com/mail/u/0/#inbox/${threadId}`,
+    issued: modified.toISOString(),
+    modified: modified.toISOString(),
+    category,
+  });
+
+  const createCategoryCacheRow = (
+    id: string,
+    category: NotificationCategory = 'primary',
+    unread = true,
+    subject = `${category} Subject`,
+    threadId = `th-${id}`,
+    timestampMs = Date.now(),
+    snippet = `${category} Snippet`,
+  ) => ({
+    id,
+    threadId,
+    from: `${category} Sender <sender@example.com>`,
+    subject,
+    snippet,
+    timestampMs,
+    category,
+    unread,
+    modified: new Date(timestampMs),
+  });
+
+  const countedCategoriesSet = (settings: Record<string, string>): Set<NotificationCategory> => {
+    const all: NotificationCategory[] = ['primary', 'updates', 'promotions', 'social', 'forums'];
+    return new Set(all.filter((cat) => settings[cat] !== 'off'));
+  };
 
   describe('Scenario 1: Local triage with edge server / cache lag (anti-bounce)', () => {
     it('Primary: local markRead and archive reflect immediately and resist lagging cache and Atom edge responses', async () => {
@@ -2270,6 +2336,784 @@ describe('Local and Remote Read State Changes under Edge-Cache Lag (Primary & Pr
 
       expect(h.source.getRevision()).toBe(rev1);
       expect(h.events.length).toBe(0);
+
+      h.cleanup();
+    });
+  });
+
+  describe('Scenario 4: Zero-Sum Turnover Across All Categories', () => {
+    const nonPrimaryCategories = ['updates', 'promotions', 'social', 'forums'] as const;
+
+    for (const category of nonPrimaryCategories) {
+      it(`within ${category} (unsilenced): advances revision, emits change event, preserves total and updates dock badge`, async () => {
+        const settings = {
+          primary: 'loud',
+          updates: 'badge',
+          promotions: 'badge',
+          social: 'badge',
+          forums: 'badge',
+        };
+        const h = createHarness(`acc-zero-${category}-on`, { notificationSettings: settings });
+        const now = Date.now();
+        const msgA = createCategoryAtomMsg(
+          `msg-${category}-a`,
+          category,
+          `${category} A`,
+          `th-${category}-a`,
+          new Date(now - 10_000),
+        );
+        const msgB = createCategoryAtomMsg(
+          `msg-${category}-b`,
+          category,
+          `${category} B`,
+          `th-${category}-b`,
+          new Date(now - 5_000),
+        );
+
+        // 1. Initial poll establishes msgA unread
+        h.setPollerState([msgA], 1);
+        h.triggerPoll([msgA], 1);
+        expect(h.source.getUnreadCounts().total).toBe(1);
+        expect(h.source.getUnreadCounts().byCategory.get(category)).toBe(1);
+        expect(h.source.getUnreadCountFor(countedCategoriesSet(settings))).toBe(1);
+        const rev1 = h.source.getRevision();
+        expect(rev1).toBeGreaterThan(0);
+        expect(h.events.length).toBe(1);
+        h.events.length = 0;
+
+        // 2. Poll: msgA is marked read, msgB arrives unread (zero-sum)
+        h.setPollerState([msgB], 1);
+        h.triggerPoll([msgB], 1);
+
+        expect(h.source.getUnreadCounts().total).toBe(1);
+        expect(h.source.getUnreadCounts().byCategory.get(category)).toBe(1);
+        expect(h.source.getUnreadCountFor(countedCategoriesSet(settings))).toBe(1);
+        expect(h.source.getRevision()).toBeGreaterThan(rev1);
+        expect(h.events.length).toBe(1);
+        expect(h.events[0].unread.total).toBe(1);
+        expect(
+          h.events[0].recentMessages.some((m) => m.id === `msg-${category}-b` && m.unread),
+        ).toBe(true);
+
+        h.cleanup();
+      });
+
+      it(`within ${category} (silenced): advances revision and emits change event while Dock badge remains 0`, async () => {
+        const settings = {
+          primary: 'loud',
+          updates: 'badge',
+          promotions: 'badge',
+          social: 'badge',
+          forums: 'badge',
+          [category]: 'off',
+        };
+        const h = createHarness(`acc-zero-${category}-off`, { notificationSettings: settings });
+        const now = Date.now();
+        const msgA = createCategoryAtomMsg(
+          `msg-sil-${category}-a`,
+          category,
+          `${category} A`,
+          `th-sil-${category}-a`,
+          new Date(now - 10_000),
+        );
+        const msgB = createCategoryAtomMsg(
+          `msg-sil-${category}-b`,
+          category,
+          `${category} B`,
+          `th-sil-${category}-b`,
+          new Date(now - 5_000),
+        );
+
+        // 1. Initial poll establishes msgA unread
+        h.setPollerState([msgA], 1);
+        h.triggerPoll([msgA], 1);
+        expect(h.source.getUnreadCounts().total).toBe(1);
+        expect(h.source.getUnreadCounts().byCategory.get(category)).toBe(1);
+        // Silenced category excluded from Dock badge
+        expect(h.source.getUnreadCountFor(countedCategoriesSet(settings))).toBe(0);
+        const rev1 = h.source.getRevision();
+        h.events.length = 0;
+
+        // 2. Zero-sum turnover within silenced category
+        h.setPollerState([msgB], 1);
+        h.triggerPoll([msgB], 1);
+
+        expect(h.source.getUnreadCounts().total).toBe(1);
+        expect(h.source.getUnreadCounts().byCategory.get(category)).toBe(1);
+        expect(h.source.getUnreadCountFor(countedCategoriesSet(settings))).toBe(0);
+        expect(h.source.getRevision()).toBeGreaterThan(rev1);
+        expect(h.events.length).toBe(1);
+
+        h.cleanup();
+      });
+    }
+
+    it('cross-category: 1 Primary read while 1 Social arrives (Social silenced) emits change and decreases Dock badge', async () => {
+      const settings = {
+        primary: 'loud',
+        updates: 'badge',
+        promotions: 'badge',
+        social: 'off',
+        forums: 'badge',
+      };
+      const h = createHarness('acc-cross-p-to-s', { notificationSettings: settings });
+      const now = Date.now();
+      const p1 = createCategoryAtomMsg(
+        'p1',
+        'primary',
+        'Primary Subject',
+        'th-p1',
+        new Date(now - 10_000),
+      );
+      const s1 = createCategoryAtomMsg(
+        's1',
+        'social',
+        'Social Subject',
+        'th-s1',
+        new Date(now - 5_000),
+      );
+
+      // 1. Initial state: 1 Primary message unread
+      h.setPollerState([p1], 1);
+      h.triggerPoll([p1], 1);
+      expect(h.source.getUnreadCounts().total).toBe(1);
+      expect(h.source.getUnreadCounts().byCategory.get('primary')).toBe(1);
+      expect(h.source.getUnreadCounts().byCategory.get('social') ?? 0).toBe(0);
+      expect(h.source.getUnreadCountFor(countedCategoriesSet(settings))).toBe(1);
+      const rev1 = h.source.getRevision();
+      h.events.length = 0;
+
+      // 2. Turnover: p1 read, s1 arrives unread (total remains 1)
+      h.setPollerState([s1], 1);
+      h.triggerPoll([s1], 1);
+
+      expect(h.source.getUnreadCounts().total).toBe(1);
+      expect(h.source.getUnreadCounts().byCategory.get('primary') ?? 0).toBe(0);
+      expect(h.source.getUnreadCounts().byCategory.get('social')).toBe(1);
+      // Dock badge drops to 0 because Social is silenced!
+      expect(h.source.getUnreadCountFor(countedCategoriesSet(settings))).toBe(0);
+      expect(h.source.getRevision()).toBeGreaterThan(rev1);
+      expect(h.events.length).toBe(1);
+      expect(h.events[0].unread.total).toBe(1);
+      expect(h.events[0].unread.byCategory.get('social')).toBe(1);
+
+      h.cleanup();
+    });
+
+    it('cross-category: 1 Social read while 1 Primary arrives (Social silenced) emits change and increases Dock badge', async () => {
+      const settings = {
+        primary: 'loud',
+        updates: 'badge',
+        promotions: 'badge',
+        social: 'off',
+        forums: 'badge',
+      };
+      const h = createHarness('acc-cross-s-to-p', { notificationSettings: settings });
+      const now = Date.now();
+      const s1 = createCategoryAtomMsg(
+        's1',
+        'social',
+        'Social Subject',
+        'th-s1',
+        new Date(now - 10_000),
+      );
+      const p1 = createCategoryAtomMsg(
+        'p1',
+        'primary',
+        'Primary Subject',
+        'th-p1',
+        new Date(now - 5_000),
+      );
+
+      // 1. Initial state: 1 Social message unread
+      h.setPollerState([s1], 1);
+      h.triggerPoll([s1], 1);
+      expect(h.source.getUnreadCounts().total).toBe(1);
+      expect(h.source.getUnreadCounts().byCategory.get('social')).toBe(1);
+      expect(h.source.getUnreadCountFor(countedCategoriesSet(settings))).toBe(0);
+      const rev1 = h.source.getRevision();
+      h.events.length = 0;
+
+      // 2. Turnover: s1 read, p1 arrives unread
+      h.setPollerState([p1], 1);
+      h.triggerPoll([p1], 1);
+
+      expect(h.source.getUnreadCounts().total).toBe(1);
+      expect(h.source.getUnreadCounts().byCategory.get('primary')).toBe(1);
+      expect(h.source.getUnreadCounts().byCategory.get('social') ?? 0).toBe(0);
+      // Dock badge rises to 1 because Primary is counted!
+      expect(h.source.getUnreadCountFor(countedCategoriesSet(settings))).toBe(1);
+      expect(h.source.getRevision()).toBeGreaterThan(rev1);
+      expect(h.events.length).toBe(1);
+
+      h.cleanup();
+    });
+
+    it('cross-category: non-primary to non-primary turnover (Updates silenced, Forums counted)', async () => {
+      const settings = {
+        primary: 'loud',
+        updates: 'off',
+        promotions: 'badge',
+        social: 'badge',
+        forums: 'badge',
+      };
+      const h = createHarness('acc-cross-u-to-f', { notificationSettings: settings });
+      const now = Date.now();
+      const u1 = createCategoryAtomMsg(
+        'u1',
+        'updates',
+        'Updates Subject',
+        'th-u1',
+        new Date(now - 10_000),
+      );
+      const f1 = createCategoryAtomMsg(
+        'f1',
+        'forums',
+        'Forums Subject',
+        'th-f1',
+        new Date(now - 5_000),
+      );
+
+      // 1. Initial state: 1 Updates message unread
+      h.setPollerState([u1], 1);
+      h.triggerPoll([u1], 1);
+      expect(h.source.getUnreadCounts().total).toBe(1);
+      expect(h.source.getUnreadCountFor(countedCategoriesSet(settings))).toBe(0);
+      const rev1 = h.source.getRevision();
+      h.events.length = 0;
+
+      // 2. Turnover: u1 read, f1 arrives unread
+      h.setPollerState([f1], 1);
+      h.triggerPoll([f1], 1);
+
+      expect(h.source.getUnreadCounts().total).toBe(1);
+      expect(h.source.getUnreadCounts().byCategory.get('updates') ?? 0).toBe(0);
+      expect(h.source.getUnreadCounts().byCategory.get('forums')).toBe(1);
+      expect(h.source.getUnreadCountFor(countedCategoriesSet(settings))).toBe(1);
+      expect(h.source.getRevision()).toBeGreaterThan(rev1);
+      expect(h.events.length).toBe(1);
+
+      h.cleanup();
+    });
+
+    it('multi-category zero-sum churn: multiple reads and arrivals preserve total while updating counts and badge', async () => {
+      const settings = {
+        primary: 'loud',
+        updates: 'badge',
+        promotions: 'off',
+        social: 'off',
+        forums: 'badge',
+      };
+      const h = createHarness('acc-multi-churn', { notificationSettings: settings });
+      const now = Date.now();
+      const p1 = createCategoryAtomMsg(
+        'p1',
+        'primary',
+        'Primary 1',
+        'th-p1',
+        new Date(now - 10_000),
+      );
+      const u1 = createCategoryAtomMsg(
+        'u1',
+        'updates',
+        'Updates 1',
+        'th-u1',
+        new Date(now - 9_000),
+      );
+      const pr1 = createCategoryAtomMsg(
+        'pr1',
+        'promotions',
+        'Promo 1',
+        'th-pr1',
+        new Date(now - 4_000),
+      );
+      const s1 = createCategoryAtomMsg('s1', 'social', 'Social 1', 'th-s1', new Date(now - 3_000));
+
+      // Initial state: p1 and u1 unread (total = 2, dock badge = 2)
+      h.setPollerState([p1, u1], 2);
+      h.triggerPoll([p1, u1], 2);
+      expect(h.source.getUnreadCounts().total).toBe(2);
+      expect(h.source.getUnreadCountFor(countedCategoriesSet(settings))).toBe(2);
+      const rev1 = h.source.getRevision();
+      h.events.length = 0;
+
+      // Turnover: p1 and u1 are read; pr1 and s1 arrive unread (total remains 2)
+      h.setPollerState([pr1, s1], 2);
+      h.triggerPoll([pr1, s1], 2);
+
+      expect(h.source.getUnreadCounts().total).toBe(2);
+      expect(h.source.getUnreadCounts().byCategory.get('primary') ?? 0).toBe(0);
+      expect(h.source.getUnreadCounts().byCategory.get('updates') ?? 0).toBe(0);
+      expect(h.source.getUnreadCounts().byCategory.get('promotions')).toBe(1);
+      expect(h.source.getUnreadCounts().byCategory.get('social')).toBe(1);
+      // Both promotions and social are silenced, so Dock badge is 0!
+      expect(h.source.getUnreadCountFor(countedCategoriesSet(settings))).toBe(0);
+      expect(h.source.getRevision()).toBeGreaterThan(rev1);
+      expect(h.events.length).toBe(1);
+
+      h.cleanup();
+    });
+  });
+
+  describe('Scenario 5: Backlog Window Turnover (>20 emails)', () => {
+    it('advances revision, preserves ceiling, keeps arrivalsIncomplete true when item is read in cache and new unread shifts in', async () => {
+      const h = createHarness('acc-backlog-turnover');
+      const now = Date.now();
+
+      // Create 20 atom entries for a backlog of 45 items
+      const initialEntries: AtomMessage[] = [];
+      for (let i = 1; i <= 20; i++) {
+        const id = `item-${String(i).padStart(2, '0')}`;
+        initialEntries.push(
+          createCategoryAtomMsg(
+            id,
+            'primary',
+            `Subject ${id}`,
+            `th-${id}`,
+            new Date(now - i * 1000),
+          ),
+        );
+      }
+
+      // 1. Initial poll establishes backlog (45 unread, 20 items in truncated feed)
+      h.setPollerState(initialEntries, 45);
+      h.triggerPoll(initialEntries, 45, now, undefined, true);
+
+      expect(h.source.getUnreadCounts().total).toBe(45);
+      expect(h.source.isArrivalsIncomplete()).toBe(true);
+      const rev1 = h.source.getRevision();
+      expect(rev1).toBeGreaterThan(0);
+      expect(h.events.length).toBe(1);
+      expect(h.events[0].unread.total).toBe(45);
+      h.events.length = 0;
+
+      // 2. Cache read: item-01 is marked read; item-21 shifts into window as unread
+      // Cache snapshot contains item-01 (read), item-02..20 (unread), item-21 (unread)
+      const cacheRows: any[] = [
+        createCategoryCacheRow(
+          'item-01',
+          'primary',
+          false,
+          'Subject item-01',
+          'th-item-01',
+          now - 1000,
+        ),
+      ];
+      for (let i = 2; i <= 21; i++) {
+        const id = `item-${String(i).padStart(2, '0')}`;
+        cacheRows.push(
+          createCategoryCacheRow(id, 'primary', true, `Subject ${id}`, `th-${id}`, now - i * 1000),
+        );
+      }
+      h.setCache(cacheRows, {}, now);
+      await h.source.getRecentMessages(20);
+
+      // Verify revision advances, total does not oscillate or exceed ceiling (stays 45), arrivalsIncomplete remains true
+      const rev2 = h.source.getRevision();
+      expect(rev2).toBeGreaterThan(rev1);
+      expect(h.source.getUnreadCounts().total).toBe(45);
+      expect(h.source.isArrivalsIncomplete()).toBe(true);
+      expect(h.events.length).toBe(1);
+      expect(h.events[0].unread.total).toBe(45);
+      // Item 21 is now present in recent messages
+      const recent = await h.source.getRecentMessages(25);
+      expect(recent.some((m) => m.id === 'item-21' && m.unread)).toBe(true);
+      expect(recent.some((m) => m.id === 'item-01' && !m.unread)).toBe(true);
+      h.events.length = 0;
+
+      // 3. Second turnover: item-02 marked read, item-22 shifts in
+      cacheRows[0] = createCategoryCacheRow(
+        'item-01',
+        'primary',
+        false,
+        'Subject item-01',
+        'th-item-01',
+        now - 1000,
+      );
+      cacheRows[1] = createCategoryCacheRow(
+        'item-02',
+        'primary',
+        false,
+        'Subject item-02',
+        'th-item-02',
+        now - 2000,
+      );
+      cacheRows.push(
+        createCategoryCacheRow(
+          'item-22',
+          'primary',
+          true,
+          'Subject item-22',
+          `th-item-22`,
+          now - 22 * 1000,
+        ),
+      );
+      h.setCache(cacheRows, {}, now + 1000);
+      await h.source.getRecentMessages(20);
+
+      const rev3 = h.source.getRevision();
+      expect(rev3).toBeGreaterThan(rev2);
+      expect(h.source.getUnreadCounts().total).toBe(45);
+      expect(h.source.isArrivalsIncomplete()).toBe(true);
+      expect(h.events.length).toBe(1);
+      h.events.length = 0;
+
+      // 4. Remote Atom poll catches up and reduces fullCount to 43 (backlog reduction)
+      const updatedEntries = initialEntries.slice(2);
+      updatedEntries.push(
+        createCategoryAtomMsg(
+          'item-21',
+          'primary',
+          'Subject item-21',
+          'th-item-21',
+          new Date(now - 21 * 1000),
+        ),
+        createCategoryAtomMsg(
+          'item-22',
+          'primary',
+          'Subject item-22',
+          'th-item-22',
+          new Date(now - 22 * 1000),
+        ),
+      );
+      h.setPollerState(updatedEntries, 43);
+      h.triggerPoll(updatedEntries, 43, now + 5000, undefined, true);
+
+      const rev4 = h.source.getRevision();
+      expect(rev4).toBeGreaterThan(rev3);
+      expect(h.source.getUnreadCounts().total).toBe(43);
+      expect(h.source.isArrivalsIncomplete()).toBe(true);
+      expect(h.events.length).toBe(1);
+      expect(h.events[0].unread.total).toBe(43);
+
+      h.cleanup();
+    });
+  });
+
+  describe('Scenario 6: In-Flight & Rollback Triage Under Revision Tracking', () => {
+    it('advances revision and emits immediately on local triage; when driver succeeds, accepts without redundant bounce', async () => {
+      const h = createHarness('acc-triage-success', {
+        threadDriverPerform: async () => true,
+      });
+      const now = Date.now();
+      const msg = createCategoryAtomMsg('msg-ok', 'primary', 'Triage Me', 'th-ok', new Date(now));
+
+      h.setPollerState([msg], 1);
+      h.triggerPoll([msg], 1);
+      expect(h.source.getUnreadCounts().total).toBe(1);
+      const rev0 = h.source.getRevision();
+      h.events.length = 0;
+
+      // 1. Triage thread: immediately marks optimistic in ledger and emits
+      const triagePromise = h.source.triageThread('th-ok', 'archive');
+
+      // Check immediate optimistic state
+      expect(h.source.getUnreadCounts().total).toBe(0);
+      const rev1 = h.source.getRevision();
+      expect(rev1).toBeGreaterThan(rev0);
+      expect(h.events.length).toBe(1);
+      expect(h.events[0].unread.total).toBe(0);
+      expect(h.events[0].delta.removedMessageIds).toContain('th-ok');
+
+      // 2. Await driver success
+      const success = await triagePromise;
+      expect(success).toBe(true);
+
+      // Acceptance does not alter observable state signature, so revision does not bounce and no extra event fires
+      expect(h.source.getRevision()).toBe(rev1);
+      expect(h.events.length).toBe(1);
+
+      // 3. Stale lagging edge poll arrives restating msg-ok as unread within grace window
+      h.triggerPoll([msg], 1, now);
+      expect(h.source.getUnreadCounts().total).toBe(0);
+      expect(h.source.getRevision()).toBe(rev1);
+      expect(h.events.length).toBe(1);
+
+      h.cleanup();
+    });
+
+    it('advances revision on local triage, and when driver fails, advances revision again and emits restored state', async () => {
+      const h = createHarness('acc-triage-rollback', {
+        threadDriverPerform: async () => false,
+      });
+      const now = Date.now();
+      const msg = createCategoryAtomMsg(
+        'msg-fail',
+        'primary',
+        'Fail Triage',
+        'th-fail',
+        new Date(now),
+      );
+
+      h.setPollerState([msg], 1);
+      h.triggerPoll([msg], 1);
+      expect(h.source.getUnreadCounts().total).toBe(1);
+      const rev0 = h.source.getRevision();
+      h.events.length = 0;
+
+      // 1. Perform triage which will fail
+      const success = await h.source.triageThread('th-fail', 'archive');
+      expect(success).toBe(false);
+
+      // Verification:
+      // Revision bumped twice:
+      // - First for the optimistic action (total 1 -> 0)
+      // - Second for the rollback (total 0 -> 1)
+      const rev2 = h.source.getRevision();
+      expect(rev2).toBeGreaterThan(rev0 + 1);
+
+      // Two events emitted: optimistic hide, then rollback restore
+      expect(h.events.length).toBe(2);
+      expect(h.events[0].unread.total).toBe(0);
+      expect(h.events[0].delta.removedMessageIds).toContain('th-fail');
+      expect(h.events[1].unread.total).toBe(1);
+
+      // Final unread count and recent items are restored
+      expect(h.source.getUnreadCounts().total).toBe(1);
+      const recent = await h.source.getRecentMessages(5);
+      expect(recent.some((m) => m.id === 'msg-fail' && m.unread)).toBe(true);
+
+      h.cleanup();
+    });
+
+    it('rolls back local markUnread when driver fails: advances revision twice and restores read state', async () => {
+      const h = createHarness('acc-mark-unread-fail', {
+        threadDriverPerform: async () => false,
+      });
+      const now = Date.now();
+      // Start with message already in ledger as read
+      h.setCache([
+        createCategoryCacheRow('msg-read', 'primary', false, 'Read Message', 'th-read', now),
+      ]);
+      await h.source.getRecentMessages(5);
+      expect(h.source.getUnreadCounts().total).toBe(0);
+      const rev0 = h.source.getRevision();
+      h.events.length = 0;
+
+      // 1. Trigger markUnread triage which will fail
+      const success = await h.source.triageThread('th-read', 'markUnread');
+      expect(success).toBe(false);
+
+      // Revision bumped twice: once on optimistic markUnread, once on rollback
+      const rev2 = h.source.getRevision();
+      expect(rev2).toBeGreaterThan(rev0 + 1);
+
+      // Two events emitted: total 0 -> 1, then rollback total 1 -> 0
+      expect(h.events.length).toBe(2);
+      expect(h.events[0].unread.total).toBe(1);
+      expect(h.events[1].unread.total).toBe(0);
+      expect(h.source.getUnreadCounts().total).toBe(0);
+
+      h.cleanup();
+    });
+  });
+
+  describe('Scenario 7: Stress & Rapid Interleaving under Edge-Server Lag', () => {
+    it('maintains zero count flapping and zero duplicate events under rapid alternating cache reads and stale Atom polls', async () => {
+      const h = createHarness('acc-stress-lag');
+      const t0 = 10_000;
+      const m1 = createCategoryAtomMsg('m1', 'primary', 'Subject 1', 'th-1', new Date(t0));
+      const m2 = createCategoryAtomMsg('m2', 'primary', 'Subject 2', 'th-2', new Date(t0));
+      const m3 = createCategoryAtomMsg('m3', 'primary', 'Subject 3', 'th-3', new Date(t0));
+
+      // 1. Initial poll establishes 3 unread messages
+      h.setPollerState([m1, m2, m3], 3);
+      h.triggerPoll([m1, m2, m3], 3, t0);
+      expect(h.source.getUnreadCounts().total).toBe(3);
+      const rev0 = h.source.getRevision();
+      h.events.length = 0;
+
+      // 2. User marks m1 read remotely; cache sees m1 read at t0 + 1000
+      h.setCache(
+        [
+          createCategoryCacheRow('m1', 'primary', false, 'Subject 1', 'th-1', t0 + 1000),
+          createCategoryCacheRow('m2', 'primary', true, 'Subject 2', 'th-2', t0),
+          createCategoryCacheRow('m3', 'primary', true, 'Subject 3', 'th-3', t0),
+        ],
+        {},
+        t0 + 1000,
+      );
+      await h.source.getRecentMessages(5);
+
+      expect(h.source.getUnreadCounts().total).toBe(2);
+      const rev1 = h.source.getRevision();
+      expect(rev1).toBeGreaterThan(rev0);
+      expect(h.events.length).toBe(1);
+      expect(h.events[0].unread.total).toBe(2);
+
+      // 3. Stress test: 10 rapid alternating cycles of lagging Atom polls and cache reads
+      // Simulating edge server lagging by 1-2s (Atom response generated at t0 + 1200 still claims m1 is unread)
+      for (let i = 0; i < 10; i++) {
+        // Lagging Atom poll restating stale [m1, m2, m3]
+        h.triggerPoll([m1, m2, m3], 3, t0 + 1200 + i * 50);
+        expect(h.source.getUnreadCounts().total).toBe(2);
+        expect(h.source.getRevision()).toBe(rev1);
+
+        // Cache re-read
+        await h.source.getRecentMessages(5);
+        expect(h.source.getUnreadCounts().total).toBe(2);
+        expect(h.source.getRevision()).toBe(rev1);
+      }
+
+      // Across all 10 cycles, total never flapped and no extra change events were emitted
+      expect(h.source.getUnreadCounts().total).toBe(2);
+      expect(h.events.length).toBe(1);
+
+      // 4. Edge server catches up after 6s: Atom returns [m2, m3]
+      h.setPollerState([m2, m3], 2);
+      h.triggerPoll([m2, m3], 2, t0 + 6000);
+      expect(h.source.getUnreadCounts().total).toBe(2);
+      expect(h.events.length).toBe(1);
+
+      // 5. Fresh message m4 arrives
+      const m4 = createCategoryAtomMsg('m4', 'primary', 'Subject 4', 'th-4', new Date(t0 + 7000));
+      h.setPollerState([m2, m3, m4], 3);
+      h.triggerPoll([m2, m3, m4], 3, t0 + 7000);
+
+      expect(h.source.getUnreadCounts().total).toBe(3);
+      const rev2 = h.source.getRevision();
+      expect(rev2).toBeGreaterThan(rev1);
+      expect(h.events.length).toBe(2);
+      expect(h.events[1].unread.total).toBe(3);
+
+      // Cache briefly lags (still has older [m1, m2, m3] rows)
+      await h.source.getRecentMessages(5);
+      expect(h.source.getUnreadCounts().total).toBe(3);
+
+      h.cleanup();
+    });
+  });
+
+  describe('Scenario 8: OTP Verification Code Lifecycle under Revision Tracking', () => {
+    it('tracks OTP lifecycle: arrival increments revision, updates to newer code, and clears on triage', async () => {
+      const h = createHarness('acc-otp-lifecycle');
+      const now = Date.now();
+
+      // 1. Initial state: mailbox empty
+      expect(await h.source.getLatestVerificationCode()).toBeNull();
+      const rev0 = h.source.getRevision();
+
+      // 2. Arriving OTP email (GitHub)
+      const ghOtp: AtomMessage = {
+        id: 'msg-otp-gh',
+        threadId: 'th-otp-gh',
+        from: 'GitHub <noreply@github.com>',
+        subject: '849201 is your GitHub verification code',
+        snippet: 'Enter this verification code to access your account.',
+        link: 'https://mail.google.com/mail/u/0/#inbox/th-otp-gh',
+        issued: new Date(now).toISOString(),
+        modified: new Date(now),
+        category: 'primary',
+      };
+      h.setPollerState([ghOtp], 1);
+      h.triggerPoll([ghOtp], 1);
+
+      const rev1 = h.source.getRevision();
+      expect(rev1).toBeGreaterThan(rev0);
+      expect(h.source.getUnreadCounts().total).toBe(1);
+
+      const code1 = await h.source.getLatestVerificationCode();
+      expect(code1).toEqual({
+        code: '849201',
+        service: 'GitHub',
+        subject: '849201 is your GitHub verification code',
+        from: 'GitHub <noreply@github.com>',
+        messageId: 'msg-otp-gh',
+        threadId: 'th-otp-gh',
+        accountId: 'acc-otp-lifecycle',
+        receivedAt: now,
+      });
+
+      // 3. Newer OTP email arrives (Slack) 30 seconds later
+      const slackOtp: AtomMessage = {
+        id: 'msg-otp-slack',
+        threadId: 'th-otp-slack',
+        from: 'Slack <no-reply@slack.com>',
+        subject: '482910 is your Slack verification code',
+        snippet: 'Your confirmation code is 482910.',
+        link: 'https://mail.google.com/mail/u/0/#inbox/th-otp-slack',
+        issued: new Date(now + 30_000).toISOString(),
+        modified: new Date(now + 30_000),
+        category: 'primary',
+      };
+      h.setPollerState([slackOtp, ghOtp], 2);
+      h.triggerPoll([slackOtp, ghOtp], 2);
+
+      const rev2 = h.source.getRevision();
+      expect(rev2).toBeGreaterThan(rev1);
+      expect(h.source.getUnreadCounts().total).toBe(2);
+
+      // Latest verification code is now the newer Slack code
+      const code2 = await h.source.getLatestVerificationCode();
+      expect(code2?.code).toBe('482910');
+      expect(code2?.service).toBe('Slack');
+
+      // 4. Triage (archive) the Slack OTP email
+      await h.source.triageThread('th-otp-slack', 'trash');
+      const rev3 = h.source.getRevision();
+      expect(rev3).toBeGreaterThan(rev2);
+      expect(h.source.getUnreadCounts().total).toBe(1);
+
+      // Verification code cleanly falls back to the active GitHub code
+      const code3 = await h.source.getLatestVerificationCode();
+      expect(code3?.code).toBe('849201');
+      expect(code3?.service).toBe('GitHub');
+
+      // 5. Triage (trash) the remaining GitHub OTP email
+      await h.source.triageThread('th-otp-gh', 'trash');
+      const rev4 = h.source.getRevision();
+      expect(rev4).toBeGreaterThan(rev3);
+      expect(h.source.getUnreadCounts().total).toBe(0);
+
+      // No verification codes remain
+      expect(await h.source.getLatestVerificationCode()).toBeNull();
+
+      // 6. Arrive a new Stripe OTP, mark it read in cache (not triaged) -> code is still accessible
+      h.setCache([
+        {
+          id: 'msg-otp-stripe',
+          threadId: 'th-otp-stripe',
+          from: 'Stripe <support@stripe.com>',
+          subject: '392817 is your Stripe verification code',
+          snippet: 'Your single-use code is 392817.',
+          category: 'primary',
+          unread: false,
+          timestampMs: now + 60_000,
+          modified: new Date(now + 60_000),
+        },
+      ]);
+      await h.source.getRecentMessages(5);
+
+      const rev5 = h.source.getRevision();
+      expect(rev5).toBeGreaterThan(rev4);
+      const codeStripe = await h.source.getLatestVerificationCode();
+      expect(codeStripe?.code).toBe('392817');
+
+      // Now archive the read Stripe email from inbox -> code is removed
+      await h.source.triageThread('th-otp-stripe', 'archive');
+      expect(await h.source.getLatestVerificationCode()).toBeNull();
+
+      // 7. Max age expiration: old OTP (20 mins ago) expires under 15m maxAgeMs
+      h.setCache([
+        {
+          id: 'msg-otp-expired',
+          threadId: 'th-otp-expired',
+          from: 'Google <no-reply@accounts.google.com>',
+          subject: 'G-771122 is your Google verification code',
+          snippet: '',
+          category: 'primary',
+          unread: true,
+          timestampMs: now - 20 * 60 * 1000,
+          modified: new Date(now - 20 * 60 * 1000),
+        },
+      ]);
+      await h.source.getRecentMessages(5);
+
+      // Expired for 15 minute limit
+      expect(await h.source.getLatestVerificationCode(15 * 60 * 1000)).toBeNull();
+      // Valid if maxAgeMs is expanded to 30 minutes
+      const codeExpiredCheck = await h.source.getLatestVerificationCode(30 * 60 * 1000);
+      expect(codeExpiredCheck?.code).toBe('G-771122');
 
       h.cleanup();
     });
