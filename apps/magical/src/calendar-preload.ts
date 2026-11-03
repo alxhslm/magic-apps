@@ -160,6 +160,7 @@ function checkViewMode(): void {
  * sidebar's timeline aligns in lockstep.
  */
 let activeScrollContainer: HTMLElement | null = null;
+let activeResizeObserver: ResizeObserver | null = null;
 let lastReportedScrollTop = -1;
 let lastReportedHourHeight = -1;
 let lastReportedGridTop = -1;
@@ -280,6 +281,10 @@ function checkGridScrollContainer(): void {
     if (activeScrollContainer) {
       activeScrollContainer.removeEventListener('scroll', onScrollThrottled);
       window.removeEventListener('resize', onScrollThrottled);
+      if (activeResizeObserver) {
+        activeResizeObserver.disconnect();
+        activeResizeObserver = null;
+      }
       activeScrollContainer = null;
       lastReportedScrollTop = -1;
       lastReportedHourHeight = -1;
@@ -295,9 +300,21 @@ function checkGridScrollContainer(): void {
     if (activeScrollContainer) {
       activeScrollContainer.removeEventListener('scroll', onScrollThrottled);
     }
+    if (activeResizeObserver) {
+      activeResizeObserver.disconnect();
+      activeResizeObserver = null;
+    }
     activeScrollContainer = container;
     activeScrollContainer.addEventListener('scroll', onScrollThrottled, { passive: true });
     window.addEventListener('resize', onScrollThrottled, { passive: true });
+    activeResizeObserver = new ResizeObserver(() => {
+      onScrollThrottled();
+    });
+    activeResizeObserver.observe(container);
+    const main = document.querySelector('[role="main"]');
+    if (main) {
+      activeResizeObserver.observe(main);
+    }
     reportGridScroll();
   } else if (activeScrollContainer) {
     reportGridScroll();

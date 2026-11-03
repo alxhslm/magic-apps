@@ -272,7 +272,7 @@ public struct WeekScrubberView: View {
     }
 
     public var body: some View {
-        VStack(spacing: 4) {
+        VStack(spacing: 2) {
             // Header with week label and calendar filter/settings
             HStack(alignment: .center) {
                 Button(action: {
@@ -281,7 +281,7 @@ public struct WeekScrubberView: View {
                     }
                 }) {
                     Text(weekRangeText)
-                        .font(.system(size: 13, weight: .bold))
+                        .font(.system(size: 12.5, weight: .bold))
                         .foregroundStyle(.primary)
                 }
                 .buttonStyle(.plain)
@@ -295,17 +295,17 @@ public struct WeekScrubberView: View {
                 }
             }
             .padding(.horizontal, 12)
-            .padding(.top, 5)
+            .padding(.top, 4)
 
             // Day pills row
-            HStack(spacing: 4) {
+            HStack(spacing: 2) {
                 ForEach(model.currentWeekDays) { item in
                     dayPill(item)
                 }
             }
-            .padding(.horizontal, 8)
+            .padding(.horizontal, 6)
         }
-        .padding(.bottom, 5)
+        .frame(height: 59)
         .background(
             GeometryReader { geo in
                 Color.clear.preference(key: HeaderHeightPreferenceKey.self, value: geo.size.height + 1.0)
@@ -315,52 +315,51 @@ public struct WeekScrubberView: View {
 
     private func dayPill(_ item: WeekDayItem) -> some View {
         Button(action: { model.selectDate(item.date) }) {
-            VStack(spacing: 2) {
+            VStack(spacing: 1) {
                 Text(item.dayLetter)
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(.system(size: 9, weight: .semibold))
                     .foregroundStyle(item.isSelected ? .primary : .tertiary)
 
                 ZStack {
                     if item.isToday {
                         Circle()
                             .fill(Color.blue)
-                            .frame(width: 22, height: 22)
+                            .frame(width: 18, height: 18)
                     } else if item.isSelected {
                         Circle()
                             .fill(Color.blue.opacity(0.15))
-                            .frame(width: 22, height: 22)
+                            .frame(width: 18, height: 18)
                     }
 
                     if item.isSelected {
                         Circle()
                             .strokeBorder(Color.blue, lineWidth: 1.2)
-                            .frame(width: 24, height: 24)
+                            .frame(width: 20, height: 20)
                     }
 
                     Text(item.dayNumber)
-                        .font(.system(size: 11, weight: item.isToday || item.isSelected ? .bold : .regular))
+                        .font(.system(size: 10, weight: item.isToday || item.isSelected ? .bold : .regular))
                         .foregroundStyle(item.isToday ? .white : (item.isSelected ? Color.blue : .primary))
                 }
-                .frame(width: 26, height: 26)
+                .frame(width: 20, height: 20)
 
                 // Density dots
                 HStack(spacing: 2) {
                     if item.dots.isEmpty {
                         Circle()
                             .fill(Color.clear)
-                            .frame(width: 3.5, height: 3.5)
+                            .frame(width: 2.5, height: 2.5)
                     } else {
                         ForEach(0 ..< min(3, item.dots.count), id: \.self) { idx in
                             Circle()
                                 .fill(item.dots[idx])
-                                .frame(width: 3.5, height: 3.5)
+                                .frame(width: 2.5, height: 2.5)
                         }
                     }
                 }
-                .frame(height: 5)
+                .frame(height: 3)
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 2)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -404,7 +403,7 @@ public struct DayCompanionHeaderView: View {
             }
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .frame(height: 36)
         .background(
             GeometryReader { geo in
                 Color.clear.preference(key: HeaderHeightPreferenceKey.self, value: geo.size.height + 1.0)
@@ -433,7 +432,7 @@ public struct DayFocusedEventsList: View {
     public init(
         events: [TrayEvent],
         date: Date,
-        headerHeight: CGFloat = 74.0,
+        headerHeight: CGFloat = 60.0,
         onAction: ((_ action: String, _ value: String) -> Void)? = nil
     ) {
         self.events = events
@@ -450,17 +449,11 @@ public struct DayFocusedEventsList: View {
         events.filter { !$0.isAllDay }.sorted(by: { $0.startTime < $1.startTime })
     }
 
-    private var computedAllDayHeight: CGFloat {
-        switch allDayEvents.count {
-        case 0:
-            0.0
-        case 1:
-            29.0
-        case 2:
-            54.0
-        default:
-            53.0
-        }
+    private var intrinsicAllDayHeight: CGFloat {
+        guard !allDayEvents.isEmpty else { return 0 }
+        let n = CGFloat(allDayEvents.count)
+        let contentH = 4.0 + (n * 20.0) + CGFloat(max(0, allDayEvents.count - 1)) * 3.0
+        return contentH + 1.0 // +1 for the divider below
     }
 
     private var allDayListContent: some View {
@@ -475,34 +468,41 @@ public struct DayFocusedEventsList: View {
             }
         }
         .padding(.horizontal, 8)
-        .padding(.vertical, 3)
+        .padding(.vertical, 2)
     }
 
     public var body: some View {
         VStack(spacing: 0) {
-            // Alignment spacer so all-day events and DayTimeGridView match Google Calendar's positions inside the card
+            // Precise geometric alignment: headerHeight + allDay + spacer == targetGridTopInCard
             let targetGridTopInCard = max(0, sidebarModel.gcalGridTop - sidebarModel.gcalCardTop)
-            let currentAllDayH = computedAllDayHeight
-            let alignmentSpacer = max(0, targetGridTopInCard - currentAllDayH - headerHeight)
-            if alignmentSpacer > 0 {
-                Spacer()
-                    .frame(height: alignmentSpacer)
-            }
+            let totalAvailableSpace = max(0, targetGridTopInCard - headerHeight)
 
-            // 1. Pinned All-Day Banners directly above the 24-hour time grid (scrollable if > 2)
             if !allDayEvents.isEmpty {
-                Group {
-                    if allDayEvents.count > 2 {
-                        ScrollView(.vertical, showsIndicators: true) {
-                            allDayListContent
-                        }
-                        .frame(height: 52)
-                    } else {
+                let actualAllDayH = min(intrinsicAllDayHeight, totalAvailableSpace)
+                let bannerAreaH = max(0, actualAllDayH - 1.0)
+                let alignmentSpacer = max(0, totalAvailableSpace - actualAllDayH)
+
+                if intrinsicAllDayHeight > totalAvailableSpace {
+                    ScrollView(.vertical, showsIndicators: true) {
                         allDayListContent
                     }
+                    .frame(height: bannerAreaH)
+                } else {
+                    allDayListContent
+                        .frame(height: bannerAreaH)
+                }
+
+                if alignmentSpacer > 0 {
+                    Spacer()
+                        .frame(height: alignmentSpacer)
                 }
 
                 Divider()
+            } else {
+                if totalAvailableSpace > 0 {
+                    Spacer()
+                        .frame(height: totalAvailableSpace)
+                }
             }
 
             // 2. Day Time Grid matching Google Calendar's viewport height exactly
@@ -525,7 +525,7 @@ public struct DayFocusedEventsList: View {
 
 private struct WeekCompanionContainerView: View {
     @ObservedObject var model: SidebarModel
-    @State private var headerHeight: CGFloat = 74.0
+    @State private var headerHeight: CGFloat = 60.0
 
     var body: some View {
         VStack(spacing: 0) {

@@ -24,13 +24,13 @@ public struct AllDayBannerView: View {
 
     public var body: some View {
         Button(action: onSelect) {
-            HStack(spacing: 6) {
+            HStack(spacing: 5) {
                 Capsule()
                     .fill(Color(hex: event.colorHex))
-                    .frame(width: 3.5, height: 14)
+                    .frame(width: 3, height: 12)
 
                 Text(event.summary)
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(size: 10.5, weight: .semibold))
                     .foregroundStyle(.primary)
                     .lineLimit(1)
 
@@ -38,16 +38,16 @@ public struct AllDayBannerView: View {
 
                 if let calName = event.calendarName, !calName.isEmpty {
                     Text(calName)
-                        .font(.system(size: 9))
+                        .font(.system(size: 8.5))
                         .foregroundStyle(.tertiary)
                         .lineLimit(1)
                 }
 
                 Text("All day")
-                    .font(.system(size: 8.5, weight: .medium))
+                    .font(.system(size: 8, weight: .medium))
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 4)
-                    .padding(.vertical, 1.5)
+                    .padding(.vertical, 1)
                     .background(
                         Capsule()
                             .fill(Color.primary.opacity(0.06))
@@ -55,15 +55,14 @@ public struct AllDayBannerView: View {
             }
             .padding(.leading, 6)
             .padding(.trailing, 6)
-            .padding(.vertical, 2)
-            .frame(height: 22)
+            .frame(height: 20)
             .background(
-                RoundedRectangle(cornerRadius: 6)
+                RoundedRectangle(cornerRadius: 5)
                     .fill(Color(hex: event.colorHex).opacity(isHovering ? 0.22 : 0.14))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 6)
-                    .strokeBorder(Color(hex: event.colorHex).opacity(isHovering ? 0.45 : 0.28), lineWidth: 0.75)
+                RoundedRectangle(cornerRadius: 5)
+                    .strokeBorder(Color(hex: event.colorHex).opacity(isHovering ? 0.45 : 0.28), lineWidth: 0.5)
             )
         }
         .buttonStyle(.plain)
