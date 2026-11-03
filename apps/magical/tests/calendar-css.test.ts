@@ -10,6 +10,12 @@ describe('getCalendarCss', () => {
     expect(selectors).not.toMatch(/(^|[\s,>])\.[a-zA-Z][\w-]*/m);
   });
 
+  it('hides the redundant Google apps launcher', () => {
+    const css = getCalendarCss();
+    expect(css).toContain('#gbwa');
+    expect(css).toMatch(/#gbwa\s*\{[^}]*display:\s*none\s*!important/);
+  });
+
   it('clears containers for vibrancy without clearing their descendants', () => {
     const css = getCalendarCss({ transparent: true });
     expect(css).toContain('header[role="banner"]');

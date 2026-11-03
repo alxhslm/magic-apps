@@ -51,6 +51,11 @@ div[role="dialog"]:has(a[href*="play.google.com"]) {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(128,128,128,0.3); border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(128,128,128,0.55); }
+
+/* Redundant Google apps 3x3 launcher */
+#gbwa {
+  display: none !important;
+}
 `;
 
 /**
