@@ -422,19 +422,21 @@ private struct HeaderHeightPreferenceKey: PreferenceKey {
 }
 
 public struct DayFocusedEventsList: View {
+    @ObservedObject var sidebarModel: SidebarModel
     let events: [TrayEvent]
     let date: Date
     let headerHeight: CGFloat
     var onAction: ((_ action: String, _ value: String) -> Void)?
 
-    @ObservedObject private var sidebarModel = SidebarModel.shared
-
+    @MainActor
     public init(
+        model: SidebarModel? = nil,
         events: [TrayEvent],
         date: Date,
         headerHeight: CGFloat = 60.0,
         onAction: ((_ action: String, _ value: String) -> Void)? = nil
     ) {
+        sidebarModel = model ?? .shared
         self.events = events
         self.date = date
         self.headerHeight = headerHeight
@@ -532,6 +534,7 @@ private struct WeekCompanionContainerView: View {
             WeekScrubberView(model: model)
             Divider()
             DayFocusedEventsList(
+                model: model,
                 events: model.selectedDayEvents,
                 date: model.selectedDate,
                 headerHeight: headerHeight,
@@ -558,6 +561,7 @@ private struct DayCompanionContainerView: View {
             DayCompanionHeaderView(model: model)
             Divider()
             DayFocusedEventsList(
+                model: model,
                 events: model.selectedDayEvents,
                 date: model.selectedDate,
                 headerHeight: headerHeight,

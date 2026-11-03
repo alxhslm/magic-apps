@@ -524,7 +524,28 @@ let magicalSidebarTrayPayload: [String: Any] = [
         ["id": "team", "accountId": "work", "name": "Team",
          "colorHex": Fixtures.calendarTeam],
     ] as [[String: Any]],
-    "events": fixtures.map { event -> [String: Any] in
+    "events": (fixtures + [
+        Fixtures.Event(
+            id: "sb-allday-1",
+            title: "Strategy Offsite",
+            start: Calendar.current.startOfDay(for: now),
+            end: Calendar.current.date(byAdding: .day, value: 1, to: Calendar.current.startOfDay(for: now)) ?? now,
+            allDay: true,
+            colour: Fixtures.calendarWork,
+            calendar: "Work",
+            conference: nil
+        ),
+        Fixtures.Event(
+            id: "sb-allday-2",
+            title: "Maya's Birthday",
+            start: Calendar.current.startOfDay(for: now),
+            end: Calendar.current.date(byAdding: .day, value: 1, to: Calendar.current.startOfDay(for: now)) ?? now,
+            allDay: true,
+            colour: Fixtures.calendarFamily,
+            calendar: "Family",
+            conference: nil
+        ),
+    ]).map { event -> [String: Any] in
         let isWork = event.calendar == "Work" || event.calendar == "Team"
         let accountId = isWork ? "work" : "personal"
         var raw: [String: Any] = [
@@ -805,6 +826,13 @@ MainActor.assumeIsolated {
         let model = MagicalHelperLib.SidebarModel()
         model.trayModel.update(from: magicalSidebarTrayPayload)
         model.setViewMode(mode, anchor: now)
+        model.setScrollPosition(
+            hour: 8.5,
+            hourHeight: 48.0,
+            gridTop: 184.0,
+            gridHeight: 450.0,
+            cardTop: 64.0
+        )
 
         return MagicalHelperLib.SidebarRootView(model: model)
             .frame(width: 254, height: 600)
