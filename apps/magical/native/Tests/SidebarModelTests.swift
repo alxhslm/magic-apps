@@ -186,6 +186,7 @@ struct SidebarModelTests {
         #expect(model.gcalGridTop == 148.0)
         #expect(model.gcalGridHeight == 600.0)
         #expect(model.gcalCardTop == 64.0)
+        #expect(model.topMargin == 8.0)
 
         // Set scroll position for 9:30 AM (9.5 hours) with 48pt row height and 64pt cardTop
         model.setScrollPosition(hour: 9.5, hourHeight: 48.0, gridTop: 148.0, gridHeight: 619.0, cardTop: 64.0)

@@ -20,7 +20,7 @@ public final class SidebarManager {
     public var isVisible: Bool = true
     public let cardWidth: CGFloat = 324
     public let margin: CGFloat = 8
-    public let topMargin: CGFloat = 6
+    public let topMargin: CGFloat = 8
     public let cornerRadius: CGFloat = 10
     public let calendarMinWidth: CGFloat = 980
     public var minRequiredWidth: CGFloat {
@@ -100,8 +100,7 @@ public final class SidebarManager {
             let trailingC = effect.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: initialTrailing)
             trailingConstraint = trailingC
 
-            let defaultCardTop: CGFloat = SidebarModel.shared.gcalCardTop
-            let topC = effect.topAnchor.constraint(equalTo: contentView.topAnchor, constant: toolbarHeight + defaultCardTop)
+            let topC = effect.topAnchor.constraint(equalTo: contentView.topAnchor, constant: toolbarHeight + topMargin)
             topConstraint = topC
 
             NSLayoutConstraint.activate([
@@ -295,12 +294,10 @@ public final class SidebarManager {
         gridHeight: CGFloat,
         cardTop: CGFloat
     ) {
-        if cardTop >= 30.0 {
-            let toolbarHeight: CGFloat = 52
-            let targetTop = toolbarHeight + cardTop
-            if let topC = topConstraint, abs(topC.constant - targetTop) > 0.5 {
-                topC.constant = targetTop
-            }
+        let toolbarHeight: CGFloat = 52
+        let targetTop = toolbarHeight + topMargin
+        if let topC = topConstraint, abs(topC.constant - targetTop) > 0.5 {
+            topC.constant = targetTop
         }
         SidebarModel.shared.setScrollPosition(
             hour: hour,

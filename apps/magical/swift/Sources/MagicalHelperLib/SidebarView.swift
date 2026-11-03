@@ -63,6 +63,7 @@ public final class SidebarModel: ObservableObject {
     @Published public var gcalGridHeight: CGFloat = 600.0
     @Published public var gcalCardTop: CGFloat = 64.0
     @Published public var hasReceivedScroll: Bool = false
+    public let topMargin: CGFloat = 8.0
 
     public let trayModel: TrayModel
 
@@ -234,6 +235,70 @@ public final class SidebarModel: ObservableObject {
     }
 }
 
+// MARK: - Sidebar Day Pill View
+
+public struct SidebarDayPillView: View {
+    @ObservedObject var model: SidebarModel
+    let item: WeekDayItem
+
+    public init(model: SidebarModel, item: WeekDayItem) {
+        self.model = model
+        self.item = item
+    }
+
+    public var body: some View {
+        Button(action: { model.selectDate(item.date) }) {
+            VStack(spacing: 2) {
+                Text(item.dayLetter)
+                    .font(.system(size: 9.5, weight: .semibold))
+                    .foregroundStyle(item.isSelected ? .primary : .tertiary)
+
+                ZStack {
+                    if item.isToday {
+                        Circle()
+                            .fill(Color.blue)
+                            .frame(width: 19, height: 19)
+                    } else if item.isSelected {
+                        Circle()
+                            .fill(Color.blue.opacity(0.15))
+                            .frame(width: 19, height: 19)
+                    }
+
+                    if item.isSelected {
+                        Circle()
+                            .strokeBorder(Color.blue, lineWidth: 1.2)
+                            .frame(width: 21, height: 21)
+                    }
+
+                    Text(item.dayNumber)
+                        .font(.system(size: 10.5, weight: item.isToday || item.isSelected ? .bold : .regular))
+                        .foregroundStyle(item.isToday ? .white : (item.isSelected ? Color.blue : .primary))
+                }
+                .frame(width: 21, height: 21)
+
+                // Density dots: crisp 3.5pt diameter dots with 2.5pt spacing
+                HStack(spacing: 2.5) {
+                    if item.dots.isEmpty {
+                        Circle()
+                            .fill(Color.clear)
+                            .frame(width: 3.5, height: 3.5)
+                    } else {
+                        ForEach(0 ..< min(4, item.dots.count), id: \.self) { idx in
+                            Circle()
+                                .fill(item.dots[idx])
+                                .frame(width: 3.5, height: 3.5)
+                        }
+                    }
+                }
+                .frame(height: 4.5)
+            }
+            .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
 // MARK: - Week Scrubber View
 
 public struct WeekScrubberView: View {
@@ -242,6 +307,12 @@ public struct WeekScrubberView: View {
     public init(model: SidebarModel) {
         self.model = model
     }
+
+    private var bannerRowHeight: CGFloat {
+        max(36.0, model.gcalCardTop - model.topMargin)
+    }
+
+    private let dayScrubberHeight: CGFloat = 56.0
 
     private var weekRangeText: String {
         guard let first = model.currentWeekDays.first?.date,
@@ -268,8 +339,8 @@ public struct WeekScrubberView: View {
     }
 
     public var body: some View {
-        VStack(spacing: 2) {
-            // Header with week label and calendar filter/settings
+        VStack(spacing: 0) {
+            // Header with week label and calendar filter/settings aligning with Google Calendar banner
             HStack(alignment: .center) {
                 Button(action: {
                     withAnimation(.easeInOut(duration: 0.2)) {
@@ -291,76 +362,23 @@ public struct WeekScrubberView: View {
                 }
             }
             .padding(.horizontal, 12)
-            .padding(.top, 4)
+            .frame(height: bannerRowHeight)
 
-            // Day pills row
+            // Day scrubber pills row aligning with Google Calendar day column headers
             HStack(spacing: 2) {
                 ForEach(model.currentWeekDays) { item in
-                    dayPill(item)
+                    SidebarDayPillView(model: model, item: item)
                 }
             }
             .padding(.horizontal, 6)
-            .padding(.bottom, 2)
+            .frame(height: dayScrubberHeight)
         }
-        .frame(height: 66)
+        .frame(height: bannerRowHeight + dayScrubberHeight)
         .background(
             GeometryReader { geo in
                 Color.clear.preference(key: HeaderHeightPreferenceKey.self, value: geo.size.height + 1.0)
             }
         )
-    }
-
-    private func dayPill(_ item: WeekDayItem) -> some View {
-        Button(action: { model.selectDate(item.date) }) {
-            VStack(spacing: 1.5) {
-                Text(item.dayLetter)
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(item.isSelected ? .primary : .tertiary)
-
-                ZStack {
-                    if item.isToday {
-                        Circle()
-                            .fill(Color.blue)
-                            .frame(width: 18, height: 18)
-                    } else if item.isSelected {
-                        Circle()
-                            .fill(Color.blue.opacity(0.15))
-                            .frame(width: 18, height: 18)
-                    }
-
-                    if item.isSelected {
-                        Circle()
-                            .strokeBorder(Color.blue, lineWidth: 1.2)
-                            .frame(width: 20, height: 20)
-                    }
-
-                    Text(item.dayNumber)
-                        .font(.system(size: 10, weight: item.isToday || item.isSelected ? .bold : .regular))
-                        .foregroundStyle(item.isToday ? .white : (item.isSelected ? Color.blue : .primary))
-                }
-                .frame(width: 20, height: 20)
-
-                // Density dots
-                HStack(spacing: 2) {
-                    if item.dots.isEmpty {
-                        Circle()
-                            .fill(Color.clear)
-                            .frame(width: 2.5, height: 2.5)
-                    } else {
-                        ForEach(0 ..< min(3, item.dots.count), id: \.self) { idx in
-                            Circle()
-                                .fill(item.dots[idx])
-                                .frame(width: 2.5, height: 2.5)
-                        }
-                    }
-                }
-                .frame(height: 3)
-            }
-            .padding(.bottom, 2)
-            .frame(maxWidth: .infinity)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
     }
 }
 
@@ -373,6 +391,12 @@ public struct DayCompanionHeaderView: View {
         self.model = model
     }
 
+    private var bannerRowHeight: CGFloat {
+        max(36.0, model.gcalCardTop - model.topMargin)
+    }
+
+    private let dayScrubberHeight: CGFloat = 56.0
+
     private var dayTitle: String {
         let formatter = DateFormatter()
         formatter.dateFormat = "EEEE, MMMM d"
@@ -380,28 +404,41 @@ public struct DayCompanionHeaderView: View {
     }
 
     public var body: some View {
-        HStack(alignment: .center) {
-            Button(action: {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    model.jumpToToday()
+        VStack(spacing: 0) {
+            // Header with day label and calendar filter/settings aligning with Google Calendar banner
+            HStack(alignment: .center) {
+                Button(action: {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        model.jumpToToday()
+                    }
+                }) {
+                    Text(dayTitle)
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(.primary)
                 }
-            }) {
-                Text(dayTitle)
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(.primary)
-            }
-            .buttonStyle(.plain)
-            .help("Jump to Now")
+                .buttonStyle(.plain)
+                .help("Jump to Now")
 
-            Spacer()
+                Spacer()
 
-            HStack(spacing: 4) {
-                CalendarFilterMenuView(model: model.trayModel)
-                SidebarSettingsMenuView(model: model.trayModel, onRefresh: { model.onAction?("sidebarRefresh", "") })
+                HStack(spacing: 4) {
+                    CalendarFilterMenuView(model: model.trayModel)
+                    SidebarSettingsMenuView(model: model.trayModel, onRefresh: { model.onAction?("sidebarRefresh", "") })
+                }
             }
+            .padding(.horizontal, 12)
+            .frame(height: bannerRowHeight)
+
+            // Day scrubber pills row aligning with Google Calendar day column headers
+            HStack(spacing: 2) {
+                ForEach(model.currentWeekDays) { item in
+                    SidebarDayPillView(model: model, item: item)
+                }
+            }
+            .padding(.horizontal, 6)
+            .frame(height: dayScrubberHeight)
         }
-        .padding(.horizontal, 12)
-        .frame(height: 36)
+        .frame(height: bannerRowHeight + dayScrubberHeight)
         .background(
             GeometryReader { geo in
                 Color.clear.preference(key: HeaderHeightPreferenceKey.self, value: geo.size.height + 1.0)
@@ -431,7 +468,7 @@ public struct DayFocusedEventsList: View {
         model: SidebarModel? = nil,
         events: [TrayEvent],
         date: Date,
-        headerHeight: CGFloat = 60.0,
+        headerHeight: CGFloat = 113.0,
         onAction: ((_ action: String, _ value: String) -> Void)? = nil
     ) {
         sidebarModel = model ?? .shared
@@ -474,7 +511,7 @@ public struct DayFocusedEventsList: View {
     public var body: some View {
         VStack(spacing: 0) {
             // Precise geometric alignment: headerHeight + allDay + spacer == targetGridTopInCard
-            let targetGridTopInCard = max(0, sidebarModel.gcalGridTop - sidebarModel.gcalCardTop)
+            let targetGridTopInCard = max(0, sidebarModel.gcalGridTop - sidebarModel.topMargin)
             let totalAvailableSpace = max(0, targetGridTopInCard - headerHeight)
 
             if !allDayEvents.isEmpty {
@@ -525,7 +562,7 @@ public struct DayFocusedEventsList: View {
 
 private struct WeekCompanionContainerView: View {
     @ObservedObject var model: SidebarModel
-    @State private var headerHeight: CGFloat = 67.0
+    @State private var headerHeight: CGFloat = 113.0
 
     var body: some View {
         VStack(spacing: 0) {
@@ -552,7 +589,7 @@ private struct WeekCompanionContainerView: View {
 
 private struct DayCompanionContainerView: View {
     @ObservedObject var model: SidebarModel
-    @State private var headerHeight: CGFloat = 37.0
+    @State private var headerHeight: CGFloat = 113.0
 
     var body: some View {
         VStack(spacing: 0) {
@@ -663,7 +700,7 @@ public struct SidebarRootView: View {
                 }
             }
             .padding(.horizontal, 12)
-            .padding(.vertical, 8)
+            .frame(height: max(36.0, model.gcalCardTop - model.topMargin))
 
             // Mini month grid
             if !model.isCalendarCollapsed {
