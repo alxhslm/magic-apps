@@ -59,6 +59,10 @@ public final class SidebarModel: ObservableObject {
     @Published public var currentWeekDays: [WeekDayItem] = []
     @Published public var gridHourHeight: CGFloat = 48.0
     @Published public var gridScrollY: CGFloat = 0.0
+    @Published public var gcalGridTop: CGFloat = 148.0
+    @Published public var gcalGridHeight: CGFloat = 600.0
+    @Published public var gcalCardTop: CGFloat = 64.0
+    @Published public var hasReceivedScroll: Bool = false
 
     public let trayModel: TrayModel
 
@@ -207,9 +211,25 @@ public final class SidebarModel: ObservableObject {
         return trayModel.filteredEvents.filter { $0.dateKey == key }
     }
 
-    public func setScrollPosition(hour: CGFloat, hourHeight: CGFloat) {
+    public func setScrollPosition(
+        hour: CGFloat,
+        hourHeight: CGFloat,
+        gridTop: CGFloat = 148.0,
+        gridHeight: CGFloat = 600.0,
+        cardTop: CGFloat = 64.0
+    ) {
+        hasReceivedScroll = true
         if abs(gridHourHeight - hourHeight) > 0.5, hourHeight > 20.0 {
             gridHourHeight = hourHeight
+        }
+        if abs(gcalGridTop - gridTop) > 0.5, gridTop > 50.0 {
+            gcalGridTop = gridTop
+        }
+        if abs(gcalGridHeight - gridHeight) > 0.5, gridHeight > 100.0 {
+            gcalGridHeight = gridHeight
+        }
+        if abs(gcalCardTop - cardTop) > 0.5, cardTop >= 30.0 {
+            gcalCardTop = cardTop
         }
         let targetY = hour * gridHourHeight
         if abs(gridScrollY - targetY) > 0.5 {
@@ -385,10 +405,28 @@ public struct DayCompanionHeaderView: View {
 
 // MARK: - Day Focused Events List
 
+private struct HeaderBottomPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
+}
+
+private struct AllDayHeightPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
+}
+
 public struct DayFocusedEventsList: View {
     let events: [TrayEvent]
     let date: Date
     var onAction: ((_ action: String, _ value: String) -> Void)?
+
+    @ObservedObject private var sidebarModel = SidebarModel.shared
+    @State private var headerBottom: CGFloat = 0
+    @State private var allDayHeight: CGFloat = 0
 
     public init(
         events: [TrayEvent],
@@ -410,25 +448,57 @@ public struct DayFocusedEventsList: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            // 1. Pinned All-Day Banners at the top
-            if !allDayEvents.isEmpty {
-                VStack(spacing: 4) {
-                    ForEach(allDayEvents, id: \.identity) { event in
-                        AllDayBannerView(
-                            event: event,
-                            onSelect: { onAction?("sidebarOpenEvent", event.id) },
-                            onDelete: { onAction?("sidebarDeleteEvent", "\($0.accountId):\($0.id)") },
-                            onComplete: { onAction?("sidebarCompleteTask", "\($0.accountId):\($0.id):\($1)") }
+            // Static measurement anchor at the top of the day events list (below week scrubber / day header)
+            Color.clear
+                .frame(height: 0)
+                .background(
+                    GeometryReader { geo in
+                        Color.clear.preference(
+                            key: HeaderBottomPreferenceKey.self,
+                            value: geo.frame(in: .named("SidebarCardContainer")).maxY
                         )
                     }
+                )
+
+            // Alignment spacer so all-day events and DayTimeGridView match Google Calendar's positions inside the card
+            let targetGridTopInCard = max(0, sidebarModel.gcalGridTop - sidebarModel.gcalCardTop)
+            let currentAllDayH = allDayEvents.isEmpty ? 0.0 : allDayHeight
+            let alignmentSpacer = headerBottom > 0 ? max(0, targetGridTopInCard - currentAllDayH - headerBottom) : 0
+            if alignmentSpacer > 0 {
+                Spacer()
+                    .frame(height: alignmentSpacer)
+            }
+
+            // 1. Pinned All-Day Banners directly above the 24-hour time grid (scrollable if many)
+            if !allDayEvents.isEmpty {
+                ScrollView(.vertical, showsIndicators: allDayEvents.count > 3) {
+                    VStack(spacing: 4) {
+                        ForEach(allDayEvents, id: \.identity) { event in
+                            AllDayBannerView(
+                                event: event,
+                                onSelect: { onAction?("sidebarOpenEvent", event.id) },
+                                onDelete: { onAction?("sidebarDeleteEvent", "\($0.accountId):\($0.id)") },
+                                onComplete: { onAction?("sidebarCompleteTask", "\($0.accountId):\($0.id):\($1)") }
+                            )
+                        }
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
                 }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
+                .frame(maxHeight: 120)
+                .background(
+                    GeometryReader { geo in
+                        Color.clear.preference(
+                            key: AllDayHeightPreferenceKey.self,
+                            value: geo.size.height + 1.0 // +1 for the divider below
+                        )
+                    }
+                )
 
                 Divider()
             }
 
-            // 2. Day Time Grid
+            // 2. Day Time Grid matching Google Calendar's viewport height exactly
             DayTimeGridView(
                 date: date,
                 events: timedEvents,
@@ -438,9 +508,19 @@ public struct DayFocusedEventsList: View {
                 onDeleteEvent: { onAction?("sidebarDeleteEvent", "\($0.accountId):\($0.id)") },
                 onCompleteTask: { onAction?("sidebarCompleteTask", "\($0.accountId):\($0.id):\($1)") }
             )
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .frame(height: sidebarModel.gcalGridHeight > 100 ? sidebarModel.gcalGridHeight : nil)
+            .frame(maxWidth: .infinity)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onPreferenceChange(HeaderBottomPreferenceKey.self) { val in
+            if abs(headerBottom - val) > 0.5 {
+                headerBottom = val
+            }
+        }
+        .onPreferenceChange(AllDayHeightPreferenceKey.self) { val in
+            if abs(allDayHeight - val) > 0.5 {
+                allDayHeight = val
+            }
+        }
     }
 }
 
@@ -469,6 +549,7 @@ public struct SidebarRootView: View {
                 dayModeView
             }
         }
+        .coordinateSpace(name: "SidebarCardContainer")
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(groupingBackground)
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
@@ -579,6 +660,7 @@ public struct SidebarRootView: View {
                 date: model.selectedDate,
                 onAction: model.onAction
             )
+            Spacer(minLength: 0)
         }
     }
 
@@ -592,6 +674,7 @@ public struct SidebarRootView: View {
                 date: model.selectedDate,
                 onAction: model.onAction
             )
+            Spacer(minLength: 0)
         }
     }
 

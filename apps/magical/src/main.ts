@@ -1318,8 +1318,8 @@ function createWindow(
   accounts.onTimeframeChanged = (timeframe, dateStr) => {
     sidebarManager?.setTimeframe(timeframe, dateStr);
   };
-  accounts.onGridScroll = (hour, hourHeight) => {
-    sidebarManager?.setScrollPosition(hour, hourHeight);
+  accounts.onGridScroll = (hour, hourHeight, gridTop, gridHeight, cardTop) => {
+    sidebarManager?.setScrollPosition(hour, hourHeight, gridTop, gridHeight, cardTop);
   };
 
   if (!menuBarManager) {

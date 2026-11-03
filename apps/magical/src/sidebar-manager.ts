@@ -180,10 +180,22 @@ export class SidebarManager {
     }
   }
 
-  public setScrollPosition(hour: number, hourHeight: number): void {
+  public setScrollPosition(
+    hour: number,
+    hourHeight: number,
+    gridTop?: number,
+    gridHeight?: number,
+    cardTop?: number,
+  ): void {
     if (!this.isVisible) return;
     try {
-      loadAddon().sidebarSetScrollPosition?.(hour, hourHeight);
+      loadAddon().sidebarSetScrollPosition?.(
+        hour,
+        hourHeight,
+        gridTop ?? 148,
+        gridHeight ?? 600,
+        cardTop ?? 64,
+      );
     } catch (err) {
       log.warn('Could not set sidebar scroll position:', err);
     }

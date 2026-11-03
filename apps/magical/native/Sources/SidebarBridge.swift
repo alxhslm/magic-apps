@@ -14,6 +14,7 @@ public final class SidebarManager {
     private var visualEffectView: NSVisualEffectView?
     private var hostingView: NSHostingView<SidebarRootView>?
     private var trailingConstraint: NSLayoutConstraint?
+    private var topConstraint: NSLayoutConstraint?
     private var windowCloseObserver: Any?
 
     public var isVisible: Bool = true
@@ -45,6 +46,7 @@ public final class SidebarManager {
             visualEffectView = nil
             hostingView = nil
             trailingConstraint = nil
+            topConstraint = nil
         }
 
         if let obs = windowCloseObserver {
@@ -62,6 +64,7 @@ public final class SidebarManager {
                 self.visualEffectView = nil
                 self.hostingView = nil
                 self.trailingConstraint = nil
+                self.topConstraint = nil
                 self.window = nil
             }
         }
@@ -97,9 +100,13 @@ public final class SidebarManager {
             let trailingC = effect.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: initialTrailing)
             trailingConstraint = trailingC
 
+            let defaultCardTop: CGFloat = SidebarModel.shared.gcalCardTop
+            let topC = effect.topAnchor.constraint(equalTo: contentView.topAnchor, constant: toolbarHeight + defaultCardTop)
+            topConstraint = topC
+
             NSLayoutConstraint.activate([
                 effect.widthAnchor.constraint(equalToConstant: cardWidth),
-                effect.topAnchor.constraint(equalTo: contentView.topAnchor, constant: toolbarHeight + topMargin),
+                topC,
                 effect.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -margin),
                 trailingC,
             ])
@@ -281,8 +288,27 @@ public final class SidebarManager {
         SidebarModel.shared.setViewMode(viewMode, anchor: anchor)
     }
 
-    public func setScrollPosition(hour: CGFloat, hourHeight: CGFloat) {
-        SidebarModel.shared.setScrollPosition(hour: hour, hourHeight: hourHeight)
+    public func setScrollPosition(
+        hour: CGFloat,
+        hourHeight: CGFloat,
+        gridTop: CGFloat,
+        gridHeight: CGFloat,
+        cardTop: CGFloat
+    ) {
+        if cardTop >= 30.0 {
+            let toolbarHeight: CGFloat = 52
+            let targetTop = toolbarHeight + cardTop
+            if let topC = topConstraint, abs(topC.constant - targetTop) > 0.5 {
+                topC.constant = targetTop
+            }
+        }
+        SidebarModel.shared.setScrollPosition(
+            hour: hour,
+            hourHeight: hourHeight,
+            gridTop: gridTop,
+            gridHeight: gridHeight,
+            cardTop: cardTop
+        )
     }
 }
 
@@ -350,8 +376,20 @@ public func sidebarSetTransparency(_ transparent: Bool, _ isDark: Bool) {
 }
 
 @_cdecl("sidebar_set_scroll_position")
-public func sidebarSetScrollPosition(_ hour: Double, _ hourHeight: Double) {
+public func sidebarSetScrollPosition(
+    _ hour: Double,
+    _ hourHeight: Double,
+    _ gridTop: Double,
+    _ gridHeight: Double,
+    _ cardTop: Double
+) {
     DispatchQueue.main.async {
-        SidebarManager.shared.setScrollPosition(hour: CGFloat(hour), hourHeight: CGFloat(hourHeight))
+        SidebarManager.shared.setScrollPosition(
+            hour: CGFloat(hour),
+            hourHeight: CGFloat(hourHeight),
+            gridTop: CGFloat(gridTop),
+            gridHeight: CGFloat(gridHeight),
+            cardTop: CGFloat(cardTop)
+        )
     }
 }

@@ -183,15 +183,24 @@ struct SidebarModelTests {
         let model = SidebarModel()
         #expect(model.gridHourHeight == 48.0)
         #expect(model.gridScrollY == 0.0)
+        #expect(model.gcalGridTop == 148.0)
+        #expect(model.gcalGridHeight == 600.0)
+        #expect(model.gcalCardTop == 64.0)
 
-        // Set scroll position for 9:30 AM (9.5 hours) with 48pt row height
-        model.setScrollPosition(hour: 9.5, hourHeight: 48.0)
+        // Set scroll position for 9:30 AM (9.5 hours) with 48pt row height and 64pt cardTop
+        model.setScrollPosition(hour: 9.5, hourHeight: 48.0, gridTop: 148.0, gridHeight: 619.0, cardTop: 64.0)
         #expect(model.gridHourHeight == 48.0)
         #expect(model.gridScrollY == 9.5 * 48.0)
+        #expect(model.gcalGridTop == 148.0)
+        #expect(model.gcalGridHeight == 619.0)
+        #expect(model.gcalCardTop == 64.0)
 
-        // Set scroll position with compact 40pt row height
-        model.setScrollPosition(hour: 14.0, hourHeight: 40.0)
+        // Set scroll position with compact 40pt row height and 196pt gridTop, 72pt cardTop
+        model.setScrollPosition(hour: 14.0, hourHeight: 40.0, gridTop: 196.0, gridHeight: 550.0, cardTop: 72.0)
         #expect(model.gridHourHeight == 40.0)
         #expect(model.gridScrollY == 14.0 * 40.0)
+        #expect(model.gcalGridTop == 196.0)
+        #expect(model.gcalGridHeight == 550.0)
+        #expect(model.gcalCardTop == 72.0)
     }
 }

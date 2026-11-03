@@ -349,7 +349,7 @@ describe('SidebarManager', () => {
       () => mockAccountsManager as any,
     );
 
-    manager.setScrollPosition(9.5, 48);
-    expect(sidebarSetScrollPosition).toHaveBeenCalledWith(9.5, 48);
+    manager.setScrollPosition(9.5, 48, 196, 619, 64);
+    expect(sidebarSetScrollPosition).toHaveBeenCalledWith(9.5, 48, 196, 619, 64);
   });
 });

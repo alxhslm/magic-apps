@@ -159,7 +159,13 @@ export class AccountsManager {
   /** Fired when the active account's timeframe or anchor date moves, so the companion sidebar can follow it. */
   public onTimeframeChanged?: (timeframe: string, dateStr?: string) => void;
   /** Fired when the active account's 24-hour time grid scrolls, so the companion sidebar can follow in lockstep. */
-  public onGridScroll?: (hour: number, hourHeight: number) => void;
+  public onGridScroll?: (
+    hour: number,
+    hourHeight: number,
+    gridTop: number,
+    gridHeight: number,
+    cardTop: number,
+  ) => void;
   /** Fired when an account's web view posts a successful calendar or tasks sync mutation. */
   public onSyncMutation?: (accountId: string) => void;
 
@@ -1095,14 +1101,29 @@ export class AccountsManager {
 
     ipcMain.on(
       GCAL_GRID_SCROLL_CHANNEL,
-      (event, payload: { hour?: number; hourHeight?: number }) => {
+      (
+        event,
+        payload: {
+          hour?: number;
+          hourHeight?: number;
+          gridTop?: number;
+          gridHeight?: number;
+          cardTop?: number;
+        },
+      ) => {
         const entry = [...this.pool.entries()].find(
           ([, view]) => viewIsAlive(view) && view.webContents === event.sender,
         );
         if (!entry) return;
         const [accountId] = entry;
         if (accountId === this.activeAccountId && typeof payload?.hour === 'number') {
-          this.onGridScroll?.(payload.hour, payload.hourHeight ?? 48);
+          this.onGridScroll?.(
+            payload.hour,
+            payload.hourHeight ?? 48,
+            payload.gridTop ?? 148,
+            payload.gridHeight ?? 600,
+            payload.cardTop ?? 64,
+          );
         }
       },
     );

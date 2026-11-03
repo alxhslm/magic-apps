@@ -108,60 +108,51 @@ public struct DayTimeGridView: View {
         }
     }
 
+    private var effectiveScrollY: CGFloat {
+        if sidebarModel.hasReceivedScroll {
+            return sidebarModel.gridScrollY
+        }
+        return CGFloat(initialScrollHour) * hourHeight
+    }
+
     public var body: some View {
-        ScrollViewReader { proxy in
-            ScrollView(.vertical, showsIndicators: true) {
-                VStack(spacing: 0) {
-                    ForEach(0 ..< 24, id: \.self) { hour in
-                        hourRow(hour: hour)
-                            .id(hour)
-                    }
+        ScrollView(.vertical, showsIndicators: true) {
+            VStack(spacing: 0) {
+                ForEach(0 ..< 24, id: \.self) { hour in
+                    hourRow(hour: hour)
                 }
-                .overlay(alignment: .topLeading) {
-                    GeometryReader { geo in
-                        let availableWidth = max(100.0, geo.size.width - gutterWidth - 8)
-                        ZStack(alignment: .topLeading) {
-                            // Events positioned on the time grid
-                            ForEach(gridEvents) { item in
-                                let colWidth = item.totalColumns == 1 ? availableWidth : (availableWidth - 4) / 2
-                                let xOffset = gutterWidth + (item.columnIndex == 0 ? 0 : (colWidth + 4))
-
-                                TimeGridEventTile(
-                                    event: item.event,
-                                    height: item.height,
-                                    isCompact: item.totalColumns > 1,
-                                    onSelect: { onSelectEvent(item.event) },
-                                    onJoinCall: onJoinCall,
-                                    onRsvp: onRsvp != nil ? { onRsvp?(item.event, $0) } : nil,
-                                    onDelete: onDeleteEvent,
-                                    onComplete: onCompleteTask
-                                )
-                                .frame(width: colWidth, height: item.height)
-                                .offset(x: xOffset, y: item.top)
-                            }
-
-                            // Live Now line
-                            if isToday {
-                                nowIndicator(width: geo.size.width)
-                            }
-                        }
-                    }
-                }
-                .padding(.bottom, 6)
-                .background(ScrollOffsetHook(targetY: sidebarModel.gridScrollY))
             }
-            .onAppear {
-                if sidebarModel.gridScrollY == 0 {
-                    DispatchQueue.main.async {
-                        proxy.scrollTo(initialScrollHour, anchor: .top)
-                    }
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                        if sidebarModel.gridScrollY == 0 {
-                            proxy.scrollTo(initialScrollHour, anchor: .top)
+            .overlay(alignment: .topLeading) {
+                GeometryReader { geo in
+                    let availableWidth = max(100.0, geo.size.width - gutterWidth - 8)
+                    ZStack(alignment: .topLeading) {
+                        // Events positioned on the time grid
+                        ForEach(gridEvents) { item in
+                            let colWidth = item.totalColumns == 1 ? availableWidth : (availableWidth - 4) / 2
+                            let xOffset = gutterWidth + (item.columnIndex == 0 ? 0 : (colWidth + 4))
+
+                            TimeGridEventTile(
+                                event: item.event,
+                                height: item.height,
+                                isCompact: item.totalColumns > 1,
+                                onSelect: { onSelectEvent(item.event) },
+                                onJoinCall: onJoinCall,
+                                onRsvp: onRsvp != nil ? { onRsvp?(item.event, $0) } : nil,
+                                onDelete: onDeleteEvent,
+                                onComplete: onCompleteTask
+                            )
+                            .frame(width: colWidth, height: item.height)
+                            .offset(x: xOffset, y: item.top)
+                        }
+
+                        // Live Now line
+                        if isToday {
+                            nowIndicator(width: geo.size.width)
                         }
                     }
                 }
             }
+            .background(ScrollOffsetHook(targetY: effectiveScrollY))
         }
     }
 
@@ -318,7 +309,7 @@ struct ScrollOffsetHook: NSViewRepresentable {
     let targetY: CGFloat
 
     final class Coordinator {
-        var lastTargetY: CGFloat = -1
+        var lastAppliedTargetY: CGFloat = -1
     }
 
     func makeCoordinator() -> Coordinator {
@@ -335,28 +326,25 @@ struct ScrollOffsetHook: NSViewRepresentable {
         guard let scrollView = nsView.enclosingScrollView else { return }
         let clipView = scrollView.contentView
 
-        if abs(context.coordinator.lastTargetY - targetY) > 0.5 {
-            context.coordinator.lastTargetY = targetY
-            let docHeight = scrollView.documentView?.frame.height ?? 0
-            let clipHeight = clipView.bounds.height
-            let maxY = max(0, docHeight - clipHeight)
-            let clampedY = max(0, min(targetY, maxY))
-            if abs(clipView.bounds.origin.y - clampedY) > 0.5 {
-                clipView.scroll(to: NSPoint(x: 0, y: clampedY))
-                scrollView.reflectScrolledClipView(clipView)
-            }
-            if docHeight == 0 {
-                DispatchQueue.main.async { [weak nsView] in
-                    guard let nsView,
-                          let sc = nsView.enclosingScrollView else { return }
-                    let cv = sc.contentView
-                    let dh = sc.documentView?.frame.height ?? 0
-                    let my = max(0, dh - cv.bounds.height)
-                    let cy = max(0, min(targetY, my))
-                    cv.scroll(to: NSPoint(x: 0, y: cy))
-                    sc.reflectScrolledClipView(cv)
-                }
-            }
+        if abs(context.coordinator.lastAppliedTargetY - targetY) > 0.5 {
+            context.coordinator.lastAppliedTargetY = targetY
+            applyScroll(scrollView: scrollView, clipView: clipView, targetY: targetY)
         }
+    }
+
+    private func applyScroll(scrollView: NSScrollView, clipView: NSClipView, targetY: CGFloat) {
+        let docHeight = scrollView.documentView?.frame.height ?? 0
+        if docHeight < 500 {
+            DispatchQueue.main.async { [weak scrollView] in
+                guard let sc = scrollView else { return }
+                applyScroll(scrollView: sc, clipView: sc.contentView, targetY: targetY)
+            }
+            return
+        }
+
+        let maxY = max(0, docHeight - clipView.bounds.height)
+        let clampedY = max(0, min(targetY, maxY))
+        clipView.scroll(to: NSPoint(x: 0, y: clampedY))
+        scrollView.reflectScrolledClipView(clipView)
     }
 }

@@ -162,6 +162,9 @@ function checkViewMode(): void {
 let activeScrollContainer: HTMLElement | null = null;
 let lastReportedScrollTop = -1;
 let lastReportedHourHeight = -1;
+let lastReportedGridTop = -1;
+let lastReportedGridHeight = -1;
+let lastReportedCardTop = -1;
 let scrollRaf: number | null = null;
 
 function isTimeGridView(timeframe: string | null): boolean {
@@ -171,75 +174,61 @@ function isTimeGridView(timeframe: string | null): boolean {
   );
 }
 
+function measureCardTop(): number {
+  const main = document.querySelector('[role="main"]');
+  if (main) {
+    const rect = main.getBoundingClientRect();
+    if (rect.top >= 30 && rect.top <= 250) {
+      return rect.top;
+    }
+  }
+  return 64;
+}
+
 function measureHourHeight(container: HTMLElement): number {
-  const rows = Array.from(container.querySelectorAll<HTMLElement>('[role="row"]'));
-  if (rows.length >= 2) {
-    const r0 = rows[0].getBoundingClientRect();
-    const r1 = rows[1].getBoundingClientRect();
-    const diff = Math.abs(r1.top - r0.top);
-    if (diff >= 24 && diff <= 120) {
-      return diff;
+  // Check if there is a column with 24 hour slots
+  const candidates = Array.from(container.querySelectorAll<HTMLElement>('div')).filter(
+    (d) => d.children.length === 24,
+  );
+  if (candidates.length > 0) {
+    const firstRow = candidates[0].children[0] as HTMLElement;
+    const h = firstRow.getBoundingClientRect().height;
+    if (h >= 30 && h <= 120) {
+      return h;
     }
   }
 
-  const scrollHeight = container.scrollHeight;
-  if (scrollHeight >= 480) {
-    return scrollHeight / 24;
+  // Google Calendar default row height is 48px (or 40px in compact mode)
+  if (container.scrollHeight >= 900) {
+    return Math.round((container.scrollHeight - 1) / 24);
   }
 
   return 48;
 }
 
 function findGridScrollContainer(): HTMLElement | null {
-  const grid = document.querySelector('[role="grid"]');
-  if (grid) {
-    const gridDivs = Array.from(grid.querySelectorAll<HTMLElement>('div'));
-    for (const el of gridDivs) {
-      if (el.scrollHeight >= 700 && el.clientHeight > 150) {
-        const style = window.getComputedStyle(el);
-        if (style.overflowY === 'auto' || style.overflowY === 'scroll') {
-          return el;
-        }
+  const main = document.querySelector('[role="main"]');
+  if (!main) return null;
+
+  // 1. In Day, Week, and 4-Day views, Google Calendar renders the scrollable
+  // 24-hour time grid strictly inside [role="main"] as '.mDPmMe'.
+  const mdp = main.querySelector<HTMLElement>('.mDPmMe');
+  if (mdp && mdp.scrollHeight > mdp.clientHeight && mdp.clientHeight > 100) {
+    return mdp;
+  }
+
+  // 2. Fallback: Search for any scrollable container strictly inside [role="main"]
+  // with scrollHeight >= 900 (24 hours is at least 24 * 38 = 912px).
+  const candidates = Array.from(main.querySelectorAll<HTMLElement>('div'));
+  for (const el of candidates) {
+    if (el.scrollHeight >= 900 && el.clientHeight > 150) {
+      const style = window.getComputedStyle(el);
+      if (style.overflowY === 'auto' || style.overflowY === 'scroll') {
+        return el;
       }
-    }
-    for (const el of gridDivs) {
-      if (el.scrollHeight > el.clientHeight && el.clientHeight > 150) {
-        const style = window.getComputedStyle(el);
-        if (style.overflowY === 'auto' || style.overflowY === 'scroll') {
-          return el;
-        }
-      }
-    }
-    let curr: HTMLElement | null = grid as HTMLElement;
-    while (curr && curr !== document.body) {
-      if (curr.scrollHeight > curr.clientHeight && curr.clientHeight > 150) {
-        const style = window.getComputedStyle(curr);
-        if (style.overflowY === 'auto' || style.overflowY === 'scroll') {
-          return curr;
-        }
-      }
-      curr = curr.parentElement;
     }
   }
 
-  const main = document.querySelector('[role="main"]') || document.body;
-  const candidates = Array.from(main.querySelectorAll<HTMLElement>('div'));
-  for (const el of candidates) {
-    if (el.scrollHeight >= 700 && el.clientHeight > 150) {
-      const style = window.getComputedStyle(el);
-      if (style.overflowY === 'auto' || style.overflowY === 'scroll') {
-        return el;
-      }
-    }
-  }
-  for (const el of candidates) {
-    if (el.scrollHeight > el.clientHeight && el.clientHeight > 200) {
-      const style = window.getComputedStyle(el);
-      if (style.overflowY === 'auto' || style.overflowY === 'scroll') {
-        return el;
-      }
-    }
-  }
   return null;
 }
 
@@ -247,21 +236,34 @@ function reportGridScroll(): void {
   if (!activeScrollContainer || !isTimeGridView(lastReportedTimeframe)) return;
   const scrollTop = activeScrollContainer.scrollTop;
   const hourHeight = measureHourHeight(activeScrollContainer);
+  const rect = activeScrollContainer.getBoundingClientRect();
+  const gridTop = rect.top;
+  const gridHeight = rect.height;
+  const cardTop = measureCardTop();
 
   if (
     Math.abs(scrollTop - lastReportedScrollTop) < 0.5 &&
-    Math.abs(hourHeight - lastReportedHourHeight) < 0.5
+    Math.abs(hourHeight - lastReportedHourHeight) < 0.5 &&
+    Math.abs(gridTop - lastReportedGridTop) < 0.5 &&
+    Math.abs(gridHeight - lastReportedGridHeight) < 0.5 &&
+    Math.abs(cardTop - lastReportedCardTop) < 0.5
   ) {
     return;
   }
   lastReportedScrollTop = scrollTop;
   lastReportedHourHeight = hourHeight;
+  lastReportedGridTop = gridTop;
+  lastReportedGridHeight = gridHeight;
+  lastReportedCardTop = cardTop;
 
   const hour = scrollTop / hourHeight;
 
   ipcRenderer.send(GCAL_GRID_SCROLL_CHANNEL, {
     hour,
     hourHeight,
+    gridTop,
+    gridHeight,
+    cardTop,
   });
 }
 
@@ -281,6 +283,9 @@ function checkGridScrollContainer(): void {
       activeScrollContainer = null;
       lastReportedScrollTop = -1;
       lastReportedHourHeight = -1;
+      lastReportedGridTop = -1;
+      lastReportedGridHeight = -1;
+      lastReportedCardTop = -1;
     }
     return;
   }

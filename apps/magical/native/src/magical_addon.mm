@@ -23,7 +23,7 @@ typedef double (*SidebarSetVisibleFn)(bool, bool);
 typedef void (*SidebarUpdateDataFn)(const char*);
 typedef void (*SidebarSetViewModeFn)(const char*, const char*);
 typedef void (*SidebarSetTransparencyFn)(bool, bool);
-typedef void (*SidebarSetScrollPositionFn)(double, double);
+typedef void (*SidebarSetScrollPositionFn)(double, double, double, double, double);
 
 static SetCallbackFn fn_set_callback = nullptr;
 static AttachFn fn_attach = nullptr;
@@ -426,14 +426,17 @@ static Napi::Value SidebarSetTransparency(const Napi::CallbackInfo& info) {
   return env.Undefined();
 }
 
-// JS: sidebarSetScrollPosition(hour: number, hourHeight: number)
+// JS: sidebarSetScrollPosition(hour: number, hourHeight: number, gridTop?: number, gridHeight?: number, cardTop?: number)
 static Napi::Value SidebarSetScrollPosition(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
   if (!fn_sidebar_set_scroll_position) return env.Undefined();
   if (info.Length() < 2 || !info[0].IsNumber() || !info[1].IsNumber()) return env.Undefined();
   double hour = info[0].As<Napi::Number>().DoubleValue();
   double hourHeight = info[1].As<Napi::Number>().DoubleValue();
-  fn_sidebar_set_scroll_position(hour, hourHeight);
+  double gridTop = info.Length() > 2 && info[2].IsNumber() ? info[2].As<Napi::Number>().DoubleValue() : 148.0;
+  double gridHeight = info.Length() > 3 && info[3].IsNumber() ? info[3].As<Napi::Number>().DoubleValue() : 600.0;
+  double cardTop = info.Length() > 4 && info[4].IsNumber() ? info[4].As<Napi::Number>().DoubleValue() : 64.0;
+  fn_sidebar_set_scroll_position(hour, hourHeight, gridTop, gridHeight, cardTop);
   return env.Undefined();
 }
 
