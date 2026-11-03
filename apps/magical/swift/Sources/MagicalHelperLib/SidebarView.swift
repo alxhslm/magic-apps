@@ -272,7 +272,7 @@ public struct WeekScrubberView: View {
     }
 
     public var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 4) {
             // Header with week label and calendar filter/settings
             HStack(alignment: .center) {
                 Button(action: {
@@ -295,7 +295,7 @@ public struct WeekScrubberView: View {
                 }
             }
             .padding(.horizontal, 12)
-            .padding(.top, 8)
+            .padding(.top, 5)
 
             // Day pills row
             HStack(spacing: 4) {
@@ -305,7 +305,12 @@ public struct WeekScrubberView: View {
             }
             .padding(.horizontal, 8)
         }
-        .padding(.bottom, 8)
+        .padding(.bottom, 5)
+        .background(
+            GeometryReader { geo in
+                Color.clear.preference(key: HeaderHeightPreferenceKey.self, value: geo.size.height + 1.0)
+            }
+        )
     }
 
     private func dayPill(_ item: WeekDayItem) -> some View {
@@ -355,7 +360,7 @@ public struct WeekScrubberView: View {
                 .frame(height: 5)
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 4)
+            .padding(.vertical, 2)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -400,19 +405,17 @@ public struct DayCompanionHeaderView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
+        .background(
+            GeometryReader { geo in
+                Color.clear.preference(key: HeaderHeightPreferenceKey.self, value: geo.size.height + 1.0)
+            }
+        )
     }
 }
 
 // MARK: - Day Focused Events List
 
-private struct HeaderBottomPreferenceKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = nextValue()
-    }
-}
-
-private struct AllDayHeightPreferenceKey: PreferenceKey {
+private struct HeaderHeightPreferenceKey: PreferenceKey {
     static var defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
         value = nextValue()
@@ -422,19 +425,20 @@ private struct AllDayHeightPreferenceKey: PreferenceKey {
 public struct DayFocusedEventsList: View {
     let events: [TrayEvent]
     let date: Date
+    let headerHeight: CGFloat
     var onAction: ((_ action: String, _ value: String) -> Void)?
 
     @ObservedObject private var sidebarModel = SidebarModel.shared
-    @State private var headerBottom: CGFloat = 0
-    @State private var allDayHeight: CGFloat = 0
 
     public init(
         events: [TrayEvent],
         date: Date,
+        headerHeight: CGFloat = 74.0,
         onAction: ((_ action: String, _ value: String) -> Void)? = nil
     ) {
         self.events = events
         self.date = date
+        self.headerHeight = headerHeight
         self.onAction = onAction
     }
 
@@ -446,54 +450,57 @@ public struct DayFocusedEventsList: View {
         events.filter { !$0.isAllDay }.sorted(by: { $0.startTime < $1.startTime })
     }
 
+    private var computedAllDayHeight: CGFloat {
+        switch allDayEvents.count {
+        case 0:
+            0.0
+        case 1:
+            29.0
+        case 2:
+            54.0
+        default:
+            53.0
+        }
+    }
+
+    private var allDayListContent: some View {
+        VStack(spacing: 3) {
+            ForEach(allDayEvents, id: \.identity) { event in
+                AllDayBannerView(
+                    event: event,
+                    onSelect: { onAction?("sidebarOpenEvent", event.id) },
+                    onDelete: { onAction?("sidebarDeleteEvent", "\($0.accountId):\($0.id)") },
+                    onComplete: { onAction?("sidebarCompleteTask", "\($0.accountId):\($0.id):\($1)") }
+                )
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 3)
+    }
+
     public var body: some View {
         VStack(spacing: 0) {
-            // Static measurement anchor at the top of the day events list (below week scrubber / day header)
-            Color.clear
-                .frame(height: 0)
-                .background(
-                    GeometryReader { geo in
-                        Color.clear.preference(
-                            key: HeaderBottomPreferenceKey.self,
-                            value: geo.frame(in: .named("SidebarCardContainer")).maxY
-                        )
-                    }
-                )
-
             // Alignment spacer so all-day events and DayTimeGridView match Google Calendar's positions inside the card
             let targetGridTopInCard = max(0, sidebarModel.gcalGridTop - sidebarModel.gcalCardTop)
-            let currentAllDayH = allDayEvents.isEmpty ? 0.0 : allDayHeight
-            let alignmentSpacer = headerBottom > 0 ? max(0, targetGridTopInCard - currentAllDayH - headerBottom) : 0
+            let currentAllDayH = computedAllDayHeight
+            let alignmentSpacer = max(0, targetGridTopInCard - currentAllDayH - headerHeight)
             if alignmentSpacer > 0 {
                 Spacer()
                     .frame(height: alignmentSpacer)
             }
 
-            // 1. Pinned All-Day Banners directly above the 24-hour time grid (scrollable if many)
+            // 1. Pinned All-Day Banners directly above the 24-hour time grid (scrollable if > 2)
             if !allDayEvents.isEmpty {
-                ScrollView(.vertical, showsIndicators: allDayEvents.count > 3) {
-                    VStack(spacing: 4) {
-                        ForEach(allDayEvents, id: \.identity) { event in
-                            AllDayBannerView(
-                                event: event,
-                                onSelect: { onAction?("sidebarOpenEvent", event.id) },
-                                onDelete: { onAction?("sidebarDeleteEvent", "\($0.accountId):\($0.id)") },
-                                onComplete: { onAction?("sidebarCompleteTask", "\($0.accountId):\($0.id):\($1)") }
-                            )
+                Group {
+                    if allDayEvents.count > 2 {
+                        ScrollView(.vertical, showsIndicators: true) {
+                            allDayListContent
                         }
+                        .frame(height: 52)
+                    } else {
+                        allDayListContent
                     }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
                 }
-                .frame(maxHeight: 120)
-                .background(
-                    GeometryReader { geo in
-                        Color.clear.preference(
-                            key: AllDayHeightPreferenceKey.self,
-                            value: geo.size.height + 1.0 // +1 for the divider below
-                        )
-                    }
-                )
 
                 Divider()
             }
@@ -511,14 +518,56 @@ public struct DayFocusedEventsList: View {
             .frame(height: sidebarModel.gcalGridHeight > 100 ? sidebarModel.gcalGridHeight : nil)
             .frame(maxWidth: .infinity)
         }
-        .onPreferenceChange(HeaderBottomPreferenceKey.self) { val in
-            if abs(headerBottom - val) > 0.5 {
-                headerBottom = val
+    }
+}
+
+// MARK: - Week Companion Container View
+
+private struct WeekCompanionContainerView: View {
+    @ObservedObject var model: SidebarModel
+    @State private var headerHeight: CGFloat = 74.0
+
+    var body: some View {
+        VStack(spacing: 0) {
+            WeekScrubberView(model: model)
+            Divider()
+            DayFocusedEventsList(
+                events: model.selectedDayEvents,
+                date: model.selectedDate,
+                headerHeight: headerHeight,
+                onAction: model.onAction
+            )
+            Spacer(minLength: 0)
+        }
+        .onPreferenceChange(HeaderHeightPreferenceKey.self) { val in
+            if val > 0, abs(headerHeight - val) > 0.5 {
+                headerHeight = val
             }
         }
-        .onPreferenceChange(AllDayHeightPreferenceKey.self) { val in
-            if abs(allDayHeight - val) > 0.5 {
-                allDayHeight = val
+    }
+}
+
+// MARK: - Day Companion Container View
+
+private struct DayCompanionContainerView: View {
+    @ObservedObject var model: SidebarModel
+    @State private var headerHeight: CGFloat = 37.0
+
+    var body: some View {
+        VStack(spacing: 0) {
+            DayCompanionHeaderView(model: model)
+            Divider()
+            DayFocusedEventsList(
+                events: model.selectedDayEvents,
+                date: model.selectedDate,
+                headerHeight: headerHeight,
+                onAction: model.onAction
+            )
+            Spacer(minLength: 0)
+        }
+        .onPreferenceChange(HeaderHeightPreferenceKey.self) { val in
+            if val > 0, abs(headerHeight - val) > 0.5 {
+                headerHeight = val
             }
         }
     }
@@ -652,30 +701,12 @@ public struct SidebarRootView: View {
 
     /// Week mode: Day scrubber + Focused day agenda
     private var weekModeView: some View {
-        VStack(spacing: 0) {
-            WeekScrubberView(model: model)
-            Divider()
-            DayFocusedEventsList(
-                events: model.selectedDayEvents,
-                date: model.selectedDate,
-                onAction: model.onAction
-            )
-            Spacer(minLength: 0)
-        }
+        WeekCompanionContainerView(model: model)
     }
 
     /// Day mode: Day title header + Focused day agenda
     private var dayModeView: some View {
-        VStack(spacing: 0) {
-            DayCompanionHeaderView(model: model)
-            Divider()
-            DayFocusedEventsList(
-                events: model.selectedDayEvents,
-                date: model.selectedDate,
-                onAction: model.onAction
-            )
-            Spacer(minLength: 0)
-        }
+        DayCompanionContainerView(model: model)
     }
 
     private func monthTitle(_ date: Date) -> String {

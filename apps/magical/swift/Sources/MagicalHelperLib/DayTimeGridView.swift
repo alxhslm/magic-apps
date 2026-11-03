@@ -305,46 +305,61 @@ private struct TimeGridEventTile: View {
 
 // MARK: - Sub-pixel AppKit Scroll Offset Hook
 
-struct ScrollOffsetHook: NSViewRepresentable {
-    let targetY: CGFloat
-
-    final class Coordinator {
-        var lastAppliedTargetY: CGFloat = -1
-    }
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator()
-    }
-
-    func makeNSView(context _: Context) -> NSView {
-        let view = NSView()
-        view.translatesAutoresizingMaskIntoConstraints = false
-        return view
-    }
-
-    func updateNSView(_ nsView: NSView, context: Context) {
-        guard let scrollView = nsView.enclosingScrollView else { return }
-        let clipView = scrollView.contentView
-
-        if abs(context.coordinator.lastAppliedTargetY - targetY) > 0.5 {
-            context.coordinator.lastAppliedTargetY = targetY
-            applyScroll(scrollView: scrollView, clipView: clipView, targetY: targetY)
+final class ScrollHookNSView: NSView {
+    var targetY: CGFloat = 0 {
+        didSet {
+            attemptScroll()
         }
     }
 
-    private func applyScroll(scrollView: NSScrollView, clipView: NSClipView, targetY: CGFloat) {
+    private var retryCount = 0
+
+    override func viewDidMoveToSuperview() {
+        super.viewDidMoveToSuperview()
+        attemptScroll()
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        attemptScroll()
+    }
+
+    func attemptScroll() {
+        guard let scrollView = enclosingScrollView else { return }
+        let clipView = scrollView.contentView
         let docHeight = scrollView.documentView?.frame.height ?? 0
-        if docHeight < 500 {
-            DispatchQueue.main.async { [weak scrollView] in
-                guard let sc = scrollView else { return }
-                applyScroll(scrollView: sc, clipView: sc.contentView, targetY: targetY)
+
+        guard docHeight >= 500 else {
+            if retryCount < 25 {
+                retryCount += 1
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.04) { [weak self] in
+                    self?.attemptScroll()
+                }
             }
             return
         }
 
+        retryCount = 0
         let maxY = max(0, docHeight - clipView.bounds.height)
         let clampedY = max(0, min(targetY, maxY))
-        clipView.scroll(to: NSPoint(x: 0, y: clampedY))
-        scrollView.reflectScrolledClipView(clipView)
+        if abs(clipView.bounds.origin.y - clampedY) > 0.5 {
+            clipView.scroll(to: NSPoint(x: 0, y: clampedY))
+            scrollView.reflectScrolledClipView(clipView)
+        }
+    }
+}
+
+struct ScrollOffsetHook: NSViewRepresentable {
+    let targetY: CGFloat
+
+    func makeNSView(context _: Context) -> ScrollHookNSView {
+        let view = ScrollHookNSView()
+        view.translatesAutoresizingMaskIntoConstraints = false
+        view.targetY = targetY
+        return view
+    }
+
+    func updateNSView(_ nsView: ScrollHookNSView, context _: Context) {
+        nsView.targetY = targetY
     }
 }

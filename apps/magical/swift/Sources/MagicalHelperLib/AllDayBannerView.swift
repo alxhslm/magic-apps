@@ -30,7 +30,7 @@ public struct AllDayBannerView: View {
                     .frame(width: 3.5, height: 14)
 
                 Text(event.summary)
-                    .font(.system(size: 11.5, weight: .semibold))
+                    .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.primary)
                     .lineLimit(1)
 
@@ -38,25 +38,25 @@ public struct AllDayBannerView: View {
 
                 if let calName = event.calendarName, !calName.isEmpty {
                     Text(calName)
-                        .font(.system(size: 9.5))
+                        .font(.system(size: 9))
                         .foregroundStyle(.tertiary)
                         .lineLimit(1)
                 }
 
                 Text("All day")
-                    .font(.system(size: 9, weight: .medium))
+                    .font(.system(size: 8.5, weight: .medium))
                     .foregroundStyle(.secondary)
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 2)
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 1.5)
                     .background(
                         Capsule()
                             .fill(Color.primary.opacity(0.06))
                     )
             }
             .padding(.leading, 6)
-            .padding(.trailing, 8)
-            .padding(.vertical, 4)
-            .frame(height: 26)
+            .padding(.trailing, 6)
+            .padding(.vertical, 2)
+            .frame(height: 22)
             .background(
                 RoundedRectangle(cornerRadius: 6)
                     .fill(Color(hex: event.colorHex).opacity(isHovering ? 0.22 : 0.14))
