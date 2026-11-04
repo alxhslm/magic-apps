@@ -78,7 +78,7 @@ if compile_only; then
 fi
 
 # Stamp the app's version onto the extension, matching the helper.
-APP_VERSION="$(node -p "require('$SCRIPT_DIR/../package.json').version")"
+APP_VERSION="${MAGIC_BUILD_VERSION:-$(node -p "require('$SCRIPT_DIR/../package.json').version")}"
 stamp_bundle_version "$CONTENTS_DIR/Info.plist" "$APP_VERSION"
 
 # Resolve a signing identity. An App Intents extension is only registered by

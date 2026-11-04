@@ -198,6 +198,23 @@ if [ -f "$APP_DIR/build/entitlements.mac.plist.in" ]; then
         "$TEAM_ID"
 fi
 
+# MARK: - Version
+#
+# A release supplies its target version through MAGIC_BUILD_VERSION. Every
+# other build gets a version naming the commit, so a log from a local build can
+# be tied back to code. The value goes to electron-builder's metadata rather
+# than into package.json, which stays clean.
+RELEASE_VERSION="${MAGIC_BUILD_VERSION:-}"
+BUILD_VERSION="$(node "$REPO_ROOT/tools/build-version.mjs" "$APP_DIR")"
+export MAGIC_BUILD_VERSION="$BUILD_VERSION"
+VERSION_ARGS=("-c.extraMetadata.version=$BUILD_VERSION")
+if [ -z "$RELEASE_VERSION" ]; then
+    # CFBundleVersion has to be numeric even when the marketing version names
+    # a commit, so a development build gets the commit count instead.
+    VERSION_ARGS+=("-c.mac.bundleVersion=$(git -C "$APP_DIR" rev-list --count HEAD)")
+fi
+step "Building as version $BUILD_VERSION"
+
 # MARK: - Build
 
 step "Building @magimail/core"
@@ -287,9 +304,9 @@ if [ "$DIST" = "1" ]; then
     # Every target in electron-builder.json, not just the unpacked directory:
     # the .dmg people download, the .zip electron-updater pulls, and the
     # .blockmap files that make an update a delta rather than a full 150 MB.
-    (cd "$APP_DIR" && npx electron-builder --mac $IDENTITY_ARGS)
+    (cd "$APP_DIR" && npx electron-builder --mac $IDENTITY_ARGS "${VERSION_ARGS[@]}")
 else
-    (cd "$APP_DIR" && npx electron-builder --mac --dir $IDENTITY_ARGS)
+    (cd "$APP_DIR" && npx electron-builder --mac --dir $IDENTITY_ARGS "${VERSION_ARGS[@]}")
 fi
 
 BUILT_APP="$(find "$APP_DIR/release" -maxdepth 2 -name 'Magimail.app' -print -quit)"

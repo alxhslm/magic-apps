@@ -159,8 +159,9 @@ case, so nothing writes focus state there, and the app and helper agree on the f
 ### Extension build number
 
 `stamp_bundle_version` in `tools/signing.sh` writes both numbers into every `.appex`.
-`CFBundleShortVersionString` is the marketing version from `package.json`; `CFBundleVersion` is the
-build number, defaulting to seconds since the epoch. macOS decides an extension bundle has changed by
+`CFBundleShortVersionString` is the build version supplied by `scripts/build-app.sh`: the release
+version, or `<package version>-dev+<short commit>` for a local build. `CFBundleVersion` is the build
+number, defaulting to seconds since the epoch. macOS decides an extension bundle has changed by
 the build number, so `chronod` re-reads a widget descriptor only when it moves. The marketing version
 moves once per release and is shared by every build in between, so a rebuild with the same build
 number keeps the old descriptor: the widget loses its configuration intent and every reload fails

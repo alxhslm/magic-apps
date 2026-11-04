@@ -48,7 +48,7 @@ fi
 # descriptors on the extension version, so a widget left behind at its own
 # version would keep serving stale descriptors after the app is updated.
 # Must happen before codesign, or it would break the signature.
-APP_VERSION="$(node -p "require('$SCRIPT_DIR/../package.json').version")"
+APP_VERSION="${MAGIC_BUILD_VERSION:-$(node -p "require('$SCRIPT_DIR/../package.json').version")}"
 stamp_bundle_version "$OUTPUT_DIR/$PRODUCT_NAME.appex/Contents/Info.plist" "$APP_VERSION"
 
 # Resolve the identity the same way the app itself does, so the extension and its

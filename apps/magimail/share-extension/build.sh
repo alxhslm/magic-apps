@@ -48,7 +48,7 @@ fi
 # validates an extension against its host, and a version that disagrees with the
 # host app is the kind of mismatch that is only ever noticed at submission time.
 # Must happen before codesign, or it would break the signature.
-APP_VERSION="$(node -p "require('$SCRIPT_DIR/../package.json').version")"
+APP_VERSION="${MAGIC_BUILD_VERSION:-$(node -p "require('$SCRIPT_DIR/../package.json').version")}"
 stamp_bundle_version "$OUTPUT_DIR/$PRODUCT_NAME.appex/Contents/Info.plist" "$APP_VERSION"
 
 # Resolve the identity the same way the app itself does, so the extension and its
