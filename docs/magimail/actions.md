@@ -175,6 +175,12 @@ list is still on screen and the toolbar is still laid out, so a visible Archive 
 the right thread is up, and acting on button visibility alone archives or deletes whatever the view
 was showing before.
 
+The hash is assigned only once the view is showing Gmail, not once it has loaded. A view that has
+finished loading can still be navigating after a wake, and a hash assigned during that navigation is
+lost to Gmail's own route. Before `routeToThread` runs, an open waits for the same chrome
+(`[role="main"]` or `[gh="cm"]`) that waking uses, with a short settle so a page still redrawing does
+not count as ready.
+
 Arrival is therefore a thread route plus a title that has moved, checked against the `webContents` in
 the main process rather than inside the page, which lets it reuse `isThreadUrl` instead of restating
 that pattern in injected script. `routeToThread` sets the hash and then waits inside the page for
@@ -198,6 +204,15 @@ its wait for Gmail's chrome (`[role="main"]` or `[gh="cm"]`), and its `release` 
 inactivity timer. A `triggerMailAction`, a read toggle, a search focus, a compose pop-out and a
 `magimail://thread/` link all wake the same way; `reloadActiveViewOnResume` does too, so a system
 resume reloads a renderer rather than silently doing nothing.
+
+An open also holds its account active from the moment it starts until the route lands or is dropped.
+A switch asked for during that time is deferred rather than applied, because detaching the view
+mid-route loses the hash. Opens are queued one at a time for the same reason, and the last deferred
+switch runs as soon as the hold lifts.
+
+A successful open logs `Opened thread on <account> in <n> ms`, marked `(already on screen)` when it
+did not need to route. A dropped open keeps its own line, so a report carries both the elapsed time
+and the reason.
 
 Triage does not wake the account for the direct write. It needs no view, and the DOM fallback wakes one
 inside the driver, so a triage the direct write lands never builds a renderer at all; one it cannot do
