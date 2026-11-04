@@ -374,7 +374,7 @@ struct AppearanceTab: View {
                 // so the caption has to say where it does apply.
                 Toggle("Show completed tasks", isOn: $model.showCompletedTasks)
                 Text(
-                    "Applies to the menu bar popover and the widgets, not the Tasks view inside the app."
+                    "Applies to the menu bar popover, the companion sidebar and the widgets, not the Tasks view inside the app."
                 )
                 .font(.caption)
                 .foregroundStyle(.secondary)

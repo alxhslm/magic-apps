@@ -7,6 +7,7 @@ import {
   TasksSessionExpiredError,
   TasksNetworkError,
   TasksDecodeError,
+  TasksRateLimitedError,
   TasksRefusedError,
 } from '../src/tasks-decoder.js';
 
@@ -215,6 +216,100 @@ describe('tasks-poller', () => {
       vi.mocked(Date.now).mockRestore();
     }
     expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  it('pauses on a 429 rather than retrying on the next poll', async () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date('2026-11-04T10:00:00Z'));
+      const fetchImpl = vi
+        .fn()
+        .mockResolvedValue(new Response('Too many requests', { status: 429 }));
+
+      const poller = new TasksPoller({
+        id: 'acc1:tasks',
+        accountId: 'acc1',
+        partition: 'persist:test',
+        gaiaId: '100000000000000000001',
+        getSapisidImpl: async () => 'test_sapisid',
+        fetchImpl,
+      });
+
+      await expect(poller.fetchTasks()).rejects.toThrow(TasksRateLimitedError);
+      expect(fetchImpl).toHaveBeenCalledTimes(1);
+
+      // Inside the pause Google is left alone, however often the poll asks.
+      vi.advanceTimersByTime(30 * 1000);
+      await expect(poller.fetchTasks()).rejects.toMatchObject({ retryAfterMs: 60 * 1000 });
+      expect(fetchImpl).toHaveBeenCalledTimes(1);
+
+      // The pause doubles for a rate limit that keeps happening.
+      vi.advanceTimersByTime(31 * 1000);
+      await expect(poller.fetchTasks()).rejects.toMatchObject({ retryAfterMs: 120 * 1000 });
+      expect(fetchImpl).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('honours a Retry-After the rate limit asks for', async () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date('2026-11-04T10:00:00Z'));
+      const fetchImpl = vi.fn().mockResolvedValue(
+        new Response('Too many requests', {
+          status: 429,
+          headers: { 'retry-after': '120' },
+        }),
+      );
+
+      const poller = new TasksPoller({
+        id: 'acc1:tasks',
+        accountId: 'acc1',
+        partition: 'persist:test',
+        gaiaId: '100000000000000000001',
+        getSapisidImpl: async () => 'test_sapisid',
+        fetchImpl,
+      });
+
+      await expect(poller.fetchTasks()).rejects.toMatchObject({ retryAfterMs: 120 * 1000 });
+
+      vi.advanceTimersByTime(60 * 1000);
+      await expect(poller.fetchTasks()).rejects.toThrow(TasksRateLimitedError);
+      expect(fetchImpl).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('clears the rate limit after a read that succeeds', async () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date('2026-11-04T10:00:00Z'));
+      const fetchImpl = vi
+        .fn()
+        .mockResolvedValueOnce(new Response('Too many requests', { status: 429 }))
+        .mockResolvedValue(new Response(fixtureContent, { status: 200 }));
+
+      const poller = new TasksPoller({
+        id: 'acc1:tasks',
+        accountId: 'acc1',
+        partition: 'persist:test',
+        gaiaId: '100000000000000000001',
+        getSapisidImpl: async () => 'test_sapisid',
+        fetchImpl,
+      });
+
+      await expect(poller.fetchTasks()).rejects.toThrow(TasksRateLimitedError);
+      vi.advanceTimersByTime(61 * 1000);
+      await expect(poller.fetchTasks()).resolves.toBeDefined();
+
+      // The episode is over, so the next rate limit starts from the base pause again.
+      fetchImpl.mockResolvedValue(new Response('Too many requests', { status: 429 }));
+      await expect(poller.fetchTasks()).rejects.toMatchObject({ retryAfterMs: 60 * 1000 });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('handles 500 response as TasksDecodeError', async () => {

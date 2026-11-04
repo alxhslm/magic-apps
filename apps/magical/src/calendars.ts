@@ -47,37 +47,120 @@ export const GOOGLE_CALENDAR_DEFAULT_SWATCHES: string[] = [
  *   abcdef1234567890@group.calendar.google.com
  */
 export function friendlyCalendarName(calId: string): string {
-  if (calId.includes('contacts@group.v.calendar.google.com') || calId.includes('birthdays')) {
+  const canonicalId = canonicaliseCalendarId(calId);
+  if (
+    canonicalId.includes('contacts@group.v.calendar.google.com') ||
+    canonicalId.includes('birthdays')
+  ) {
     return uiString('calendar.birthdays');
   }
-  if (calId.startsWith('family') || calId.includes('family')) {
+  if (canonicalId.startsWith('family') || canonicalId.includes('family')) {
     return uiString('calendar.family');
   }
-  if (calId.includes('#holiday@group.v.calendar.google.com')) {
-    const locale = calId.split('#')[0];
+  if (
+    canonicalId.includes('#holiday@group.v.calendar.google.com') ||
+    canonicalId.includes('#holiday@group.calendar.google.com')
+  ) {
+    const locale = canonicalId.split('#')[0];
     const country = locale.split('.').pop()?.toUpperCase() ?? '';
     return country
       ? uiString('calendar.holidays', { country })
       : uiString('calendar.holidaysGeneric');
   }
-  if (calId.includes('@import.calendar.google.com')) {
-    const prefix = calId.split('@')[0];
+  if (canonicalId.includes('@import.calendar.google.com')) {
+    const prefix = canonicalId.split('@')[0];
     return prefix.length > 20 ? uiString('calendar.imported') : prefix.replace(/_/g, ' ');
   }
-  if (calId.includes('@') && !calId.includes('@group.') && !calId.includes('@import.')) {
-    const namePart = calId.split('@')[0].replace(/[._]/g, ' ');
+  if (
+    canonicalId.includes('@') &&
+    !canonicalId.includes('@group.') &&
+    !canonicalId.includes('@import.')
+  ) {
+    const namePart = canonicalId.split('@')[0].replace(/[._]/g, ' ');
     return namePart
       .split(' ')
       .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
       .join(' ');
   }
   if (
-    calId.includes('@group.v.calendar.google.com') ||
-    calId.includes('@group.calendar.google.com')
+    canonicalId.includes('@group.v.calendar.google.com') ||
+    canonicalId.includes('@group.calendar.google.com')
   ) {
     return uiString('calendar.shared');
   }
-  return calId;
+  return canonicalId;
+}
+
+/**
+ * Known legacy-to-modern Google holiday calendar ID prefixes.
+ *
+ * Google migrated its built-in holiday feeds from legacy language-country prefixes
+ * (e.g. `en.uk#holiday...`) to BCP-47 locale tags (e.g. `en-gb.uk#holiday...`).
+ * Older accounts hold the legacy id in initialdata / accounts.json, while newer feeds
+ * or wire event blocks use the modern BCP-47 id.
+ */
+const HOLIDAY_LEGACY_TO_MODERN: Record<string, string> = {
+  'en.uk': 'en-gb.uk',
+  'en.usa': 'en-us.usa',
+  'en.canadian': 'en-ca.canadian',
+  'en.australian': 'en-au.australian',
+  'en.new_zealand': 'en-nz.new_zealand',
+  'en.singapore': 'en-sg.singapore',
+  'en.hong_kong': 'en-hk.hong_kong',
+  'en.south_africa': 'en-za.south_africa',
+  'en.irish': 'en-ie.irish',
+  'en.indian': 'en-in.indian',
+  'de.german': 'de-de.german',
+  'de.austrian': 'de-at.austrian',
+  'de.swiss': 'de-ch.swiss',
+  'fr.french': 'fr-fr.french',
+  'fr.canadian': 'fr-ca.canadian',
+  'es.spain': 'es-es.spain',
+  'es.mexican': 'es-mx.mexican',
+  'it.italian': 'it-it.italian',
+  'pt.portuguese': 'pt-pt.portuguese',
+  'pt.brazilian': 'pt-br.brazilian',
+  'nl.dutch': 'nl-nl.dutch',
+  'ja.japanese': 'ja-jp.japanese',
+  'ko.south_korea': 'ko-kr.south_korea',
+  'zh.china': 'zh-cn.china',
+  'zh.taiwan': 'zh-tw.taiwan',
+};
+
+/**
+ * Normalises a calendar ID, collapsing legacy aliases and encoding variations so that:
+ * 1. Event calendarIds match the account calendar row's id.
+ * 2. Filter toggles (hiddenCalendars) correctly match both the calendar and its events.
+ * 3. Calendar colours resolve properly rather than falling back to account colours.
+ */
+export function canonicaliseCalendarId(calId: string): string {
+  if (!calId) return calId;
+  let normalised = calId.replace('%23holiday', '#holiday');
+  if (
+    normalised.includes('#holiday@group.v.calendar.google.com') ||
+    normalised.includes('#holiday@group.calendar.google.com')
+  ) {
+    const hashIndex = normalised.indexOf('#');
+    if (hashIndex > 0) {
+      const prefix = normalised.slice(0, hashIndex);
+      const rest = normalised.slice(hashIndex);
+      const modernPrefix = HOLIDAY_LEGACY_TO_MODERN[prefix];
+      if (modernPrefix) {
+        normalised = `${modernPrefix}${rest}`;
+      }
+    }
+  }
+  return normalised;
+}
+
+/**
+ * Shared key format for one hidden calendar (scoped to an account).
+ *
+ * A calendar id alone does not identify a calendar: Google gives Birthdays, Tasks,
+ * and locale holiday feeds the same id in every account.
+ */
+export function hiddenKey(accountId: string, calendarId: string): string {
+  return `${accountId}\u0000${canonicaliseCalendarId(calendarId)}`;
 }
 
 export function resolvePrimaryEmail(account: CalendarAccount | undefined): string {
@@ -233,19 +316,24 @@ export function buildSerializedCalendars(
 
     if (account.calendars && account.calendars.length > 0) {
       for (const cal of account.calendars) {
+        const canonicalCalId = canonicaliseCalendarId(cal.id);
         const isPrimary =
           cal.id === primaryEmail ||
           cal.id === account.id ||
           cal.id === 'primary' ||
+          canonicalCalId === primaryEmail ||
           (Boolean(account.email) && cal.id === account.email);
 
-        const canonicalId = isPrimary ? primaryEmail : cal.id;
+        const canonicalId = isPrimary ? primaryEmail : canonicalCalId;
         seenCalendars.add(cal.id);
+        seenCalendars.add(canonicalCalId);
         seenCalendars.add(canonicalId);
 
         colors.set(cal.id, cal.color);
+        colors.set(canonicalCalId, cal.color);
         colors.set(canonicalId, cal.color);
         names.set(cal.id, cal.name);
+        names.set(canonicalCalId, cal.name);
         names.set(canonicalId, cal.name);
 
         if (isPrimary) {
@@ -282,8 +370,10 @@ export function buildSerializedCalendars(
       });
 
       let secondaryIdx = 0;
-      for (const calId of account.calendarIds || []) {
+      for (const rawCalId of account.calendarIds || []) {
+        const calId = canonicaliseCalendarId(rawCalId);
         if (!seenCalendars.has(calId)) {
+          seenCalendars.add(rawCalId);
           seenCalendars.add(calId);
           const secondaryColor =
             GOOGLE_CALENDAR_DEFAULT_SWATCHES[
@@ -292,7 +382,9 @@ export function buildSerializedCalendars(
           secondaryIdx++;
 
           const friendlyName = friendlyCalendarName(calId);
+          colors.set(rawCalId, secondaryColor);
           colors.set(calId, secondaryColor);
+          names.set(rawCalId, friendlyName);
           names.set(calId, friendlyName);
 
           serializedCalendars.push({
@@ -318,7 +410,7 @@ export function buildSerializedCalendars(
         // of them it names, so only an event on a single calendar may rename one.
         if (event.calendarIds.length !== 1) continue;
 
-        const calendarId = event.calendarIds[0];
+        const calendarId = canonicaliseCalendarId(event.calendarIds[0]);
         const isPrimaryMatch =
           calendarId === primaryEmail || calendarId === 'primary' || calendarId === accountId;
         const wanted = isPrimaryMatch ? primaryEmail : calendarId;

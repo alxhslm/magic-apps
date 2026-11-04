@@ -85,29 +85,68 @@ export function decodeEid(eid: string): { eventId: string; calendarId: string } 
 }
 
 /**
- * The `eid` for one occurrence of a series, built from the series master's own.
+ * The `eid` for one occurrence of a series, built from any event of that series.
  *
- * An occurrence this app generated inherits the master's `webUrl`, so its `eid` names the
- * series and not the occurrence. Google's grid labels each chip with the occurrence's
- * `eid`, so a link built from the master matches no chip and the reveal lands on the right
- * day with nothing opened -- which is what a banner for a weekly meeting did every time.
+ * The calendar id is taken from the event's own `eid` rather than from `calendarId`,
+ * because it is the one Google itself encoded and it is what the chip will carry. Any
+ * event of the series will do, since all of them carry the same calendar half.
  *
- * The calendar id is taken from the master's `eid` rather than from `calendarId`, because
- * it is the one Google itself encoded and it is what the chip will carry.
- *
- * Returns undefined when the master has no readable `eid`, leaving the caller with the
- * master's link: wrong, but no worse than before, and better than a link to nothing.
+ * Returns undefined when the event has no readable `eid`, leaving the caller with the
+ * link it already had: wrong, but no worse than before, and better than a link to
+ * nothing.
  */
 export function buildOccurrenceEid(
-  master: NormalizedCalendarEvent,
+  seriesEvent: NormalizedCalendarEvent,
   occurrenceId: string,
 ): string | undefined {
-  const masterEid = extractEid(master);
-  if (!masterEid) return undefined;
+  const seriesEid = extractEid(seriesEvent);
+  if (!seriesEid) return undefined;
 
-  const parts = decodeEid(masterEid);
+  const parts = decodeEid(seriesEid);
   if (!parts) return undefined;
   return Buffer.from(`${occurrenceId} ${parts.calendarId}`, 'utf8').toString('base64url');
+}
+
+/**
+ * The slot stamp the wire puts in a materialised occurrence id, in UTC.
+ *
+ * `20260918T084000Z` for a timed occurrence and `20260918` for an all-day one. An
+ * all-day event's instant is midnight UTC, so its date is the same through either set of
+ * getters; a timed event is an instant, and UTC is the spelling Google uses for its slot
+ * whatever zone the event itself is in.
+ */
+function occurrenceStamp(event: NormalizedCalendarEvent): string {
+  const start = event.startTime;
+  const pad = (value: number) => String(value).padStart(2, '0');
+  const date = `${start.getUTCFullYear()}${pad(start.getUTCMonth() + 1)}${pad(start.getUTCDate())}`;
+  if (event.isAllDay) return date;
+
+  const time = `${pad(start.getUTCHours())}${pad(start.getUTCMinutes())}${pad(start.getUTCSeconds())}`;
+  return `${date}T${time}Z`;
+}
+
+/**
+ * The `eid` that names this event's own occurrence.
+ *
+ * `extractEid` reads the event's own web URL. For an occurrence this app expanded from the
+ * series schedule, that URL is inherited from the record the occurrence took its fields
+ * from — the series' newest materialised instance, or the master when none is placed —
+ * so it names *that* occurrence and not this one. Google's grid labels each chip with the
+ * occurrence's own id, so an `eid` read from the inherited URL matches no chip: the reveal
+ * routes to the right day and opens nothing, and an RSVP or a delete drives the wrong one.
+ *
+ * Rebuilt here from the occurrence's own slot, the eid names the chip that is on screen.
+ * Every caller that acts on one occurrence uses this rather than `extractEid`; an
+ * occurrence whose inherited `eid` was already right rebuilds to the same bytes. An
+ * occurrence the wire returned carries its own `eid` and is left alone, as is a task's chip
+ * id, which is not an `eid` at all.
+ */
+export function eventEid(event: NormalizedCalendarEvent): string | undefined {
+  const eid = extractEid(event);
+  if (!eid || !event.instanceId) return eid;
+
+  const seriesId = event.seriesId ?? event.instanceId.replace(/_R\d{8}(?:T\d{6})?$/, '');
+  return buildOccurrenceEid(event, `${seriesId}_${occurrenceStamp(event)}`) ?? eid;
 }
 
 /** The web URL carrying an `eid`, in the shape the wire uses. */
@@ -128,7 +167,7 @@ export function buildEventLink(event: NormalizedCalendarEvent, accountId: string
   const start = event.isAllDay ? allDayLocalDate(event.startTime) : event.startTime;
   const at = encodeURIComponent(start.toISOString());
   const account = encodeURIComponent(accountId);
-  const eid = extractEid(event);
+  const eid = eventEid(event);
   if (eid) {
     return `${MAGICAL_PROTOCOL}://event?account=${account}&eid=${encodeURIComponent(eid)}&at=${at}`;
   }

@@ -23,6 +23,7 @@ export interface AppMenuOptions {
   onSearchCalendar?: () => void;
   onSearch?: () => void;
   onCustomizeToolbar?: () => void;
+  onToggleSidebar?: () => void;
   currentTheme: 'system' | 'light' | 'dark';
   onSetTheme: (theme: 'system' | 'light' | 'dark') => void;
   onCollectDiagnostics?: () => void;
@@ -65,6 +66,7 @@ export function buildAppMenu({
   onSearchCalendar,
   onSearch,
   onCustomizeToolbar,
+  onToggleSidebar,
   currentTheme,
   onSetTheme,
   onCollectDiagnostics,
@@ -196,6 +198,11 @@ export function buildAppMenu({
           label: uiString('menu.view.reloadCalendar'),
           accelerator: 'CmdOrCtrl+R',
           click: onReload,
+        },
+        {
+          label: uiString('menu.view.toggleSidebar'),
+          accelerator: 'CmdOrCtrl+\\',
+          click: () => onToggleSidebar?.(),
         },
         { type: 'separator' },
         {
