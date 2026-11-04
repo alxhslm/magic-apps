@@ -162,6 +162,12 @@ final class ToolbarManager: ToolbarManagerBase {
         [.sideButtons, .trackpad, .wheel]
     }
 
+    override func shouldIgnoreMouseNavigation(_ event: NSEvent) -> Bool {
+        // Only the scroll gesture: a side button over the sidebar still means Back.
+        guard event.type == .scrollWheel else { return false }
+        return SidebarManager.shared.ownsGesture(event)
+    }
+
     override func handleMouseNavigation(
         direction: MouseNavigationMonitor.Direction,
         source: MouseNavigationMonitor.Sources

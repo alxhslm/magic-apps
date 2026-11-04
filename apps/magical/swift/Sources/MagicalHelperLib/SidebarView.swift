@@ -116,23 +116,40 @@ public final class SidebarModel: ObservableObject {
         onAction?("sidebarSelectDate", formatter.string(from: date))
     }
 
-    public func selectNextDay() {
-        guard let next = calendar.date(byAdding: .day, value: 1, to: selectedDate) else { return }
-        if viewMode == .week || viewMode == .fourDay, let lastDay = currentWeekDays.last?.date {
-            let nextStart = calendar.startOfDay(for: next)
-            let lastStart = calendar.startOfDay(for: lastDay)
-            guard nextStart <= lastStart else { return }
+    /// Whether one more day fits inside the range Google Calendar is showing.
+    /// Week and 4-Day stop at the edge of the strip rather than scrolling into a week
+    /// Calendar is not on: the sidebar follows Calendar, it does not move it.
+    public var canSelectNextDay: Bool {
+        guard let next = calendar.date(byAdding: .day, value: 1, to: selectedDate) else {
+            return false
         }
+        guard viewMode == .week || viewMode == .fourDay,
+              let lastDay = currentWeekDays.last?.date
+        else { return true }
+        return calendar.startOfDay(for: next) <= calendar.startOfDay(for: lastDay)
+    }
+
+    public var canSelectPreviousDay: Bool {
+        guard let prev = calendar.date(byAdding: .day, value: -1, to: selectedDate) else {
+            return false
+        }
+        guard viewMode == .week || viewMode == .fourDay,
+              let firstDay = currentWeekDays.first?.date
+        else { return true }
+        return calendar.startOfDay(for: prev) >= calendar.startOfDay(for: firstDay)
+    }
+
+    public func selectNextDay() {
+        guard canSelectNextDay,
+              let next = calendar.date(byAdding: .day, value: 1, to: selectedDate)
+        else { return }
         selectDate(next)
     }
 
     public func selectPreviousDay() {
-        guard let prev = calendar.date(byAdding: .day, value: -1, to: selectedDate) else { return }
-        if viewMode == .week || viewMode == .fourDay, let firstDay = currentWeekDays.first?.date {
-            let prevStart = calendar.startOfDay(for: prev)
-            let firstStart = calendar.startOfDay(for: firstDay)
-            guard prevStart >= firstStart else { return }
-        }
+        guard canSelectPreviousDay,
+              let prev = calendar.date(byAdding: .day, value: -1, to: selectedDate)
+        else { return }
         selectDate(prev)
     }
 

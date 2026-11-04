@@ -117,8 +117,11 @@ When Google Calendar is in Week view, the sidebar shows:
 
 - **`WeekScrubberView`**: A horizontal bar of seven day pills (Monday through Sunday). Each pill
   renders the day initial, date numeral, event density dots, a filled accent disc for Today, and a
-  selection outline for the active day. Horizontal swipes and scrolling move the selection within
-  the week Google Calendar is showing.
+  selection outline for the active day. One horizontal swipe moves one day, and the gesture stops at
+  the edge of the week Google Calendar is showing: the sidebar moves inside Calendar's range, it does
+  not move Calendar to another week. A horizontal scroll over the card belongs to the sidebar only;
+  the window-wide navigation monitor leaves it alone, so the same swipe cannot also change the period
+  in Google Calendar.
 - **Day agenda**: A vertically scrollable agenda showing the selected day's events.
 
 ### Day mode

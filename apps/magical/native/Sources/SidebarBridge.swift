@@ -18,7 +18,10 @@ public final class SidebarManager {
     private var windowCloseObserver: Any?
     private var scrollMonitor: Any?
     private var accumulatedScrollDeltaX: CGFloat = 0
-    private var lastSwipeTime: TimeInterval = 0
+    /// One day per swipe. Without this, a single long trackpad gesture crosses as many
+    /// days as it produces threshold-sized chunks, which reads as a jump rather than a
+    /// move.
+    private var didMoveThisSwipe = false
     private var lastScrollTime: TimeInterval = 0
 
     public var isVisible: Bool = true
@@ -69,6 +72,7 @@ public final class SidebarManager {
                     self.scrollMonitor = nil
                 }
                 self.accumulatedScrollDeltaX = 0
+                self.didMoveThisSwipe = false
                 self.visualEffectView?.removeFromSuperview()
                 self.visualEffectView = nil
                 self.hostingView = nil
@@ -326,7 +330,14 @@ public final class SidebarManager {
 
     // MARK: - Event Monitoring & Gesture Handling
 
-    func handleScrollWheel(_ event: NSEvent) -> NSEvent? {
+    /// Whether this gesture is over the sidebar card, which moves within Google
+    /// Calendar's range rather than navigating the calendar period.
+    ///
+    /// Asked by both the sidebar's own monitor and the window-wide mouse navigation
+    /// monitor. Both see the same event, and the window-wide one accumulates before the
+    /// sidebar consumes it, so without this answer a swipe here moved a day in the
+    /// sidebar and changed the period in Calendar at the same time.
+    func ownsGesture(_ event: NSEvent) -> Bool {
         guard isVisible,
               let effect = visualEffectView,
               !effect.isHidden,
@@ -334,13 +345,14 @@ public final class SidebarManager {
               event.window === window,
               let contentView = window.contentView
         else {
-            return event
+            return false
         }
-
         let pointInContent = contentView.convert(event.locationInWindow, from: nil)
-        guard effect.frame.contains(pointInContent) else {
-            return event
-        }
+        return effect.frame.contains(pointInContent)
+    }
+
+    func handleScrollWheel(_ event: NSEvent) -> NSEvent? {
+        guard ownsGesture(event) else { return event }
 
         let deltaX = event.scrollingDeltaX
         let deltaY = event.scrollingDeltaY
@@ -353,30 +365,29 @@ public final class SidebarManager {
             let mode = SidebarModel.shared.viewMode
             if mode == .week || mode == .fourDay {
                 let now = ProcessInfo.processInfo.systemUptime
-                if now - lastScrollTime > 0.3 {
+                let startsGesture = event.phase.contains(.began) || now - lastScrollTime > 0.3
+                if startsGesture {
                     accumulatedScrollDeltaX = 0
+                    didMoveThisSwipe = false
                 }
                 lastScrollTime = now
 
-                // Only accumulate active user swipes, ignoring momentum flings
-                if event.momentumPhase.isEmpty {
+                // Only the active part of the gesture moves a day; the momentum after the
+                // fingers lift is the same swipe continuing.
+                if event.momentumPhase.isEmpty, !didMoveThisSwipe {
                     let effectiveDeltaX = event.isDirectionInvertedFromDevice ? deltaX : -deltaX
                     accumulatedScrollDeltaX += effectiveDeltaX
 
                     let threshold: CGFloat = 28.0
-                    if accumulatedScrollDeltaX <= -threshold {
-                        if now - lastSwipeTime >= 0.12 {
-                            lastSwipeTime = now
-                            accumulatedScrollDeltaX = 0
-                            withAnimation(.easeInOut(duration: 0.2)) {
-                                SidebarModel.shared.selectNextDay()
-                            }
-                        }
-                    } else if accumulatedScrollDeltaX >= threshold, now - lastSwipeTime >= 0.12 {
-                        lastSwipeTime = now
-                        accumulatedScrollDeltaX = 0
+                    if abs(accumulatedScrollDeltaX) >= threshold {
+                        didMoveThisSwipe = true
+                        let moveNext = accumulatedScrollDeltaX < 0
                         withAnimation(.easeInOut(duration: 0.2)) {
-                            SidebarModel.shared.selectPreviousDay()
+                            if moveNext {
+                                SidebarModel.shared.selectNextDay()
+                            } else {
+                                SidebarModel.shared.selectPreviousDay()
+                            }
                         }
                     }
                 }
@@ -384,6 +395,7 @@ public final class SidebarManager {
 
             if event.phase.contains(.ended) || event.phase.contains(.cancelled) {
                 accumulatedScrollDeltaX = 0
+                didMoveThisSwipe = false
             }
 
             // In ALL view modes: consume the horizontal scroll event by returning nil
@@ -394,6 +406,7 @@ public final class SidebarManager {
 
         if event.phase.contains(.ended) || event.phase.contains(.cancelled) {
             accumulatedScrollDeltaX = 0
+            didMoveThisSwipe = false
         }
 
         // Vertical gestures return unchanged so timeline scrolling and two-way sync operate smoothly
