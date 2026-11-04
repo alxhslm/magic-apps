@@ -55,6 +55,8 @@ export class SwiftHelper {
    * latency; two in a row mean the helper has stopped answering.
    */
   private consecutiveMisses = 0;
+  /** Requests that missed their deadline and have not replied since. */
+  private readonly timedOut = new Map<number, string>();
   private eventCallback: HelperEventCallback | null = null;
   private spawnedCallback: HelperSpawnedCallback | null = null;
 
@@ -108,6 +110,7 @@ export class SwiftHelper {
     const proc = spawn(helperPath, args, { stdio: ['pipe', 'pipe', 'pipe'] });
     this.process = proc;
     this.consecutiveMisses = 0;
+    this.timedOut.clear();
 
     // A non-zero exit is the helper crashing, and takes the menu bar item,
     // settings window and notifications with it. It must not be an info line.
@@ -136,6 +139,12 @@ export class SwiftHelper {
     proc.stdin?.on('error', (err) => {
       this.log.error(this.tag(`Helper stdin failed: ${errorMessage(err)}`));
       if (this.process === proc) {
+        const dropped = this.pending.size;
+        this.log.warn(
+          this.tag(
+            `Helper is unusable; dropping ${dropped} pending request(s); the next send starts a new one`,
+          ),
+        );
         this.process = null;
         this.resolvePending(null);
       }
@@ -176,9 +185,25 @@ export class SwiftHelper {
       const msg = JSON.parse(line);
 
       if (msg.id !== undefined) {
+        const lateMethod = this.timedOut.get(msg.id);
+        const missed = this.consecutiveMisses;
+
         // Any reply, including one that arrived after its own deadline, proves
         // the helper is still working through requests.
         if (this.process === proc) this.consecutiveMisses = 0;
+        if (lateMethod !== undefined) {
+          this.timedOut.delete(msg.id);
+          if (this.process === proc) {
+            this.log.warn(
+              this.tag(
+                `${lateMethod} replied after its deadline (request ${msg.id}); the helper is alive`,
+              ),
+            );
+          }
+        } else if (missed > 0 && this.process === proc) {
+          this.log.info(this.tag(`Helper replied after ${missed} missed deadline(s); keeping it`));
+        }
+
         const resolve = this.pending.get(msg.id);
         if (resolve) {
           this.pending.delete(msg.id);
@@ -224,6 +249,14 @@ export class SwiftHelper {
         if (this.pending.has(id)) {
           this.pending.delete(id);
           this.consecutiveMisses++;
+          this.timedOut.set(id, method);
+          // Bound the map when a helper misses deadline after deadline without
+          // ever answering or being restarted.
+          if (this.timedOut.size > 16) {
+            const oldest = this.timedOut.keys().next().value;
+            if (oldest !== undefined) this.timedOut.delete(oldest);
+          }
+
           // The helper is alive, so nothing else writes a line: no exit code,
           // no spawn failure. A Settings window that never opens, a menu bar
           // item that never appears and a banner that never fires all arrive
@@ -235,10 +268,16 @@ export class SwiftHelper {
           // helper is still coming up. Killing on that first miss takes the
           // menu bar item, settings window and notifications with it. The
           // second consecutive miss is a helper that has stopped answering.
-          if (this.consecutiveMisses >= 2) {
+          if (this.consecutiveMisses === 1) {
+            this.log.warn(
+              this.tag(
+                `Keeping the helper after one missed deadline (request ${id}); ${this.pending.size} other request(s) still pending`,
+              ),
+            );
+          } else {
             this.log.error(
               this.tag(
-                `Restarting the helper after ${this.consecutiveMisses} consecutive missed deadlines`,
+                `Restarting the helper after ${this.consecutiveMisses} consecutive missed deadlines (request ${id} missed); ${this.pending.size} other request(s) resolved null`,
               ),
             );
             this.kill();
@@ -269,6 +308,7 @@ export class SwiftHelper {
   public kill(): void {
     this.resolvePending(null);
     this.consecutiveMisses = 0;
+    this.timedOut.clear();
     this.process?.kill();
     this.process = null;
   }

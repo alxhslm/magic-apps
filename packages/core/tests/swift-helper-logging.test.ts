@@ -207,6 +207,9 @@ describe('helper request timeout and recovery', () => {
 
     expect(result).toBeNull();
     expect(sink.error).toHaveBeenCalledWith('tray.update timed out after 1000ms');
+    expect(sink.warn).toHaveBeenCalledWith(
+      'Keeping the helper after one missed deadline (request 1); 0 other request(s) still pending',
+    );
     expect(child.kill).not.toHaveBeenCalled();
     expect(helper.isRunning()).toBe(true);
   });
@@ -227,6 +230,9 @@ describe('helper request timeout and recovery', () => {
     const [r2, r3] = await Promise.all([p2, p3]);
     expect(r2).toBeNull();
     expect(r3).toBeNull();
+    expect(sink.error).toHaveBeenCalledWith(
+      'Restarting the helper after 2 consecutive missed deadlines (request 2 missed); 1 other request(s) resolved null',
+    );
     expect(child.kill).toHaveBeenCalledTimes(1);
     expect(helper.isRunning()).toBe(false);
   });
@@ -241,6 +247,9 @@ describe('helper request timeout and recovery', () => {
 
     // A reply that arrives after its own deadline still proves the helper is alive.
     await emitStdout(JSON.stringify({ id: 1, result: 'late' }));
+    expect(sink.warn).toHaveBeenCalledWith(
+      'tray.update replied after its deadline (request 1); the helper is alive',
+    );
 
     const p2 = helper.send('tray.update');
     vi.advanceTimersByTime(1000);
@@ -251,6 +260,21 @@ describe('helper request timeout and recovery', () => {
     vi.advanceTimersByTime(1000);
     expect(await p3).toBeNull();
     expect(child.kill).toHaveBeenCalledTimes(1);
+  });
+
+  it('logs when a later reply recovers a helper that missed one deadline', async () => {
+    const helper = makeTimedHelper();
+    helper.spawn();
+
+    const p1 = helper.send('tray.update');
+    vi.advanceTimersByTime(1000);
+    await p1;
+
+    const p2 = helper.send('tray.update');
+    await emitStdout(JSON.stringify({ id: 2, result: 'ok' }));
+
+    expect(await p2).toBe('ok');
+    expect(sink.info).toHaveBeenCalledWith('Helper replied after 1 missed deadline(s); keeping it');
   });
 
   it('respawns the helper on the send after the second miss terminates it', async () => {
@@ -286,6 +310,9 @@ describe('helper stdin failures', () => {
     child.stdin.emit('error', Object.assign(new Error('write EPIPE'), { code: 'EPIPE' }));
 
     expect(sink.error).toHaveBeenCalledWith('Helper stdin failed: write EPIPE');
+    expect(sink.warn).toHaveBeenCalledWith(
+      'Helper is unusable; dropping 1 pending request(s); the next send starts a new one',
+    );
     await expect(promise).resolves.toBeNull();
     expect(helper.isRunning()).toBe(false);
   });
