@@ -189,7 +189,7 @@ from the month currently in view.
 Each card carries the event's times, title, calendar and location. Every time and date here, in the
 hero and on the now rule, follows the Mac's clock and locale through `TimeDisplay`; the rule, the
 formatters and the zone are in
-[`notifications.md`'s The clock on screen](notifications.md#the-clock-on-screen). Completed tasks follow
+[`time-and-locale.md`](time-and-locale.md). Completed tasks follow
 `showCompletedTasks`: switching it off removes them from `filteredEvents` and `nextEvent` with them.
 Clicking a card reveals the event, and the secondary-click actions, RSVPs and task controls are in
 [`actions.md`](actions.md); revealing an event is

@@ -22,6 +22,15 @@ The General tab manages startup behaviour and default calendar file handling:
   - **Importing by hand**: **File → Import Calendar File…** (<kbd>⇧⌘I</kbd>) reaches the same flow for a file you have already found.
   - **New event account**: Choose whether new events are added to your currently active calendar account or prompt you to pick an account every time.
 
+### Times and Dates
+
+Magical has no clock or date format of its own: every time and date it shows follows your Mac.
+
+- **12- or 24-hour clock**: the **24-Hour Time** switch in **System Settings → General → Date & Time**. On, a meeting reads `14:35`; off, `2:35 pm`.
+- **Date order and language**: **System Settings → General → Language & Region**. A British Mac reads `18 Oct`, an American one `Oct 18`.
+
+A change to either reaches the menu bar, popover, banners and widgets without restarting Magical.
+
 ---
 
 ## Accounts

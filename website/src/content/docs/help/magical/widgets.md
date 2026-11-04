@@ -24,6 +24,8 @@ Magical provides three widget layouts, showing the same agenda the [menu bar pop
    - Displays today's upcoming agenda alongside the calendar grid.
    - Carries an inline <span class="sym sym-calendar-badge-plus" aria-hidden="true"></span> **Add Event** button that opens the event composer.
 
+Times and dates on a widget follow your Mac's clock and region, the same as the menu bar. The [Settings Reference](/help/magical/settings/#times-and-dates) says where those live.
+
 ![Magical desktop widgets showing Up Next small, Agenda medium, and Month large layouts on macOS desktop](/assets/shot-widgets-magical.webp)
 
 ## Adding & Configuring Widgets

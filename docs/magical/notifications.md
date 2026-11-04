@@ -208,58 +208,12 @@ A press travels back as an `alert.action` event carrying the alert's `key`, `acc
 `deepLink` and `conferenceUrl`. `onAlertAction` routes each one to the same method the tray RPC
 reaches; see [`actions.md`](actions.md).
 
-## The clock on screen
+## Times in banner text
 
-Every time and date the user reads follows the Mac's own clock and locale. The region and the switch
-are separate macOS settings: the switch writes `AppleICUForce24HourTime` and leaves the region at
-`en_GB` or `en_US`, so either region can be on either clock.
-
-`mac-clock.ts` reads that key in `app.whenReady()`, next to `setUiLocale`. It returns a definite
-`true` or `false`, or `undefined` when the user has never touched the switch: an absent key reads as
-an empty string, and reading it as `false` would pin a 24-hour region to a 12-hour clock, which is
-the same bug in the other direction. `time-format.ts` then takes the forced value if there is one
-and otherwise the locale's own `hourCycle` from `Intl`.
-
-The cycle is re-read rather than fixed at launch, because a change to the switch has to reach a
-running app. macOS posts no notification for it, so the main process re-reads the key on a 30-second
-timer, and the banner and dialog, built on demand, then use the new clock. The Swift helper reads the
-key in `TimeDisplay` on every access and rebuilds its cached formatters only when it has changed;
-the menu bar picks that up on its next tick and the popover on its next open. A widget follows at its
-next timeline render.
-
-In the Electron main process, `formatTime` and `formatClock` in `time-format.ts` are the only
-formatters for user-visible times: the alert subtitle in `buildAlertContent`, the invitation line in
-`formatInviteLine` and the ICS import dialog in `describeIcs`. Passing `undefined` as the locale is
-what broke this before, because it resolves to ICU's default rather than the Mac's setting.
-
-The Swift helper cannot lean on Foundation here: `Locale.current` folds the switch in once at
-launch and never refreshes, and a running process still asked for 24-hour after the key was deleted.
-So `TimeDisplay` reads the raw key and rebuilds the locale from its identifier with the cycle
-forced, which also keeps the off state honest on a Mac that launched with the switch on. Presence of
-the key means on: macOS forces 24-hour for any present value and removes the key when the switch is
-off. A literal `j`-template lookup on `Locale.current` would inherit the launch-time cycle instead.
-
-| Surface                                                           | Formatter                                        |
-| :---------------------------------------------------------------- | :----------------------------------------------- |
-| Alert subtitle, invitation line, ICS import dialog                | `formatTime` / `formatClock`                     |
-| Menu bar event times, agenda, popover cards, hero, both now rules | `TimeDisplay.time`                               |
-| Day grid hour gutter                                              | `TimeDisplay.hour` (`HH` or `ha`)                |
-| Menu bar date, month headers, agenda headings, widget date        | `TimeDisplay.dateFormatter`                      |
-| Widget times                                                      | `WidgetFormat.time`, the same `TimeDisplay.time` |
-
-Dates are a locale decision as well as a clock one, and the two do not travel together: London
-reads `3 March 2026`, New York `March 3, 2026`, and Tokyo `2026年3月3日`. Display labels therefore
-come from a field set through `TimeDisplay.dateFormatter(template:)` or `Intl` options, which let
-Foundation and ICU choose the order and punctuation. A literal pattern such as `d MMMM yyyy` fixes
-both, so it is for sort keys and log lines rather than anything on screen: `calendar-recurrence.ts`'s
-`hourCycle: 'h23'`, the helpers' `yyyy-MM-dd` day keys and their `yyyy-MM-dd HH:mm:ss` log stamps are
-deliberately independent of the user's clock and region, because changing either must not change a
-key or an ordering.
-
-The zone is the Mac's too: every native surface renders in `.current`, and Electron's process-local
-zone is the Mac's, so a UTC offset change moves what every one of them shows at the same instant.
-The companion sidebar is the one exception, because Google Calendar renders it and uses the Google
-account's own timezone and locale; Magical does not rewrite that.
+An alert's start time and an invitation's date come from `formatTime` / `formatClock` in
+`time-format.ts`, so both follow the Mac's clock and locale like every other surface. The rule,
+where the setting is read and which formatter the rest of the app uses are in
+[`time-and-locale.md`](time-and-locale.md).
 
 ## Answering an invitation
 

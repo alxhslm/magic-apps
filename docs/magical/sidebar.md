@@ -102,7 +102,7 @@ compact Fantastical-style layout:
   Month view the list is bounded to the days the grid draws, including the leading and trailing
   weeks; in Schedule view it is the continuous agenda. Its event times and dates follow the Mac's
   clock and locale through `TimeDisplay`, like the menu bar's; see
-  [`notifications.md`'s The clock on screen](notifications.md#the-clock-on-screen).
+  [`time-and-locale.md`](time-and-locale.md).
 
 Selecting a day from the leading or trailing week of the grid (1 December while November is on
 screen, say) moves the agenda to that day but leaves the grid on November. That day is inside the
