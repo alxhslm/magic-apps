@@ -14,8 +14,6 @@ In **Settings → Appearance** (under **Dock & Menu Bar**), which the [Settings 
 - **Show verification codes**: displays an OTP hero card above your message feeds whenever a verification code arrives.
 - **Keep in menu bar for**: chooses how long (5, 10, 15, or 30 minutes) the code remains pinned before expiring.
 
-### Menu bar status
-
 Each reading draws one mark per account, in the same order as your account list. Examples below use two accounts: Work in blue and Personal in green.
 
 <div class="menu-bar-readings">
