@@ -5,14 +5,9 @@ description: Monitoring unread mail, filtering messages, and executing 1-click t
 
 Magimail places a lightweight status icon in your macOS menu bar, allowing you to triage incoming email rapidly without keeping the main application window open.
 
-## Status Icon Controls
+## Menu bar status
 
-In **Settings → Appearance** (under **Dock & Menu Bar**), which the [Settings Reference](/help/magimail/settings/) describes, these controls decide what the menu bar shows.
-
-### Menu status
-
-- **Show menu bar tray**: shows or hides the Magimail item itself.
-- **Menu bar status**: chooses **Menu bar icon only**, **Unread status dots**, or **Unread count** beside the icon.
+In **Settings → Appearance → Dock & Menu Bar**, **Show menu bar tray** turns the item on or off, and **Menu bar status** chooses what appears beside it: **Menu bar icon only**, **Unread status dots** or **Unread count**. The [Settings Reference](/help/magimail/settings/) describes the rest.
 
 Each reading draws one mark per account, in the same order as your account list. Examples below use two accounts: Work in blue and Personal in green.
 
@@ -52,11 +47,6 @@ Each reading draws one mark per account, in the same order as your account list.
 
 The item keeps the same width as mail arrives or is read, so it never shifts the other items in your menu bar. An account that needs signing in shows a ring or a dimmed `0` rather than a mark that claims unread mail.
 
-### OTP codes
-
-- **Show verification codes**: displays an OTP hero card above your message feeds whenever a verification code arrives.
-- **Keep in menu bar for**: chooses how long (5, 10, 15, or 30 minutes) the code remains pinned before expiring.
-
 ## Popover
 
 Clicking the menu bar icon opens a floating popover listing your most recent email threads:
@@ -72,7 +62,9 @@ Clicking the menu bar icon opens a floating popover listing your most recent ema
 
 When an authentication or login email arrives, Magimail inspects the subject line and message snippet for one-time verification codes and pins a hero card to the top of the popover. Clicking **Copy** writes the code straight to your clipboard and confirms with a brief "Copied" indicator.
 
-The card stays in the menu bar until you archive or delete the email, or until the configured timer (15 minutes by default) elapses. Opening or reading the message does not dismiss it, so you can check the email first and still copy the code from the menu bar.
+The card stays in the menu bar until you archive or delete the email, or until the configured timer elapses. Opening or reading the message does not dismiss it, so you can check the email first and still copy the code from the menu bar.
+
+Both controls sit in **Settings → Appearance → Dock & Menu Bar**: **Show verification codes** turns the card on or off, and **Keep in menu bar for** chooses how long it stays pinned (5, 10, 15 or 30 minutes). The [Settings Reference](/help/magimail/settings/) describes them.
 
 ## Filtering & Multi-Account Search
 
