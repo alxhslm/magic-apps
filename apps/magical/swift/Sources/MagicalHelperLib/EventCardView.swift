@@ -1,6 +1,25 @@
 import HelperUI
 import SwiftUI
 
+/// The glyph that says what a card is: birthday, focus time, task, working location.
+///
+/// Every card shape draws it, not only the full event card. A task that arrives all-day or
+/// in a side-by-side pair fell through to a banner or tile that had no glyph, so the same
+/// task looked like an ordinary meeting depending on the view it landed in.
+struct EventKindBadge: View {
+    let event: TrayEvent
+    var size: CGFloat = 10.5
+
+    var body: some View {
+        if let kind = event.kindGlyph {
+            Image(systemName: kind.symbol)
+                .font(.system(size: size))
+                .foregroundStyle(.secondary)
+                .accessibilityLabel(kind.label)
+        }
+    }
+}
+
 /// One event in the agenda.
 ///
 /// The leading accent bar is the only thing on the card that carries the calendar's colour
@@ -44,12 +63,7 @@ public struct EventCardView: View {
                     HStack(alignment: .center, spacing: 6) {
                         // Says what the entry is, where the badges after the title say
                         // what is outstanding on it.
-                        if let kind = event.kindGlyph {
-                            Image(systemName: kind.symbol)
-                                .font(.system(size: 10.5))
-                                .foregroundStyle(.secondary)
-                                .accessibilityLabel(kind.label)
-                        }
+                        EventKindBadge(event: event)
 
                         Text(event.summary)
                             .font(.system(size: 12, weight: .semibold))

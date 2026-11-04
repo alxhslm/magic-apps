@@ -29,6 +29,8 @@ public struct AllDayBannerView: View {
                     .fill(Color(hex: event.colorHex))
                     .frame(width: 3, height: 12)
 
+                EventKindBadge(event: event, size: 9.5)
+
                 Text(event.summary)
                     .font(.system(size: 10.5, weight: .semibold))
                     .foregroundStyle(.primary)

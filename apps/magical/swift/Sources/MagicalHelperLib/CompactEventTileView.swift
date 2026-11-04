@@ -38,6 +38,8 @@ public struct CompactEventTileView: View {
 
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 3) {
+                        EventKindBadge(event: event, size: 9)
+
                         Text(event.formattedTime)
                             .font(.system(size: 9.5, design: .rounded).monospacedDigit())
                             .foregroundStyle(.secondary)
