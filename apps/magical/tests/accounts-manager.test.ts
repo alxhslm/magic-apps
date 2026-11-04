@@ -542,4 +542,98 @@ describe('AccountsManager in Magical', () => {
       expect(changed).not.toHaveBeenCalled();
     });
   });
+
+  describe('smooth content resize animation', () => {
+    it('animates WebContentsView width when sidebar expands in a wide window', () => {
+      vi.mocked(win.getContentSize).mockReturnValue([1600, 900]);
+      saveSetting('sidebarVisible', true);
+      // Ensure the active view exists
+      const view = viewFor('persist:magical_personal') as any;
+      expect(view).toBeDefined();
+
+      vi.mocked(view.setBounds).mockClear();
+
+      // Trigger expand animation: sidebarVisible = true (shrinks content from 1600 to 1260)
+      manager.animateContentResize(true, 250);
+
+      // Advance halfway through animation
+      vi.advanceTimersByTime(128);
+      const intermediateCalls = vi.mocked(view.setBounds).mock.calls;
+      expect(intermediateCalls.length).toBeGreaterThan(0);
+      const midWidth = intermediateCalls[intermediateCalls.length - 1][0].width;
+      expect(midWidth).toBeLessThan(1600);
+      expect(midWidth).toBeGreaterThan(1260);
+
+      // Advance to completion
+      vi.advanceTimersByTime(150);
+      expect(view.setBounds).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          x: 0,
+          width: 1260,
+        }),
+      );
+    });
+
+    it('animates WebContentsView width when sidebar collapses in a wide window', () => {
+      vi.mocked(win.getContentSize).mockReturnValue([1600, 900]);
+      saveSetting('sidebarVisible', false);
+      const view = viewFor('persist:magical_personal') as any;
+      expect(view).toBeDefined();
+
+      vi.mocked(view.setBounds).mockClear();
+
+      // Trigger collapse animation: sidebarVisible = false (expands content from 1260 to 1600)
+      manager.animateContentResize(false, 250);
+
+      // Advance halfway through animation
+      vi.advanceTimersByTime(128);
+      const intermediateCalls = vi.mocked(view.setBounds).mock.calls;
+      expect(intermediateCalls.length).toBeGreaterThan(0);
+      const midWidth = intermediateCalls[intermediateCalls.length - 1][0].width;
+      expect(midWidth).toBeGreaterThan(1260);
+      expect(midWidth).toBeLessThan(1600);
+
+      // Advance to completion
+      vi.advanceTimersByTime(150);
+      expect(view.setBounds).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          x: 0,
+          width: 1600,
+        }),
+      );
+    });
+
+    it('cancels ongoing content animation when updateLayout is called', () => {
+      vi.mocked(win.getContentSize).mockReturnValue([1600, 900]);
+      const view = viewFor('persist:magical_personal') as any;
+      expect(view).toBeDefined();
+
+      manager.animateContentResize(true, 250);
+      vi.advanceTimersByTime(50);
+      const callsBefore = vi.mocked(view.setBounds).mock.calls.length;
+
+      // An explicit layout update cancels the timer
+      manager.updateLayout();
+      const callsAfterUpdate = vi.mocked(view.setBounds).mock.calls.length;
+      expect(callsAfterUpdate).toBeGreaterThan(callsBefore);
+
+      // Advancing time further should not produce additional animation frames
+      vi.advanceTimersByTime(300);
+      expect(vi.mocked(view.setBounds).mock.calls.length).toBe(callsAfterUpdate);
+    });
+
+    it('cancels ongoing content animation on suspendAllAccounts', () => {
+      vi.mocked(win.getContentSize).mockReturnValue([1600, 900]);
+      const view = viewFor('persist:magical_personal') as any;
+      expect(view).toBeDefined();
+
+      manager.animateContentResize(true, 250);
+      vi.advanceTimersByTime(50);
+
+      manager.suspendAllAccounts();
+
+      // Advancing time further should not crash or call setBounds on destroyed views
+      vi.advanceTimersByTime(300);
+    });
+  });
 });

@@ -110,6 +110,43 @@ describe('SidebarManager', () => {
     vi.useRealTimers();
   });
 
+  it('triggers animateContentResize for in-place transitions when available', () => {
+    const animateContentResize = vi.fn();
+    const accountsWithAnimate = {
+      ...mockAccountsManager,
+      animateContentResize,
+    };
+    const manager = new SidebarManager(
+      () => mockMainWindow as any,
+      () => accountsWithAnimate as any,
+    );
+
+    // Initial state is visible: true. Toggling hides it.
+    manager.toggleSidebar();
+    expect(animateContentResize).toHaveBeenCalledWith(false, 250);
+
+    // Explicit setVisible to true triggers expand animation
+    manager.setVisible(true);
+    expect(animateContentResize).toHaveBeenCalledWith(true, 250);
+  });
+
+  it('delegates to beginWindowAnimation when native addon returns targetWindowWidth', () => {
+    const beginWindowAnimation = vi.fn();
+    const accountsWithWindowAnim = {
+      ...mockAccountsManager,
+      beginWindowAnimation,
+    };
+    sidebarSetVisible.mockReturnValue(1320);
+
+    const manager = new SidebarManager(
+      () => mockMainWindow as any,
+      () => accountsWithWindowAnim as any,
+    );
+
+    manager.toggleSidebar();
+    expect(beginWindowAnimation).toHaveBeenCalledWith(1320, false);
+  });
+
   it('updates window minimum size without conflicting manual setSize', () => {
     mockMainWindow.getSize.mockReturnValue([1600, 820]);
     const manager = new SidebarManager(

@@ -99,6 +99,12 @@ export class SidebarManager {
     if (accountsMgr) {
       if (targetWindowWidth > 0 && typeof accountsMgr.beginWindowAnimation === 'function') {
         accountsMgr.beginWindowAnimation(targetWindowWidth, this.isVisible);
+      } else if (
+        handledByAddon &&
+        targetWindowWidth === 0 &&
+        typeof accountsMgr.animateContentResize === 'function'
+      ) {
+        accountsMgr.animateContentResize(this.isVisible, 250);
       } else if (!this.isVisible && handledByAddon) {
         // In a wide window that does not shrink, let the sidebar collapse out of sight
         // first (250ms), and then expand GCal to fill the window.
@@ -139,6 +145,12 @@ export class SidebarManager {
     if (accountsMgr) {
       if (targetWindowWidth > 0 && typeof accountsMgr.beginWindowAnimation === 'function') {
         accountsMgr.beginWindowAnimation(targetWindowWidth, this.isVisible);
+      } else if (
+        handledByAddon &&
+        targetWindowWidth === 0 &&
+        typeof accountsMgr.animateContentResize === 'function'
+      ) {
+        accountsMgr.animateContentResize(this.isVisible, 250);
       } else if (!this.isVisible && handledByAddon) {
         setTimeout(() => {
           accountsMgr.updateLayout();

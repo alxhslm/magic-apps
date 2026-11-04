@@ -25,8 +25,9 @@ import {
   GCAL_GRID_SCROLL_CHANNEL,
   GCAL_VIEW_MODE_CHANNEL,
   CALENDAR_LOGIN_URL,
+  TITLEBAR_HEIGHT,
 } from './constants.js';
-import { layoutCalendarView } from './window-layout.js';
+import { layoutCalendarView, SIDEBAR_WIDTH } from './window-layout.js';
 import { uiString } from './strings.js';
 import { getCalendarCss, getCalendarSubframeCss } from './calendar-css.js';
 import { isInternalUrl, openExternalUrl, withoutQuery } from './links.js';
@@ -528,6 +529,7 @@ export class AccountsManager {
 
   /** Tear down every account view that isn't needed right now. Used on quit. */
   public suspendAllAccounts(): void {
+    this.cancelContentAnimation();
     if (this.windowAnimationTimer) {
       clearTimeout(this.windowAnimationTimer);
       this.windowAnimationTimer = null;
@@ -627,12 +629,21 @@ export class AccountsManager {
 
   private windowAnimationTarget: { targetWidth: number; sidebarVisible: boolean } | null = null;
   private windowAnimationTimer: NodeJS.Timeout | null = null;
+  private contentAnimationTimer: NodeJS.Timeout | null = null;
+
+  private cancelContentAnimation(): void {
+    if (this.contentAnimationTimer) {
+      clearInterval(this.contentAnimationTimer);
+      this.contentAnimationTimer = null;
+    }
+  }
 
   /**
    * Freezes Calendar bounds during Cocoa window expand/shrink animations so the
    * WebContentsView stays rock-solid instead of thrashing through intermediate widths.
    */
   public beginWindowAnimation(targetWidth: number, sidebarVisible: boolean): void {
+    this.cancelContentAnimation();
     this.windowAnimationTarget = { targetWidth, sidebarVisible };
 
     if (this.windowAnimationTimer) {
@@ -654,9 +665,72 @@ export class AccountsManager {
     }, 280);
   }
 
+  /**
+   * Resizes Calendar views smoothly across an in-place sidebar transition.
+   *
+   * When the window is already wide or fullscreen, the Cocoa window frame does
+   * not expand or shrink. Instead, the native sidebar slides in or out over 250 ms.
+   * Interpolating the WebContentsView width over the same duration with the same
+   * cubic curve keeps Google Calendar resizing in lockstep with the sidebar.
+   */
+  public animateContentResize(sidebarVisible: boolean, durationMs: number = 250): void {
+    if (this.windowIsGone()) return;
+
+    this.cancelContentAnimation();
+    if (this.windowAnimationTimer) {
+      clearTimeout(this.windowAnimationTimer);
+      this.windowAnimationTimer = null;
+      this.windowAnimationTarget = null;
+    }
+
+    const [contentWidth, contentHeight] = this.mainWindow.getContentSize();
+    const availHeight = Math.max(0, contentHeight - TITLEBAR_HEIGHT);
+    const collapsedWidth = Math.max(0, contentWidth - SIDEBAR_WIDTH);
+    const expandedWidth = contentWidth;
+
+    const startWidth = sidebarVisible ? expandedWidth : collapsedWidth;
+    const endWidth = sidebarVisible ? collapsedWidth : expandedWidth;
+
+    const startTime = Date.now();
+    const duration = Math.max(1, durationMs);
+    const frameIntervalMs = 16;
+
+    this.contentAnimationTimer = setInterval(() => {
+      if (this.windowIsGone()) {
+        this.cancelContentAnimation();
+        return;
+      }
+
+      const elapsed = Date.now() - startTime;
+      const t = Math.min(1, Math.max(0, elapsed / duration));
+      const progress = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+      const currentWidth = Math.round(startWidth + (endWidth - startWidth) * progress);
+
+      const bounds = {
+        x: 0,
+        y: TITLEBAR_HEIGHT,
+        width: currentWidth,
+        height: availHeight,
+      };
+
+      for (const [, view] of this.pool.entries()) {
+        if (viewIsAlive(view)) {
+          view.setBounds(bounds);
+        }
+      }
+
+      if (t >= 1) {
+        this.cancelContentAnimation();
+        this.updateLayout();
+      }
+    }, frameIntervalMs);
+  }
+
   public updateLayout(): void {
     if (this.windowIsGone()) return;
     if (this.windowAnimationTarget) return;
+
+    this.cancelContentAnimation();
 
     const [width, height] = this.mainWindow.getContentSize();
     const settings = loadSettings();
