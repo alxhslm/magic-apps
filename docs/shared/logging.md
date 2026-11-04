@@ -71,6 +71,9 @@ resolution is one of the few things that can cause it, so the record is what dat
 occurrence against the rest of the log. Those listeners are registered on ready, because `screen`
 throws before the app is ready and the module loads before then.
 
+`display-metrics-changed` fires hundreds of times while a display settles, so a burst logs its first
+event and its last, with a count and how long it spanned. A lone event keeps the single line.
+
 A `clean-exit` reason is logged at `info`. Ordinary teardown must not read as a crash, or the level
 stops meaning anything.
 
