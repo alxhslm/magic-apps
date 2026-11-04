@@ -28,7 +28,10 @@ export interface SwiftHelperOptions {
   logPrefix?: string;
   /** Where diagnostics go. Defaults to `console`. */
   logger?: LogSink;
-  /** How long to wait for a reply before resolving null. */
+  /**
+   * How long to wait for a reply before resolving null. A second consecutive
+   * miss, with no reply in between, restarts the helper.
+   */
   requestTimeoutMs?: number;
 }
 
@@ -47,6 +50,11 @@ export class SwiftHelper {
   private process: ChildProcess | null = null;
   private requestId = 0;
   private readonly pending = new Map<number, (result: unknown) => void>();
+  /**
+   * Missed deadlines since the last reply. One is ordinary start-up or sleep
+   * latency; two in a row mean the helper has stopped answering.
+   */
+  private consecutiveMisses = 0;
   private eventCallback: HelperEventCallback | null = null;
   private spawnedCallback: HelperSpawnedCallback | null = null;
 
@@ -99,6 +107,7 @@ export class SwiftHelper {
 
     const proc = spawn(helperPath, args, { stdio: ['pipe', 'pipe', 'pipe'] });
     this.process = proc;
+    this.consecutiveMisses = 0;
 
     // A non-zero exit is the helper crashing, and takes the menu bar item,
     // settings window and notifications with it. It must not be an info line.
@@ -120,9 +129,21 @@ export class SwiftHelper {
       }
     });
 
+    // A write after the helper has gone fails on the stdin stream, not on the
+    // child process. Without this listener Node raises it as an unhandled
+    // error, and the quit path is the common way to reach it: the helper is
+    // killed while a request is still buffered for writing.
+    proc.stdin?.on('error', (err) => {
+      this.log.error(this.tag(`Helper stdin failed: ${errorMessage(err)}`));
+      if (this.process === proc) {
+        this.process = null;
+        this.resolvePending(null);
+      }
+    });
+
     if (this.process.stdout) {
       const rl = readline.createInterface({ input: this.process.stdout });
-      rl.on('line', (line) => this.handleLine(line));
+      rl.on('line', (line) => this.handleLine(line, proc));
     }
     if (this.process.stderr) {
       const rl = readline.createInterface({ input: this.process.stderr });
@@ -150,14 +171,19 @@ export class SwiftHelper {
     else this.log.info(message);
   }
 
-  private handleLine(line: string): void {
+  private handleLine(line: string, proc: ChildProcess): void {
     try {
       const msg = JSON.parse(line);
 
-      if (msg.id !== undefined && this.pending.has(msg.id)) {
-        const resolve = this.pending.get(msg.id)!;
-        this.pending.delete(msg.id);
-        resolve(msg.result);
+      if (msg.id !== undefined) {
+        // Any reply, including one that arrived after its own deadline, proves
+        // the helper is still working through requests.
+        if (this.process === proc) this.consecutiveMisses = 0;
+        const resolve = this.pending.get(msg.id);
+        if (resolve) {
+          this.pending.delete(msg.id);
+          resolve(msg.result);
+        }
         return;
       }
       if (msg.method) {
@@ -184,19 +210,39 @@ export class SwiftHelper {
 
       const id = ++this.requestId;
       this.pending.set(id, resolve);
-      this.process.stdin.write(`${JSON.stringify({ id, method, params })}\n`);
+      try {
+        this.process.stdin.write(`${JSON.stringify({ id, method, params })}\n`);
+      } catch (err) {
+        this.pending.delete(id);
+        this.log.error(this.tag(`${method} write failed: ${errorMessage(err)}`));
+        resolve(null);
+        return;
+      }
 
       const timeoutMs = this.options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
       setTimeout(() => {
         if (this.pending.has(id)) {
           this.pending.delete(id);
+          this.consecutiveMisses++;
           // The helper is alive, so nothing else writes a line: no exit code,
           // no spawn failure. A Settings window that never opens, a menu bar
           // item that never appears and a banner that never fires all arrive
           // here, and all of them look identical to nothing having happened.
           this.log.error(this.tag(`${method} timed out after ${timeoutMs}ms`));
           resolve(null);
-          this.kill();
+
+          // A wake or a cold start can make the first call miss while the
+          // helper is still coming up. Killing on that first miss takes the
+          // menu bar item, settings window and notifications with it. The
+          // second consecutive miss is a helper that has stopped answering.
+          if (this.consecutiveMisses >= 2) {
+            this.log.error(
+              this.tag(
+                `Restarting the helper after ${this.consecutiveMisses} consecutive missed deadlines`,
+              ),
+            );
+            this.kill();
+          }
         }
       }, timeoutMs);
     });
@@ -221,12 +267,21 @@ export class SwiftHelper {
   }
 
   public kill(): void {
-    const pendingResolvers = Array.from(this.pending.values());
-    this.pending.clear();
-    for (const resolve of pendingResolvers) {
-      resolve(null);
-    }
+    this.resolvePending(null);
+    this.consecutiveMisses = 0;
     this.process?.kill();
     this.process = null;
   }
+
+  private resolvePending(result: unknown): void {
+    const resolvers = Array.from(this.pending.values());
+    this.pending.clear();
+    for (const resolve of resolvers) {
+      resolve(result);
+    }
+  }
+}
+
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
 }
