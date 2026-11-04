@@ -386,6 +386,31 @@ export class SidebarManager {
     }
   }
 
+  /**
+   * Sends only the filter fields, which the sidebar's `TrayModel.update` applies on its
+   * own. A filter toggle should not wait on serialising every event to reach the pane the
+   * user is watching.
+   */
+  public pushFilterState(): void {
+    try {
+      const addon = loadAddon();
+      if (!addon.sidebarUpdateData) return;
+      const settings = loadSettings();
+      addon.sidebarUpdateData(
+        JSON.stringify({
+          hiddenCalendars: (settings.hiddenCalendars ?? []).map((c) => ({
+            accountId: c.accountId,
+            calendarId: canonicaliseCalendarId(c.calendarId),
+          })),
+          hiddenCalendarsRevision: settings.hiddenCalendarsRevision ?? 0,
+          showCompletedTasks: Boolean(settings.showCompletedTasks),
+        }),
+      );
+    } catch (err) {
+      log.warn('Could not push the sidebar filter:', err);
+    }
+  }
+
   public pushData(): void {
     try {
       const addon = loadAddon();

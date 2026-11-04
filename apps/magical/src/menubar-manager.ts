@@ -197,6 +197,29 @@ export class MenuBarManager {
     this.pushUpdate();
   }
 
+  /**
+   * Sends only the filter, not the event list.
+   *
+   * A checkbox is watched live, and serialising every event to tell the helper which
+   * calendars are hidden is what made a toggle in one pane appear in the other a beat
+   * late. `TrayModel.update` applies whichever keys are present, so this is a complete
+   * update for the fields it carries. The full payload still follows so the widget cache
+   * and anything else the event list feeds are brought up to date.
+   */
+  public pushFilterUpdate(): void {
+    if (!this.trayCreated || !isHelperAvailable()) return;
+
+    const settings = loadSettings();
+    void sendToHelper('tray.update', {
+      hiddenCalendars: (settings.hiddenCalendars ?? []).map((c) => ({
+        accountId: c.accountId,
+        calendarId: canonicaliseCalendarId(c.calendarId),
+      })),
+      hiddenCalendarsRevision: settings.hiddenCalendarsRevision ?? 0,
+      showCompletedTasks: Boolean(settings.showCompletedTasks),
+    });
+  }
+
   public pushUpdate(isRetry = false): void {
     if (!this.trayCreated || !isHelperAvailable()) return;
 
@@ -648,8 +671,8 @@ export class MenuBarManager {
       case 'tray.setShowCompletedTasks': {
         const show = Boolean(params.showCompletedTasks);
         saveSetting('showCompletedTasks', show);
-        this.pushUpdate();
-        // The callback also pushes the sidebar; this manager only owns the popover.
+        this.pushFilterUpdate();
+        // The callback pushes the sidebar and the settings window too.
         this.onShowCompletedTasksChanged?.();
         return true;
       }

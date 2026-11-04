@@ -114,7 +114,12 @@ agenda moves the selector with it.
 Scrolling the agenda updates the selected day, and hovering a day's events draws that day in the
 grid without moving the agenda: the two are `selectedDate` and `hoveredDate`, and only an explicit
 click sets `requestedScrollDate`. Without that split, scroll tracking fed the selection back as a
-scroll request and the highlight could not follow the feed.
+scroll request and the highlight could not follow the feed. The Menu Bar Tray's agenda and mini month
+behave the same way.
+
+A filter toggle is pushed as a filter-only `sidebarUpdateData` carrying `hiddenCalendars`,
+`hiddenCalendarsRevision` and `showCompletedTasks`, not the event list, so the tick does not wait on
+serialising every event to reach the pane being watched.
 
 Schedule's feed loads forward like the Menu Bar Tray's. Reaching the end calls
 `requestMoreEvents`, deduplicated over 30 days, which reaches the main process as

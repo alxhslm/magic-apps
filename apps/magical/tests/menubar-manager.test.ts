@@ -539,6 +539,23 @@ describe('MenuBarManager', () => {
     );
   });
 
+  it('sends only the filter fields for a live toggle', () => {
+    mockLoadSettings.mockReturnValue({
+      hiddenCalendars: [{ accountId: 'acc_1', calendarId: 'cal_family' }],
+      hiddenCalendarsRevision: 8,
+      showCompletedTasks: false,
+    });
+    manager.createTray();
+    mockSendToHelper.mockClear();
+
+    manager.pushFilterUpdate();
+
+    const [, payload] = mockSendToHelper.mock.calls.at(-1) as [string, Record<string, unknown>];
+    expect(payload.hiddenCalendarsRevision).toBe(8);
+    expect(payload.showCompletedTasks).toBe(false);
+    expect(payload).not.toHaveProperty('events');
+  });
+
   it('drops an entry that does not name both an account and a calendar', () => {
     manager.handleEvent('tray.setHiddenCalendars', {
       hiddenCalendars: [

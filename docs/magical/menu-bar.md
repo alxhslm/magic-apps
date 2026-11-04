@@ -107,6 +107,11 @@ payload matches the previous one. `TrayModel.update(from:)` checks equality befo
 so hiding a calendar hides an event from every one of them at once. An event held by several calendars
 goes only when every one of them is hidden.
 
+A filter toggle is pushed as a filter-only `tray.update` carrying `hiddenCalendars`,
+`hiddenCalendarsRevision` and `showCompletedTasks`, not the event list. `TrayModel.update` applies the
+keys it is given, so the checkbox moves as soon as the click is saved instead of waiting for every
+event to be serialised. The full payload follows for the widget cache.
+
 `TrayModel.scheduleFeedItems` groups `filteredEvents` by day and inserts month headers and
 empty-period dividers between the groups. Scrolling near either boundary or navigating months calls
 `tray.ensureRange`, widening the visible window before the next push.
@@ -158,7 +163,9 @@ Seven columns, Monday first regardless of locale, with neighbouring months' days
 Each day shows up to four dots, one per distinct calendar colour with an event that day, from
 `TrayModel.densityDotsByDay`. Today carries a solid disc and the selection a ring, so the two states
 compose. Clicking a day calls `requestScrollTo(date:)`, and scrolling the agenda calls `selectDate(_:)`,
-both across month boundaries.
+both across month boundaries. Hovering a day's events in the agenda draws that day as the selection
+(`hoveredDate`) and moves the grid to its month, without changing the selected date or asking the
+agenda to scroll. The companion sidebar does the same.
 
 ### Month header
 

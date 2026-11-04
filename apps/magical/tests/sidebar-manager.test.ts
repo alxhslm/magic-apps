@@ -468,6 +468,20 @@ describe('SidebarManager', () => {
     expect(sidebarUpdateData).toHaveBeenCalled();
   });
 
+  it('pushes only the filter fields for a live toggle', () => {
+    const manager = new SidebarManager(
+      () => mockMainWindow as any,
+      () => mockAccountsManager as any,
+    );
+
+    manager.pushFilterState();
+
+    const payload = JSON.parse(sidebarUpdateData.mock.calls.at(-1)![0]);
+    expect(payload).toHaveProperty('hiddenCalendarsRevision');
+    expect(payload).toHaveProperty('showCompletedTasks');
+    expect(payload).not.toHaveProperty('events');
+  });
+
   it('relays grid scroll position to native addon when sidebar is visible', () => {
     const manager = new SidebarManager(
       () => mockMainWindow as any,

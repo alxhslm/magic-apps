@@ -288,8 +288,15 @@ let sidebarManager: SidebarManager | null = null;
  * offers on both surfaces.
  */
 function pushFilterStateToSurfaces(): void {
-  menuBarManager?.pushUpdate();
-  sidebarManager?.pushData();
+  // Filter-only updates first: both panes watch these values live, and neither should
+  // wait for every event to be serialised before the tick moves.
+  menuBarManager?.pushFilterUpdate();
+  sidebarManager?.pushFilterState();
+  // The settings window is in the helper and reads the same settings.
+  pushSettingsToHelper();
+  // The full payload still follows for the widget cache and the popover's event list;
+  // it rides behind the filter rather than in front of it.
+  setTimeout(() => menuBarManager?.pushUpdate(), 0);
 }
 /** Set before quitting, so the window being torn down is not rebuilt afterwards. */
 let quitting = false;
