@@ -55,6 +55,13 @@ public final class SidebarModel: ObservableObject {
     /// `.fantastical`: Month owns a fixed range, Schedule has an open agenda.
     @Published public var gcalTimeframe: String = "day"
     @Published public var selectedDate: Date = .init()
+    /// Where the agenda should scroll to, set only by an explicit selection. Scrolling the
+    /// agenda updates `selectedDate` without asking it to scroll again, which otherwise
+    /// fights the user and suppresses the highlight from following the feed.
+    @Published public var requestedScrollDate: Date? = nil
+    /// The day under the pointer in the agenda, shown as the grid's selection while it is
+    /// there. Kept apart from `selectedDate` so hovering cannot trigger a scroll.
+    @Published public var hoveredDate: Date? = nil
     @Published public var displayedMonthDate: Date = .init()
     /// The date Google Calendar is showing. It is the only source of the sidebar's range:
     /// local selection never moves it, so the two panes cannot disagree about the month.
@@ -73,6 +80,16 @@ public final class SidebarModel: ObservableObject {
     public let trayModel: TrayModel
 
     public var onAction: ((_ action: String, _ value: String) -> Void)?
+    /// Asks the main process to fetch a page of events around a date. Set by the native
+    /// host, which relays it as `sidebarEnsureRange`.
+    public var onEnsureRange: ((Date) -> Void)?
+    private var lastEnsuredRangeDate: Date?
+
+    /// What the mini month draws as selected. Hovering an agenda row moves the highlight
+    /// without moving the agenda underneath it.
+    public var highlightedDate: Date {
+        hoveredDate ?? selectedDate
+    }
 
     private let calendar: Calendar = {
         var cal = Calendar.current
@@ -106,6 +123,8 @@ public final class SidebarModel: ObservableObject {
 
     public func selectDate(_ date: Date) {
         selectedDate = date
+        requestedScrollDate = date
+        hoveredDate = nil
         // Selecting a day from the leading or trailing week of the month grid shows that
         // day in the agenda, but must not move the grid: Google Calendar still shows the
         // month it was on, and the sidebar follows Google Calendar.
@@ -157,8 +176,43 @@ public final class SidebarModel: ObservableObject {
     /// instead of jumping to today, because a header names the range it sits above.
     public func syncToGCalRange() {
         selectedDate = anchorDate
+        requestedScrollDate = anchorDate
+        hoveredDate = nil
         displayedMonthDate = anchorDate
         recomputeWeekDays()
+    }
+
+    /// The agenda scrolled; follow it without asking it to scroll itself.
+    public func agendaDidScroll(to date: Date) {
+        selectedDate = date
+        guard isScheduleTimeframe else { return }
+        if !calendar.isDate(date, equalTo: displayedMonthDate, toGranularity: .month) {
+            displayedMonthDate = date
+        }
+        requestMoreEvents(around: date)
+    }
+
+    /// The pointer is over an agenda row. In Schedule the grid follows the month of the
+    /// row under the pointer, which is the forward movement the top-anchored feed does
+    /// not show on its own.
+    public func hoverScheduleDate(_ date: Date?) {
+        hoveredDate = date
+        guard let date, isScheduleTimeframe,
+              !calendar.isDate(date, equalTo: displayedMonthDate, toGranularity: .month)
+        else { return }
+        displayedMonthDate = date
+    }
+
+    /// Fetches the events around a date from the main process. Deduplicated over 30 days
+    /// like the menu bar's own request, so a scroll that keeps firing near the end of the
+    /// feed does not turn into a request per event.
+    public func requestMoreEvents(around date: Date) {
+        guard isScheduleTimeframe else { return }
+        if let last = lastEnsuredRangeDate, abs(date.timeIntervalSince(last)) < 30 * 86400 {
+            return
+        }
+        lastEnsuredRangeDate = date
+        onEnsureRange?(date)
     }
 
     /// Schedule is the one timeframe with no bounded range of its own, so its month
@@ -233,6 +287,7 @@ public final class SidebarModel: ObservableObject {
         }
         if let prev = calendar.date(byAdding: .month, value: -1, to: displayedMonthDate) {
             displayedMonthDate = prev
+            requestMoreEvents(around: prev)
         }
     }
 
@@ -242,6 +297,7 @@ public final class SidebarModel: ObservableObject {
         }
         if let next = calendar.date(byAdding: .month, value: 1, to: displayedMonthDate) {
             displayedMonthDate = next
+            requestMoreEvents(around: next)
         }
     }
 
@@ -262,8 +318,11 @@ public final class SidebarModel: ObservableObject {
             anchorDate = anchor
         }
         selectedDate = anchorDate
+        requestedScrollDate = anchorDate
+        hoveredDate = nil
         displayedMonthDate = anchorDate
         recomputeWeekDays()
+        requestMoreEvents(around: anchorDate)
     }
 
     public func recomputeWeekDays() {
@@ -939,7 +998,7 @@ public struct SidebarRootView: View {
             if !model.isCalendarCollapsed {
                 MiniMonthGridView(
                     displayedMonth: model.displayedMonthDate,
-                    selectedDate: model.selectedDate,
+                    selectedDate: model.highlightedDate,
                     densityDots: model.trayModel.densityDotsByDay,
                     onSelectDate: { date in
                         model.selectDate(date)
@@ -956,22 +1015,25 @@ public struct SidebarRootView: View {
             ScheduleAgendaView(
                 feedItems: model.visibleScheduleFeedItems,
                 selectedDate: model.selectedDate,
-                requestedScrollDate: model.selectedDate,
+                // Only an explicit selection scrolls the agenda. Scroll tracking feeds
+                // `selectedDate` back without asking for another scroll.
+                requestedScrollDate: model.requestedScrollDate,
                 onSelectEvent: { event in model.onAction?("sidebarOpenEvent", event.id) },
                 onJoinCall: { model.onAction?("sidebarJoinCall", $0) },
                 onRsvp: { event, reply in model.onAction?("sidebarRsvp", "\(event.accountId):\(event.id):\(reply)") },
                 onDeleteEvent: { event in model.onAction?("sidebarDeleteEvent", "\(event.accountId):\(event.id)") },
                 onCompleteTask: { event, completed in model.onAction?("sidebarCompleteTask", "\(event.accountId):\(event.id):\(completed)") },
                 onDayScrolledIntoView: { date in
-                    model.selectedDate = date
-                    // Scrolling the agenda is Google Calendar showing another month, so
-                    // the selector follows there. In Month view the grid stays put; only
-                    // the agenda moves.
-                    if model.isScheduleTimeframe {
-                        model.displayedMonthDate = date
-                    }
+                    model.agendaDidScroll(to: date)
                 },
-                onScrolledNearEnd: nil,
+                onHoverDate: { date in
+                    model.hoverScheduleDate(date)
+                },
+                onScrolledNearEnd: { date in
+                    // Schedule keeps its continuous feed, so reaching the end asks for the
+                    // next page the way the menu bar's agenda does.
+                    model.requestMoreEvents(around: date.addingTimeInterval(90 * 86400))
+                },
                 isExplainedElsewhere: false
             )
         }

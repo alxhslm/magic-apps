@@ -10,6 +10,7 @@ public struct ScheduleAgendaView: View {
     public let onDeleteEvent: ((TrayEvent) -> Void)?
     public let onCompleteTask: ((TrayEvent, Bool) -> Void)?
     public let onDayScrolledIntoView: ((Date) -> Void)?
+    public let onHoverDate: ((Date?) -> Void)?
     public let onScrolledNearEnd: ((Date) -> Void)?
 
     /// Whether a banner above is already explaining why the agenda is empty.
@@ -58,6 +59,7 @@ public struct ScheduleAgendaView: View {
         onDeleteEvent: ((TrayEvent) -> Void)? = nil,
         onCompleteTask: ((TrayEvent, Bool) -> Void)? = nil,
         onDayScrolledIntoView: ((Date) -> Void)? = nil,
+        onHoverDate: ((Date?) -> Void)? = nil,
         onScrolledNearEnd: ((Date) -> Void)? = nil,
         isExplainedElsewhere: Bool = false
     ) {
@@ -70,6 +72,7 @@ public struct ScheduleAgendaView: View {
         self.onDeleteEvent = onDeleteEvent
         self.onCompleteTask = onCompleteTask
         self.onDayScrolledIntoView = onDayScrolledIntoView
+        self.onHoverDate = onHoverDate
         self.onScrolledNearEnd = onScrolledNearEnd
         self.isExplainedElsewhere = isExplainedElsewhere
     }
@@ -148,6 +151,7 @@ public struct ScheduleAgendaView: View {
                 onDayScrolledIntoView?(item.date)
             }
         }
+        .onDisappear { onHoverDate?(nil) }
     }
 
     private func performInitialScroll(proxy: ScrollViewProxy) {
@@ -242,6 +246,11 @@ public struct ScheduleAgendaView: View {
         case let .day(group):
             daySection(group)
                 .background(anchorDetector(for: group.id))
+                .onHover { hovering in
+                    // The grid highlights the day under the pointer, not only the day at
+                    // the top of the feed.
+                    onHoverDate?(hovering ? group.date : nil)
+                }
         case let .emptyPeriod(_, text, _):
             emptyPeriodSection(text: text)
         case let .monthHeader(_, title, _):

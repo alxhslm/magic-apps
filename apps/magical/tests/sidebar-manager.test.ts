@@ -441,6 +441,33 @@ describe('SidebarManager', () => {
     expect(onFilterChanged).toHaveBeenCalled();
   });
 
+  it('asks the poller for events around an agenda scroll and widens the payload', () => {
+    const ensureRange = vi.fn().mockResolvedValue(undefined);
+    const manager = new SidebarManager(
+      () => mockMainWindow as any,
+      () => mockAccountsManager as any,
+      () => ({ ensureRange, getCachedEvents: () => new Map() }) as any,
+    );
+    manager.updateAccounts([
+      {
+        id: 'acc_personal',
+        name: 'Personal',
+        email: 'person@example.com',
+        color: '#4285f4',
+        calendarIds: ['person@example.com'],
+      },
+    ]);
+
+    const target = new Date('2026-12-03T12:00:00Z');
+    manager.handleSidebarAction('sidebarEnsureRange', String(target.getTime()));
+
+    expect(ensureRange).toHaveBeenCalledTimes(1);
+    const [start, end] = ensureRange.mock.calls[0] as [Date, Date];
+    expect(start.getTime()).toBeLessThan(target.getTime());
+    expect(end.getTime()).toBeGreaterThan(target.getTime());
+    expect(sidebarUpdateData).toHaveBeenCalled();
+  });
+
   it('relays grid scroll position to native addon when sidebar is visible', () => {
     const manager = new SidebarManager(
       () => mockMainWindow as any,

@@ -111,6 +111,17 @@ Schedule is the one timeframe with no bounded range of its own. Its month select
 covers; Month and Year have no arrows, because Google Calendar owns their range. Scrolling the
 agenda moves the selector with it.
 
+Scrolling the agenda updates the selected day, and hovering a day's events draws that day in the
+grid without moving the agenda: the two are `selectedDate` and `hoveredDate`, and only an explicit
+click sets `requestedScrollDate`. Without that split, scroll tracking fed the selection back as a
+scroll request and the highlight could not follow the feed.
+
+Schedule's feed loads forward like the Menu Bar Tray's. Reaching the end calls
+`requestMoreEvents`, deduplicated over 30 days, which reaches the main process as
+`sidebarEnsureRange`: it fetches ±60 days around the date and widens the window `SidebarManager`
+serialises, so the new events survive the payload filter. Month view is bounded by its grid and does
+not ask for more.
+
 ### Week mode
 
 When Google Calendar is in Week view, the sidebar shows:

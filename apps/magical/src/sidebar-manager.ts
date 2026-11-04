@@ -26,6 +26,15 @@ export class SidebarManager {
   private cachedEvents = new Map<string, NormalizedCalendarEvent[]>();
   private activeTimeframe: string;
   private activeDateStr?: string;
+  /**
+   * How far the agenda has asked for events beyond the default window.
+   *
+   * Schedule is a continuous feed, so scrolling forward has to widen the window the
+   * sidebar serialises, not only what the poller fetches; otherwise the events arrive
+   * in the cache and are filtered out on the way to the sidebar.
+   */
+  private visibleRangeStartMs: number | null = null;
+  private visibleRangeEndMs: number | null = null;
   public onFilterChanged?: () => void;
 
   constructor(
@@ -336,6 +345,28 @@ export class SidebarManager {
         break;
       }
 
+      case 'sidebarEnsureRange': {
+        const targetMs = Number(value);
+        if (!Number.isFinite(targetMs)) break;
+        const target = new Date(targetMs);
+        const start = new Date(target);
+        start.setDate(start.getDate() - 60);
+        const end = new Date(target);
+        end.setDate(end.getDate() + 60);
+        const startMs = start.getTime();
+        const endMs = end.getTime();
+
+        this.visibleRangeStartMs =
+          this.visibleRangeStartMs !== null ? Math.min(this.visibleRangeStartMs, startMs) : startMs;
+        this.visibleRangeEndMs =
+          this.visibleRangeEndMs !== null ? Math.max(this.visibleRangeEndMs, endMs) : endMs;
+
+        log.info(`Sidebar agenda asked for events around ${target.toISOString()}`);
+        void this.getCalendarService?.()?.ensureRange(start, end);
+        this.pushData();
+        break;
+      }
+
       case 'sidebarScroll': {
         const hour = parseFloat(value);
         if (!isNaN(hour) && hour >= 0 && hour <= 24) {
@@ -384,8 +415,16 @@ export class SidebarManager {
 
       const serializedEvents: Array<Record<string, unknown>> = [];
       const now = Date.now();
-      const windowStart = now - 30 * 86_400_000;
-      const windowEnd = now + 90 * 86_400_000;
+      const defaultPastMs = 30 * 86_400_000;
+      const defaultAheadMs = 90 * 86_400_000;
+      const windowStart =
+        this.visibleRangeStartMs !== null
+          ? Math.min(this.visibleRangeStartMs, now - defaultPastMs)
+          : now - defaultPastMs;
+      const windowEnd =
+        this.visibleRangeEndMs !== null
+          ? Math.max(this.visibleRangeEndMs, now + defaultAheadMs)
+          : now + defaultAheadMs;
 
       for (const [accountId, events] of eventsMap.entries()) {
         const accountColors = calendarColorMap.get(accountId);

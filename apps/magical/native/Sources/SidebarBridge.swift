@@ -41,6 +41,10 @@ public final class SidebarManager {
         SidebarModel.shared.onAction = { action, value in
             ActionBridge.emit(action, value)
         }
+        SidebarModel.shared.onEnsureRange = { date in
+            let millis = Int(date.timeIntervalSince1970 * 1000)
+            ActionBridge.emit("sidebarEnsureRange", String(millis))
+        }
     }
 
     public func attach(to window: NSWindow) {

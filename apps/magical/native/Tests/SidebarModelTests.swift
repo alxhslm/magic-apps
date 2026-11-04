@@ -251,6 +251,57 @@ struct SidebarModelTests {
         #expect(scheduleDays.contains("2026-12-10"))
     }
 
+    @Test func hoveringAnAgendaRowMovesTheHighlightNotTheScroll() throws {
+        let model = SidebarModel(trayModel: TrayModel())
+        let df = DateFormatter()
+        df.dateFormat = "yyyy-MM-dd"
+        df.timeZone = .current
+        let november = try #require(df.date(from: "2026-11-15"))
+        let december = try #require(df.date(from: "2026-12-03"))
+
+        model.setViewMode(.fantastical, anchor: november, timeframe: "schedule")
+        model.hoverScheduleDate(december)
+
+        #expect(df.string(from: model.highlightedDate) == "2026-12-03")
+        let cal = Calendar.current
+        #expect(cal.component(.month, from: model.displayedMonthDate) == 12)
+        // Hovering is not a selection, so the agenda must not scroll under the pointer.
+        #expect(model.requestedScrollDate.map { df.string(from: $0) } == "2026-11-15")
+
+        model.hoverScheduleDate(nil)
+        #expect(df.string(from: model.highlightedDate) == "2026-11-15")
+    }
+
+    @Test func scrollingTheAgendaMovesTheHighlightWithoutRequestingAScroll() throws {
+        let model = SidebarModel(trayModel: TrayModel())
+        let df = DateFormatter()
+        df.dateFormat = "yyyy-MM-dd"
+        df.timeZone = .current
+        let november = try #require(df.date(from: "2026-11-15"))
+        let december = try #require(df.date(from: "2026-12-03"))
+
+        model.setViewMode(.fantastical, anchor: november, timeframe: "schedule")
+        model.agendaDidScroll(to: december)
+
+        #expect(df.string(from: model.selectedDate) == "2026-12-03")
+        #expect(df.string(from: model.highlightedDate) == "2026-12-03")
+        #expect(model.requestedScrollDate.map { df.string(from: $0) } == "2026-11-15")
+        let cal = Calendar.current
+        #expect(cal.component(.month, from: model.displayedMonthDate) == 12)
+    }
+
+    @Test func clickingADateStillRequestsTheScroll() throws {
+        let model = SidebarModel(trayModel: TrayModel())
+        let df = DateFormatter()
+        df.dateFormat = "yyyy-MM-dd"
+        df.timeZone = .current
+        let december = try #require(df.date(from: "2026-12-01"))
+
+        model.selectDate(december)
+
+        #expect(model.requestedScrollDate.map { df.string(from: $0) } == "2026-12-01")
+    }
+
     @Test func headerSyncReturnsToGCalRangeNotToday() throws {
         let model = SidebarModel()
         let df = DateFormatter()
