@@ -31,6 +31,8 @@ import { AccountsManager, calendarPreloadPath } from './accounts-manager.js';
 import { loadSettings, saveSetting, type MagicalSettings } from './settings-store.js';
 import { buildAppMenu } from './menu.js';
 import { setUiLocale, uiString } from './strings.js';
+import { setClock } from './time-format.js';
+import { readMacForced24Hour } from './mac-clock.js';
 import {
   openSettingsWindow,
   pushAccountsToSettings,
@@ -1404,6 +1406,9 @@ function createWindow(
 app.whenReady().then(async () => {
   log.info('App ready');
   setUiLocale(app.getLocale());
+  // macOS keeps the 12/24-hour switch separate from the region, so neither the locale nor
+  // ICU's default carries it. Read it once here; every user-visible time uses the result.
+  setClock(app.getLocale(), readMacForced24Hour());
   app.setAboutPanelOptions({
     applicationName: 'Magical',
     applicationVersion: app.getVersion(),

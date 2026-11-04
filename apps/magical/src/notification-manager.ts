@@ -4,6 +4,7 @@ import { uiString } from './strings.js';
 
 const log = createLogger('NotificationManager');
 import { allDayLocalDate } from './all-day.js';
+import { formatClock, formatTime } from './time-format.js';
 import { buildEventLink } from './event-links.js';
 import type { ScheduledAlert } from './alert-scheduler.js';
 
@@ -110,10 +111,7 @@ export function buildAlertContent(
   body: string;
 } {
   const { event } = alert;
-  const time = event.startTime.toLocaleTimeString(undefined, {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  const time = formatTime(event.startTime);
 
   let body = '';
   if (staleForMs !== undefined) {
@@ -209,13 +207,13 @@ export function formatInviteLine(start: Date, isAllDay: boolean, now = new Date(
   const sameYear = when.getFullYear() === now.getFullYear();
 
   return isAllDay
-    ? when.toLocaleDateString(undefined, {
+    ? formatClock(when, {
         weekday: 'short',
         day: 'numeric',
         month: 'short',
         ...(sameYear ? {} : { year: 'numeric' }),
       })
-    : when.toLocaleString(undefined, {
+    : formatClock(when, {
         weekday: 'short',
         day: 'numeric',
         month: 'short',
