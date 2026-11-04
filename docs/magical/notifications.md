@@ -208,6 +208,45 @@ A press travels back as an `alert.action` event carrying the alert's `key`, `acc
 `deepLink` and `conferenceUrl`. `onAlertAction` routes each one to the same method the tray RPC
 reaches; see [`actions.md`](actions.md).
 
+## The clock on screen
+
+Every time the user reads follows the Mac's own clock, and the 12/24-hour cycle is resolved once.
+The region and the switch are separate macOS settings: the switch writes
+`AppleICUForce24HourTime` and leaves the region at `en_GB` or `en_US`, so either region can be on
+either clock.
+
+`mac-clock.ts` reads that key in `app.whenReady()`, next to `setUiLocale`. It returns a definite
+`true` or `false`, or `undefined` when the user has never touched the switch: an absent key reads as
+an empty string, and reading it as `false` would pin a 24-hour region to a 12-hour clock, which is
+the same bug in the other direction. `time-format.ts` then takes the forced value if there is one
+and otherwise the locale's own `hourCycle` from `Intl`, and keeps the result for the life of the
+process.
+
+In the Electron main process, `formatTime` and `formatClock` in `time-format.ts` are the only
+formatters for user-visible times: the alert subtitle in `buildAlertContent`, the invitation line in
+`formatInviteLine` and the ICS import dialog in `describeIcs`. Passing `undefined` as the locale is
+what broke this before, because it resolves to ICU's default rather than the Mac's setting.
+
+The Swift helper uses `TimeDisplay`, which asks Foundation's `j` template for the locale's cycle and
+then builds a `timeStyle = .short` formatter, so it honours the switch without reading user
+defaults.
+
+| Surface                                                           | Formatter                                        |
+| :---------------------------------------------------------------- | :----------------------------------------------- |
+| Alert subtitle, invitation line, ICS import dialog                | `formatTime` / `formatClock`                     |
+| Menu bar event times, agenda, popover cards, hero, both now rules | `TimeDisplay.time`                               |
+| Day grid hour gutter                                              | `TimeDisplay.hour` (`HH` or `ha`)                |
+| Widget times                                                      | `WidgetFormat.time`, the same `TimeDisplay.time` |
+
+A fixed pattern is for sort keys, not for anything on screen. `calendar-recurrence.ts`'s
+`hourCycle: 'h23'` and the helpers' `yyyy-MM-dd` day keys are deliberately independent of this,
+because changing the user's clock must not change a key or an ordering.
+
+The zone is the Mac's too: every native surface renders in `.current`, and Electron's process-local
+zone is the Mac's, so a UTC offset change moves what every one of them shows at the same instant.
+The companion sidebar is the one exception, because Google Calendar renders it and uses the Google
+account's own timezone and locale; Magical does not rewrite that.
+
 ## Answering an invitation
 
 A banner's Yes, Maybe and No carry `rsvp:yes`, `rsvp:maybe` and `rsvp:no`. `onAlertAction` answers

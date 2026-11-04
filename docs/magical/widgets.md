@@ -30,7 +30,9 @@ app it belongs to. The small family carries the name and no month; there is room
 ### Up next
 
 The tile itself is the hero. A countdown pill leads, then the event's title against its calendar's
-colour bar, the time, the conference service and a Join button.
+colour bar, the time, the conference service and a Join button. The time follows the Mac's
+12/24-hour setting, through the same `TimeDisplay.time` the popover uses; see
+[`notifications.md`'s The clock on screen](notifications.md#the-clock-on-screen).
 
 The countdown pill is one colour for its fill and its text: green while the meeting is running,
 secondary before it starts, because a meeting three hours out in the same green reads as something to
