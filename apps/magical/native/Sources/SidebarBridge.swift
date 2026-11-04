@@ -290,17 +290,17 @@ public final class SidebarManager {
             .day
         }
 
-        var anchor: Date? = Date()
+        // No anchor in the report means Calendar changed view without changing date, so
+        // the sidebar keeps the range it already follows rather than falling back to today.
+        var anchor: Date?
         if let str = anchorDateStr, !str.isEmpty {
             let df = DateFormatter()
             df.dateFormat = "yyyy-MM-dd"
             df.timeZone = .current
-            if let parsed = df.date(from: str) {
-                anchor = parsed
-            }
+            anchor = df.date(from: str)
         }
 
-        SidebarModel.shared.setViewMode(viewMode, anchor: anchor)
+        SidebarModel.shared.setViewMode(viewMode, anchor: anchor, timeframe: mode)
     }
 
     public func setScrollPosition(

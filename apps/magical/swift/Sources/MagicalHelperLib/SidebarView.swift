@@ -51,8 +51,13 @@ public final class SidebarModel: ObservableObject {
     @Published public var transparentBackground: Bool = true
     @Published public var isDarkMode: Bool = true
     @Published public var viewMode: SidebarViewMode = .day
+    /// Google Calendar's own timeframe name, which distinguishes the two views that share
+    /// `.fantastical`: Month owns a fixed range, Schedule has an open agenda.
+    @Published public var gcalTimeframe: String = "day"
     @Published public var selectedDate: Date = .init()
     @Published public var displayedMonthDate: Date = .init()
+    /// The date Google Calendar is showing. It is the only source of the sidebar's range:
+    /// local selection never moves it, so the two panes cannot disagree about the month.
     @Published public var anchorDate: Date = .init()
     @Published public var isCalendarCollapsed: Bool = false
     @Published public var isVisible: Bool = true
@@ -95,14 +100,9 @@ public final class SidebarModel: ObservableObject {
 
     public func selectDate(_ date: Date) {
         selectedDate = date
-        displayedMonthDate = date
-        if viewMode == .fourDay {
-            let start = calendar.startOfDay(for: anchorDate)
-            let end = calendar.date(byAdding: .day, value: 4, to: start) ?? start
-            if date < start || date >= end {
-                anchorDate = date
-            }
-        }
+        // Selecting a day from the leading or trailing week of the month grid shows that
+        // day in the agenda, but must not move the grid: Google Calendar still shows the
+        // month it was on, and the sidebar follows Google Calendar.
         recomputeWeekDays()
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
@@ -130,25 +130,58 @@ public final class SidebarModel: ObservableObject {
         selectDate(prev)
     }
 
-    public func jumpToToday() {
-        let today = Date()
-        anchorDate = today
-        selectedDate = today
-        displayedMonthDate = today
+    /// Puts the sidebar back on the range Google Calendar is showing. Headers call this
+    /// instead of jumping to today, because a header names the range it sits above.
+    public func syncToGCalRange() {
+        selectedDate = anchorDate
+        displayedMonthDate = anchorDate
         recomputeWeekDays()
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        formatter.timeZone = .current
-        onAction?("sidebarSelectDate", formatter.string(from: today))
+    }
+
+    /// Schedule is the one timeframe with no bounded range of its own, so its month
+    /// selector may step. Month and Year own the range Google Calendar is showing; their
+    /// selector must not travel away from it.
+    public var isScheduleTimeframe: Bool {
+        gcalTimeframe == "schedule" || gcalTimeframe == "agenda"
+    }
+
+    private func startOfMonth(_ date: Date) -> Date {
+        calendar.dateInterval(of: .month, for: date)?.start ?? calendar.startOfDay(for: date)
+    }
+
+    /// The months the agenda actually covers, so stepping stops where Google Calendar's
+    /// schedule stops showing days. The anchor and selection are included so the selector
+    /// can always return to the range on screen.
+    private var scheduleMonthBounds: (first: Date, last: Date)? {
+        guard isScheduleTimeframe else { return nil }
+        let dates = trayModel.scheduleFeedItems.map(\.date) + [anchorDate, selectedDate]
+        guard let first = dates.min(), let last = dates.max() else { return nil }
+        return (startOfMonth(first), startOfMonth(last))
+    }
+
+    public var canStepToPreviousMonth: Bool {
+        guard let bounds = scheduleMonthBounds else { return false }
+        return startOfMonth(displayedMonthDate) > bounds.first
+    }
+
+    public var canStepToNextMonth: Bool {
+        guard let bounds = scheduleMonthBounds else { return false }
+        return startOfMonth(displayedMonthDate) < bounds.last
     }
 
     public func previousMonth() {
+        if isScheduleTimeframe, !canStepToPreviousMonth {
+            return
+        }
         if let prev = calendar.date(byAdding: .month, value: -1, to: displayedMonthDate) {
             displayedMonthDate = prev
         }
     }
 
     public func nextMonth() {
+        if isScheduleTimeframe, !canStepToNextMonth {
+            return
+        }
         if let next = calendar.date(byAdding: .month, value: 1, to: displayedMonthDate) {
             displayedMonthDate = next
         }
@@ -158,12 +191,20 @@ public final class SidebarModel: ObservableObject {
         isCalendarCollapsed.toggle()
     }
 
-    public func setViewMode(_ mode: SidebarViewMode, anchor: Date? = nil) {
+    public func setViewMode(
+        _ mode: SidebarViewMode,
+        anchor: Date? = nil,
+        timeframe: String? = nil
+    ) {
         viewMode = mode
-        let target = anchor ?? Date()
-        anchorDate = target
-        selectedDate = target
-        displayedMonthDate = target
+        gcalTimeframe = (timeframe ?? mode.rawValue).lowercased()
+        // A report with no anchor keeps the last one. Calendar sometimes changes view
+        // without changing date, and resetting to today there would break the match.
+        if let anchor {
+            anchorDate = anchor
+        }
+        selectedDate = anchorDate
+        displayedMonthDate = anchorDate
         recomputeWeekDays()
     }
 
@@ -371,7 +412,7 @@ public struct WeekScrubberView: View {
             HStack(alignment: .center) {
                 Button(action: {
                     withAnimation(.easeInOut(duration: 0.2)) {
-                        model.jumpToToday()
+                        model.syncToGCalRange()
                     }
                 }) {
                     Text(weekRangeText)
@@ -379,7 +420,7 @@ public struct WeekScrubberView: View {
                         .foregroundStyle(.primary)
                 }
                 .buttonStyle(.plain)
-                .help("Jump to Now")
+                .help("Match Google Calendar")
 
                 Spacer()
 
@@ -470,7 +511,7 @@ public struct DayCompanionHeaderView: View {
             HStack(alignment: .center) {
                 Button(action: {
                     withAnimation(.easeInOut(duration: 0.2)) {
-                        model.jumpToToday()
+                        model.syncToGCalRange()
                     }
                 }) {
                     Text(monthYearTitle)
@@ -478,7 +519,7 @@ public struct DayCompanionHeaderView: View {
                         .foregroundStyle(.primary)
                 }
                 .buttonStyle(.plain)
-                .help("Jump to Today")
+                .help("Match Google Calendar")
 
                 Spacer()
 
@@ -493,10 +534,8 @@ public struct DayCompanionHeaderView: View {
             // Focused single day header aligning with Google Calendar day column header
             HStack(alignment: .center, spacing: 10) {
                 Button(action: {
-                    if !isToday {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            model.jumpToToday()
-                        }
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        model.syncToGCalRange()
                     }
                 }) {
                     HStack(spacing: 10) {
@@ -533,7 +572,7 @@ public struct DayCompanionHeaderView: View {
                     }
                 }
                 .buttonStyle(.plain)
-                .help(isToday ? "Today" : "Jump to Today")
+                .help("Match Google Calendar")
 
                 Spacer()
 
@@ -782,11 +821,11 @@ public struct SidebarRootView: View {
         VStack(spacing: 0) {
             // Month header & collapse toggle matching Menu Bar Tray
             HStack(alignment: .center) {
-                // Month Title (Click jumps to today) + In-Place Toggle Chevron
+                // Month Title (Click returns to Google Calendar's range) + collapse chevron
                 HStack(spacing: 5) {
                     Button(action: {
                         withAnimation(.easeInOut(duration: 0.2)) {
-                            model.jumpToToday()
+                            model.syncToGCalRange()
                         }
                     }) {
                         Text(monthTitle(model.displayedMonthDate))
@@ -794,7 +833,7 @@ public struct SidebarRootView: View {
                             .foregroundStyle(.primary)
                     }
                     .buttonStyle(.plain)
-                    .help("Jump to Now")
+                    .help("Match Google Calendar")
 
                     Button(action: {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
@@ -811,8 +850,41 @@ public struct SidebarRootView: View {
 
                 Spacer()
 
-                // Filter & Settings
                 HStack(spacing: 4) {
+                    // Schedule has no bounded range in Google Calendar, so its selector may
+                    // step through the months the agenda covers. Month view owns a fixed
+                    // range and gets no arrows: Google Calendar is the only thing that
+                    // changes which month is on screen.
+                    if model.isScheduleTimeframe {
+                        Button(action: {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                model.previousMonth()
+                            }
+                        }) {
+                            Image(systemName: "chevron.left")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(model.canStepToPreviousMonth ? .secondary : .tertiary)
+                                .frame(width: 20, height: 20)
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(!model.canStepToPreviousMonth)
+                        .help("Previous Month")
+
+                        Button(action: {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                model.nextMonth()
+                            }
+                        }) {
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(model.canStepToNextMonth ? .secondary : .tertiary)
+                                .frame(width: 20, height: 20)
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(!model.canStepToNextMonth)
+                        .help("Next Month")
+                    }
+
                     CalendarFilterMenuView(model: model.trayModel)
                     SidebarSettingsMenuView(model: model.trayModel, onRefresh: { model.onAction?("sidebarRefresh", "") })
                 }
@@ -849,6 +921,12 @@ public struct SidebarRootView: View {
                 onCompleteTask: { event, completed in model.onAction?("sidebarCompleteTask", "\(event.accountId):\(event.id):\(completed)") },
                 onDayScrolledIntoView: { date in
                     model.selectedDate = date
+                    // Scrolling the agenda is Google Calendar showing another month, so
+                    // the selector follows there. In Month view the grid stays put; only
+                    // the agenda moves.
+                    if model.isScheduleTimeframe {
+                        model.displayedMonthDate = date
+                    }
                 },
                 onScrolledNearEnd: nil,
                 isExplainedElsewhere: false

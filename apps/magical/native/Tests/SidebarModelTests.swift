@@ -166,17 +166,73 @@ struct SidebarModelTests {
         #expect(!model.isCalendarCollapsed)
     }
 
-    @Test func jumpToToday() throws {
+    @Test func selectingAdjacentMonthDayKeepsDisplayedMonthOnGCal() throws {
         let model = SidebarModel()
+        let df = DateFormatter()
+        df.dateFormat = "yyyy-MM-dd"
+        df.timeZone = .current
+        let november = try #require(df.date(from: "2026-11-15"))
+        let decemberFirst = try #require(df.date(from: "2026-12-01"))
+
+        model.setViewMode(.fantastical, anchor: november, timeframe: "month")
+        model.selectDate(decemberFirst)
+
+        // The agenda follows the selection, but the grid stays on the month Google
+        // Calendar is showing.
+        #expect(df.string(from: model.selectedDate) == "2026-12-01")
         let cal = Calendar.current
-        let pastDate = try #require(cal.date(byAdding: .month, value: -3, to: Date()))
+        #expect(cal.component(.month, from: model.displayedMonthDate) == 11)
+    }
 
-        model.selectDate(pastDate)
-        #expect(!cal.isDateInToday(model.selectedDate))
+    @Test func headerSyncReturnsToGCalRangeNotToday() throws {
+        let model = SidebarModel()
+        let df = DateFormatter()
+        df.dateFormat = "yyyy-MM-dd"
+        df.timeZone = .current
+        let november = try #require(df.date(from: "2026-11-15"))
+        let december = try #require(df.date(from: "2026-12-20"))
 
-        model.jumpToToday()
-        #expect(cal.isDateInToday(model.selectedDate))
-        #expect(cal.isDateInToday(model.displayedMonthDate))
+        model.setViewMode(.fantastical, anchor: november, timeframe: "month")
+        model.selectDate(december)
+        model.syncToGCalRange()
+
+        #expect(df.string(from: model.selectedDate) == "2026-11-15")
+        let cal = Calendar.current
+        #expect(cal.component(.month, from: model.displayedMonthDate) == 11)
+    }
+
+    @Test func setViewModeWithoutAnchorKeepsGCalRange() throws {
+        let model = SidebarModel()
+        let df = DateFormatter()
+        df.dateFormat = "yyyy-MM-dd"
+        df.timeZone = .current
+        let november = try #require(df.date(from: "2026-11-15"))
+
+        model.setViewMode(.week, anchor: november, timeframe: "week")
+        model.setViewMode(.week, anchor: nil, timeframe: "week")
+
+        #expect(df.string(from: model.selectedDate) == "2026-11-15")
+    }
+
+    @Test func monthStepperOnlyOffersScheduleMonths() throws {
+        let model = SidebarModel()
+        let df = DateFormatter()
+        df.dateFormat = "yyyy-MM-dd"
+        df.timeZone = .current
+        let november = try #require(df.date(from: "2026-11-15"))
+
+        // Month view is bounded by Google Calendar, so there is nothing to step through.
+        model.setViewMode(.fantastical, anchor: november, timeframe: "month")
+        #expect(!model.isScheduleTimeframe)
+        #expect(!model.canStepToPreviousMonth)
+        #expect(!model.canStepToNextMonth)
+
+        // Schedule has an open agenda; the arrows exist, and stop when the agenda has no
+        // other month to show.
+        model.setViewMode(.fantastical, anchor: november, timeframe: "schedule")
+        #expect(model.isScheduleTimeframe)
+        #expect(!model.canStepToPreviousMonth)
+        #expect(!model.canStepToNextMonth)
     }
 
     @Test func setScrollPositionUpdatesHourHeightAndScrollY() {
