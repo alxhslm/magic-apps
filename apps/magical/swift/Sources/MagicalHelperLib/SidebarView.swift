@@ -96,11 +96,30 @@ public final class SidebarModel: ObservableObject {
     public func selectDate(_ date: Date) {
         selectedDate = date
         displayedMonthDate = date
+        if viewMode == .fourDay {
+            let start = calendar.startOfDay(for: anchorDate)
+            let end = calendar.date(byAdding: .day, value: 4, to: start) ?? start
+            if date < start || date >= end {
+                anchorDate = date
+            }
+        }
         recomputeWeekDays()
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
         formatter.timeZone = .current
         onAction?("sidebarSelectDate", formatter.string(from: date))
+    }
+
+    public func selectNextDay() {
+        if let next = calendar.date(byAdding: .day, value: 1, to: selectedDate) {
+            selectDate(next)
+        }
+    }
+
+    public func selectPreviousDay() {
+        if let prev = calendar.date(byAdding: .day, value: -1, to: selectedDate) {
+            selectDate(prev)
+        }
     }
 
     public func jumpToToday() {
@@ -397,27 +416,61 @@ public struct DayCompanionHeaderView: View {
 
     private let dayScrubberHeight: CGFloat = 56.0
 
-    private var dayTitle: String {
+    private var monthYearTitle: String {
         let formatter = DateFormatter()
-        formatter.dateFormat = "EEEE, MMMM d"
+        formatter.dateFormat = "MMMM yyyy"
+        formatter.timeZone = .current
         return formatter.string(from: model.selectedDate)
+    }
+
+    private var isToday: Bool {
+        Calendar.current.isDateInToday(model.selectedDate)
+    }
+
+    private var dayNumber: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "d"
+        formatter.timeZone = .current
+        return formatter.string(from: model.selectedDate)
+    }
+
+    private var weekdayName: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEEE"
+        formatter.timeZone = .current
+        return formatter.string(from: model.selectedDate).uppercased()
+    }
+
+    private var fullDateText: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "d MMMM yyyy"
+        formatter.timeZone = .current
+        return formatter.string(from: model.selectedDate)
+    }
+
+    private var selectedDayDots: [Color] {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.timeZone = .current
+        let key = formatter.string(from: model.selectedDate)
+        return model.trayModel.densityDotsByDay[key] ?? []
     }
 
     public var body: some View {
         VStack(spacing: 0) {
-            // Header with day label and calendar filter/settings aligning with Google Calendar banner
+            // Header with month/year title and calendar filter/settings aligning with Google Calendar banner
             HStack(alignment: .center) {
                 Button(action: {
                     withAnimation(.easeInOut(duration: 0.2)) {
                         model.jumpToToday()
                     }
                 }) {
-                    Text(dayTitle)
+                    Text(monthYearTitle)
                         .font(.system(size: 13, weight: .bold))
                         .foregroundStyle(.primary)
                 }
                 .buttonStyle(.plain)
-                .help("Jump to Now")
+                .help("Jump to Today")
 
                 Spacer()
 
@@ -429,13 +482,70 @@ public struct DayCompanionHeaderView: View {
             .padding(.horizontal, 12)
             .frame(height: bannerRowHeight)
 
-            // Day scrubber pills row aligning with Google Calendar day column headers
-            HStack(spacing: 2) {
-                ForEach(model.currentWeekDays) { item in
-                    SidebarDayPillView(model: model, item: item)
+            // Focused single day header aligning with Google Calendar day column header
+            HStack(alignment: .center, spacing: 10) {
+                Button(action: {
+                    if !isToday {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            model.jumpToToday()
+                        }
+                    }
+                }) {
+                    HStack(spacing: 10) {
+                        ZStack {
+                            if isToday {
+                                Circle()
+                                    .fill(Color.blue)
+                                    .frame(width: 32, height: 32)
+                                Text(dayNumber)
+                                    .font(.system(size: 14, weight: .bold))
+                                    .foregroundStyle(.white)
+                            } else {
+                                Circle()
+                                    .fill(Color.blue.opacity(0.15))
+                                    .frame(width: 32, height: 32)
+                                Circle()
+                                    .strokeBorder(Color.blue.opacity(0.6), lineWidth: 1.2)
+                                    .frame(width: 32, height: 32)
+                                Text(dayNumber)
+                                    .font(.system(size: 14, weight: .bold))
+                                    .foregroundStyle(Color.blue)
+                            }
+                        }
+                        .frame(width: 32, height: 32)
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(weekdayName)
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundStyle(isToday ? Color.blue : .secondary)
+                            Text(fullDateText)
+                                .font(.system(size: 11.5, weight: .medium))
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+                }
+                .buttonStyle(.plain)
+                .help(isToday ? "Today" : "Jump to Today")
+
+                Spacer()
+
+                if !selectedDayDots.isEmpty {
+                    HStack(spacing: 3.5) {
+                        ForEach(0 ..< min(4, selectedDayDots.count), id: \.self) { idx in
+                            Circle()
+                                .fill(selectedDayDots[idx])
+                                .frame(width: 5, height: 5)
+                        }
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4.5)
+                    .background(
+                        Capsule()
+                            .fill(Color.primary.opacity(0.06))
+                    )
                 }
             }
-            .padding(.horizontal, 6)
+            .padding(.horizontal, 12)
             .frame(height: dayScrubberHeight)
         }
         .frame(height: bannerRowHeight + dayScrubberHeight)

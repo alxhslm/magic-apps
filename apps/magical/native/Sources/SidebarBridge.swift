@@ -16,6 +16,10 @@ public final class SidebarManager {
     private var trailingConstraint: NSLayoutConstraint?
     private var topConstraint: NSLayoutConstraint?
     private var windowCloseObserver: Any?
+    private var scrollMonitor: Any?
+    private var accumulatedScrollDeltaX: CGFloat = 0
+    private var lastSwipeTime: TimeInterval = 0
+    private var lastScrollTime: TimeInterval = 0
 
     public var isVisible: Bool = true
     public let cardWidth: CGFloat = 324
@@ -60,12 +64,24 @@ public final class SidebarManager {
         ) { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self else { return }
+                if let monitor = self.scrollMonitor {
+                    NSEvent.removeMonitor(monitor)
+                    self.scrollMonitor = nil
+                }
+                self.accumulatedScrollDeltaX = 0
                 self.visualEffectView?.removeFromSuperview()
                 self.visualEffectView = nil
                 self.hostingView = nil
                 self.trailingConstraint = nil
                 self.topConstraint = nil
                 self.window = nil
+            }
+        }
+
+        if scrollMonitor == nil {
+            scrollMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
+                guard let self else { return event }
+                return handleScrollWheel(event)
             }
         }
 
@@ -306,6 +322,82 @@ public final class SidebarManager {
             gridHeight: gridHeight,
             cardTop: cardTop
         )
+    }
+
+    // MARK: - Event Monitoring & Gesture Handling
+
+    func handleScrollWheel(_ event: NSEvent) -> NSEvent? {
+        guard isVisible,
+              let effect = visualEffectView,
+              !effect.isHidden,
+              let window,
+              event.window === window,
+              let contentView = window.contentView
+        else {
+            return event
+        }
+
+        let pointInContent = contentView.convert(event.locationInWindow, from: nil)
+        guard effect.frame.contains(pointInContent) else {
+            return event
+        }
+
+        let deltaX = event.scrollingDeltaX
+        let deltaY = event.scrollingDeltaY
+        let absX = abs(deltaX)
+        let absY = abs(deltaY)
+
+        let isHorizontal = absX > absY && absX > 1.5
+
+        if isHorizontal {
+            let mode = SidebarModel.shared.viewMode
+            if mode == .week || mode == .fourDay {
+                let now = ProcessInfo.processInfo.systemUptime
+                if now - lastScrollTime > 0.3 {
+                    accumulatedScrollDeltaX = 0
+                }
+                lastScrollTime = now
+
+                // Only accumulate active user swipes, ignoring momentum flings
+                if event.momentumPhase.isEmpty {
+                    let effectiveDeltaX = event.isDirectionInvertedFromDevice ? deltaX : -deltaX
+                    accumulatedScrollDeltaX += effectiveDeltaX
+
+                    let threshold: CGFloat = 28.0
+                    if accumulatedScrollDeltaX <= -threshold {
+                        if now - lastSwipeTime >= 0.12 {
+                            lastSwipeTime = now
+                            accumulatedScrollDeltaX = 0
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                SidebarModel.shared.selectNextDay()
+                            }
+                        }
+                    } else if accumulatedScrollDeltaX >= threshold, now - lastSwipeTime >= 0.12 {
+                        lastSwipeTime = now
+                        accumulatedScrollDeltaX = 0
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            SidebarModel.shared.selectPreviousDay()
+                        }
+                    }
+                }
+            }
+
+            if event.phase.contains(.ended) || event.phase.contains(.cancelled) {
+                accumulatedScrollDeltaX = 0
+            }
+
+            // In ALL view modes: consume the horizontal scroll event by returning nil
+            // so horizontal gestures over the sidebar NEVER trigger horizontal scrolling in
+            // Google Calendar or back/forward navigation in the web view.
+            return nil
+        }
+
+        if event.phase.contains(.ended) || event.phase.contains(.cancelled) {
+            accumulatedScrollDeltaX = 0
+        }
+
+        // Vertical gestures return unchanged so timeline scrolling and two-way sync operate smoothly
+        return event
     }
 }
 

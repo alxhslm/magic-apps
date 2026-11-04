@@ -204,4 +204,73 @@ struct SidebarModelTests {
         #expect(model.gcalGridHeight == 550.0)
         #expect(model.gcalCardTop == 72.0)
     }
+
+    @Test func selectNextDayAndSelectPreviousDay() throws {
+        let model = SidebarModel()
+        let df = DateFormatter()
+        df.dateFormat = "yyyy-MM-dd"
+        df.timeZone = .current
+
+        let baseDate = try #require(df.date(from: "2026-11-04"))
+        model.selectDate(baseDate)
+        #expect(df.string(from: model.selectedDate) == "2026-11-04")
+
+        model.selectNextDay()
+        #expect(df.string(from: model.selectedDate) == "2026-11-05")
+
+        model.selectNextDay()
+        #expect(df.string(from: model.selectedDate) == "2026-11-06")
+
+        model.selectPreviousDay()
+        #expect(df.string(from: model.selectedDate) == "2026-11-05")
+
+        model.selectPreviousDay()
+        #expect(df.string(from: model.selectedDate) == "2026-11-04")
+    }
+
+    @Test func selectNextDayCrossesWeekBoundary() throws {
+        let model = SidebarModel()
+        let df = DateFormatter()
+        df.dateFormat = "yyyy-MM-dd"
+        df.timeZone = .current
+
+        // 2026-11-08 is a Sunday (end of week with Monday start)
+        let sunday = try #require(df.date(from: "2026-11-08"))
+        model.setViewMode(.week, anchor: sunday)
+        #expect(model.currentWeekDays.contains { $0.id == "2026-11-08" })
+        #expect(!model.currentWeekDays.contains { $0.id == "2026-11-09" })
+
+        // Advancing advances into Monday 2026-11-09 of next week
+        model.selectNextDay()
+        #expect(df.string(from: model.selectedDate) == "2026-11-09")
+        #expect(model.currentWeekDays.contains { $0.id == "2026-11-09" })
+        #expect(!model.currentWeekDays.contains { $0.id == "2026-11-08" })
+
+        // Retreating goes back to Sunday of previous week
+        model.selectPreviousDay()
+        #expect(df.string(from: model.selectedDate) == "2026-11-08")
+        #expect(model.currentWeekDays.contains { $0.id == "2026-11-08" })
+    }
+
+    @Test func selectNextDayInFourDayModeShiftsAnchor() throws {
+        let model = SidebarModel()
+        let df = DateFormatter()
+        df.dateFormat = "yyyy-MM-dd"
+        df.timeZone = .current
+
+        let start = try #require(df.date(from: "2026-11-04"))
+        model.setViewMode(.fourDay, anchor: start)
+        #expect(model.currentWeekDays.map(\.id) == ["2026-11-04", "2026-11-05", "2026-11-06", "2026-11-07"])
+
+        model.selectNextDay() // 11-05
+        model.selectNextDay() // 11-06
+        model.selectNextDay() // 11-07
+        #expect(df.string(from: model.selectedDate) == "2026-11-07")
+        #expect(model.currentWeekDays.map(\.id) == ["2026-11-04", "2026-11-05", "2026-11-06", "2026-11-07"])
+
+        // Beyond 4th day -> shifts anchor
+        model.selectNextDay() // 11-08
+        #expect(df.string(from: model.selectedDate) == "2026-11-08")
+        #expect(model.currentWeekDays.first?.id == "2026-11-08")
+    }
 }
