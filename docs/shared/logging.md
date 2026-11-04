@@ -47,7 +47,8 @@ macOS version, build and architecture. It exists because "works on my machine" i
 those, and no reporter thinks to mention them. The macOS **build** is there because Apple ships more
 than one under a single version string, so two reporters both on "15.6.1" can be on different systems.
 It is read from `/System/Library/CoreServices/SystemVersion.plist`; nothing in Node or Electron
-exposes it, and `sw_vers` would mean spawning a process at launch.
+exposes it, and `sw_vers` would mean spawning a process at launch. A local build's version names its
+commit, such as `0.0.0-dev+a1b2c3d`, so a log does not have to guess which build produced it.
 
 A second line follows on `whenReady`: the resolved appearance, the theme source the user chose,
 whether high contrast is on, and the primary display's size and scale factor. Appearance and scale are
