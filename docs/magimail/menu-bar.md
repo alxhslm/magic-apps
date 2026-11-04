@@ -80,10 +80,10 @@ the number. The 15pt jump at ten unread that the old dot-plus-count title had is
 
 The dots and spacers are `NSTextAttachment`s and the words are coloured runs, so AppKit keeps the
 glyph a template image over a light desktop, a dark desktop and a fullscreen menu bar. The popover
-anchors to the glyph's rect inside the button rather than the whole button, so its arrow points at
-the icon instead of the midpoint between icon and title. The glyph's accessibility description names
-the accounts waiting and their counts, or says that an account needs sign-in, because the title is
-built to be read at a glance rather than by VoiceOver.
+anchors to the status item button, which grows with the title, so the arrow follows the item while
+the item itself no longer moves. The glyph's accessibility description names the accounts waiting
+and their counts, or says that an account needs sign-in, because the title is built to be read at a
+glance rather than by VoiceOver.
 
 ### Migrating the old two switches
 

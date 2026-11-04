@@ -201,12 +201,10 @@ public final class MenuBarController: NSObject, NSPopoverDelegate {
         pop.contentViewController = host
         popover = pop
         HelperLog.info("Tray", "Showing tray popover")
-        // Anchor to the glyph, not the whole button: the title to its right
-        // would otherwise drag the arrow to the midpoint between icon and
-        // digits.
-        let anchor = glyphRect(in: button)
-        pop.positioningRect = anchor
-        pop.show(relativeTo: anchor, of: button, preferredEdge: .minY)
+        // The whole button, not the glyph's rect inside it. Anchoring to the
+        // glyph made the popover close as soon as it opened, so the click
+        // looked dead; the arrow's exact position is not worth that.
+        pop.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
 
         // Request messages from Electron for all accounts
         requestMessages()
@@ -214,12 +212,6 @@ public final class MenuBarController: NSObject, NSPopoverDelegate {
         // The timer decides when mail is fetched, so what the popover shows on opening is
         // as old as the last tick. This asks for a poll on the way up.
         transport?.sendEvent(method: "tray.popoverOpened")
-    }
-
-    private func glyphRect(in button: NSStatusBarButton) -> NSRect {
-        guard button.image != nil else { return button.bounds }
-        let rect = button.cell?.imageRect(forBounds: button.bounds) ?? button.bounds
-        return rect.isEmpty ? button.bounds : rect
     }
 
     private func dismissPopover() {
