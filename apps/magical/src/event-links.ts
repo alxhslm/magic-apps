@@ -126,21 +126,22 @@ function occurrenceStamp(event: NormalizedCalendarEvent): string {
 }
 
 /**
- * The `eid` a link should name.
+ * The `eid` that names this event's own occurrence.
  *
  * `extractEid` reads the event's own web URL. For an occurrence this app expanded from the
  * series schedule, that URL is inherited from the record the occurrence took its fields
  * from — the series' newest materialised instance, or the master when none is placed —
  * so it names *that* occurrence and not this one. Google's grid labels each chip with the
- * occurrence's own id, so a link built from the inherited `eid` matches no chip: the reveal
- * routes to the right day and opens nothing.
+ * occurrence's own id, so an `eid` read from the inherited URL matches no chip: the reveal
+ * routes to the right day and opens nothing, and an RSVP or a delete drives the wrong one.
  *
- * Rebuilt here from the occurrence's own slot, the link names the chip that is on screen.
- * An occurrence whose inherited `eid` was already right rebuilds to the same bytes. An
+ * Rebuilt here from the occurrence's own slot, the eid names the chip that is on screen.
+ * Every caller that acts on one occurrence uses this rather than `extractEid`; an
+ * occurrence whose inherited `eid` was already right rebuilds to the same bytes. An
  * occurrence the wire returned carries its own `eid` and is left alone, as is a task's chip
  * id, which is not an `eid` at all.
  */
-function linkedEid(event: NormalizedCalendarEvent): string | undefined {
+export function eventEid(event: NormalizedCalendarEvent): string | undefined {
   const eid = extractEid(event);
   if (!eid || !event.instanceId) return eid;
 
@@ -166,7 +167,7 @@ export function buildEventLink(event: NormalizedCalendarEvent, accountId: string
   const start = event.isAllDay ? allDayLocalDate(event.startTime) : event.startTime;
   const at = encodeURIComponent(start.toISOString());
   const account = encodeURIComponent(accountId);
-  const eid = linkedEid(event);
+  const eid = eventEid(event);
   if (eid) {
     return `${MAGICAL_PROTOCOL}://event?account=${account}&eid=${encodeURIComponent(eid)}&at=${at}`;
   }

@@ -46,6 +46,9 @@ id matches no chip.
   `<seriesId>_20260918` all-day.
 - **A task's chip id** is not an `eid` and passes through.
 
+Answering, deleting and completing reuse this `eventEid`, so an action and the reveal it came
+from address the same occurrence.
+
 ### Date fallback (`magical://date`)
 
 Used when an event has no resolvable `eid` or when navigating directly to a calendar day:

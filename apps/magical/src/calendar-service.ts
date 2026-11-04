@@ -45,7 +45,7 @@ import { uiString } from './strings.js';
 import {
   buildEventLink,
   decodeEid,
-  extractEid,
+  eventEid,
   parseEventLink,
   resolveToCalendarUrl,
   type EventLinkAction,
@@ -476,7 +476,7 @@ export class CalendarService {
     const event = calendarEvents.find((e) => e.id === eventId);
     if (!event) return false;
 
-    const eid = extractEid(event);
+    const eid = eventEid(event);
     if (!eid || !this.performDelete) {
       log.warn(
         `cannot delete event ${eventId} in background without eid/handler; opening in window`,
@@ -543,7 +543,7 @@ export class CalendarService {
       return false;
     }
 
-    const eid = extractEid(event);
+    const eid = eventEid(event);
     if (!eid || !this.performComplete) {
       log.warn(`cannot change task ${eventId} in background without eid/handler; opening it`);
       this.openDeepLink(buildEventLink(event, accountId));
@@ -1795,8 +1795,10 @@ export class CalendarService {
     // same event carries the organiser's, so the same event can arrive under two eids.
     // The event id is shared, so it is the fallback that finds the cached row either way.
     const linkedId = decodeEid(eid)?.eventId;
+    // Compared against the occurrence's own eid, not the one its web URL carries: for an
+    // expanded occurrence those differ, and the link names the occurrence.
     const cached = (this.cachedEvents.get(accountId) ?? []).find(
-      (e) => extractEid(e) === eid || (linkedId !== undefined && e.id === linkedId),
+      (e) => eventEid(e) === eid || (linkedId !== undefined && e.id === linkedId),
     );
 
     if (cached) {
@@ -1846,7 +1848,7 @@ export class CalendarService {
    */
   private async deliverRsvp(invite: PendingInvite, response: RsvpResponse): Promise<void> {
     const { key } = invite;
-    const eid = extractEid(invite.event);
+    const eid = eventEid(invite.event);
     const accountId = invite.sourceId.replace(/^google:/, '');
     if (!eid) {
       // Without an eid there is no way to address the chip, so fall back to showing the
@@ -2036,7 +2038,7 @@ export class CalendarService {
     const at =
       target.date ??
       (target.eid
-        ? (this.cachedEvents.get(account.id) ?? []).find((e) => extractEid(e) === target.eid)
+        ? (this.cachedEvents.get(account.id) ?? []).find((e) => eventEid(e) === target.eid)
             ?.startTime
         : undefined);
 
