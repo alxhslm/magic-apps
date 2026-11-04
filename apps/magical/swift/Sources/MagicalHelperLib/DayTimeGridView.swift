@@ -257,6 +257,8 @@ private struct TimeGridEventTile: View {
 
                 VStack(alignment: .leading, spacing: 1) {
                     HStack(spacing: 3) {
+                        EventKindBadge(event: event, size: 8.5)
+
                         Text(event.formattedTime(on: date))
                             .font(.system(size: 8.5, design: .rounded).monospacedDigit())
                             .foregroundStyle(.secondary)

@@ -91,6 +91,8 @@ public struct HeroNextEventCard: View {
                 }
 
                 HStack(alignment: .firstTextBaseline, spacing: 10) {
+                    EventKindBadge(event: event, size: 12)
+
                     // The largest text in the popover; every agenda title is 12pt.
                     Text(event.summary)
                         .font(.system(size: 14, weight: .semibold))
