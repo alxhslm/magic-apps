@@ -70,6 +70,7 @@ describe('calendar-sync-state', () => {
       url: 'https://calendar.google.com/calendar/u/0/sync.sync',
       method: 'POST',
       statusCode: 200,
+      webContentsId: 12,
     } as any);
 
     expect(onMutation).toHaveBeenCalledTimes(1);
@@ -79,6 +80,7 @@ describe('calendar-sync-state', () => {
       url: 'https://calendar.google.com/calendar/u/0/sync.sync',
       method: 'GET',
       statusCode: 200,
+      webContentsId: 12,
     } as any);
     expect(onMutation).toHaveBeenCalledTimes(1);
 
@@ -86,11 +88,32 @@ describe('calendar-sync-state', () => {
       url: 'https://calendar.google.com/calendar/u/0/sync.sync',
       method: 'POST',
       statusCode: 500,
+      webContentsId: 12,
     } as any);
     expect(onMutation).toHaveBeenCalledTimes(1);
 
     stop();
     expect(mockSes.webRequest.onBeforeRequest).toHaveBeenCalledWith(expect.any(Object), null);
     expect(mockSes.webRequest.onCompleted).toHaveBeenCalledWith(expect.any(Object), null);
+  });
+
+  it('ignores a completion that did not come from the account view', () => {
+    // The poller's own Tasks read is a POST to the same RPC, made by the main process and
+    // therefore carrying no WebContents. Counting it made every poll trigger the next
+    // one; see the comment in `observeSyncState`.
+    const onMutation = vi.fn();
+    const stop = observeSyncState(partition, onMutation);
+    const mockSes = session.fromPartition(partition);
+    const onCompleted = vi.mocked(mockSes.webRequest.onCompleted).mock.calls[0]?.[1];
+    expect(onCompleted).toBeDefined();
+
+    onCompleted!({
+      url: 'https://tasks-pa.clients6.google.com/$rpc/google.internal.tasks.v1.TasksApiService/Sync',
+      method: 'POST',
+      statusCode: 200,
+    } as any);
+
+    expect(onMutation).not.toHaveBeenCalled();
+    stop();
   });
 });

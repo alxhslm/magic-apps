@@ -58,7 +58,7 @@ function decodeState(url: string, body: string, encoded: string): SyncState | un
 
 /**
  * Watches a partition and records the latest `sync.sync` request its view makes,
- * and notifies when calendar or tasks mutations complete.
+ * and notifies when the view's own write to Calendar or Tasks completes.
  *
  * Returns a disposer. Until the account's view has posted at least one sync there is no
  * state, and a direct write is impossible — the caller falls back to driving the view.
@@ -98,6 +98,14 @@ export function observeSyncState(partition: string, onMutation?: () => void): ()
 
   const onCompletedListener = (details: Electron.OnCompletedListenerDetails) => {
     try {
+      // Only a request the account's own view made can be the user changing something,
+      // and that is what `webContentsId` says: it is absent for a request the browser
+      // process started itself. Load-bearing, because the poller's Tasks *read* is a POST
+      // to the same RPC through the same session and answers `2xx`; counted as a
+      // mutation it made every poll trigger the next one, and the loop that ran at about
+      // a poll a second is what Google answered with `429`.
+      if (details.webContentsId === undefined) return;
+
       if (details.method === 'POST' && details.statusCode >= 200 && details.statusCode < 300) {
         log.debug(`Observed sync mutation completion on ${partition} (${details.statusCode})`);
         onMutation?.();
