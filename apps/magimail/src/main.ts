@@ -1106,11 +1106,7 @@ if (!hasLock) {
           if (key === 'dockBadgeMode') {
             refreshDockBadge();
           }
-          if (
-            key === 'menuBarShowDots' ||
-            key === 'menuBarShowCount' ||
-            key === 'menuBarUnreadOnly'
-          ) {
+          if (key === 'menuBarUnreadDisplay' || key === 'menuBarUnreadOnly') {
             const accounts = accountsManager?.getFocusedAccounts() || [];
             const total = calculateAggregateUnread(accounts);
             updateTrayData(accounts, total);
@@ -1441,7 +1437,7 @@ if (!hasLock) {
       if (key === 'dockBadgeMode') {
         refreshDockBadge();
       }
-      if (key === 'menuBarShowDots' || key === 'menuBarShowCount' || key === 'menuBarUnreadOnly') {
+      if (key === 'menuBarUnreadDisplay' || key === 'menuBarUnreadOnly') {
         const accounts = accountsManager?.getAccounts() || [];
         const total = calculateAggregateUnread(accounts);
         updateTrayData(accounts, total);

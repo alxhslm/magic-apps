@@ -132,12 +132,70 @@ describe('settings-store', () => {
     });
   });
 
+  describe('menuBarUnreadDisplay migration', () => {
+    it('defaults to numbers', async () => {
+      const { loadSettings } = await launch();
+      expect(loadSettings().menuBarUnreadDisplay).toBe('numbers');
+    });
+
+    it('carries dots plus count across to numbers', async () => {
+      seedSettings({ menuBarShowDots: true, menuBarShowCount: true });
+      const { loadSettings } = await launch();
+      const settings = loadSettings();
+      expect(settings.menuBarUnreadDisplay).toBe('numbers');
+      expect(settings).not.toHaveProperty('menuBarShowDots');
+      expect(settings).not.toHaveProperty('menuBarShowCount');
+    });
+
+    it('carries a count with no dots across to numbers', async () => {
+      seedSettings({ menuBarShowDots: false, menuBarShowCount: true });
+      const { loadSettings } = await launch();
+      expect(loadSettings().menuBarUnreadDisplay).toBe('numbers');
+    });
+
+    it('carries dots with no count across to dots', async () => {
+      seedSettings({ menuBarShowDots: true, menuBarShowCount: false });
+      const { loadSettings } = await launch();
+      expect(loadSettings().menuBarUnreadDisplay).toBe('dots');
+    });
+
+    it('reads a missing old key as its default of true', async () => {
+      seedSettings({ menuBarShowCount: false });
+      const { loadSettings } = await launch();
+      expect(loadSettings().menuBarUnreadDisplay).toBe('dots');
+    });
+
+    it('carries neither across to nothing', async () => {
+      seedSettings({ menuBarShowDots: false, menuBarShowCount: false });
+      const { loadSettings } = await launch();
+      expect(loadSettings().menuBarUnreadDisplay).toBe('nothing');
+    });
+
+    it('an explicit reading wins over stale booleans', async () => {
+      seedSettings({
+        menuBarUnreadDisplay: 'dots',
+        menuBarShowDots: false,
+        menuBarShowCount: false,
+      });
+      const { loadSettings } = await launch();
+      expect(loadSettings().menuBarUnreadDisplay).toBe('dots');
+    });
+
+    it('an unknown reading falls back to numbers', async () => {
+      seedSettings({ menuBarUnreadDisplay: 'total' });
+      const { loadSettings } = await launch();
+      expect(loadSettings().menuBarUnreadDisplay).toBe('numbers');
+    });
+  });
+
   describe('saveSetting — flat keys', () => {
     it('persists a flat boolean key', async () => {
       const { loadSettings, saveSetting } = await launch();
-      saveSetting('menuBarShowDots', false);
-      expect(loadSettings().menuBarShowDots).toBe(false);
-      expect(readSecretFile<Record<string, unknown>>(settingsPath)?.menuBarShowDots).toBe(false);
+      saveSetting('menuBarUnreadDisplay', 'dots');
+      expect(loadSettings().menuBarUnreadDisplay).toBe('dots');
+      expect(readSecretFile<Record<string, unknown>>(settingsPath)?.menuBarUnreadDisplay).toBe(
+        'dots',
+      );
     });
 
     it('persists a flat string key', async () => {

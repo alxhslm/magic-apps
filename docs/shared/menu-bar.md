@@ -53,17 +53,25 @@ between the bar's height and the font's cap height.
 ## Sizing the status item
 
 The status item is `variableLength`, so every item to the left of it moves whenever the title's width
-changes. A title that changes on its own therefore has to be drawn into a field of a constant width,
-with whatever the reading leaves over appended as a transparent `NSTextAttachment` of the measured
-difference. The reserve trails the title rather than leading it: in front it would hold the item's
-width just as well, but the words would slide rightwards as the text shortened; at the end it is empty
-space against the neighbouring item and nothing visible moves.
+changes. The title therefore has to keep one width independent of the state it reports.
+
+**Draw one mark per item, not one per non-zero item.** Magimail's title carries a dot or a two-digit
+cell for every account, in the same order, with a ring or a dimmed zero for the quiet ones. The
+width is then a function of the account count and the display setting, never of the counts
+themselves, so mail arriving or a message being marked read changes the mark without moving it.
+Magimail's three readings and their widths are in [`../magimail/menu-bar.md`](../magimail/menu-bar.md).
+
+A title whose content cannot be made per-item in that way has to be drawn into a field of a constant
+width, with whatever the reading leaves over appended as a transparent `NSTextAttachment` of the
+measured difference. The reserve trails the title rather than leading it: in front it would hold the
+item's width just as well, but the words would slide rightwards as the text shortened; at the end it
+is empty space against the neighbouring item and nothing visible moves.
 
 The item keeps `variableLength` rather than taking a fixed `length`. A fixed width has to fit the
 longest title the mode can draw, and macOS hides menu bar extras when it needs the room for app menus,
 so that width comes out of whatever else the user keeps up there.
 
-Magical's countdown is the title that changes on its own, and how its constant width is measured and
+Magical's countdown is a title that changes on its own, and how its constant width is measured and
 why is in [`../magical/menu-bar.md`](../magical/menu-bar.md).
 
 ## Popover

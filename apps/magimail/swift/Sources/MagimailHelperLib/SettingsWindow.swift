@@ -221,8 +221,16 @@ struct AppearanceTab: View {
                         .foregroundStyle(.secondary)
                 }
                 Toggle("Show menu bar tray", isOn: $model.showMenuBarTray)
-                Toggle("Show unread count", isOn: $model.menuBarShowCount)
-                Toggle("Show color dots", isOn: $model.menuBarShowDots)
+                Picker("Menu bar shows:", selection: $model.menuBarUnreadDisplay) {
+                    Text("Nothing").tag("nothing")
+                    Text("Dots").tag("dots")
+                    Text("Numbers").tag("numbers")
+                }
+                if model.menuBarUnreadDisplay == "numbers" {
+                    Text("One cell per account, with 0 for a quiet one, so the item keeps its width as mail arrives or is read.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
                 Toggle("Show verification codes", isOn: $model.menuBarVerificationCodes)
                 if model.menuBarVerificationCodes {
                     Picker("Keep in menu bar for:", selection: $model.verificationCodeDurationMinutes) {
