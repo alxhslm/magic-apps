@@ -1193,6 +1193,8 @@ function handleToolbarAction(action: string, value: string): void {
     case 'sidebarRsvp':
     case 'sidebarRefresh':
     case 'sidebarFilterChanged':
+    case 'sidebarSetShowCompletedTasks':
+    case 'sidebarEnsureRange':
     case 'sidebarScroll':
       sidebarManager?.handleSidebarAction(action, value);
       break;
@@ -1211,6 +1213,15 @@ function handleToolbarAction(action: string, value: string): void {
     case 'invite:read':
     case 'invite:open':
       calendarService?.handleInviteAction(action, value);
+      break;
+
+    default:
+      // A sidebar action added in the addon used to be dropped here until somebody
+      // remembered to add it to the list above; `sidebarSetShowCompletedTasks` and
+      // `sidebarEnsureRange` both shipped that way. Relay the prefix instead.
+      if (action.startsWith('sidebar')) {
+        sidebarManager?.handleSidebarAction(action, value);
+      }
       break;
   }
 }
