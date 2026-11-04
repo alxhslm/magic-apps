@@ -750,11 +750,12 @@ public struct DayFocusedEventsList: View {
     private var allDayListContent: some View {
         VStack(spacing: 3) {
             ForEach(allDayEvents, id: \.identity) { event in
-                AllDayBannerView(
+                EventCardView(
                     event: event,
                     onSelect: { onAction?("sidebarOpenEvent", event.id) },
                     onDelete: { onAction?("sidebarDeleteEvent", "\($0.accountId):\($0.id)") },
-                    onComplete: { onAction?("sidebarCompleteTask", "\($0.accountId):\($0.id):\($1)") }
+                    onComplete: { onAction?("sidebarCompleteTask", "\($0.accountId):\($0.id):\($1)") },
+                    style: .allDay
                 )
             }
         }

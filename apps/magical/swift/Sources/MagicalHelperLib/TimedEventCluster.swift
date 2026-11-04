@@ -100,23 +100,25 @@ public struct ClusterEventRowView: View {
     public var body: some View {
         if cluster.events.count == 2 {
             HStack(alignment: .top, spacing: 6) {
-                CompactEventTileView(
+                EventCardView(
                     event: cluster.events[0],
                     onSelect: { onSelectEvent(cluster.events[0]) },
                     onJoinCall: onJoinCall,
                     onRsvp: { status in onRsvp?(cluster.events[0], status) },
                     onDelete: onDeleteEvent,
-                    onComplete: onCompleteTask
+                    onComplete: onCompleteTask,
+                    style: .compact
                 )
                 .padding(.top, cluster.topOffset(for: 0))
 
-                CompactEventTileView(
+                EventCardView(
                     event: cluster.events[1],
                     onSelect: { onSelectEvent(cluster.events[1]) },
                     onJoinCall: onJoinCall,
                     onRsvp: { status in onRsvp?(cluster.events[1], status) },
                     onDelete: onDeleteEvent,
-                    onComplete: onCompleteTask
+                    onComplete: onCompleteTask,
+                    style: .compact
                 )
                 .padding(.top, cluster.topOffset(for: 1))
             }

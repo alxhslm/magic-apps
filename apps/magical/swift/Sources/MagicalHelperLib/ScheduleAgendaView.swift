@@ -296,10 +296,12 @@ public struct ScheduleAgendaView: View {
 
                 // Pinned all-day banners at the top of the day
                 ForEach(allDayEvents, id: \.identity) { event in
-                    AllDayBannerView(
+                    EventCardView(
                         event: event,
                         onSelect: { onSelectEvent(event) },
-                        onDelete: onDeleteEvent
+                        onDelete: onDeleteEvent,
+                        onComplete: onCompleteTask,
+                        style: .allDay
                     )
                 }
 

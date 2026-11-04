@@ -133,16 +133,16 @@ public struct DayTimeGridView: View {
                             let colWidth = item.totalColumns == 1 ? availableWidth : (availableWidth - 4) / 2
                             let xOffset = gutterWidth + (item.columnIndex == 0 ? 0 : (colWidth + 4))
 
-                            TimeGridEventTile(
+                            EventCardView(
                                 event: item.event,
-                                date: date,
-                                height: item.height,
-                                isCompact: item.totalColumns > 1,
                                 onSelect: { onSelectEvent(item.event) },
                                 onJoinCall: onJoinCall,
                                 onRsvp: onRsvp != nil ? { onRsvp?(item.event, $0) } : nil,
                                 onDelete: onDeleteEvent,
-                                onComplete: onCompleteTask
+                                onComplete: onCompleteTask,
+                                style: .grid,
+                                date: date,
+                                height: item.height
                             )
                             .frame(width: colWidth, height: item.height)
                             .offset(x: xOffset, y: item.top)
@@ -229,92 +229,6 @@ public struct DayTimeGridView: View {
         }
         .frame(width: max(0, width - gutterWidth + 3))
         .offset(x: gutterWidth - 3, y: nowY - 3)
-    }
-}
-
-// MARK: - Time Grid Event Tile
-
-private struct TimeGridEventTile: View {
-    let event: TrayEvent
-    let date: Date
-    let height: CGFloat
-    let isCompact: Bool
-    let onSelect: () -> Void
-    let onJoinCall: ((String) -> Void)?
-    let onRsvp: ((String) -> Void)?
-    let onDelete: ((TrayEvent) -> Void)?
-    let onComplete: ((TrayEvent, Bool) -> Void)?
-
-    @State private var isHovering = false
-
-    var body: some View {
-        Button(action: onSelect) {
-            HStack(spacing: 4) {
-                Capsule()
-                    .fill(Color(hex: event.colorHex))
-                    .frame(width: 3)
-                    .padding(.vertical, 3)
-
-                VStack(alignment: .leading, spacing: 1) {
-                    HStack(spacing: 3) {
-                        EventKindBadge(event: event, size: 8.5)
-
-                        Text(event.formattedTime(on: date))
-                            .font(.system(size: 8.5, design: .rounded).monospacedDigit())
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-
-                        Spacer(minLength: 1)
-
-                        if event.conferenceUrl != nil {
-                            Image(systemName: "video.fill")
-                                .font(.system(size: 8))
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-
-                    Text(event.summary)
-                        .font(.system(size: 10.5, weight: .semibold))
-                        .foregroundStyle(event.isCompleted ? .secondary : .primary)
-                        .lineLimit(height > 40 ? 2 : 1)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    if height >= 46, let calName = event.calendarName, !calName.isEmpty {
-                        Text(calName)
-                            .font(.system(size: 8.5))
-                            .foregroundStyle(.tertiary)
-                            .lineLimit(1)
-                    }
-                }
-                .padding(.trailing, 3)
-            }
-            .padding(.leading, 4)
-            .padding(.vertical, 3)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .background(
-                ZStack {
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(Color(nsColor: .controlBackgroundColor).opacity(0.88))
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(Color.primary.opacity(isHovering ? 0.08 : 0.04))
-                }
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 6)
-                    .strokeBorder(Color.primary.opacity(isHovering ? 0.2 : 0.1), lineWidth: 0.75)
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 6))
-        }
-        .buttonStyle(.plain)
-        .onHover { isHovering = $0 }
-        .eventContextMenu(
-            event: event,
-            onSelect: onSelect,
-            onJoinCall: onJoinCall,
-            onRsvp: onRsvp,
-            onDelete: onDelete,
-            onComplete: onComplete
-        )
     }
 }
 
