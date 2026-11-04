@@ -592,10 +592,9 @@ public struct AgendaMediumView: View {
         }
     }
 
+    /// `WED`, not `WEDNESDAY`: the gutter is 58pt and the full name wraps inside it.
     private var weekday: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "EEEE"
-        return formatter.string(from: now).uppercased()
+        TimeDisplay.dateFormatter(template: "EEE").string(from: now).uppercased()
     }
 
     /// Today's events, then tomorrow's under a heading once today runs out.

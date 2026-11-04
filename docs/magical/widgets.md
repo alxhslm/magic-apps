@@ -52,6 +52,9 @@ still fills the tile.
 ### Agenda
 
 The day number and its weekday sit in a left gutter, and the day's events stack beside it as cards.
+The gutter is 58pt, so it carries the short weekday from the Mac's locale (`WED`), because the full
+name wraps inside it.
+
 Medium holds two and picks up a `TOMORROW` eyebrow once today runs out; large runs to three days, with
 room on each card for the time and the conference service under the title.
 
