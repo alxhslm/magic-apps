@@ -56,7 +56,7 @@ Clicking the menu bar icon opens a floating popover listing your most recent ema
 
 ![Magimail menu bar popover preview with verification code hero card and multi-account message feeds](/assets/shot-popover.webp)
 
-## One-Time Verification Codes
+### One-Time Verification Codes
 
 When an authentication or login email arrives, Magimail inspects the subject line and message snippet for one-time verification codes and pins a hero card to the top of the popover. Clicking **Copy** writes the code straight to your clipboard and confirms with a brief "Copied" indicator.
 
@@ -64,7 +64,7 @@ The card stays in the menu bar until you archive or delete the email, or until t
 
 Both controls sit in **Settings → Appearance → Dock & Menu Bar**: **Show verification codes** turns the card on or off, and **Keep in menu bar for** chooses how long it stays pinned (5, 10, 15 or 30 minutes). The [Settings Reference](/help/magimail/settings/) describes them.
 
-## Filtering & Multi-Account Search
+### Filtering & Multi-Account Search
 
 The header of the menu bar popover contains quick-triage controls:
 
@@ -80,7 +80,7 @@ The header of the menu bar popover contains quick-triage controls:
 
 What raises a banner, and what each of its buttons does, is in [Notifications & Badges](/help/magimail/notifications/).
 
-## Status Banners
+### Status Banners
 
 The popover provides instant feedback on the health of your accounts:
 
@@ -88,7 +88,7 @@ The popover provides instant feedback on the health of your accounts:
 - **Offline Indicator**: Appears if your Mac loses internet connection, confirming that cached data is being displayed.
 - **Sign In Required**: If an account token expires or Google requests a password update, a warning banner appears with a 1-click **Sign In** button to re-authenticate without digging through settings.
 
-## Right-Click Actions
+### Right-Click Actions
 
 You can triage messages on the fly without opening them. Right-click any email row in the popover to display instant actions:
 
