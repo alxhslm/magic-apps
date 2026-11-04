@@ -208,6 +208,10 @@ export class HybridFeedSource implements MailboxSource {
   }
 
   public async triageThread(threadId: string, action: TriageAction): Promise<boolean> {
+    // Triage leaves no other trace: the window does not move and a refusal rolls the
+    // ledger back without a word, so the line has to say it was asked for.
+    log.info(`Triage ${action} on ${this.accountId}: thread=${threadId}`);
+
     // 0ms latency: update ledger optimistically, but not yet confirmed.
     this.ledger.recordLocalTriage(threadId, threadId, action);
     this.ledger.markLocalTriageInFlight(threadId, threadId);
@@ -225,7 +229,12 @@ export class HybridFeedSource implements MailboxSource {
     }
 
     // The optimistic row must not outlive a failed action.
-    if (this.ledger.rollbackLocalTriage(threadId, threadId)) {
+    const rolledBack = this.ledger.rollbackLocalTriage(threadId, threadId);
+    log.warn(
+      `Triage ${action} on ${this.accountId} failed for thread=${threadId}; ` +
+        (rolledBack ? 'rolled back' : 'no pending row'),
+    );
+    if (rolledBack) {
       this.emitChange({
         addedMessageIds: [],
         removedMessageIds: [],
