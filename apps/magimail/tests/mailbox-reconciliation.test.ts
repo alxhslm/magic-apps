@@ -1211,6 +1211,34 @@ describe('Scenario 5: Universal Sync Nudge Dispatch', () => {
     source.destroy();
   });
 
+  /**
+   * Electron reads `view.webContents` back as `undefined` once the WebContents is
+   * destroyed, so the natural guard `!view.webContents.isDestroyed()` throws instead
+   * of answering. A hint lands about 100ms after a suspend, so this is the reply that
+   * arrives from a dead view.
+   */
+  it('returns from a mailbox hint when the view has been torn down', async () => {
+    const mockPoller = {
+      pollNow: vi.fn().mockResolvedValue(undefined),
+      requestImmediatePoll: vi.fn(),
+      stop: vi.fn(),
+      destroy: vi.fn(),
+      updateNotificationSettings: vi.fn(),
+      setFocusAndMissingCategories: vi.fn(),
+      getLatestEntries: vi.fn().mockReturnValue([]),
+    };
+
+    const source = new HybridFeedSource('acc-torn-down', {
+      partition: 'persist:acc-torn-down',
+      getView: () => ({ webContents: undefined }) as any,
+      pollerFactory: () => mockPoller as any,
+    });
+
+    await expect(source.handleMailboxChangeHint()).resolves.toBeUndefined();
+
+    source.destroy();
+  });
+
   it('routes triage through the configured thread action driver', async () => {
     const perform = vi.fn().mockResolvedValue(true);
     const mockPoller = {
