@@ -4,14 +4,41 @@ import Foundation
 ///
 /// The Mac's region and its 12/24-hour switch are separate settings: the switch writes
 /// `AppleICUForce24HourTime` and leaves the region alone, so an `en_US` Mac can run on a
-/// 24-hour clock. Foundation already folds the switch into `Locale.current`, so asking
-/// the locale's own `j` template yields the hour cycle the user actually sees, and a
-/// `timeStyle` formatter then honours it without us reading user defaults.
+/// 24-hour clock. Foundation resolves that key into `Locale.current` once, at launch, and
+/// never refreshes it; a process started on a 24-hour Mac keeps a 24-hour locale after the
+/// switch is turned off. So the key is read here instead, and the formatters are rebuilt
+/// when it changes.
 ///
-/// Fixed patterns such as `HH:mm` bypass all of that and pin one of the two clocks. They
+/// Reading it also settles the absent case. macOS removes the key when the switch is off
+/// and forces 24-hour time for any value while it is present, whatever that value is, so
+/// presence is the whole signal.
+///
+/// Fixed patterns such as `HH:mm` bypass all of this and pin one of the two clocks. They
 /// belong to sort keys and log timestamps, never to something on screen.
 enum TimeDisplay {
-    /// Whether the clock is 24-hour, as Foundation resolves it for `locale`.
+    private static let force24HourKey = "AppleICUForce24HourTime"
+
+    /// The Mac's switch, read live. `nil` means the user has never turned it on, and the
+    /// locale's own cycle applies.
+    static var forced24Hour: Bool? {
+        UserDefaults.standard.object(forKey: force24HourKey) == nil ? nil : true
+    }
+
+    /// `base` with the forced cycle applied.
+    ///
+    /// The locale is rebuilt from its identifier so an inherited hour cycle cannot survive
+    /// into the off state: `Locale.current` on a 24-hour Mac asks for 24-hour even after the
+    /// switch is turned off, while the same identifier built fresh asks the region.
+    static func displayLocale(_ base: Locale = .current, forced24Hour: Bool? = nil) -> Locale {
+        let fixed = Locale(identifier: base.identifier)
+        guard let forced24Hour else { return fixed }
+
+        var components = Locale.Components(locale: fixed)
+        components.hourCycle = forced24Hour ? .zeroToTwentyThree : .oneToTwelve
+        return Locale(components: components)
+    }
+
+    /// Whether the clock is 24-hour, as `locale` resolves it.
     static func uses24Hour(in locale: Locale) -> Bool {
         let pattern = DateFormatter.dateFormat(fromTemplate: "j", options: 0, locale: locale) ?? ""
         return pattern.contains("H") || pattern.contains("k")
@@ -19,9 +46,13 @@ enum TimeDisplay {
 
     /// Time of day, following the Mac's clock style. Used for event times, the now
     /// indicator and the menu bar, so all three read the same.
-    static func timeFormatter(locale: Locale = .current, timeZone: TimeZone = .current) -> DateFormatter {
+    static func timeFormatter(
+        locale: Locale = .current,
+        timeZone: TimeZone = .current,
+        forced24Hour: Bool? = nil
+    ) -> DateFormatter {
         let df = DateFormatter()
-        df.locale = locale
+        df.locale = displayLocale(locale, forced24Hour: forced24Hour)
         df.timeZone = timeZone
         df.dateStyle = .none
         df.timeStyle = .short
@@ -30,11 +61,16 @@ enum TimeDisplay {
 
     /// The hour alone, for a day grid's gutter: `09` on a 24-hour clock, `9 AM` on a
     /// 12-hour one. A `timeStyle` formatter would add minutes the gutter has no room for.
-    static func hourFormatter(locale: Locale = .current, timeZone: TimeZone = .current) -> DateFormatter {
+    static func hourFormatter(
+        locale: Locale = .current,
+        timeZone: TimeZone = .current,
+        forced24Hour: Bool? = nil
+    ) -> DateFormatter {
+        let effective = displayLocale(locale, forced24Hour: forced24Hour)
         let df = DateFormatter()
-        df.locale = locale
+        df.locale = effective
         df.timeZone = timeZone
-        df.dateFormat = uses24Hour(in: locale) ? "HH" : "ha"
+        df.dateFormat = uses24Hour(in: effective) ? "HH" : "ha"
         return df
     }
 
@@ -48,12 +84,47 @@ enum TimeDisplay {
         timeZone: TimeZone = .current
     ) -> DateFormatter {
         let df = DateFormatter()
-        df.locale = locale
+        df.locale = displayLocale(locale)
         df.timeZone = timeZone
         df.setLocalizedDateFormatFromTemplate(template)
         return df
     }
 
-    static let time = timeFormatter()
-    static let hour = hourFormatter()
+    // MARK: - Cached clock formatters
+
+    private struct ClockFormatters {
+        let signature: String
+        let time: DateFormatter
+        let hour: DateFormatter
+    }
+
+    private static var cached: ClockFormatters?
+
+    /// Rebuilt only when the key or the locale changes, so a view body pays one defaults
+    /// lookup rather than a `DateFormatter` construction.
+    private static func formatters() -> ClockFormatters {
+        let forced = forced24Hour
+        let base = Locale.current
+        let signature = "\(base.identifier)|\(forced.map { $0 ? "24" : "12" } ?? "auto")"
+
+        if let cached, cached.signature == signature {
+            return cached
+        }
+
+        let built = ClockFormatters(
+            signature: signature,
+            time: timeFormatter(locale: base, forced24Hour: forced),
+            hour: hourFormatter(locale: base, forced24Hour: forced)
+        )
+        cached = built
+        return built
+    }
+
+    static var time: DateFormatter {
+        formatters().time
+    }
+
+    static var hour: DateFormatter {
+        formatters().hour
+    }
 }

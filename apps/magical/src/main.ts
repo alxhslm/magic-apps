@@ -91,6 +91,12 @@ import { canonicaliseCalendarId } from './calendars.js';
 // compiled at; see `prerelease-build-expiry.ts` in @magimail/core.
 declare const __BUILD_TIMESTAMP__: number;
 
+/**
+ * How often the main process re-reads the Mac's 12/24-hour switch; see the timer in
+ * `whenReady`.
+ */
+const CLOCK_REFRESH_MS = 30_000;
+
 // A stable userData path across dev and packaged runs, so a signed-in account
 // survives the switch between `pnpm dev` and the installed bundle.
 app.name = 'Magical';
@@ -1407,8 +1413,15 @@ app.whenReady().then(async () => {
   log.info('App ready');
   setUiLocale(app.getLocale());
   // macOS keeps the 12/24-hour switch separate from the region, so neither the locale nor
-  // ICU's default carries it. Read it once here; every user-visible time uses the result.
+  // ICU's default carries it. Read it here and keep reading it: the switch posts no
+  // notification and ICU's own locale is resolved at launch, so this timer is what lets a
+  // banner built after a change use the new clock without a relaunch.
   setClock(app.getLocale(), readMacForced24Hour());
+  const clockTimer = setInterval(
+    () => setClock(app.getLocale(), readMacForced24Hour()),
+    CLOCK_REFRESH_MS,
+  );
+  app.on('before-quit', () => clearInterval(clockTimer));
   app.setAboutPanelOptions({
     applicationName: 'Magical',
     applicationVersion: app.getVersion(),

@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { systemPreferences } from 'electron';
-import { formatClock, formatTime, resolveHourCycle, setClockForTests } from '../src/time-format';
+import {
+  formatClock,
+  formatTime,
+  resolveHourCycle,
+  setClock,
+  setClockForTests,
+} from '../src/time-format';
 import { parseForced24Hour, readMacForced24Hour } from '../src/mac-clock';
 
 vi.mock('electron', () => ({
@@ -48,6 +54,17 @@ describe('formatTime', () => {
     expect(text).toContain('1:05');
     expect(text.toLowerCase()).toContain('pm');
     expect(text).not.toContain('13');
+  });
+
+  it('follows a later setClock, so a running process can change clock', () => {
+    setClockForTests('en-US', 'h12');
+    expect(formatTime(afternoon())).toContain('1:05');
+
+    setClock('en-US', true);
+    expect(formatTime(afternoon())).toContain('13:05');
+
+    setClock('en-GB', false);
+    expect(formatTime(afternoon())).toContain('1:05');
   });
 });
 

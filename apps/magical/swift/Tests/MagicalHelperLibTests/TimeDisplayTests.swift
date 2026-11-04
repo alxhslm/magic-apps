@@ -44,6 +44,27 @@ struct TimeDisplayTests {
         #expect(!afternoon.contains("13"))
     }
 
+    @Test func theForcedCycleOverridesTheLocale() {
+        let twentyFour = TimeDisplay.timeFormatter(
+            locale: Locale(identifier: "en_US"),
+            timeZone: london,
+            forced24Hour: true
+        )
+        #expect(twentyFour.string(from: date(hour: 13)) == "13:05")
+
+        let twelve = TimeDisplay.timeFormatter(
+            locale: Locale(identifier: "en_GB"),
+            timeZone: london,
+            forced24Hour: false
+        )
+        #expect(twelve.string(from: date(hour: 13)).lowercased().contains("pm"))
+    }
+
+    @Test func withNothingForcedTheRegionAnswers() {
+        #expect(!TimeDisplay.uses24Hour(in: TimeDisplay.displayLocale(Locale(identifier: "en_US"))))
+        #expect(TimeDisplay.uses24Hour(in: TimeDisplay.displayLocale(Locale(identifier: "en_GB"))))
+    }
+
     @Test func dateLabelsFollowTheLocaleOrderAndPunctuation() {
         let label = { (locale: String, template: String) in
             TimeDisplay.dateFormatter(
