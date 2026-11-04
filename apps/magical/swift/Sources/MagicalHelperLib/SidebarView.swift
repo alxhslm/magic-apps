@@ -96,6 +96,12 @@ public final class SidebarModel: ObservableObject {
                 self?.onAction?("sidebarFilterChanged", str)
             }
         }
+        // The completed-task toggle sits in the same filter menu as the calendar ticks.
+        // Without this the sidebar changed only its own copy and the menu bar never heard
+        // about it; the sidebar payload also carries the setting back the other way.
+        trayModel.onShowCompletedTasksChanged = { [weak self] show in
+            self?.onAction?("sidebarSetShowCompletedTasks", show ? "true" : "false")
+        }
     }
 
     public func selectDate(_ date: Date) {

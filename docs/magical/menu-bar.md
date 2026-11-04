@@ -94,6 +94,7 @@ status item's width from moving while it ticks is shared and in
 | `events`                                                              | `events`, kept within the 1900–2100 span and sorted by start. |
 | `activeAccountId`                                                     | `selectedAccountId`, falling back to the first account.       |
 | `hiddenCalendars`                                                     | `disabledCalendars`, the persisted filter.                    |
+| `hiddenCalendarsRevision`                                             | The version of the filter this push carries.                  |
 | `isCalendarCollapsed`, `isOffline`, `isRestricted`, `lastSyncedAt`    | The matching flags and the banner's age.                      |
 | `menuBarDisplayMode`, `showMenuBarAccountColor`, `showCompletedTasks` | The title's and the agenda's settings.                        |
 
@@ -194,8 +195,17 @@ The filter lives in the header menu, shown when more than one calendar or a task
 a calendar hides its events from `filteredEvents`, so the dots, the agenda, the hero band and the title
 change together. The set persists through `tray.setHiddenCalendars` into `hiddenCalendars`, each entry
 naming its account as well as its calendar, because a calendar id alone is not unique across accounts.
-A push seeds the set until the user touches the filter in the session; after that their live choice
-wins.
+The menu bar popover and the companion sidebar run in different processes, so each holds its own
+`TrayModel`. Both toggle the filter optimistically and both persist through the main process, which
+bumps `hiddenCalendarsRevision` on every save and pushes the stored set to both surfaces. A surface
+applies a push only when the revision is newer than the last one it saw: an update already in flight
+when the user clicks must not undo the click, and a permanent session latch must not ignore the other
+surface for the rest of the run. The last write wins, and both panes settle on it.
+
+The same menu's **Show Completed Tasks** toggle is part of that shared state. The menu bar payload
+already carried `showCompletedTasks`; the sidebar payload carries it too, and a toggle there reports
+`sidebarSetShowCompletedTasks`, which is persisted and pushed back to both surfaces. Without that the
+sidebar filtered completed tasks only in its own copy and the menu bar never saw the change.
 
 A macOS Focus can silence a calendar too, and that set is kept apart from this one. A Focus-silenced
 calendar is listed in the menu unticked and not tickable, so the menu still says which calendars exist

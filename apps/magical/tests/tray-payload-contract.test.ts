@@ -150,6 +150,7 @@ describe('Magical Tray Payload Contracts', () => {
     expect(typeof fixture.menuBarDisplayMode).toBe('string');
     expect(typeof fixture.showMenuBarAccountColor).toBe('boolean');
     expect(Array.isArray(fixture.hiddenCalendars)).toBe(true);
+    expect(typeof fixture.hiddenCalendarsRevision).toBe('number');
     expect(typeof fixture.showCompletedTasks).toBe('boolean');
   });
 

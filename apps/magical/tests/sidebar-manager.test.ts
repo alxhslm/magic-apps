@@ -380,6 +380,67 @@ describe('SidebarManager', () => {
     expect(wEvt?.colorHex).toBe('#7cb342'); // Calendar color (Green), not account color (#0096ff)
   });
 
+  it('sends the stored filter revision with the sidebar payload', () => {
+    const manager = new SidebarManager(
+      () => mockMainWindow as any,
+      () => mockAccountsManager as any,
+    );
+    mockLoadSettings.mockReturnValueOnce({
+      sidebarVisible: true,
+      isCalendarCollapsed: false,
+      hiddenCalendarsRevision: 4,
+      showCompletedTasks: false,
+    });
+
+    manager.updateAccounts([
+      {
+        id: 'acc_personal',
+        name: 'Personal',
+        email: 'person@example.com',
+        color: '#4285f4',
+        calendarIds: ['person@example.com'],
+      },
+    ]);
+
+    const payload = JSON.parse(sidebarUpdateData.mock.calls.at(-1)![0]);
+    expect(payload.hiddenCalendarsRevision).toBe(4);
+    expect(payload.showCompletedTasks).toBe(false);
+  });
+
+  it('bumps the filter revision when the sidebar changes the filter', () => {
+    const manager = new SidebarManager(
+      () => mockMainWindow as any,
+      () => mockAccountsManager as any,
+    );
+    const onFilterChanged = vi.fn();
+    manager.onFilterChanged = onFilterChanged;
+
+    manager.handleSidebarAction(
+      'sidebarFilterChanged',
+      JSON.stringify([{ accountId: 'acc_personal', calendarId: 'cal_holidays' }]),
+    );
+
+    expect(mockSaveSetting).toHaveBeenCalledWith('hiddenCalendars', [
+      { accountId: 'acc_personal', calendarId: 'cal_holidays' },
+    ]);
+    expect(mockSaveSetting).toHaveBeenCalledWith('hiddenCalendarsRevision', 1);
+    expect(onFilterChanged).toHaveBeenCalled();
+  });
+
+  it('persists the completed-task toggle made in the sidebar', () => {
+    const manager = new SidebarManager(
+      () => mockMainWindow as any,
+      () => mockAccountsManager as any,
+    );
+    const onFilterChanged = vi.fn();
+    manager.onFilterChanged = onFilterChanged;
+
+    manager.handleSidebarAction('sidebarSetShowCompletedTasks', 'false');
+
+    expect(mockSaveSetting).toHaveBeenCalledWith('showCompletedTasks', false);
+    expect(onFilterChanged).toHaveBeenCalled();
+  });
+
   it('relays grid scroll position to native addon when sidebar is visible', () => {
     const manager = new SidebarManager(
       () => mockMainWindow as any,

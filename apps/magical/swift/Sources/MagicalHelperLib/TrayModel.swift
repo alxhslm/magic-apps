@@ -433,16 +433,24 @@ public final class TrayModel: ObservableObject {
                 explicitCalendars = parsed
             }
         }
-        // The persisted set wins until the user touches the filter in this session; after
-        // that their live choice does, so a `tray.update` mid-toggle cannot undo it.
+        // The menu bar and the companion sidebar run in different processes, and each
+        // toggles its own copy at once while the main process persists it. Revision order
+        // is what keeps those copies agreeing: a push that is not newer than the last one
+        // applied is a payload from before the user's toggle and must not undo it, while a
+        // newer one is the other surface's change and must be applied. A permanent
+        // "this session's choice wins" flag cannot do both, and is why a filter set in one
+        // surface stayed stale in the other.
         //
         // Logged because the two halves fail identically from the outside: a filter that
         // was never saved and one that was saved and never applied both read as a filter
         // that forgot itself, and only the main process logs the saving half.
         if let hidden = params["hiddenCalendars"] as? [[String: Any]] {
-            if hasUserToggledCalendars {
-                HelperLog.info("Tray", "Keeping this session's filter over the \(hidden.count) stored")
-            } else {
+            let revision = params["hiddenCalendarsRevision"] as? Int
+            let isNewer = revision.map { $0 > lastAppliedFilterRevision } ?? true
+            if isNewer {
+                if let revision {
+                    lastAppliedFilterRevision = revision
+                }
                 let parsed: Set<CalendarRef> = Set(hidden.compactMap { entry in
                     guard let accountId = entry["accountId"] as? String,
                           let calendarId = entry["calendarId"] as? String else { return nil }
@@ -452,6 +460,11 @@ public final class TrayModel: ObservableObject {
                     disabledCalendars = parsed
                 }
                 HelperLog.info("Tray", "Applied \(hidden.count) stored hidden calendar(s)")
+            } else if let revision {
+                HelperLog.info(
+                    "Tray",
+                    "Ignored \(hidden.count) hidden calendar(s) at revision \(revision); already at \(lastAppliedFilterRevision)"
+                )
             }
         }
         if let rawEvents = params["events"] as? [[String: Any]] {
@@ -510,7 +523,9 @@ public final class TrayModel: ObservableObject {
     }
 
     @Published public var explicitCalendars: [TrayCalendarItem] = []
-    private var hasUserToggledCalendars: Bool = false
+    /// The newest `hiddenCalendarsRevision` this model has applied. -1 applies the first
+    /// push, including one from an older main process that carried no revision.
+    private var lastAppliedFilterRevision: Int = -1
 
     /// Available calendars derived from explicit list or fallback to accounts
     public var availableCalendars: [TrayCalendarItem] {
@@ -550,7 +565,6 @@ public final class TrayModel: ObservableObject {
     }
 
     public func toggleCalendar(_ calendar: TrayCalendarItem) {
-        hasUserToggledCalendars = true
         let ref = CalendarRef(accountId: calendar.accountId, calendarId: calendar.id)
         if disabledCalendars.contains(ref) {
             disabledCalendars.remove(ref)
@@ -562,7 +576,6 @@ public final class TrayModel: ObservableObject {
     }
 
     public func showAllCalendars() {
-        hasUserToggledCalendars = true
         disabledCalendars.removeAll()
         HelperLog.info("Tray", "Showing all calendars")
         onCalendarFilterChanged?([])

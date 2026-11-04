@@ -499,6 +499,36 @@ describe('MenuBarManager', () => {
     ]);
   });
 
+  it('bumps the filter revision so the sidebar knows the popover changed it', () => {
+    const onChange = vi.fn();
+    manager.onHiddenCalendarsChanged = onChange;
+
+    manager.handleEvent('tray.setHiddenCalendars', {
+      hiddenCalendars: [{ accountId: 'acc_1', calendarId: 'cal_family' }],
+    });
+
+    expect(mockSaveSetting).toHaveBeenCalledWith('hiddenCalendarsRevision', 1);
+    expect(onChange).toHaveBeenCalledWith([{ accountId: 'acc_1', calendarId: 'cal_family' }]);
+  });
+
+  it('sends the filter revision with the tray payload', () => {
+    mockLoadSettings.mockReturnValue({
+      isCalendarCollapsed: false,
+      menuBarDisplayMode: 'nextEvent',
+      showMenuBarAccountColor: true,
+      hiddenCalendars: [{ accountId: 'acc_1', calendarId: 'cal_family' }],
+      hiddenCalendarsRevision: 7,
+      showCompletedTasks: false,
+    });
+
+    manager.createTray();
+
+    expect(mockSendToHelper).toHaveBeenLastCalledWith(
+      'tray.update',
+      expect.objectContaining({ hiddenCalendarsRevision: 7 }),
+    );
+  });
+
   it('drops an entry that does not name both an account and a calendar', () => {
     manager.handleEvent('tray.setHiddenCalendars', {
       hiddenCalendars: [

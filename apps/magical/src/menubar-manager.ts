@@ -385,6 +385,7 @@ export class MenuBarManager {
       menuBarDisplayMode: settings.menuBarDisplayMode,
       showMenuBarAccountColor: Boolean(settings.showMenuBarAccountColor),
       hiddenCalendars,
+      hiddenCalendarsRevision: settings.hiddenCalendarsRevision ?? 0,
       showCompletedTasks: Boolean(settings.showCompletedTasks),
     };
 
@@ -662,7 +663,9 @@ export class MenuBarManager {
               }))
           : [];
         saveSetting('hiddenCalendars', hidden);
-        log.info(`${hidden.length} calendar(s) hidden in the popover`);
+        const revision = (loadSettings().hiddenCalendarsRevision ?? 0) + 1;
+        saveSetting('hiddenCalendarsRevision', revision);
+        log.info(`${hidden.length} calendar(s) hidden in the popover (revision ${revision})`);
         this.onHiddenCalendarsChanged?.(hidden);
         return true;
       }

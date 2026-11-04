@@ -276,6 +276,21 @@ let calendarService: CalendarService | null = null;
 let accounts: AccountsManager | null = null;
 let menuBarManager: MenuBarManager | null = null;
 let sidebarManager: SidebarManager | null = null;
+
+/**
+ * Sends the stored filter state to both surfaces after either one changes it.
+ *
+ * The menu bar popover runs in the Swift helper and the companion sidebar in the main
+ * window, so each holds its own `TrayModel`. Pushing only the surface that did not change
+ * leaves the other's copy of the filter stale until something unrelated triggers a
+ * redraw, which is why hiding a calendar in one place did not hide it in the other. The
+ * filter is the hidden-calendar set plus the completed-task toggle, which the same menu
+ * offers on both surfaces.
+ */
+function pushFilterStateToSurfaces(): void {
+  menuBarManager?.pushUpdate();
+  sidebarManager?.pushData();
+}
 /** Set before quitting, so the window being torn down is not rebuilt afterwards. */
 let quitting = false;
 /**
@@ -548,7 +563,7 @@ function applySettingChange(key: string, value: unknown): void {
             (query, accountId) => handleSearch(query, accountId),
           );
         }
-        menuBarManager.onHiddenCalendarsChanged = () => sidebarManager?.pushData();
+        menuBarManager.onHiddenCalendarsChanged = pushFilterStateToSurfaces;
         menuBarManager.createTray();
         if (accounts) menuBarManager.updateAccounts(accounts.getAccounts());
         if (calendarService) menuBarManager.updateEvents(calendarService.getCachedEvents());
@@ -560,8 +575,11 @@ function applySettingChange(key: string, value: unknown): void {
     case 'menuBarDisplayMode':
     case 'showMenuBarAccountColor':
     case 'isCalendarCollapsed':
-    case 'showCompletedTasks':
       menuBarManager?.pushUpdate();
+      return;
+
+    case 'showCompletedTasks':
+      pushFilterStateToSurfaces();
       return;
   }
 }
@@ -1235,7 +1253,7 @@ function createWindow(
     () => accounts,
     () => calendarService,
   );
-  sidebarManager.onFilterChanged = () => menuBarManager?.pushUpdate();
+  sidebarManager.onFilterChanged = pushFilterStateToSurfaces;
   sidebarManager.attach(mainWindow);
 
   // Coming back to the window is the moment a stale agenda is most visible, and the
@@ -1334,7 +1352,7 @@ function createWindow(
       (query, accountId) => handleSearch(query, accountId),
     );
   }
-  menuBarManager.onHiddenCalendarsChanged = () => sidebarManager?.pushData();
+  menuBarManager.onHiddenCalendarsChanged = pushFilterStateToSurfaces;
 
   if (loadSettings().showMenuBarIcon) {
     menuBarManager.createTray();

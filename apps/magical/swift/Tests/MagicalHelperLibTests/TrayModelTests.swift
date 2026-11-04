@@ -378,6 +378,54 @@ struct TrayModelTests {
         #expect(nextTransition == fixedNow.addingTimeInterval(30 * 60))
     }
 
+    @Test func aNewerFilterRevisionFromTheOtherSurfaceIsApplied() {
+        let model = TrayModel()
+        let hidden: [[String: Any]] = [["accountId": "acc_1", "calendarId": "cal_1"]]
+
+        model.update(from: ["hiddenCalendars": hidden, "hiddenCalendarsRevision": 3])
+        #expect(model.disabledCalendars == Set([CalendarRef(accountId: "acc_1", calendarId: "cal_1")]))
+
+        // Hiding nothing in the other surface is a newer write and must win.
+        model.update(from: ["hiddenCalendars": [], "hiddenCalendarsRevision": 4])
+        #expect(model.disabledCalendars.isEmpty)
+    }
+
+    @Test func aStalePushDoesNotUndoALocalToggle() {
+        let model = TrayModel()
+        let ref = CalendarRef(accountId: "acc_1", calendarId: "cal_1")
+        let item = TrayCalendarItem(id: "cal_1", accountId: "acc_1", name: "Work", colorHex: "#000")
+
+        model.update(from: ["hiddenCalendars": [], "hiddenCalendarsRevision": 1])
+        model.toggleCalendar(item)
+        #expect(model.disabledCalendars == Set([ref]))
+
+        // A payload built before the toggle carries the revision already applied. It is
+        // not the other surface changing its mind, so it must not put the calendar back.
+        model.update(from: ["hiddenCalendars": [], "hiddenCalendarsRevision": 1])
+        #expect(model.disabledCalendars == Set([ref]))
+
+        // Main persisted the toggle and echoed it.
+        model.update(from: [
+            "hiddenCalendars": [["accountId": "acc_1", "calendarId": "cal_1"]],
+            "hiddenCalendarsRevision": 2,
+        ])
+        #expect(model.disabledCalendars == Set([ref]))
+
+        // Show All in the other surface still reaches this one.
+        model.update(from: ["hiddenCalendars": [], "hiddenCalendarsRevision": 3])
+        #expect(model.disabledCalendars.isEmpty)
+    }
+
+    @Test func aPayloadWithoutRevisionStillAppliesTheStoredFilter() {
+        // Older payloads and the on-disk fixture carry no revision; the first one must
+        // still set the filter rather than being treated as stale.
+        let model = TrayModel()
+        model.update(from: [
+            "hiddenCalendars": [["accountId": "acc_1", "calendarId": "cal_1"]],
+        ])
+        #expect(model.disabledCalendars == Set([CalendarRef(accountId: "acc_1", calendarId: "cal_1")]))
+    }
+
     @Test func activeAndUpcomingEventsDistinguishCorrectly() {
         let model = TrayModel()
         let meetingA = makeEvent(id: "meeting_a", startOffsetMinutes: -30, durationMinutes: 30)

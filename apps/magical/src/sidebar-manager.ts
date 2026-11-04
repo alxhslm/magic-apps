@@ -26,7 +26,7 @@ export class SidebarManager {
   private cachedEvents = new Map<string, NormalizedCalendarEvent[]>();
   private activeTimeframe: string;
   private activeDateStr?: string;
-  public onFilterChanged?: (hidden: CalendarRef[]) => void;
+  public onFilterChanged?: () => void;
 
   constructor(
     private readonly getMainWindow: () => BaseWindow | null,
@@ -318,11 +318,21 @@ export class SidebarManager {
                 }))
             : [];
           saveSetting('hiddenCalendars', hidden);
-          log.info(`${hidden.length} calendar(s) hidden via sidebar`);
-          this.onFilterChanged?.(hidden);
+          const revision = (loadSettings().hiddenCalendarsRevision ?? 0) + 1;
+          saveSetting('hiddenCalendarsRevision', revision);
+          log.info(`${hidden.length} calendar(s) hidden via sidebar (revision ${revision})`);
+          this.onFilterChanged?.();
         } catch (err) {
           log.warn('Could not parse sidebarFilterChanged:', err);
         }
+        break;
+      }
+
+      case 'sidebarSetShowCompletedTasks': {
+        const show = value === 'true';
+        log.info(`Show completed tasks changed via sidebar: ${show}`);
+        saveSetting('showCompletedTasks', show);
+        this.onFilterChanged?.();
         break;
       }
 
@@ -454,6 +464,8 @@ export class SidebarManager {
           accountId: c.accountId,
           calendarId: c.calendarId,
         })),
+        hiddenCalendarsRevision: settings.hiddenCalendarsRevision ?? 0,
+        showCompletedTasks: Boolean(settings.showCompletedTasks),
         events: serializedEvents,
         activeAccountId: this.getAccountsManager()?.getActiveAccountId?.(),
         isCalendarCollapsed: Boolean(settings.isCalendarCollapsed),

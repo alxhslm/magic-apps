@@ -72,6 +72,17 @@ export interface MagicalSettings {
    */
   hiddenCalendars: CalendarRef[];
   /**
+   * Monotonic version of `hiddenCalendars`, bumped on every save.
+   *
+   * The menu bar popover and the companion sidebar run in different processes and each
+   * toggles its own copy optimistically. Both receive the stored set on every push, so
+   * without an order an update already in flight when the user toggles would undo it,
+   * while a permanent "this session's choice wins" latch would ignore the other surface
+   * for the rest of the run. Each surface applies a push only when the revision moves
+   * forward.
+   */
+  hiddenCalendarsRevision: number;
+  /**
    * Calendars the user has muted for meeting alerts and invitation banners.
    *
    * Held here rather than in the helper so alerts stay muted across restarts.
@@ -134,6 +145,7 @@ const DEFAULT_SETTINGS: MagicalSettings = {
   menuBarDisplayMode: 'iconOnly',
   showMenuBarAccountColor: true,
   hiddenCalendars: [],
+  hiddenCalendarsRevision: 0,
   disabledAlertCalendarIds: [],
   dockBadgeMode: 'allPending',
   askAboutDefaultCalendarApp: true,
