@@ -185,9 +185,15 @@ LaunchServices stops resolving to it.
 ## Fault tolerance
 
 - **The helper crashes or stops answering.** Main respawns it before the next write, and replays the
-  state it must know. An RPC that times out (5000ms) terminates the unresponsive helper so the next
-  write can respawn a healthy one rather than failing repeated writes against a wedged process. Mail
-  and calendar data are unaffected, because they live in the renderers and the pollers.
+  state it must know. An RPC has 5000ms from the write to reply. A first miss resolves that request
+  null and leaves the helper running, because that deadline also covers helper start-up, a blocked
+  main actor and an Electron process still waking; killing on the first miss loses the menu bar item,
+  settings window and notifications along with it. A second consecutive miss, with no reply in
+  between, terminates the helper so the next write can respawn a healthy one. Any reply resets the
+  count, including one that arrives after its own deadline. A write to a helper that has gone logs
+  the stdin stream error rather than surfacing as an unhandled `EPIPE`, which covers a request still
+  in flight when `killHelper()` runs at quit. Mail and calendar data are unaffected, because they
+  live in the renderers and the pollers.
 - **A renderer or child process dies.** `render-process-gone` and `child-process-gone` are recorded;
   nothing else captures them, and a dead renderer otherwise leaves a blank pane.
 - **The machine sleeps.** Pollers pause on `powerMonitor` suspend and refresh on resume, so a wake

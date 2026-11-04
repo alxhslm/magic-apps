@@ -87,6 +87,15 @@ A Swift helper exiting non-zero takes the menu bar item, the settings window and
 it, so it is an `error` with its exit code. A `SIGTERM` from the app's own `killHelper()` on quit is
 the normal path and is `info`.
 
+A request that misses its deadline logs `method timed out after Nms` at `error`. A first miss then
+logs `Keeping the helper after one missed deadline` at `warn` with the request id and how many
+other requests are still
+pending; the second consecutive miss logs the restart, including how many requests it resolves null.
+A reply after its own deadline logs at `warn` and a later reply that ends a miss run logs at `info`,
+so the log distinguishes a slow helper from a wedged one. A stdin failure logs the stream error, then
+the number of pending requests dropped; when it happens after `killHelper()` on the quit path there
+is nothing pending and only the stream line is written.
+
 ## Redaction
 
 The log is written to be attached to a bug report, so it leaves the machine. Nothing that identifies
