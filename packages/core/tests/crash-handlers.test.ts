@@ -43,6 +43,8 @@ function fire(event: string, ...args: unknown[]) {
 beforeEach(() => {
   handlers.clear();
   vi.clearAllMocks();
+  // A test that settles a display with fake timers must not leave them installed.
+  vi.useRealTimers();
   installCrashHandlers();
 });
 
@@ -116,6 +118,41 @@ describe('display changes', () => {
 
     expect(logInfo).toHaveBeenCalledWith('Display added');
     expect(logInfo).toHaveBeenCalledWith('Display removed');
+    expect(logInfo).toHaveBeenCalledWith('Display metrics changed');
+  });
+
+  /**
+   * A display settling fires the event about eleven times a second for seconds at a
+   * time. A line each buries the log; a count and a span carry more than they did.
+   */
+  it('reports a burst once when it ends, with how many arrived and over how long', async () => {
+    vi.useFakeTimers();
+    await vi.advanceTimersByTimeAsync(0);
+    const handler = displayHandlers.get('display-metrics-changed');
+    if (!handler) throw new Error('no display handler registered for display-metrics-changed');
+
+    handler();
+    for (let i = 0; i < 99; i += 1) {
+      vi.advanceTimersByTime(50);
+      handler();
+    }
+    expect(logInfo).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(logInfo).toHaveBeenCalledTimes(2);
+    expect(logInfo).toHaveBeenLastCalledWith('Display metrics changed ×100 over 4950ms');
+  });
+
+  it('says nothing more when one event is all there was', async () => {
+    vi.useFakeTimers();
+    await vi.advanceTimersByTimeAsync(0);
+    const handler = displayHandlers.get('display-metrics-changed');
+    if (!handler) throw new Error('no display handler registered for display-metrics-changed');
+
+    handler();
+    await vi.advanceTimersByTimeAsync(5000);
+
+    expect(logInfo).toHaveBeenCalledTimes(1);
     expect(logInfo).toHaveBeenCalledWith('Display metrics changed');
   });
 });
