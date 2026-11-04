@@ -294,7 +294,7 @@ public struct TrayPopoverView: View {
             if !model.isCalendarCollapsed {
                 MiniMonthGridView(
                     displayedMonth: model.displayedMonthDate,
-                    selectedDate: model.selectedDate,
+                    selectedDate: model.highlightedDate,
                     densityDots: model.densityDotsByDay,
                     onSelectDate: { date in
                         withAnimation(.easeInOut(duration: 0.2)) {
@@ -323,6 +323,9 @@ public struct TrayPopoverView: View {
                     withAnimation(.easeInOut(duration: 0.2)) {
                         model.selectDate(date)
                     }
+                },
+                onHoverDate: { date in
+                    model.hoverScheduleDate(date)
                 },
                 onScrolledNearEnd: { date in
                     model.requestMoreEvents(around: date.addingTimeInterval(90 * 86400))

@@ -290,6 +290,27 @@ struct TrayModelTests {
         #expect(model.isOffline == false)
     }
 
+    @Test func hoveringAnAgendaDayHighlightsItWithoutSelecting() throws {
+        let model = TrayModel()
+        let cal = Calendar.current
+        let november = try #require(cal.date(from: DateComponents(year: 2026, month: 11, day: 15)))
+        let december = try #require(cal.date(from: DateComponents(year: 2026, month: 12, day: 3)))
+        model.selectedDate = november
+        model.displayedMonthDate = november
+        model.requestedScrollDate = november
+
+        model.hoverScheduleDate(december)
+
+        #expect(cal.isDate(model.highlightedDate, inSameDayAs: december))
+        #expect(cal.isDate(model.selectedDate, inSameDayAs: november))
+        #expect(cal.component(.month, from: model.displayedMonthDate) == 12)
+        #expect(cal.isDate(model.requestedScrollDate ?? .distantPast, inSameDayAs: november))
+
+        model.prepareForPresentation()
+        #expect(model.hoveredDate == nil)
+        #expect(cal.isDateInToday(model.selectedDate))
+    }
+
     @Test func prepareForPresentationResetsSelectionAndMonthToToday() {
         let model = TrayModel()
         let pastDate = Date(timeIntervalSince1970: 1_000_000_000)

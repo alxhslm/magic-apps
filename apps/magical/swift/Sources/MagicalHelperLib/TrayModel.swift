@@ -358,8 +358,17 @@ public final class TrayModel: ObservableObject {
 
     @Published public var isCalendarCollapsed: Bool = false
     @Published public var selectedDate: Date = .init()
+    /// The day under the pointer in the agenda. The mini month draws this as its
+    /// selection while it is set, so hovering an event highlights its date without
+    /// moving the agenda.
+    @Published public var hoveredDate: Date? = nil
     @Published public var displayedMonthDate: Date = .init()
     @Published public var requestedScrollDate: Date? = nil
+
+    public var highlightedDate: Date {
+        hoveredDate ?? selectedDate
+    }
+
     @Published public var isOffline: Bool = false
     /// A Workspace administrator is refusing Calendar's own web endpoint for an account.
     ///
@@ -967,6 +976,16 @@ public final class TrayModel: ObservableObject {
         }
     }
 
+    /// The pointer is over an agenda day. The grid follows that day's month, which is the
+    /// forward movement the top-anchored feed does not show on its own.
+    public func hoverScheduleDate(_ date: Date?) {
+        hoveredDate = date
+        guard let date,
+              !Calendar.current.isDate(date, equalTo: displayedMonthDate, toGranularity: .month)
+        else { return }
+        displayedMonthDate = date
+    }
+
     public func requestMoreEvents(around date: Date) {
         if let last = lastEnsuredRangeDate, abs(date.timeIntervalSince(last)) < 30 * 86400 {
             return
@@ -978,6 +997,7 @@ public final class TrayModel: ObservableObject {
     public func prepareForPresentation() {
         let today = Date()
         let cal = Calendar.current
+        hoveredDate = nil
         if !cal.isDateInToday(selectedDate) {
             selectedDate = today
         }
