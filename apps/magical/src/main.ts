@@ -492,6 +492,10 @@ function applySettingChange(key: string, value: unknown): void {
 
   log.info(`Setting ${key} = ${String(value)}`);
   saveSetting(key as keyof MagicalSettings, value as never);
+  // A change made in one surface has to reach the settings window in the helper, or
+  // its toggle keeps the old value until the window is reopened. The helper applies
+  // this with events suppressed, so the echo cannot become a loop.
+  pushSettingsToHelper();
 
   switch (key) {
     case 'theme':

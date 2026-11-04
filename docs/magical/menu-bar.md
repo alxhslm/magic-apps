@@ -212,6 +212,11 @@ filter menu only exists when there is more than one calendar or a task to filter
 the one synced setting, so changing either moves both surfaces. The settings window keeps its own row
 as the app-wide preference, and that path pushes both surfaces too.
 
+Every setting change is echoed back to the helper as `settings.update` after it is saved, so an open
+settings window matches a toggle made in the filter or gear menu. The helper applies the echo with
+its change events suppressed, so the echo cannot become a loop. This rides the existing helper RPC:
+the sidebar's half is in-process with Main, and the popover's half needs no channel of its own.
+
 A macOS Focus can silence a calendar too, and that set is kept apart from this one. A Focus-silenced
 calendar is listed in the menu unticked and not tickable, so the menu still says which calendars exist
 and the tick cannot offer a choice the Focus overrules. `showAllCalendars()` gives back the user's own
