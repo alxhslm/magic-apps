@@ -507,6 +507,22 @@ let magimailTrayParams: [String: Any] = [
     "isOffline": false,
 ]
 
+let sidebarTaskStart = Calendar.current.date(bySettingHour: 15, minute: 0, second: 0, of: now) ?? now
+let magicalSidebarTask: [String: Any] = [
+    "id": "sb-task-1",
+    "accountId": "work",
+    "calendarIds": ["tasks@tasks.google.com"],
+    "calendarName": "Tasks",
+    "summary": "Send quarterly report",
+    "startTime": sidebarTaskStart.timeIntervalSince1970 * 1000,
+    "endTime": sidebarTaskStart.addingTimeInterval(3600).timeIntervalSince1970 * 1000,
+    "isAllDay": false,
+    "colorHex": Fixtures.calendarWork,
+    "myResponseStatus": 1,
+    "eventType": 9,
+    "isCompleted": false,
+]
+
 let magicalSidebarTrayPayload: [String: Any] = [
     "accounts": [
         ["id": "personal", "name": "Personal", "color": Fixtures.calendarPersonal,
@@ -564,7 +580,7 @@ let magicalSidebarTrayPayload: [String: Any] = [
             raw["conferenceUrl"] = conference
         }
         return raw
-    },
+    } + [magicalSidebarTask],
     "activeAccountId": "work",
     "isCalendarCollapsed": false,
     "isOffline": false,
@@ -822,10 +838,13 @@ MainActor.assumeIsolated {
 
     // 7. Magical companion sidebar (Week, Month, Day views)
     @MainActor
-    func makeSidebarShot(mode: MagicalHelperLib.SidebarViewMode) -> some View {
+    func makeSidebarShot(
+        mode: MagicalHelperLib.SidebarViewMode,
+        timeframe: String
+    ) -> some View {
         let model = MagicalHelperLib.SidebarModel()
         model.trayModel.update(from: magicalSidebarTrayPayload)
-        model.setViewMode(mode, anchor: now)
+        model.setViewMode(mode, anchor: now, timeframe: timeframe)
         model.setScrollPosition(
             hour: 8.5,
             hourHeight: 48.0,
@@ -835,7 +854,7 @@ MainActor.assumeIsolated {
         )
 
         return MagicalHelperLib.SidebarRootView(model: model)
-            .frame(width: 254, height: 600)
+            .frame(width: 324, height: 600)
             .background(Color(red: 0.98, green: 0.98, blue: 0.99))
             .clipShape(RoundedRectangle(cornerRadius: 10))
             .overlay(
@@ -848,9 +867,9 @@ MainActor.assumeIsolated {
             .environment(\.colorScheme, .light)
     }
 
-    let sidebarShotSize = CGSize(width: 254 + 52, height: 600 + 52)
-    write("shot-sidebar-week-magical", makeSidebarShot(mode: .week), size: sidebarShotSize)
-    write("shot-sidebar-magical", makeSidebarShot(mode: .week), size: sidebarShotSize)
-    write("shot-sidebar-month-magical", makeSidebarShot(mode: .fantastical), size: sidebarShotSize)
-    write("shot-sidebar-day-magical", makeSidebarShot(mode: .day), size: sidebarShotSize)
+    let sidebarShotSize = CGSize(width: 324 + 52, height: 600 + 52)
+    write("shot-sidebar-week-magical", makeSidebarShot(mode: .week, timeframe: "week"), size: sidebarShotSize)
+    write("shot-sidebar-magical", makeSidebarShot(mode: .week, timeframe: "week"), size: sidebarShotSize)
+    write("shot-sidebar-month-magical", makeSidebarShot(mode: .fantastical, timeframe: "month"), size: sidebarShotSize)
+    write("shot-sidebar-day-magical", makeSidebarShot(mode: .day, timeframe: "day"), size: sidebarShotSize)
 }
