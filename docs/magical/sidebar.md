@@ -30,15 +30,16 @@ flowchart TD
 
 ## Window layout and animated folding
 
-The sidebar occupies a fixed width of 280pt (`SIDEBAR_WIDTH`) along the right edge of the main
-window. The main window dimensions remain 1280x820pt (`minWidth: 1280`).
+The sidebar occupies a fixed width of 340pt (`SIDEBAR_WIDTH`: a 324pt card plus 8pt margins) along
+the right edge of the main window. The window opens at 1320x850pt, and its minimum width is 1320pt
+with the sidebar visible (980pt of Google Calendar plus the sidebar) and 980pt with it hidden.
 
 When the sidebar is visible, `window-layout.ts` splits the window's content area below the 52pt
 native toolbar:
 
-- The active `WebContentsView` spans from `x = 0` to `width = windowWidth - 280`.
+- The active `WebContentsView` spans from `x = 0` to `width = windowWidth - 340`.
 - The native AppKit container (`NSVisualEffectView` with `.sidebar` vibrancy) spans from
-  `x = windowWidth - 280` to `width = 280`.
+  `x = windowWidth - 340` to `width = 340`.
 
 When collapsed, the `WebContentsView` expands to fill the full width of the window, and the sidebar
 frame collapses to `width = 0`.

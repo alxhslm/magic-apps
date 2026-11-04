@@ -64,10 +64,10 @@ window in [Window and views](#window-and-views).
 ## Window and views
 
 Magical uses a single `BaseWindow` with `titleBarStyle: 'hiddenInset'`, `sidebar` vibrancy, and
-dimensions of 1280x820 (`minWidth: 1280`), hosting one `WebContentsView` per account. Google
-Calendar's top bar carries non-collapsible navigation controls that demand at least 1211px on
-Workspace accounts, so enforcing `minWidth: 1280` prevents the top bar from clipping or triggering
-horizontal scrolling. `BrowserWindow` would allocate a default renderer process (~100 MB RAM) that is
+dimensions of 1320x850, hosting one `WebContentsView` per account. Google Calendar's top bar carries
+non-collapsible navigation controls that demand at least 1211px on Workspace accounts, so Calendar is
+held at a minimum of 980px and the window's minimum is 1320px with the companion sidebar visible,
+980px with it hidden. That prevents the top bar from clipping or triggering horizontal scrolling. `BrowserWindow` would allocate a default renderer process (~100 MB RAM) that is
 never displayed, so `BaseWindow` is used instead.
 
 ### Titlebar insets and traffic lights
