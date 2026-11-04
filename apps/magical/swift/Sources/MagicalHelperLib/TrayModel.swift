@@ -40,13 +40,6 @@ enum TrayFormatters {
         return df
     }()
 
-    static let timeFormatter: DateFormatter = {
-        let df = DateFormatter()
-        df.dateFormat = "HH:mm"
-        df.timeZone = .current
-        return df
-    }()
-
     static let monthYearFormatter: DateFormatter = {
         let df = DateFormatter()
         df.dateFormat = "MMMM yyyy"
@@ -284,8 +277,8 @@ public struct TrayEvent: Identifiable, Equatable {
         if isAllDay {
             return String(localized: "All day")
         }
-        let start = TrayFormatters.timeFormatter.string(from: startTime)
-        let end = TrayFormatters.timeFormatter.string(from: endTime)
+        let start = TimeDisplay.time.string(from: startTime)
+        let end = TimeDisplay.time.string(from: endTime)
         return "\(start) – \(end)"
     }
 
@@ -301,7 +294,7 @@ public struct TrayEvent: Identifiable, Equatable {
         let startsBefore = startTime < dayStart
         let endsAfter = endTime > dayEnd
 
-        let timeDf = TrayFormatters.timeFormatter
+        let timeDf = TimeDisplay.time
         if startsBefore, endsAfter {
             return String(localized: "All day (multi-day)")
         } else if startsBefore {

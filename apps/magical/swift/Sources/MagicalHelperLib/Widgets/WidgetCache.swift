@@ -363,12 +363,7 @@ public struct CachedEvent: Codable, Identifiable {
 enum WidgetFormat {
     /// Short time, so it follows the 12- or 24-hour clock the user has set
     /// rather than pinning one of them.
-    private static let timeFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .none
-        formatter.timeStyle = .short
-        return formatter
-    }()
+    private static let timeFormatter = TimeDisplay.time
 
     /// Fixed locale and no time zone drift: this has to produce exactly the key
     /// `widget-cache.ts` wrote, or a day's dots go missing.
