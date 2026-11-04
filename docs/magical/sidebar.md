@@ -71,9 +71,19 @@ Google Calendar is a single-page application that changes timeframes without doc
 - `week`, `customweek`: multi-day grids.
 - `day`, `customday`: single-day views.
 
-When the timeframe changes, `calendar-preload.ts` emits `magical:gcal-view-mode` over IPC to the main
-process. `SidebarManager` receives the payload and pushes the mode and anchor date to the native
-layer via `sidebarSetViewMode`.
+The route is not the authority on the date. Calendar changes view without changing the date in the
+path, so `/r/month` can be showing any month and `/r/week` any week. The preload reads the packed
+`data-datekey` cells inside `[role="main"]` and takes the displayed month from the grid
+(`calendar-visible-range.ts`): month view fills its first and last weeks with days from the
+neighbouring months, so the month with the most cells is the one on screen. A route date is used
+when it falls in that month, which keeps the clicked day selected; otherwise the grid's month wins.
+Today is only the fallback when nothing is rendered yet. That is what keeps the sidebar on the
+range Google Calendar is showing rather than resetting to the current month.
+
+When the timeframe or anchor date changes, `calendar-preload.ts` emits `magical:gcal-view-mode` over
+IPC to the main process. `SidebarManager` receives the payload and pushes the mode and anchor date
+to the native layer via `sidebarSetViewMode`. A report with no anchor keeps the previous one, because
+changing view is not changing date.
 
 ## View modes and presentations
 
@@ -85,24 +95,34 @@ For high-level views where fitting a calendar grid into 280pt is impractical, th
 compact Fantastical-style layout:
 
 - **`MiniMonthGridView`**: A compact month calendar displaying day numbers, selection highlights,
-  and event density dots. Clicking the disclosure chevron collapses the grid to give more vertical space
-  to the agenda.
+  and event density dots. The grid shows the month Google Calendar is showing. Clicking the
+  disclosure chevron collapses the grid to give more vertical space to the agenda.
 - **`ScheduleAgendaView`**: A vertically scrollable list of upcoming events grouped by date.
+
+Selecting a day from the leading or trailing week of the grid (1 December while November is on
+screen, say) moves the agenda to that day but leaves the grid on November. The selection is local;
+Google Calendar is what changes the month.
+
+Schedule is the one timeframe with no bounded range of its own. Its month selector carries
+`<`/`>` arrows like the Menu Bar Tray, enabled only between the first and last months the agenda
+covers; Month and Year have no arrows, because Google Calendar owns their range. Scrolling the
+agenda moves the selector with it.
 
 ### Week mode
 
 When Google Calendar is in Week view, the sidebar shows:
 
-- **`WeekScrubberView`**: A horizontal bar containing `<` and `>` arrow steppers to move between days,
-  and seven day pills (Sunday through Saturday). Each pill renders the day initial, date numeral,
-  event density dots, a filled accent disc for Today, and a selection outline for the active day.
+- **`WeekScrubberView`**: A horizontal bar of seven day pills (Monday through Sunday). Each pill
+  renders the day initial, date numeral, event density dots, a filled accent disc for Today, and a
+  selection outline for the active day. Horizontal swipes and scrolling move the selection within
+  the week Google Calendar is showing.
 - **Day agenda**: A vertically scrollable agenda showing the selected day's events.
 
 ### Day mode
 
 When Google Calendar is in Day view, the sidebar displays:
 
-- **Day header**: `< Today >` navigation controls displaying the full formatted date.
+- **Day header**: The full date for the day Google Calendar is showing.
 - **Day agenda**: A vertically scrollable agenda displaying the active day's events.
 
 ## Today highlight and Now indicator
@@ -116,10 +136,15 @@ Across all modes, the sidebar keeps the user anchored in time:
 
 ## Navigation and actions
 
-Clicking an interactive element in the sidebar drives the main calendar view:
+Google Calendar chooses the range; the sidebar follows it. Nothing in the sidebar navigates the web
+view to another date, and the header of each mode returns the sidebar to Google Calendar's range
+rather than jumping to today.
 
-- **Date selection**: Clicking a date in the mini-month grid or week scrubber calls
-  `navigateToDate(view, date)`, updating Google Calendar's SPA URL and grid in place.
+- **Date selection**: Clicking a date in the mini-month grid or week scrubber selects that day in the
+  sidebar only. It never moves Google Calendar, so a day from the neighbouring month can be inspected
+  in the agenda without the calendar jumping to it.
+- **Header click**: The month, week or day title calls `syncToGCalRange()`, snapping the sidebar's
+  selection and grid back to Google Calendar's anchor date.
 - **Event selection**: Clicking an event card brings the main window forward and reveals the event.
 - **Video calls**: Clicking a conference button on an event card immediately launches the meeting link
   in the default system handler.
