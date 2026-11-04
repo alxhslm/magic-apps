@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import { applyMainWorldIdentity, chromeBrands, chromeFullVersionBrands } from '@magimail/core';
 import { extractRawCalendarList, extractGaiaId, extractGoogleApiKey } from './calendar-list.js';
+import { resolveAnchorDate } from './calendar-visible-range.js';
 import {
   CALENDAR_LIST_CHANNEL,
   GCAL_GRID_SCROLL_CHANNEL,
@@ -101,6 +102,24 @@ const VIEW_KEY_TO_TIMEFRAME: Record<string, string> = {
 let lastReportedTimeframe: string | null = null;
 let lastReportedDate: string | null = null;
 
+/**
+ * Every date Calendar has drawn in its main grid, from the packed `data-datekey`
+ * attribute. The left-hand mini month is outside `[role="main"]`, so its dates cannot
+ * be mistaken for the displayed range.
+ */
+function visibleDateKeys(): string[] {
+  const main = document.querySelector('[role="main"]') ?? document.body;
+  if (!main) return [];
+  return Array.from(main.querySelectorAll('[data-datekey]'))
+    .map((el) => el.getAttribute('data-datekey'))
+    .filter((key): key is string => Boolean(key));
+}
+
+function todayISO(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+}
+
 function checkViewMode(): void {
   const path = window.location.pathname;
   const match =
@@ -135,13 +154,16 @@ function checkViewMode(): void {
 
   if (!timeframe) return;
 
-  if (!dateStr) {
-    const now = new Date();
-    const y = now.getFullYear();
-    const m = String(now.getMonth() + 1).padStart(2, '0');
-    const d = String(now.getDate()).padStart(2, '0');
-    dateStr = `${y}-${m}-${d}`;
-  }
+  // Calendar can stay on a view with no date in the route, so the rendered grid is the
+  // authority on what is on screen. Defaulting to today here is what used to move the
+  // sidebar to the current month while Calendar showed another one.
+  const resolvedDate = resolveAnchorDate({
+    timeframe,
+    routeDateStr: dateStr,
+    dateKeys: visibleDateKeys(),
+    todayISO: todayISO(),
+  });
+  dateStr = resolvedDate;
 
   if (timeframe !== lastReportedTimeframe || dateStr !== lastReportedDate) {
     lastReportedTimeframe = timeframe;
