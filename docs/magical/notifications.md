@@ -210,8 +210,8 @@ reaches; see [`actions.md`](actions.md).
 
 ## The clock on screen
 
-Every time the user reads follows the Mac's own clock, and the 12/24-hour cycle is resolved once.
-The region and the switch are separate macOS settings: the switch writes
+Every time and date the user reads follows the Mac's own clock and locale, and the 12/24-hour cycle
+is resolved once. The region and the switch are separate macOS settings: the switch writes
 `AppleICUForce24HourTime` and leaves the region at `en_GB` or `en_US`, so either region can be on
 either clock.
 
@@ -236,11 +236,17 @@ defaults.
 | Alert subtitle, invitation line, ICS import dialog                | `formatTime` / `formatClock`                     |
 | Menu bar event times, agenda, popover cards, hero, both now rules | `TimeDisplay.time`                               |
 | Day grid hour gutter                                              | `TimeDisplay.hour` (`HH` or `ha`)                |
+| Menu bar date, month headers, agenda headings, widget date        | `TimeDisplay.dateFormatter`                      |
 | Widget times                                                      | `WidgetFormat.time`, the same `TimeDisplay.time` |
 
-A fixed pattern is for sort keys, not for anything on screen. `calendar-recurrence.ts`'s
-`hourCycle: 'h23'` and the helpers' `yyyy-MM-dd` day keys are deliberately independent of this,
-because changing the user's clock must not change a key or an ordering.
+Dates are a locale decision as well as a clock one, and the two do not travel together: London
+reads `3 March 2026`, New York `March 3, 2026`, and Tokyo `2026年3月3日`. Display labels therefore
+come from a field set through `TimeDisplay.dateFormatter(template:)` or `Intl` options, which let
+Foundation and ICU choose the order and punctuation. A literal pattern such as `d MMMM yyyy` fixes
+both, so it is for sort keys and log lines rather than anything on screen: `calendar-recurrence.ts`'s
+`hourCycle: 'h23'`, the helpers' `yyyy-MM-dd` day keys and their `yyyy-MM-dd HH:mm:ss` log stamps are
+deliberately independent of the user's clock and region, because changing either must not change a
+key or an ordering.
 
 The zone is the Mac's too: every native surface renders in `.current`, and Electron's process-local
 zone is the Mac's, so a UTC offset change moves what every one of them shows at the same instant.

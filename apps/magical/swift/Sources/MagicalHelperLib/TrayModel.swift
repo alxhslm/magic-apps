@@ -40,12 +40,7 @@ enum TrayFormatters {
         return df
     }()
 
-    static let monthYearFormatter: DateFormatter = {
-        let df = DateFormatter()
-        df.dateFormat = "MMMM yyyy"
-        df.timeZone = .current
-        return df
-    }()
+    static let monthYearFormatter = TimeDisplay.dateFormatter(template: "yMMMM")
 
     static let dayOfWeekFormatter: DateFormatter = {
         let df = DateFormatter()

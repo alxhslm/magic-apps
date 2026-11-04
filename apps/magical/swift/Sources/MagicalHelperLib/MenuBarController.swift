@@ -242,9 +242,7 @@ public final class MenuBarController: NSObject, NSPopoverDelegate {
             appendText(" \(dayNum)")
 
         case "dayAndMonth":
-            let df = DateFormatter()
-            df.dateFormat = "E d MMM"
-            df.timeZone = .current
+            let df = TimeDisplay.dateFormatter(template: "E d MMM")
             appendText(" \(df.string(from: Date()))")
 
         // Whatever is left today, not just the next four hours the hero card covers; the

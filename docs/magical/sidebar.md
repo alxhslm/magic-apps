@@ -100,8 +100,8 @@ compact Fantastical-style layout:
   disclosure chevron collapses the grid to give more vertical space to the agenda.
 - **`ScheduleAgendaView`**: A vertically scrollable list of upcoming events grouped by date. In
   Month view the list is bounded to the days the grid draws, including the leading and trailing
-  weeks; in Schedule view it is the continuous agenda. Its event times follow the Mac's 12/24-hour
-  setting through `TimeDisplay`, like the menu bar's; see
+  weeks; in Schedule view it is the continuous agenda. Its event times and dates follow the Mac's
+  clock and locale through `TimeDisplay`, like the menu bar's; see
   [`notifications.md`'s The clock on screen](notifications.md#the-clock-on-screen).
 
 Selecting a day from the leading or trailing week of the grid (1 December while November is on

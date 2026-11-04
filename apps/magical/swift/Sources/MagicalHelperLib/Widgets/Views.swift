@@ -49,9 +49,7 @@ struct WidgetHeader: View {
 
     /// `September 2026`, the status every family but the small one carries.
     static func month(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMMM yyyy"
-        return formatter.string(from: date)
+        TimeDisplay.dateFormatter(template: "yMMMM").string(from: date)
     }
 
     var body: some View {

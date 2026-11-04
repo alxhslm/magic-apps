@@ -44,6 +44,24 @@ struct TimeDisplayTests {
         #expect(!afternoon.contains("13"))
     }
 
+    @Test func dateLabelsFollowTheLocaleOrderAndPunctuation() {
+        let label = { (locale: String, template: String) in
+            TimeDisplay.dateFormatter(
+                template: template,
+                locale: Locale(identifier: locale),
+                timeZone: london
+            ).string(from: date(hour: 12))
+        }
+
+        // English is not one order: the templates are what make these differ, and a
+        // literal `d MMMM yyyy` would give every one of them the London reading.
+        #expect(label("en_GB", "yMMMMd") == "3 March 2026")
+        #expect(label("en_US", "yMMMMd") == "March 3, 2026")
+        #expect(label("en_GB", "yMMMM") == "March 2026")
+        #expect(label("ja_JP", "yMMMM") == "2026年3月")
+        #expect(label("ja_JP", "yMMMMd") == "2026年3月3日")
+    }
+
     @Test func theHourGutterFollowsTheSameClockAsTheRest() {
         let twentyFour = TimeDisplay.hourFormatter(locale: Locale(identifier: "en_GB"), timeZone: london)
         let twelve = TimeDisplay.hourFormatter(locale: Locale(identifier: "en_US"), timeZone: london)

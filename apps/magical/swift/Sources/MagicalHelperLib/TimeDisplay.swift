@@ -1,6 +1,6 @@
 import Foundation
 
-/// Times the user reads, on every native surface.
+/// Times and dates the user reads, on every native surface.
 ///
 /// The Mac's region and its 12/24-hour switch are separate settings: the switch writes
 /// `AppleICUForce24HourTime` and leaves the region alone, so an `en_US` Mac can run on a
@@ -35,6 +35,22 @@ enum TimeDisplay {
         df.locale = locale
         df.timeZone = timeZone
         df.dateFormat = uses24Hour(in: locale) ? "HH" : "ha"
+        return df
+    }
+
+    /// A date label from a field set rather than a literal pattern. Foundation picks the
+    /// order and punctuation for the locale, which is why London reads `3 March 2026` and
+    /// New York `March 3, 2026`. A literal pattern fixes both, which is right for a key
+    /// and wrong for anything on screen.
+    static func dateFormatter(
+        template: String,
+        locale: Locale = .current,
+        timeZone: TimeZone = .current
+    ) -> DateFormatter {
+        let df = DateFormatter()
+        df.locale = locale
+        df.timeZone = timeZone
+        df.setLocalizedDateFormatFromTemplate(template)
         return df
     }
 
