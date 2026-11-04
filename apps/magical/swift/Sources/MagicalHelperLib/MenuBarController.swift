@@ -449,9 +449,6 @@ public final class MenuBarController: NSObject, NSPopoverDelegate {
                 self?.dismissPopover()
             },
             onRsvp: { [weak self] event, response in
-                // Recorded here as well as in Main: a click that never leaves this process and
-                // one Main drops are both "the menu bar RSVP does nothing", and only the two
-                // lines together say which it was.
                 HelperLog.info("Tray", "RSVP \(response) chosen for \(event.id) on \(event.accountId)")
                 self?.send(method: "tray.rsvp", params: [
                     "accountId": event.accountId,
