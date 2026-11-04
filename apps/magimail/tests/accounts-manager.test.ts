@@ -16,14 +16,15 @@ import type { ThreadActionDriver } from '../src/thread-actions/index.js';
 // Hoisted because the vi.mock factory below is hoisted above the imports.
 const TEST_USER_DATA = vi.hoisted(() => `/tmp/magimail-accounts-test-${process.pid}-${Date.now()}`);
 
-// Capture warnings so the action-diagnostic tests can assert them.
+// Capture log lines so the action-diagnostic tests can assert them.
+const logInfo = vi.hoisted(() => vi.fn());
 const logWarn = vi.hoisted(() => vi.fn());
 vi.mock('@magimail/core/logger', async () => {
   const actual =
     await vi.importActual<typeof import('@magimail/core/logger')>('@magimail/core/logger');
   return {
     ...actual,
-    createLogger: () => ({ info: vi.fn(), warn: logWarn, error: vi.fn(), debug: vi.fn() }),
+    createLogger: () => ({ info: logInfo, warn: logWarn, error: vi.fn(), debug: vi.fn() }),
   };
 });
 
@@ -369,7 +370,9 @@ describe('AccountsManager', () => {
     // when the thread appears on screen. Arrival cannot be detected by the id.
     let routed = false;
     run.mockImplementation((script: string) => {
-      if (String(script).includes('location.hash =')) routed = true;
+      const s = String(script);
+      if (s.includes('gmail-ready')) return Promise.resolve(true);
+      if (s.includes('location.hash =')) routed = true;
       return Promise.resolve(undefined);
     });
     (wc.getURL as unknown as Mock).mockImplementation(() =>
@@ -390,6 +393,94 @@ describe('AccountsManager', () => {
     const script = run.mock.calls.map(([s]) => String(s)).join('\n');
     expect(script).toContain('msg_123');
     expect(script).toContain('location.hash');
+  });
+
+  it('waits for Gmail chrome before assigning the thread hash', async () => {
+    const wc = accountsManager.getActiveWebContentsView()!.webContents;
+    const run = wc.executeJavaScript as unknown as Mock;
+    run.mockClear();
+
+    let resolveGmailReady: (() => void) | undefined;
+    let gmailReady = false;
+    let routed = false;
+    run.mockImplementation((script: string) => {
+      const s = String(script);
+      if (s.includes('gmail-ready')) {
+        return new Promise<boolean>((resolve) => {
+          resolveGmailReady = () => {
+            gmailReady = true;
+            resolve(true);
+          };
+        });
+      }
+      if (s.includes('location.hash =')) {
+        // The route must not be attempted while Gmail is only loaded.
+        expect(gmailReady).toBe(true);
+        routed = true;
+        return Promise.resolve(true);
+      }
+      return Promise.resolve(undefined);
+    });
+    (wc.getURL as unknown as Mock).mockImplementation(() =>
+      routed
+        ? 'https://mail.google.com/mail/u/0/#inbox/FMfcgzGmockThreadId00000000000001'
+        : 'https://mail.google.com/mail/u/0/#inbox',
+    );
+    (wc.getTitle as unknown as Mock).mockImplementation(() => (routed ? 'A Thread' : 'Inbox'));
+
+    const opening = accountsManager.performThreadAction('account_personal', 'msg_123', 'open');
+    await vi.waitFor(() => expect(resolveGmailReady).toBeTypeOf('function'));
+
+    const beforeReady = run.mock.calls.map(([s]) => String(s));
+    expect(beforeReady.some((s) => s.includes('location.hash ='))).toBe(false);
+
+    resolveGmailReady!();
+    await expect(opening).resolves.toBe(true);
+    expect(logInfo).toHaveBeenCalledWith(
+      expect.stringMatching(/Opened thread on account_personal in \d+ ms/),
+    );
+  });
+
+  it('holds the opening account active until the route lands', async () => {
+    const work = accountsManager.addAccount('Work', '#3b82f6');
+    const wc = accountsManager.getActiveWebContentsView()!.webContents;
+    const run = wc.executeJavaScript as unknown as Mock;
+    run.mockClear();
+
+    let releaseRoute: (() => void) | undefined;
+    let routed = false;
+    run.mockImplementation((script: string) => {
+      const s = String(script);
+      if (s.includes('gmail-ready')) return Promise.resolve(true);
+      if (s.includes('location.hash =')) {
+        routed = true;
+        return Promise.resolve(true);
+      }
+      if (s.includes('thread-route')) {
+        return new Promise<string>((resolve) => {
+          releaseRoute = () => resolve('A Thread');
+        });
+      }
+      return Promise.resolve(undefined);
+    });
+    (wc.getURL as unknown as Mock).mockImplementation(() =>
+      routed
+        ? 'https://mail.google.com/mail/u/0/#inbox/FMfcgzGmockThreadId00000000000001'
+        : 'https://mail.google.com/mail/u/0/#inbox',
+    );
+    (wc.getTitle as unknown as Mock).mockImplementation(() => (routed ? 'A Thread' : 'Inbox'));
+
+    const opening = accountsManager.performThreadAction('account_personal', 'msg_123', 'open');
+    await vi.waitFor(() => expect(releaseRoute).toBeTypeOf('function'));
+
+    accountsManager.switchAccount(work.id);
+    expect(accountsManager.getActiveAccountId()).toBe('account_personal');
+
+    releaseRoute!();
+    await expect(opening).resolves.toBe(true);
+
+    // The switch asked for during the route runs once the route has landed.
+    expect(accountsManager.getActiveAccountId()).toBe(work.id);
   });
 
   it('delegates triage actions directly to the mailbox source without DOM routing', async () => {
