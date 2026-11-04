@@ -37,18 +37,14 @@ magical://event?account=work-account&eid=c3RhdHVzX21lZXRpbmc=&at=2026-10-12T10:0
 
 #### Which occurrence the `eid` names
 
-An `eid` names one occurrence, not the series, and the grid labels each chip with the occurrence's
-own id: a link carrying a series id routes to the right day and matches no chip. `buildEventLink`
-spells the occurrence out, and which spelling it uses depends on where the occurrence came from.
+An `eid` names one occurrence, and the grid labels each chip with the occurrence's own id, so a series
+id matches no chip.
 
-- **Materialised by Google:** the `eid` on the event's own `webUrl` names the occurrence already, and
-  is used as it is.
-- **Expanded from the series schedule:** the occurrence inherits the `webUrl` of the record it copied
-  its fields from, which is the series' newest materialised instance or the master, so that `eid`
-  names a different occurrence. The link is rebuilt as the series id, the occurrence's slot in UTC and
-  the calendar id: `<seriesId>_20260918T084000Z` timed, `<seriesId>_20260918` all-day. Rebuilding one
-  that was already right gives the same bytes.
-- **A task's chip id** is not an `eid` and is passed through untouched.
+- **From Google:** the event's `webUrl` already names the occurrence, so it is used as it is.
+- **Expanded from a schedule:** the occurrence inherits the `webUrl` of the record it copied, which
+  names a different one. The link is rebuilt from its own slot: `<seriesId>_20260918T084000Z` timed,
+  `<seriesId>_20260918` all-day.
+- **A task's chip id** is not an `eid` and passes through.
 
 ### Date fallback (`magical://date`)
 
