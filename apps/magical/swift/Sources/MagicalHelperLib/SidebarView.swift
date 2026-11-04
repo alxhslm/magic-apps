@@ -151,6 +151,41 @@ public final class SidebarModel: ObservableObject {
         gcalTimeframe == "schedule" || gcalTimeframe == "agenda"
     }
 
+    public var isMonthTimeframe: Bool {
+        gcalTimeframe == "month"
+    }
+
+    /// The days the mini month draws, including the leading and trailing days that fill
+    /// its first and last weeks.
+    ///
+    /// Month view is bounded by Google Calendar, so the agenda below the grid shows only
+    /// these days. The trailing week can reach into the next month, which is why clicking
+    /// 1 December in a November grid still shows that day's events.
+    public var displayedMonthGridRange: ClosedRange<Date>? {
+        guard let month = calendar.dateInterval(of: .month, for: displayedMonthDate) else {
+            return nil
+        }
+        let first = calendar.startOfDay(for: month.start)
+        let dayCount = calendar.range(of: .day, in: .month, for: displayedMonthDate)?.count ?? 30
+        let weekday = calendar.component(.weekday, from: first)
+        let lead = (weekday + 5) % 7 // Monday = 0, Sunday = 6
+        let cells = lead + dayCount
+        let trailing = (7 - (cells % 7)) % 7
+
+        let start = calendar.date(byAdding: .day, value: -lead, to: first) ?? first
+        let lastMonthDay = calendar.date(byAdding: .day, value: dayCount - 1, to: first) ?? first
+        let end = calendar.date(byAdding: .day, value: trailing, to: lastMonthDay) ?? lastMonthDay
+        return calendar.startOfDay(for: start) ... calendar.startOfDay(for: end)
+    }
+
+    /// The agenda Month view shows: the days drawn in the grid, not the whole feed.
+    /// Schedule keeps the continuous feed, because its agenda is the range.
+    public var visibleScheduleFeedItems: [TrayModel.ScheduleFeedItem] {
+        let items = trayModel.scheduleFeedItems
+        guard isMonthTimeframe, let range = displayedMonthGridRange else { return items }
+        return items.filter { range.contains(calendar.startOfDay(for: $0.date)) }
+    }
+
     private func startOfMonth(_ date: Date) -> Date {
         calendar.dateInterval(of: .month, for: date)?.start ?? calendar.startOfDay(for: date)
     }
@@ -416,17 +451,11 @@ public struct WeekScrubberView: View {
         VStack(spacing: 0) {
             // Header with week label and calendar filter/settings aligning with Google Calendar banner
             HStack(alignment: .center) {
-                Button(action: {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        model.syncToGCalRange()
-                    }
-                }) {
-                    Text(weekRangeText)
-                        .font(.system(size: 12.5, weight: .bold))
-                        .foregroundStyle(.primary)
-                }
-                .buttonStyle(.plain)
-                .help("Match Google Calendar")
+                // Week is bounded by Google Calendar, so this is a label, not a control:
+                // there is no range for a click to move the sidebar to.
+                Text(weekRangeText)
+                    .font(.system(size: 12.5, weight: .bold))
+                    .foregroundStyle(.primary)
 
                 Spacer()
 
@@ -515,17 +544,11 @@ public struct DayCompanionHeaderView: View {
         VStack(spacing: 0) {
             // Header with month/year title and calendar filter/settings aligning with Google Calendar banner
             HStack(alignment: .center) {
-                Button(action: {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        model.syncToGCalRange()
-                    }
-                }) {
-                    Text(monthYearTitle)
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(.primary)
-                }
-                .buttonStyle(.plain)
-                .help("Match Google Calendar")
+                // Day view is bounded by Google Calendar; the title names the day rather
+                // than offering a jump that could only be a no-op.
+                Text(monthYearTitle)
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(.primary)
 
                 Spacer()
 
@@ -539,46 +562,38 @@ public struct DayCompanionHeaderView: View {
 
             // Focused single day header aligning with Google Calendar day column header
             HStack(alignment: .center, spacing: 10) {
-                Button(action: {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        model.syncToGCalRange()
+                HStack(spacing: 10) {
+                    ZStack {
+                        if isToday {
+                            Circle()
+                                .fill(Color.blue)
+                                .frame(width: 32, height: 32)
+                            Text(dayNumber)
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundStyle(.white)
+                        } else {
+                            Circle()
+                                .fill(Color.blue.opacity(0.15))
+                                .frame(width: 32, height: 32)
+                            Circle()
+                                .strokeBorder(Color.blue.opacity(0.6), lineWidth: 1.2)
+                                .frame(width: 32, height: 32)
+                            Text(dayNumber)
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundStyle(Color.blue)
+                        }
                     }
-                }) {
-                    HStack(spacing: 10) {
-                        ZStack {
-                            if isToday {
-                                Circle()
-                                    .fill(Color.blue)
-                                    .frame(width: 32, height: 32)
-                                Text(dayNumber)
-                                    .font(.system(size: 14, weight: .bold))
-                                    .foregroundStyle(.white)
-                            } else {
-                                Circle()
-                                    .fill(Color.blue.opacity(0.15))
-                                    .frame(width: 32, height: 32)
-                                Circle()
-                                    .strokeBorder(Color.blue.opacity(0.6), lineWidth: 1.2)
-                                    .frame(width: 32, height: 32)
-                                Text(dayNumber)
-                                    .font(.system(size: 14, weight: .bold))
-                                    .foregroundStyle(Color.blue)
-                            }
-                        }
-                        .frame(width: 32, height: 32)
+                    .frame(width: 32, height: 32)
 
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(weekdayName)
-                                .font(.system(size: 11, weight: .bold))
-                                .foregroundStyle(isToday ? Color.blue : .secondary)
-                            Text(fullDateText)
-                                .font(.system(size: 11.5, weight: .medium))
-                                .foregroundStyle(.tertiary)
-                        }
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(weekdayName)
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(isToday ? Color.blue : .secondary)
+                        Text(fullDateText)
+                            .font(.system(size: 11.5, weight: .medium))
+                            .foregroundStyle(.tertiary)
                     }
                 }
-                .buttonStyle(.plain)
-                .help("Match Google Calendar")
 
                 Spacer()
 
@@ -829,17 +844,22 @@ public struct SidebarRootView: View {
             HStack(alignment: .center) {
                 // Month Title (Click returns to Google Calendar's range) + collapse chevron
                 HStack(spacing: 5) {
-                    Button(action: {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            model.syncToGCalRange()
+                    // Month and year own a fixed range too, so their title is a label. Only
+                    // Schedule has an agenda the selector can step away from, so only there
+                    // does the title offer a way back to Google Calendar's date.
+                    if model.isScheduleTimeframe {
+                        Button(action: {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                model.syncToGCalRange()
+                            }
+                        }) {
+                            monthTitleLabel
                         }
-                    }) {
-                        Text(monthTitle(model.displayedMonthDate))
-                            .font(.system(size: 13.5, weight: .bold))
-                            .foregroundStyle(.primary)
+                        .buttonStyle(.plain)
+                        .help("Match Google Calendar")
+                    } else {
+                        monthTitleLabel
                     }
-                    .buttonStyle(.plain)
-                    .help("Match Google Calendar")
 
                     Button(action: {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
@@ -917,7 +937,7 @@ public struct SidebarRootView: View {
 
             // Continuous schedule agenda
             ScheduleAgendaView(
-                feedItems: model.trayModel.scheduleFeedItems,
+                feedItems: model.visibleScheduleFeedItems,
                 selectedDate: model.selectedDate,
                 requestedScrollDate: model.selectedDate,
                 onSelectEvent: { event in model.onAction?("sidebarOpenEvent", event.id) },
@@ -948,6 +968,12 @@ public struct SidebarRootView: View {
     /// Day mode: Day title header + Focused day agenda
     private var dayModeView: some View {
         DayCompanionContainerView(model: model)
+    }
+
+    private var monthTitleLabel: some View {
+        Text(monthTitle(model.displayedMonthDate))
+            .font(.system(size: 13.5, weight: .bold))
+            .foregroundStyle(.primary)
     }
 
     private func monthTitle(_ date: Date) -> String {

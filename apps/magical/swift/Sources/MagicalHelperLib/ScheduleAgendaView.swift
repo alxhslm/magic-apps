@@ -155,7 +155,11 @@ public struct ScheduleAgendaView: View {
         isSuppressingScrollTracking = true
         // Unanimated: the popover is arriving, and a list that scrolls itself as it appears
         // reads as the view still settling rather than as a deliberate move.
-        scroll(to: Date(), proxy: proxy, animated: false)
+        //
+        // The selected date, not today: month view now shows only the days in its grid, so
+        // today can be outside the feed entirely and a scroll to it would land at an end.
+        // The tray resets the selection to today as it is presented, so it still lands on now.
+        scroll(to: selectedDate, proxy: proxy, animated: false)
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.scrollSuppressionDelay) {
             hasInitialScrolled = true
             isSuppressingScrollTracking = false

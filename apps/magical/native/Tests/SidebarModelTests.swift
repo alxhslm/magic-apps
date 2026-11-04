@@ -184,6 +184,73 @@ struct SidebarModelTests {
         #expect(cal.component(.month, from: model.displayedMonthDate) == 11)
     }
 
+    @Test func monthGridRangeCoversTheDaysTheMiniMonthDraws() throws {
+        let model = SidebarModel()
+        let df = DateFormatter()
+        df.dateFormat = "yyyy-MM-dd"
+        df.timeZone = .current
+        let november = try #require(df.date(from: "2026-11-15"))
+
+        model.setViewMode(.fantastical, anchor: november, timeframe: "month")
+
+        // November 2026 starts on a Sunday, so a Monday-first grid leads with six October
+        // days and trails with six December ones.
+        let range = try #require(model.displayedMonthGridRange)
+        #expect(df.string(from: range.lowerBound) == "2026-10-26")
+        #expect(df.string(from: range.upperBound) == "2026-12-06")
+        #expect(model.isMonthTimeframe)
+    }
+
+    @Test func monthAgendaIsBoundedToTheGridDays() throws {
+        let tray = TrayModel()
+        let model = SidebarModel(trayModel: tray)
+        let df = DateFormatter()
+        df.dateFormat = "yyyy-MM-dd"
+        df.timeZone = .current
+        let cal = Calendar.current
+        let november = try #require(df.date(from: "2026-11-15"))
+
+        func event(id: String, on dayString: String) throws -> [String: Any] {
+            let day = try #require(df.date(from: dayString))
+            let start = try #require(cal.date(byAdding: .hour, value: 12, to: day))
+            return [
+                "id": id,
+                "accountId": "acc_1",
+                "summary": id,
+                "startTime": start.timeIntervalSince1970 * 1000,
+                "endTime": start.addingTimeInterval(3600).timeIntervalSince1970 * 1000,
+                "isAllDay": false,
+                "calendarIds": ["cal_1"],
+            ]
+        }
+
+        // 3 December is in the grid's trailing week; 10 December is not.
+        try tray.update(from: [
+            "events": [
+                event(id: "inside", on: "2026-12-03"),
+                event(id: "outside", on: "2026-12-10"),
+            ],
+        ])
+
+        func dayGroupDates(_ items: [TrayModel.ScheduleFeedItem]) -> [String] {
+            items.compactMap { item in
+                guard case let .day(group) = item else { return nil }
+                return df.string(from: group.date)
+            }
+        }
+
+        model.setViewMode(.fantastical, anchor: november, timeframe: "month")
+        let monthDays = dayGroupDates(model.visibleScheduleFeedItems)
+        #expect(monthDays.contains("2026-12-03"))
+        #expect(!monthDays.contains("2026-12-10"))
+
+        // Schedule view keeps the continuous agenda, which is the whole point of it.
+        model.setViewMode(.fantastical, anchor: november, timeframe: "schedule")
+        let scheduleDays = dayGroupDates(model.visibleScheduleFeedItems)
+        #expect(scheduleDays.contains("2026-12-03"))
+        #expect(scheduleDays.contains("2026-12-10"))
+    }
+
     @Test func headerSyncReturnsToGCalRangeNotToday() throws {
         let model = SidebarModel()
         let df = DateFormatter()
@@ -215,7 +282,9 @@ struct SidebarModelTests {
     }
 
     @Test func monthStepperOnlyOffersScheduleMonths() throws {
-        let model = SidebarModel()
+        // A fresh tray model: the shared one carries events other tests loaded, and an
+        // event month is a month the agenda covers.
+        let model = SidebarModel(trayModel: TrayModel())
         let df = DateFormatter()
         df.dateFormat = "yyyy-MM-dd"
         df.timeZone = .current

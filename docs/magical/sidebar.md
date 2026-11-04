@@ -97,11 +97,14 @@ compact Fantastical-style layout:
 - **`MiniMonthGridView`**: A compact month calendar displaying day numbers, selection highlights,
   and event density dots. The grid shows the month Google Calendar is showing. Clicking the
   disclosure chevron collapses the grid to give more vertical space to the agenda.
-- **`ScheduleAgendaView`**: A vertically scrollable list of upcoming events grouped by date.
+- **`ScheduleAgendaView`**: A vertically scrollable list of upcoming events grouped by date. In
+  Month view the list is bounded to the days the grid draws, including the leading and trailing
+  weeks; in Schedule view it is the continuous agenda.
 
 Selecting a day from the leading or trailing week of the grid (1 December while November is on
-screen, say) moves the agenda to that day but leaves the grid on November. The selection is local;
-Google Calendar is what changes the month.
+screen, say) moves the agenda to that day but leaves the grid on November. That day is inside the
+grid, so its events are in the bounded agenda. The selection is local; Google Calendar is what
+changes the month.
 
 Schedule is the one timeframe with no bounded range of its own. Its month selector carries
 `<`/`>` arrows like the Menu Bar Tray, enabled only between the first and last months the agenda
@@ -137,14 +140,14 @@ Across all modes, the sidebar keeps the user anchored in time:
 ## Navigation and actions
 
 Google Calendar chooses the range; the sidebar follows it. Nothing in the sidebar navigates the web
-view to another date, and the header of each mode returns the sidebar to Google Calendar's range
-rather than jumping to today.
+view to another date.
 
 - **Date selection**: Clicking a date in the mini-month grid or week scrubber selects that day in the
   sidebar only. It never moves Google Calendar, so a day from the neighbouring month can be inspected
   in the agenda without the calendar jumping to it.
-- **Header click**: The month, week or day title calls `syncToGCalRange()`, snapping the sidebar's
-  selection and grid back to Google Calendar's anchor date.
+- **Bounded headers are labels**: In Day, Week, 4-Day, Month and Year, Google Calendar owns the
+  range, so the title is not a control. Schedule has an agenda the selector can step away from, so
+  its month title is a button calling `syncToGCalRange()` to return to Google Calendar's date.
 - **Event selection**: Clicking an event card brings the main window forward and reveals the event.
 - **Video calls**: Clicking a conference button on an event card immediately launches the meeting link
   in the default system handler.
