@@ -449,6 +449,7 @@ public final class MenuBarController: NSObject, NSPopoverDelegate {
                 self?.dismissPopover()
             },
             onRsvp: { [weak self] event, response in
+                HelperLog.info("Tray", "RSVP \(response) chosen for \(event.id) on \(event.accountId)")
                 self?.send(method: "tray.rsvp", params: [
                     "accountId": event.accountId,
                     "eventId": event.id,

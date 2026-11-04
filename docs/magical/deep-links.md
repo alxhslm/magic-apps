@@ -35,6 +35,20 @@ magical://event?account=work-account&eid=c3RhdHVzX21lZXRpbmc=&at=2026-10-12T10:0
   notification triage semantics.
 - An unknown action is rejected rather than silently opening the event.
 
+#### Which occurrence the `eid` names
+
+An `eid` names one occurrence, and the grid labels each chip with the occurrence's own id, so a series
+id matches no chip.
+
+- **From Google:** the event's `webUrl` already names the occurrence, so it is used as it is.
+- **Expanded from a schedule:** the occurrence inherits the `webUrl` of the record it copied, which
+  names a different one. The link is rebuilt from its own slot: `<seriesId>_20260918T084000Z` timed,
+  `<seriesId>_20260918` all-day.
+- **A task's chip id** is not an `eid` and passes through.
+
+Answering, deleting and completing reuse this `eventEid`, so an action and the reveal it came
+from address the same occurrence.
+
 ### Date fallback (`magical://date`)
 
 Used when an event has no resolvable `eid` or when navigating directly to a calendar day:

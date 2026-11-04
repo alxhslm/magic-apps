@@ -607,11 +607,20 @@ export class MenuBarManager {
           return true;
         }
 
+        // Every one of these three used to return true and write nothing, so a click that
+        // arrived without what it needed looked exactly like a click that never arrived.
+        // From the log alone the two are indistinguishable, and the report is "RSVP from the
+        // menu bar does nothing" either way.
         const service = this.getCalendarService();
-        if (service && accountId && eventId) {
-          log.info(`Answering ${responseStr} to ${eventId} on ${accountId}`);
-          void service.answerRsvp(accountId, eventId, responseStr);
+        if (!service || !accountId || !eventId) {
+          log.warn(
+            `Dropping an RSVP ${responseStr}: ${!service ? 'no calendar service' : `account=${accountId || 'none'} event=${eventId || 'none'}`}`,
+          );
+          return true;
         }
+
+        log.info(`Answering ${responseStr} to ${eventId} on ${accountId}`);
+        void service.answerRsvp(accountId, eventId, responseStr);
         return true;
       }
 

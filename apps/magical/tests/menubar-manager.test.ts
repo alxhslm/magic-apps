@@ -30,6 +30,10 @@ vi.mock('../src/settings-store.js', () => ({
   saveSetting: (...args: unknown[]) => mockSaveSetting(...args),
 }));
 
+const mockLog = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+
+vi.mock('@magimail/core/logger', () => ({ createLogger: () => mockLog }));
+
 const mockBuildWidgetCache = vi.fn().mockReturnValue({ updatedAt: 0, events: [], densityDots: {} });
 
 vi.mock('../src/widget-cache.js', () => ({
@@ -758,6 +762,45 @@ describe('MenuBarManager', () => {
         answer,
       );
     }
+  });
+
+  it('records the answer it forwards', () => {
+    manager.handleEvent('tray.rsvp', {
+      accountId: 'acc_work',
+      eventId: 'event_99',
+      response: 'maybe',
+    });
+
+    expect(mockLog.info).toHaveBeenCalledWith('Answering maybe to event_99 on acc_work');
+  });
+
+  it('says so when an RSVP arrives without the account or event it is for', () => {
+    // Dropping these silently made a click the helper sent look exactly like a click that
+    // never reached Main, which is the whole of the report "the menu bar RSVP does nothing".
+    manager.handleEvent('tray.rsvp', { eventId: 'event_99', response: 'yes' });
+
+    expect(mockCalendarService.answerRsvp).not.toHaveBeenCalled();
+    expect(mockLog.warn).toHaveBeenCalledWith(expect.stringContaining('account=none'));
+  });
+
+  it('says so when there is no calendar service to answer through', () => {
+    const bare = new MenuBarManager(
+      () => mockWindow as never,
+      () => mockAccountsManager as never,
+      () => null as never,
+      mockOnNewEvent,
+      mockOnOpenSettings,
+      mockOnOpenApp,
+      mockOnSearch,
+    );
+
+    bare.handleEvent('tray.rsvp', {
+      accountId: 'acc_work',
+      eventId: 'event_99',
+      response: 'yes',
+    });
+
+    expect(mockLog.warn).toHaveBeenCalledWith(expect.stringContaining('no calendar service'));
   });
 
   it('ignores an answer it does not recognise rather than guessing one', () => {
