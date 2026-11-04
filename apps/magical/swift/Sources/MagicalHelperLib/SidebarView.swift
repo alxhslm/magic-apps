@@ -111,15 +111,23 @@ public final class SidebarModel: ObservableObject {
     }
 
     public func selectNextDay() {
-        if let next = calendar.date(byAdding: .day, value: 1, to: selectedDate) {
-            selectDate(next)
+        guard let next = calendar.date(byAdding: .day, value: 1, to: selectedDate) else { return }
+        if viewMode == .week || viewMode == .fourDay, let lastDay = currentWeekDays.last?.date {
+            let nextStart = calendar.startOfDay(for: next)
+            let lastStart = calendar.startOfDay(for: lastDay)
+            guard nextStart <= lastStart else { return }
         }
+        selectDate(next)
     }
 
     public func selectPreviousDay() {
-        if let prev = calendar.date(byAdding: .day, value: -1, to: selectedDate) {
-            selectDate(prev)
+        guard let prev = calendar.date(byAdding: .day, value: -1, to: selectedDate) else { return }
+        if viewMode == .week || viewMode == .fourDay, let firstDay = currentWeekDays.first?.date {
+            let prevStart = calendar.startOfDay(for: prev)
+            let firstStart = calendar.startOfDay(for: firstDay)
+            guard prevStart >= firstStart else { return }
         }
+        selectDate(prev)
     }
 
     public func jumpToToday() {
@@ -530,18 +538,18 @@ public struct DayCompanionHeaderView: View {
                 Spacer()
 
                 if !selectedDayDots.isEmpty {
-                    HStack(spacing: 3.5) {
+                    HStack(spacing: 4.5) {
                         ForEach(0 ..< min(4, selectedDayDots.count), id: \.self) { idx in
                             Circle()
                                 .fill(selectedDayDots[idx])
-                                .frame(width: 5, height: 5)
+                                .frame(width: 6.5, height: 6.5)
                         }
                     }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4.5)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 5)
                     .background(
                         Capsule()
-                            .fill(Color.primary.opacity(0.06))
+                            .fill(Color.primary.opacity(0.08))
                     )
                 }
             }
