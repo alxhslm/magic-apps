@@ -42,4 +42,4 @@ In **Settings → Appearance** (under **Dock & Menu Bar**), you can choose how t
 - **New messages only**: Displays an unread badge only for messages that arrived while you were away, decrementing as you read them (similar to iOS Mail).
 - **Off**: Keeps your Dock icon clean with no numeric badges.
 
-The same tab sets the menu bar counter and its colour dots; [Menu Bar & Popover](/help/magimail/menu-bar/) covers what they show. Every other setting on this page is described in the [Settings Reference](/help/magimail/settings/).
+The same tab sets whether the menu bar shows a dot, a number, or nothing for each account; [Menu Bar & Popover](/help/magimail/menu-bar/) covers what they show. Every other setting on this page is described in the [Settings Reference](/help/magimail/settings/).

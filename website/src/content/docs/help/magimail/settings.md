@@ -67,8 +67,11 @@ The Appearance tab customises the look and behaviour of the window, Gmail interf
   - `New messages only`: Badges only when new unread messages arrive since you last opened the app.
   - `Off`: Keeps the Dock icon clean without numbers.
 - **Show menu bar tray**: Displays the Magimail status item in the macOS menu bar.
-- **Show unread count**: Shows a numeric unread counter directly in the menu bar next to the icon.
-- **Show colour dots**: Displays colour-coded dots corresponding to accounts that have unread mail.
+- **Menu bar shows**: Chooses what appears beside the icon.
+  - `Nothing`: Just the Magimail glyph.
+  - `Dots`: One coloured dot per account, filled when that account has unread mail and ringed when it does not.
+  - `Numbers`: One cell per account, in the account's colour, with a dimmed `0` for a quiet inbox.
+    The item keeps its width as mail arrives or is read. [Menu Bar & Popover](/help/magimail/menu-bar/) shows examples of all three.
 - **Show verification codes**: Toggles the hero card banner at the top of the menu bar popover whenever a one-time verification code arrives.
 - **Keep in menu bar for**: Sets how long the verification code hero card remains pinned before expiring (`5 minutes`, `10 minutes`, `15 minutes`, or `30 minutes`).
 
