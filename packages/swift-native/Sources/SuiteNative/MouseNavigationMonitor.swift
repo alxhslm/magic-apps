@@ -56,6 +56,15 @@ public final class MouseNavigationMonitor {
     /// Adopted by the app: Magimail leaves the wheel alone, Magical the side buttons.
     public var sources: Sources = .all
 
+    /// Whether another surface under the pointer owns this gesture.
+    ///
+    /// Both monitors see the same event, and this one accumulates before the other consumes
+    /// it. A gesture over the companion sidebar therefore both moved the sidebar's day and
+    /// navigated the calendar period, because the sidebar's monitor cannot take back what
+    /// this one has already counted. The app answers for its own overlay here, and the
+    /// event is left untouched for the surface that owns it.
+    public var shouldIgnore: ((NSEvent) -> Bool)?
+
     /// `NX_SUBTYPE_AUX_MOUSE_BUTTONS`, spelled out because AppKit exposes it to
     /// Objective-C only.
     private static let auxMouseButtonSubtype = NSEvent.EventSubtype(rawValue: 7)
@@ -113,6 +122,9 @@ public final class MouseNavigationMonitor {
             guard let self, let window,
                   event.window === window || (event.window == nil && NSApp.keyWindow === window)
             else { return event }
+            if shouldIgnore?(event) == true {
+                return event
+            }
             return handle(event)
         }
     }

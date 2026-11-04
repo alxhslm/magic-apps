@@ -162,6 +162,12 @@ final class ToolbarManager: ToolbarManagerBase {
         [.sideButtons, .trackpad, .wheel]
     }
 
+    override func shouldIgnoreMouseNavigation(_ event: NSEvent) -> Bool {
+        // Only the scroll gesture: a side button over the sidebar still means Back.
+        guard event.type == .scrollWheel else { return false }
+        return SidebarManager.shared.ownsGesture(event)
+    }
+
     override func handleMouseNavigation(
         direction: MouseNavigationMonitor.Direction,
         source: MouseNavigationMonitor.Sources
@@ -181,6 +187,7 @@ final class ToolbarManager: ToolbarManagerBase {
     private static let addEventID = NSToolbarItem.Identifier("addEvent")
     private static let addTaskID = NSToolbarItem.Identifier("addTask")
     private static let invitesID = NSToolbarItem.Identifier("invites")
+    private static let toggleSidebarID = NSToolbarItem.Identifier("toggleSidebar")
 
     // MARK: - NSToolbarDelegate
 
@@ -225,6 +232,14 @@ final class ToolbarManager: ToolbarManagerBase {
         case Self.invitesID:
             return makeInvitesItem(itemIdentifier)
 
+        case Self.toggleSidebarID:
+            return ToolbarBuilder.makeButton(
+                itemIdentifier,
+                symbol: "sidebar.right",
+                label: labels["toolbar.toggleSidebar"],
+                action: "toggleSidebar"
+            )
+
         case Self.searchID:
             return ToolbarBuilder.makeSearchItem(itemIdentifier, placeholder: labels[ToolbarLabelKey.search])
 
@@ -242,6 +257,7 @@ final class ToolbarManager: ToolbarManagerBase {
             Self.invitesID,
             Self.addTaskID,
             Self.addEventID,
+            Self.toggleSidebarID,
         ]
     }
 
@@ -258,6 +274,7 @@ final class ToolbarManager: ToolbarManagerBase {
             Self.invitesID,
             Self.addTaskID,
             Self.addEventID,
+            Self.toggleSidebarID,
             Self.searchID,
         ]
     }

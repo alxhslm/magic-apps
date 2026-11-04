@@ -2844,6 +2844,44 @@ describe('task completion sync and persistence', () => {
     expect(task.isCompleted).toBe(true);
     service.stop();
   });
+
+  describe('requestImmediatePoll', () => {
+    it('debounces rapid calls and triggers a poll', async () => {
+      vi.useFakeTimers();
+      const service = new CalendarService(
+        () => [account],
+        () => {},
+        async () => 'ok' as const,
+      );
+      const pollAllSpy = vi.spyOn(service as any, 'pollAll').mockResolvedValue(undefined);
+
+      service.requestImmediatePoll();
+      service.requestImmediatePoll();
+
+      expect(pollAllSpy).not.toHaveBeenCalled();
+
+      await vi.advanceTimersByTimeAsync(600);
+
+      expect(pollAllSpy).toHaveBeenCalledTimes(1);
+
+      vi.useRealTimers();
+      service.stop();
+    });
+
+    it('sets follow-up poll if a poll is already in flight', () => {
+      const service = new CalendarService(
+        () => [account],
+        () => {},
+        async () => 'ok' as const,
+      );
+      (service as any).isPolling = true;
+
+      service.requestImmediatePoll();
+
+      expect((service as any).needsFollowUpPoll).toBe(true);
+      service.stop();
+    });
+  });
 });
 
 describe('an occurrence expanded from a series schedule', () => {

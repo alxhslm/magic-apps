@@ -57,37 +57,76 @@ function decodeState(url: string, body: string, encoded: string): SyncState | un
 }
 
 /**
- * Watches a partition and records the latest `sync.sync` request its view makes.
+ * Watches a partition and records the latest `sync.sync` request its view makes,
+ * and notifies when the view's own write to Calendar or Tasks completes.
  *
  * Returns a disposer. Until the account's view has posted at least one sync there is no
  * state, and a direct write is impossible — the caller falls back to driving the view.
  */
-export function observeSyncState(partition: string): () => void {
+export function observeSyncState(partition: string, onMutation?: () => void): () => void {
   const ses = session.fromPartition(partition);
   const filter = { urls: ['https://calendar.google.com/calendar/u/*/sync.sync'] };
+  const completionFilter = {
+    urls: [
+      'https://calendar.google.com/calendar/u/*/sync.sync',
+      'https://tasks-pa.clients6.google.com/$rpc/google.internal.tasks.v1.TasksApiService/Sync',
+    ],
+  };
 
-  ses.webRequest.onBeforeRequest(filter, (details, callback) => {
-    try {
-      if (details.method === 'POST') {
-        const body = decodeUploadData(details.uploadData);
-        const match = /(?:^|&)f\.req=([^&]*)/.exec(body);
-        const state = match ? decodeState(details.url, body, match[1]) : undefined;
-        if (state) {
-          if (!states.has(partition)) {
-            log.info(`Captured the sync state a direct write reuses for ${partition}`);
+  if (typeof ses.webRequest?.onBeforeRequest === 'function') {
+    ses.webRequest.onBeforeRequest(filter, (details, callback) => {
+      try {
+        if (details.method === 'POST') {
+          const body = decodeUploadData(details.uploadData);
+          const match = /(?:^|&)f\.req=([^&]*)/.exec(body);
+          const state = match ? decodeState(details.url, body, match[1]) : undefined;
+          if (state) {
+            if (!states.has(partition)) {
+              log.info(`Captured the sync state a direct write reuses for ${partition}`);
+            }
+            states.set(partition, state);
           }
-          states.set(partition, state);
         }
+      } catch (err) {
+        // Never break the request being observed. Logged because the write path then
+        // silently has no state, and every action falls back to the view.
+        log.warn('Could not read the sync.sync request the view made:', err);
+      }
+      callback({ cancel: false });
+    });
+  }
+
+  const onCompletedListener = (details: Electron.OnCompletedListenerDetails) => {
+    try {
+      // Only a request the account's own view made can be the user changing something,
+      // and that is what `webContentsId` says: it is absent for a request the browser
+      // process started itself. Load-bearing, because the poller's Tasks *read* is a POST
+      // to the same RPC through the same session and answers `2xx`; counted as a
+      // mutation it made every poll trigger the next one, and the loop that ran at about
+      // a poll a second is what Google answered with `429`.
+      if (details.webContentsId === undefined) return;
+
+      if (details.method === 'POST' && details.statusCode >= 200 && details.statusCode < 300) {
+        log.debug(`Observed sync mutation completion on ${partition} (${details.statusCode})`);
+        onMutation?.();
       }
     } catch (err) {
-      // Never break the request being observed. Logged because the write path then
-      // silently has no state, and every action falls back to the view.
-      log.warn('Could not read the sync.sync request the view made:', err);
+      log.warn('Could not handle sync mutation completion:', err);
     }
-    callback({ cancel: false });
-  });
+  };
 
-  return () => ses.webRequest.onBeforeRequest(filter, null);
+  if (typeof ses.webRequest?.onCompleted === 'function' && onMutation) {
+    ses.webRequest.onCompleted(completionFilter, onCompletedListener);
+  }
+
+  return () => {
+    if (typeof ses.webRequest?.onBeforeRequest === 'function') {
+      ses.webRequest.onBeforeRequest(filter, null);
+    }
+    if (typeof ses.webRequest?.onCompleted === 'function' && onMutation) {
+      ses.webRequest.onCompleted(completionFilter, null);
+    }
+  };
 }
 
 /** The latest captured request for a partition, or undefined before the view has synced. */

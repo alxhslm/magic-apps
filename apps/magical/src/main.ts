@@ -47,6 +47,8 @@ import {
   updateNativeToolbarAccounts,
 } from './native-toolbar.js';
 import { chooseEventAccount } from './account-picker.js';
+import { SidebarManager } from './sidebar-manager.js';
+import { CALENDAR_MIN_HEIGHT, windowMinWidth } from './window-layout.js';
 import { CALENDAR_BASE_URL } from './constants.js';
 import { initDock } from './dock.js';
 import { syncExtensionLogs } from './extension-logs.js';
@@ -81,6 +83,7 @@ import { MenuBarManager } from './menubar-manager.js';
 import { canRemoveAllAppData, removeAllAppDataAndQuit } from './remove-all-data.js';
 import { SyncCalendarActionDriver } from './calendar-actions/sync-driver.js';
 import { loadAccounts } from './accounts.js';
+import { canonicaliseCalendarId } from './calendars.js';
 
 // Replaced by tsup at build time with the Unix milliseconds the bundle was
 // compiled at; see `prerelease-build-expiry.ts` in @magimail/core.
@@ -272,6 +275,29 @@ let findInPageController: FindInPageController | null = null;
 let calendarService: CalendarService | null = null;
 let accounts: AccountsManager | null = null;
 let menuBarManager: MenuBarManager | null = null;
+let sidebarManager: SidebarManager | null = null;
+
+/**
+ * Sends the stored filter state to both surfaces after either one changes it.
+ *
+ * The menu bar popover runs in the Swift helper and the companion sidebar in the main
+ * window, so each holds its own `TrayModel`. Pushing only the surface that did not change
+ * leaves the other's copy of the filter stale until something unrelated triggers a
+ * redraw, which is why hiding a calendar in one place did not hide it in the other. The
+ * filter is the hidden-calendar set plus the completed-task toggle, which the same menu
+ * offers on both surfaces.
+ */
+function pushFilterStateToSurfaces(): void {
+  // Filter-only updates first: both panes watch these values live, and neither should
+  // wait for every event to be serialised before the tick moves.
+  menuBarManager?.pushFilterUpdate();
+  sidebarManager?.pushFilterState();
+  // The settings window is in the helper and reads the same settings.
+  pushSettingsToHelper();
+  // The full payload still follows for the widget cache and the popover's event list;
+  // it rides behind the filter rather than in front of it.
+  setTimeout(() => menuBarManager?.pushUpdate(), 0);
+}
 /** Set before quitting, so the window being torn down is not rebuilt afterwards. */
 let quitting = false;
 /**
@@ -342,6 +368,7 @@ function applyMenu(): void {
       },
       onSearch: () => handleSearch(),
       onCustomizeToolbar: () => runToolbarCustomization(),
+      onToggleSidebar: () => sidebarManager?.toggleSidebar(),
       currentTheme: loadSettings().theme,
       onSetTheme: applyTheme,
       onRemoveAllData,
@@ -415,8 +442,18 @@ function forgetAccountSettings(live: ReadonlySet<string>): void {
   for (const id of [...accountHealth.keys()]) if (!live.has(id)) accountHealth.delete(id);
 
   const hidden = loadSettings().hiddenCalendars ?? [];
-  const keptHidden = hidden.filter((ref) => live.has(ref.accountId));
-  if (keptHidden.length !== hidden.length) saveSetting('hiddenCalendars', keptHidden);
+  const keptHidden = hidden
+    .filter((ref) => live.has(ref.accountId))
+    .map((ref) => ({
+      accountId: ref.accountId,
+      calendarId: canonicaliseCalendarId(ref.calendarId),
+    }));
+  if (
+    keptHidden.length !== hidden.length ||
+    JSON.stringify(keptHidden) !== JSON.stringify(hidden)
+  ) {
+    saveSetting('hiddenCalendars', keptHidden);
+  }
 
   // A mute names `accountId|calendarId`; a bare calendar id is the older, account-wide
   // shape and is left alone because no account can be read out of it.
@@ -462,6 +499,10 @@ function applySettingChange(key: string, value: unknown): void {
 
   log.info(`Setting ${key} = ${String(value)}`);
   saveSetting(key as keyof MagicalSettings, value as never);
+  // A change made in one surface has to reach the settings window in the helper, or
+  // its toggle keeps the old value until the window is reopened. The helper applies
+  // this with events suppressed, so the echo cannot become a loop.
+  pushSettingsToHelper();
 
   switch (key) {
     case 'theme':
@@ -479,6 +520,7 @@ function applySettingChange(key: string, value: unknown): void {
       // covers it. Same pair Magimail sets.
       applyWindowTransparency(Boolean(value));
       accounts?.reinjectCss();
+      sidebarManager?.setTransparency(Boolean(value), nativeTheme.shouldUseDarkColors);
       return;
 
     case 'hideSidebar':
@@ -532,6 +574,8 @@ function applySettingChange(key: string, value: unknown): void {
             (query, accountId) => handleSearch(query, accountId),
           );
         }
+        menuBarManager.onHiddenCalendarsChanged = pushFilterStateToSurfaces;
+        menuBarManager.onShowCompletedTasksChanged = pushFilterStateToSurfaces;
         menuBarManager.createTray();
         if (accounts) menuBarManager.updateAccounts(accounts.getAccounts());
         if (calendarService) menuBarManager.updateEvents(calendarService.getCachedEvents());
@@ -543,8 +587,11 @@ function applySettingChange(key: string, value: unknown): void {
     case 'menuBarDisplayMode':
     case 'showMenuBarAccountColor':
     case 'isCalendarCollapsed':
-    case 'showCompletedTasks':
       menuBarManager?.pushUpdate();
+      return;
+
+    case 'showCompletedTasks':
+      pushFilterStateToSurfaces();
       return;
   }
 }
@@ -718,17 +765,21 @@ function startCalendarService(): void {
     calendarService?.syncPollers();
     if (accounts) {
       pushCalendarsToSettings(accounts, calendarService?.getCachedEvents());
+      menuBarManager?.updateAccounts(accounts.getAccounts());
+      sidebarManager?.updateAccounts(accounts.getAccounts());
     }
   };
 
   calendarService.onEventsUpdated = (events) => {
     menuBarManager?.updateEvents(events);
+    sidebarManager?.updateEvents(events);
     if (accounts) {
       pushCalendarsToSettings(accounts, events);
     }
   };
   if (calendarService.getCachedEvents().size > 0) {
     menuBarManager?.updateEvents(calendarService.getCachedEvents());
+    sidebarManager?.updateEvents(calendarService.getCachedEvents());
   }
 
   calendarService.setActiveAccount(accounts.getActiveAccountId());
@@ -1130,6 +1181,24 @@ function handleToolbarAction(action: string, value: string): void {
       void handleNewTask();
       break;
 
+    case 'toggleSidebar':
+      sidebarManager?.toggleSidebar();
+      break;
+
+    case 'sidebarSelectDate':
+    case 'sidebarOpenEvent':
+    case 'sidebarJoinCall':
+    case 'sidebarDeleteEvent':
+    case 'sidebarCompleteTask':
+    case 'sidebarRsvp':
+    case 'sidebarRefresh':
+    case 'sidebarFilterChanged':
+    case 'sidebarSetShowCompletedTasks':
+    case 'sidebarEnsureRange':
+    case 'sidebarScroll':
+      sidebarManager?.handleSidebarAction(action, value);
+      break;
+
     case 'search':
       handleSearch(value);
       break;
@@ -1144,6 +1213,15 @@ function handleToolbarAction(action: string, value: string): void {
     case 'invite:read':
     case 'invite:open':
       calendarService?.handleInviteAction(action, value);
+      break;
+
+    default:
+      // A sidebar action added in the addon used to be dropped here until somebody
+      // remembered to add it to the list above; `sidebarSetShowCompletedTasks` and
+      // `sidebarEnsureRange` both shipped that way. Relay the prefix instead.
+      if (action.startsWith('sidebar')) {
+        sidebarManager?.handleSidebarAction(action, value);
+      }
       break;
   }
 }
@@ -1170,13 +1248,15 @@ function createWindow(
   // Built opaque from the start when transparency is off, rather than made
   // vibrant and corrected a frame later. Mirrors Magimail's createMainWindow.
   const settings = loadSettings();
+  const isSidebarVisible = settings.sidebarVisible !== false;
+  const initialMinW = windowMinWidth(isSidebarVisible);
   mainWindow = new BaseWindow(
     createMainWindowOptions({
       title: uiString('window.main.title'),
-      width: 1280,
-      height: 820,
-      minWidth: 1280,
-      minHeight: 600,
+      width: isSidebarVisible ? 1320 : 1024,
+      height: 850,
+      minWidth: initialMinW,
+      minHeight: CALENDAR_MIN_HEIGHT,
       // Set when this window is a replacement, so it returns to where the user had it.
       bounds: options.bounds,
       ...(settings.transparentBackground
@@ -1190,6 +1270,14 @@ function createWindow(
   );
 
   attachNativeToolbar(mainWindow);
+
+  sidebarManager = new SidebarManager(
+    () => mainWindow,
+    () => accounts,
+    () => calendarService,
+  );
+  sidebarManager.onFilterChanged = pushFilterStateToSurfaces;
+  sidebarManager.attach(mainWindow);
 
   // Coming back to the window is the moment a stale agenda is most visible, and the
   // poller's own cadence is minutes long. `pollOnFocus` rate-limits this itself, so
@@ -1217,6 +1305,7 @@ function createWindow(
     findInPageController = null;
     mainWindow = null;
     accounts = null;
+    sidebarManager = null;
   });
 
   accounts = new AccountsManager(mainWindow, calendarPreloadPath(), { initialAccountId });
@@ -1237,10 +1326,15 @@ function createWindow(
     // so is the grid toolbar: each account keeps its own Calendar vs Tasks mode.
     applyMenu();
     setNativeToolbarMode(accounts.getActiveViewMode());
+    sidebarManager?.updateAccounts(accounts.getAccounts());
   };
   // Removing an account has to purge what was cached for it before the record goes: the
   // poller sweep below only drops accounts that are already gone from the list.
   accounts.onAccountRemoving = (accountId) => calendarService?.forgetAccount(accountId);
+  // Accelerated sync when the user mutates calendar events or tasks in the Google Calendar web UI.
+  accounts.onSyncMutation = (accountId) => {
+    calendarService?.requestImmediatePoll(accountId);
+  };
   // The mode of the account on screen, so the toolbar dims `< Today >` and Search in
   // Tasks without the user having to touch anything first.
   accounts.onModeChanged = (mode) => setNativeToolbarMode(mode);
@@ -1253,6 +1347,7 @@ function createWindow(
     // The dropdown belongs to the account in the window, so it follows the switch.
     calendarService?.setActiveAccount(accounts.getActiveAccountId());
     menuBarManager?.updateAccounts(accounts.getAccounts());
+    sidebarManager?.updateAccounts(accounts.getAccounts());
     forgetAccountSettings(new Set(accounts.getAccounts().map((a) => a.id)));
     // An account that was just removed has to take its poller and its cached events with
     // it, or the agenda keeps drawing a diary whose filter row no longer exists. Cheap
@@ -1261,6 +1356,12 @@ function createWindow(
     // Cheap, and it keeps an open settings window in step with the Accounts
     // menu. The helper ignores it when no window is showing.
     pushAccountsToSettings(accounts, calendarService?.getCachedEvents(), accountsNeedingSignIn());
+  };
+  accounts.onTimeframeChanged = (timeframe, dateStr) => {
+    sidebarManager?.setTimeframe(timeframe, dateStr);
+  };
+  accounts.onGridScroll = (hour, hourHeight, gridTop, gridHeight, cardTop) => {
+    sidebarManager?.setScrollPosition(hour, hourHeight, gridTop, gridHeight, cardTop);
   };
 
   if (!menuBarManager) {
@@ -1274,6 +1375,8 @@ function createWindow(
       (query, accountId) => handleSearch(query, accountId),
     );
   }
+  menuBarManager.onHiddenCalendarsChanged = pushFilterStateToSurfaces;
+  menuBarManager.onShowCompletedTasksChanged = pushFilterStateToSurfaces;
 
   if (loadSettings().showMenuBarIcon) {
     menuBarManager.createTray();
@@ -1281,6 +1384,13 @@ function createWindow(
     if (calendarService) {
       menuBarManager.updateEvents(calendarService.getCachedEvents());
     }
+  }
+
+  if (accounts) {
+    sidebarManager?.updateAccounts(accounts.getAccounts());
+  }
+  if (calendarService) {
+    sidebarManager?.updateEvents(calendarService.getCachedEvents());
   }
 
   pushToolbarAccounts();
@@ -1318,7 +1428,9 @@ app.whenReady().then(async () => {
     accounts?.reinjectCss();
     // An opaque window paints a literal colour, so it has to follow the theme
     // itself — vibrancy would have tracked the appearance for free.
-    if (!loadSettings().transparentBackground) applyWindowTransparency(false);
+    const isTransparent = loadSettings().transparentBackground;
+    if (!isTransparent) applyWindowTransparency(false);
+    sidebarManager?.setTransparency(isTransparent, nativeTheme.shouldUseDarkColors);
   });
 
   onHelperEvent(handleHelperEvent);

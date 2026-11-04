@@ -21,6 +21,8 @@ import {
   GOOGLE_CALENDAR_DEFAULT_SWATCHES,
   friendlyCalendarName,
   buildSerializedCalendars,
+  canonicaliseCalendarId,
+  hiddenKey,
 } from './calendars.js';
 
 export {
@@ -70,17 +72,6 @@ export interface SerializedTrayAccount {
 }
 
 /**
- * How one hidden calendar is keyed: both halves.
- *
- * A calendar id does not identify a calendar on its own. Google gives Birthdays, Tasks and
- * each locale's holidays the same id in every account, so keying on the id alone hides one
- * account's Birthdays by hiding another's.
- */
-function hiddenKey(accountId: string, calendarId: string): string {
-  return `${accountId}\u0000${calendarId}`;
-}
-
-/**
  * How far past and ahead to include in the menu bar tray popover by default.
  *
  * Keeps the popover payload lean (~200 events instead of ~2,400) while covering the
@@ -101,6 +92,16 @@ export class MenuBarManager {
   private visibleRangeEndMs: number | null = null;
   private lastPayloadJson: string | null = null;
   private retryScheduler = new RetryScheduler({ maxRetries: 1, delayMs: 1000 });
+
+  public onHiddenCalendarsChanged?: (hidden: CalendarRef[]) => void;
+  /**
+   * Fired when the popover's completed-task toggle changes.
+   *
+   * The sidebar filters completed tasks too, from its own copy of the setting, so saving
+   * it here without telling the other surface leaves the two panes disagreeing until
+   * something unrelated pushes.
+   */
+  public onShowCompletedTasksChanged?: () => void;
 
   constructor(
     private getMainWindow: () => BaseWindow | null,
@@ -196,6 +197,29 @@ export class MenuBarManager {
     this.pushUpdate();
   }
 
+  /**
+   * Sends only the filter, not the event list.
+   *
+   * A checkbox is watched live, and serialising every event to tell the helper which
+   * calendars are hidden is what made a toggle in one pane appear in the other a beat
+   * late. `TrayModel.update` applies whichever keys are present, so this is a complete
+   * update for the fields it carries. The full payload still follows so the widget cache
+   * and anything else the event list feeds are brought up to date.
+   */
+  public pushFilterUpdate(): void {
+    if (!this.trayCreated || !isHelperAvailable()) return;
+
+    const settings = loadSettings();
+    void sendToHelper('tray.update', {
+      hiddenCalendars: (settings.hiddenCalendars ?? []).map((c) => ({
+        accountId: c.accountId,
+        calendarId: canonicaliseCalendarId(c.calendarId),
+      })),
+      hiddenCalendarsRevision: settings.hiddenCalendarsRevision ?? 0,
+      showCompletedTasks: Boolean(settings.showCompletedTasks),
+    });
+  }
+
   public pushUpdate(isRetry = false): void {
     if (!this.trayCreated || !isHelperAvailable()) return;
 
@@ -205,7 +229,10 @@ export class MenuBarManager {
     this.retryScheduler.cancel();
 
     const settings = loadSettings();
-    const hiddenCalendars = settings.hiddenCalendars ?? [];
+    const hiddenCalendars = (settings.hiddenCalendars ?? []).map((c) => ({
+      accountId: c.accountId,
+      calendarId: canonicaliseCalendarId(c.calendarId),
+    }));
     const hidden = new Set(hiddenCalendars.map((c) => hiddenKey(c.accountId, c.calendarId)));
     const accountColorMap = new Map(this.cachedAccounts.map((a) => [a.id, a.color]));
 
@@ -254,8 +281,12 @@ export class MenuBarManager {
       // Google reports the account's own calendar as `primary`, as the account id or as
       // its address depending on which endpoint answered, and the filter is stored under
       // one of them.
-      const canonicalise = (id: string): string =>
-        id === primaryEmail || id === 'primary' || id === accountId ? primaryEmail : id;
+      const canonicalise = (id: string): string => {
+        const canonical = canonicaliseCalendarId(id);
+        return canonical === primaryEmail || canonical === 'primary' || canonical === accountId
+          ? primaryEmail
+          : canonical;
+      };
 
       for (const event of events) {
         const calendarIds = [...new Set(event.calendarIds.map(canonicalise))];
@@ -385,6 +416,7 @@ export class MenuBarManager {
       menuBarDisplayMode: settings.menuBarDisplayMode,
       showMenuBarAccountColor: Boolean(settings.showMenuBarAccountColor),
       hiddenCalendars,
+      hiddenCalendarsRevision: settings.hiddenCalendarsRevision ?? 0,
       showCompletedTasks: Boolean(settings.showCompletedTasks),
     };
 
@@ -648,7 +680,9 @@ export class MenuBarManager {
       case 'tray.setShowCompletedTasks': {
         const show = Boolean(params.showCompletedTasks);
         saveSetting('showCompletedTasks', show);
-        this.pushUpdate();
+        this.pushFilterUpdate();
+        // The callback pushes the sidebar and the settings window too.
+        this.onShowCompletedTasksChanged?.();
         return true;
       }
 
@@ -656,17 +690,25 @@ export class MenuBarManager {
       // forgets itself on every rebuild reads as broken.
       case 'tray.setHiddenCalendars': {
         const raw = params.hiddenCalendars;
-        const hidden = Array.isArray(raw)
-          ? raw.filter(
-              (entry): entry is CalendarRef =>
-                typeof entry === 'object' &&
-                entry !== null &&
-                typeof (entry as CalendarRef).accountId === 'string' &&
-                typeof (entry as CalendarRef).calendarId === 'string',
-            )
+        const hidden: CalendarRef[] = Array.isArray(raw)
+          ? raw
+              .filter(
+                (entry): entry is CalendarRef =>
+                  typeof entry === 'object' &&
+                  entry !== null &&
+                  typeof (entry as CalendarRef).accountId === 'string' &&
+                  typeof (entry as CalendarRef).calendarId === 'string',
+              )
+              .map((ref) => ({
+                accountId: ref.accountId,
+                calendarId: canonicaliseCalendarId(ref.calendarId),
+              }))
           : [];
         saveSetting('hiddenCalendars', hidden);
-        log.info(`${hidden.length} calendar(s) hidden in the popover`);
+        const revision = (loadSettings().hiddenCalendarsRevision ?? 0) + 1;
+        saveSetting('hiddenCalendarsRevision', revision);
+        log.info(`${hidden.length} calendar(s) hidden in the popover (revision ${revision})`);
+        this.onHiddenCalendarsChanged?.(hidden);
         return true;
       }
 

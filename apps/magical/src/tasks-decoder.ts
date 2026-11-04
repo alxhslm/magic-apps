@@ -54,6 +54,23 @@ export class TasksRefusedError extends Error {
   }
 }
 
+/**
+ * Google answered `429`: Tasks will not answer this account as often as it is asked.
+ *
+ * Separate from a refusal because it is not a statement about the account, and separate
+ * from a decode failure because asking again straight away is what makes it worse. The
+ * poller pauses for `retryAfterMs` before it asks again.
+ */
+export class TasksRateLimitedError extends Error {
+  public readonly retryAfterMs: number;
+
+  constructor(retryAfterMs: number) {
+    super('Tasks Sync was rate-limited with HTTP 429');
+    this.name = 'TasksRateLimitedError';
+    this.retryAfterMs = retryAfterMs;
+  }
+}
+
 export interface TaskState {
   taskId: string;
   calendarEventId: string;

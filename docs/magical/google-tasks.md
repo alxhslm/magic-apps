@@ -121,7 +121,7 @@ That is what makes a date-only task completable and deletable: the popover has a
 write resolves the Tasks id straight out of the chip handle, and the DOM fallback can click the chip
 Google draws for it.
 
-## A refusal is paused, not retried
+## A refusal or a rate limit is paused, not retried
 
 Google answers `403` for an account it will not serve Tasks to, most often one that has never
 granted it. That is not a malformed payload and not an expired session, so `TasksPoller` raises a
@@ -130,8 +130,16 @@ refusal pauses the sync for 15 minutes, and each refusal after that doubles the 
 hours. A read that succeeds clears it. `CalendarService.syncTasksCompletion` leaves the cached
 completion state alone on any failure, and does not repeat the warning the poller has already logged
 once for the episode, so a refused account costs a handful of requests and one line a day instead of
-one request and one line per poll. `401` stays the expired-session case, and `429`/`5xx` stay
-transient failures that the ordinary poll cadence retries.
+one request and one line per poll. `401` stays the expired-session case, and `5xx` stays a transient
+failure that the ordinary poll cadence retries.
+
+`429` is a pause of the same shape and a different cause. Google is not refusing the account, it is
+saying the account has been asked too often, and asking again on the next poll is what keeps it
+limited. So the first `429` pauses for a minute, each one after it doubles that, and the pause is
+capped at fifteen minutes, the ordinary mains cadence: a rate-limited account is then retried no
+faster than a healthy one. A `Retry-After` header is honoured instead of the ladder when Google sends
+one. `TasksRateLimitedError` carries the pause, so `syncTasksCompletion` can tell it apart from a
+malformed response and stay quiet as it does for a refusal.
 
 ## Integration with the event cache and UI
 
@@ -155,6 +163,14 @@ transient failures that the ordinary poll cadence retries.
   the cached state alone and logging it says so instead.
 - Completed tasks are excluded from alert scheduling (`AlertScheduler`), preventing stale
   notifications for finished tasks.
+- **Only a request the account's own view made counts as a mutation.** `observeSyncState` watches the
+  session for a successful `POST` to `sync.sync` or to the Tasks `Sync` RPC and asks for an immediate
+  poll. The poller's own Tasks _read_ is a `POST` to that same RPC through that same session, so it
+  answers `2xx` like a write does; counting it made every poll trigger the next, about one a second,
+  and Google answered the account with `429`. A request the browser process started carries no
+  `webContentsId`, so it is not a mutation: that is the distinction the observer draws. It does not
+  try to tell a page's read from a page's write, so a page's `sync.sync` still counts; that is
+  accepted because its cadence is the page's own rather than a poll the app scheduled.
 - If the user marks a task complete or incomplete from the context menu (`setTaskCompleted`), Magical
   updates the event cache optimistically and schedules an immediate poll. That write outlives a sync
   that disagrees for 30 seconds: Google Tasks takes a moment to record a completion driven through

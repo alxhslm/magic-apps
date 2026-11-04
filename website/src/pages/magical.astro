@@ -115,8 +115,67 @@ const notify = {
         </div>
       </article>
 
-      <!-- 2. toolbar -->
+      <!-- 2. sidebar -->
       <article class="dive dive--flip">
+        <div class="dive__copy">
+          <h3>Work and personal calendars in harmony</h3>
+          <p>
+            View calendars from all your accounts in the sidebar, so you won't accidentally double book yourself.
+          </p>
+          <ul class="notes">
+            <li>Adapts in lockstep with Google Calendar's active Day, Week, or Month view.</li>
+            <li>Click any event to jump straight to it, switching accounts automatically.</li>
+            <li>One-click video call join and instant RSVP directly from the card.</li>
+          </ul>
+        </div>
+        <div class="stage">
+          <div class="sidebar-carousel">
+            <div class="sidebar-carousel__pick" role="tablist" aria-label="Sidebar view mode">
+              <input type="radio" name="sidebar-view" id="sidebar-view-day" checked />
+              <label for="sidebar-view-day">Day</label>
+              <input type="radio" name="sidebar-view" id="sidebar-view-week" />
+              <label for="sidebar-view-week">Week</label>
+              <input type="radio" name="sidebar-view" id="sidebar-view-month" />
+              <label for="sidebar-view-month">Month</label>
+            </div>
+            <div class="sidebar-carousel__views">
+              <div class="sidebar-carousel__slide sidebar-carousel__slide--day">
+                <img
+                  class="shot shot--free shot--panel"
+                  src="assets/shot-sidebar-day-magical.webp"
+                  width="376"
+                  height="652"
+                  alt="The Magical companion sidebar in Day view with single-day hourly schedule"
+                  loading="lazy"
+                />
+              </div>
+              <div class="sidebar-carousel__slide sidebar-carousel__slide--week">
+                <img
+                  class="shot shot--free shot--panel"
+                  src="assets/shot-sidebar-week-magical.webp"
+                  width="376"
+                  height="652"
+                  alt="The Magical companion sidebar in Week view with week scrubber and focused agenda"
+                  loading="lazy"
+                />
+              </div>
+              <div class="sidebar-carousel__slide sidebar-carousel__slide--month">
+                <img
+                  class="shot shot--free shot--panel"
+                  src="assets/shot-sidebar-month-magical.webp"
+                  width="376"
+                  height="652"
+                  alt="The Magical companion sidebar in Month view with a mini month grid and an agenda for the days it draws"
+                  loading="lazy"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <!-- 3. toolbar -->
+      <article class="dive">
         <div class="dive__copy">
           <h3>A toolbar you can rearrange</h3>
           <p>
@@ -146,8 +205,8 @@ const notify = {
         </div>
       </article>
 
-      <!-- 3. menu bar -->
-      <article class="dive">
+      <!-- 4. menu bar -->
+      <article class="dive dive--flip">
         <div class="dive__copy">
           <h3>A mini calendar in the menu bar</h3>
           <p>
@@ -172,8 +231,8 @@ const notify = {
         </div>
       </article>
 
-      <!-- 4. widgets -->
-      <article class="dive dive--flip">
+      <!-- 5. widgets -->
+      <article class="dive">
         <div class="dive__copy">
           <h3>And on the desktop too</h3>
           <p>
@@ -197,16 +256,16 @@ const notify = {
         </div>
       </article>
 
-      <!-- 5. tasks -->
-      <article class="dive">
+      <!-- 6. tasks -->
+      <article class="dive dive--flip">
         <div class="dive__copy">
           <h3>Your to-dos right next to your meetings</h3>
           <p>
-            Google Tasks appear in the menu bar and the widgets, in the same list as your
+            Google Tasks appear in the sidebar, menu bar and widgets, in the same list as your
             events.
           </p>
           <ul class="notes">
-            <li>Mark one complete from the menu bar.</li>
+            <li>Mark one complete from the sidebar or menu bar.</li>
             <li>Add one with the toolbar's task button, which opens Google's own task field.</li>
             <li>Choose whether completed tasks are shown at all.</li>
           </ul>
@@ -223,8 +282,8 @@ const notify = {
         </div>
       </article>
 
-      <!-- 6. dock -->
-      <article class="dive dive--flip">
+      <!-- 7. dock -->
+      <article class="dive">
         <div class="dive__copy">
           <h3>Today's date on your dock</h3>
           <p>
@@ -245,8 +304,8 @@ const notify = {
         </div>
       </article>
 
-      <!-- 7. notifications -->
-      <article class="dive">
+      <!-- 8. notifications -->
+      <article class="dive dive--flip">
         <div class="dive__copy">
           <h3>Never late for a call</h3>
           <p>
@@ -269,8 +328,8 @@ const notify = {
         </div>
       </article>
 
-      <!-- 8. focus -->
-      <article class="dive dive--flip">
+      <!-- 9. focus -->
+      <article class="dive">
         <div class="dive__copy">
           <h3>Work stays in work hours</h3>
           <p>

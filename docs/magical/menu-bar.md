@@ -94,6 +94,7 @@ status item's width from moving while it ticks is shared and in
 | `events`                                                              | `events`, kept within the 1900–2100 span and sorted by start. |
 | `activeAccountId`                                                     | `selectedAccountId`, falling back to the first account.       |
 | `hiddenCalendars`                                                     | `disabledCalendars`, the persisted filter.                    |
+| `hiddenCalendarsRevision`                                             | The version of the filter this push carries.                  |
 | `isCalendarCollapsed`, `isOffline`, `isRestricted`, `lastSyncedAt`    | The matching flags and the banner's age.                      |
 | `menuBarDisplayMode`, `showMenuBarAccountColor`, `showCompletedTasks` | The title's and the agenda's settings.                        |
 
@@ -105,6 +106,11 @@ payload matches the previous one. `TrayModel.update(from:)` checks equality befo
 `filteredEvents` is the one list the title, the hero band, the agenda and the mini-month dots all read,
 so hiding a calendar hides an event from every one of them at once. An event held by several calendars
 goes only when every one of them is hidden.
+
+A filter toggle is pushed as a filter-only `tray.update` carrying `hiddenCalendars`,
+`hiddenCalendarsRevision` and `showCompletedTasks`, not the event list. `TrayModel.update` applies the
+keys it is given, so the checkbox moves as soon as the click is saved instead of waiting for every
+event to be serialised. The full payload follows for the widget cache.
 
 `TrayModel.scheduleFeedItems` groups `filteredEvents` by day and inserts month headers and
 empty-period dividers between the groups. Scrolling near either boundary or navigating months calls
@@ -157,7 +163,9 @@ Seven columns, Monday first regardless of locale, with neighbouring months' days
 Each day shows up to four dots, one per distinct calendar colour with an event that day, from
 `TrayModel.densityDotsByDay`. Today carries a solid disc and the selection a ring, so the two states
 compose. Clicking a day calls `requestScrollTo(date:)`, and scrolling the agenda calls `selectDate(_:)`,
-both across month boundaries.
+both across month boundaries. Hovering a day's events in the agenda draws that day as the selection
+(`hoveredDate`) and moves the grid to its month, without changing the selected date or asking the
+agenda to scroll. The companion sidebar does the same.
 
 ### Month header
 
@@ -194,8 +202,27 @@ The filter lives in the header menu, shown when more than one calendar or a task
 a calendar hides its events from `filteredEvents`, so the dots, the agenda, the hero band and the title
 change together. The set persists through `tray.setHiddenCalendars` into `hiddenCalendars`, each entry
 naming its account as well as its calendar, because a calendar id alone is not unique across accounts.
-A push seeds the set until the user touches the filter in the session; after that their live choice
-wins.
+The menu bar popover and the companion sidebar run in different processes, so each holds its own
+`TrayModel`. Both toggle the filter optimistically and both persist through the main process, which
+bumps `hiddenCalendarsRevision` on every save and pushes the stored set to both surfaces. A surface
+applies a push only when the revision is newer than the last one it saw: an update already in flight
+when the user clicks must not undo the click, and a permanent session latch must not ignore the other
+surface for the rest of the run. The last write wins, and both panes settle on it.
+
+The same menu's **Show Completed Tasks** toggle is part of that shared state. The menu bar payload
+already carried `showCompletedTasks`; the sidebar payload carries it too, and a toggle there reports
+`sidebarSetShowCompletedTasks`, which is persisted and pushed back to both surfaces. Without that the
+sidebar filtered completed tasks only in its own copy and the menu bar never saw the change.
+
+It appears in the filter menu, beside the calendars it filters, and in the gear menu, because the
+filter menu only exists when there is more than one calendar or a task to filter. Both controls read
+the one synced setting, so changing either moves both surfaces. The settings window keeps its own row
+as the app-wide preference, and that path pushes both surfaces too.
+
+Every setting change is echoed back to the helper as `settings.update` after it is saved, so an open
+settings window matches a toggle made in the filter or gear menu. The helper applies the echo with
+its change events suppressed, so the echo cannot become a loop. This rides the existing helper RPC:
+the sidebar's half is in-process with Main, and the popover's half needs no channel of its own.
 
 A macOS Focus can silence a calendar too, and that set is kept apart from this one. A Focus-silenced
 calendar is listed in the menu unticked and not tickable, so the menu still says which calendars exist

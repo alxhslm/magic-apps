@@ -42,5 +42,6 @@ export function toolbarLabels(): Record<string, string> {
     'toolbar.nav.today': uiString('toolbar.nav.today'),
     'toolbar.nav.today.toolTip': uiString('toolbar.nav.today.toolTip'),
     'toolbar.nav.next': uiString('toolbar.nav.next'),
+    'toolbar.toggleSidebar': uiString('toolbar.toggleSidebar'),
   };
 }

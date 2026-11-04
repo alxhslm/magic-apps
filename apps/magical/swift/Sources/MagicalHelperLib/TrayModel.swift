@@ -251,6 +251,31 @@ public struct TrayEvent: Identifiable, Equatable {
         allDayCalendarDay(startTime, isAllDay: isAllDay)
     }
 
+    /// The last calendar day this entry covers, as local midnight.
+    public var lastCoveredDay: Date {
+        if isAllDay {
+            let lastDayInstant = endTime.addingTimeInterval(-1)
+            return allDayCalendarDay(lastDayInstant, isAllDay: true)
+        } else {
+            let endEffective = endTime.addingTimeInterval(-1)
+            return Calendar.current.startOfDay(for: max(startTime, endEffective))
+        }
+    }
+
+    /// Whether this event occurs on, or spans across, the given calendar day.
+    public func occurs(on date: Date, calendar: Calendar = .current) -> Bool {
+        let dayStart = calendar.startOfDay(for: date)
+        guard let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart) else { return false }
+
+        if isAllDay {
+            let startDay = scheduleDay
+            let endDay = lastCoveredDay
+            return dayStart >= startDay && dayStart <= endDay
+        } else {
+            return startTime < dayEnd && endTime > dayStart
+        }
+    }
+
     public var dateKey: String {
         TrayFormatters.dateFormatter.string(from: scheduleDay)
     }
@@ -262,6 +287,30 @@ public struct TrayEvent: Identifiable, Equatable {
         let start = TrayFormatters.timeFormatter.string(from: startTime)
         let end = TrayFormatters.timeFormatter.string(from: endTime)
         return "\(start) – \(end)"
+    }
+
+    /// Formatted time string adjusted for a specific day when an event spans across midnight.
+    public func formattedTime(on date: Date, calendar: Calendar = .current) -> String {
+        if isAllDay {
+            return String(localized: "All day")
+        }
+        let dayStart = calendar.startOfDay(for: date)
+        guard let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart) else {
+            return formattedTime
+        }
+        let startsBefore = startTime < dayStart
+        let endsAfter = endTime > dayEnd
+
+        let timeDf = TrayFormatters.timeFormatter
+        if startsBefore, endsAfter {
+            return String(localized: "All day (multi-day)")
+        } else if startsBefore {
+            return "→ \(timeDf.string(from: endTime))"
+        } else if endsAfter {
+            return "\(timeDf.string(from: startTime)) →"
+        } else {
+            return "\(timeDf.string(from: startTime)) – \(timeDf.string(from: endTime))"
+        }
     }
 
     /// Named only where the name earns its place, and worded exactly as
@@ -309,8 +358,17 @@ public final class TrayModel: ObservableObject {
 
     @Published public var isCalendarCollapsed: Bool = false
     @Published public var selectedDate: Date = .init()
+    /// The day under the pointer in the agenda. The mini month draws this as its
+    /// selection while it is set, so hovering an event highlights its date without
+    /// moving the agenda.
+    @Published public var hoveredDate: Date? = nil
     @Published public var displayedMonthDate: Date = .init()
     @Published public var requestedScrollDate: Date? = nil
+
+    public var highlightedDate: Date {
+        hoveredDate ?? selectedDate
+    }
+
     @Published public var isOffline: Bool = false
     /// A Workspace administrator is refusing Calendar's own web endpoint for an account.
     ///
@@ -384,16 +442,24 @@ public final class TrayModel: ObservableObject {
                 explicitCalendars = parsed
             }
         }
-        // The persisted set wins until the user touches the filter in this session; after
-        // that their live choice does, so a `tray.update` mid-toggle cannot undo it.
+        // The menu bar and the companion sidebar run in different processes, and each
+        // toggles its own copy at once while the main process persists it. Revision order
+        // is what keeps those copies agreeing: a push that is not newer than the last one
+        // applied is a payload from before the user's toggle and must not undo it, while a
+        // newer one is the other surface's change and must be applied. A permanent
+        // "this session's choice wins" flag cannot do both, and is why a filter set in one
+        // surface stayed stale in the other.
         //
         // Logged because the two halves fail identically from the outside: a filter that
         // was never saved and one that was saved and never applied both read as a filter
         // that forgot itself, and only the main process logs the saving half.
         if let hidden = params["hiddenCalendars"] as? [[String: Any]] {
-            if hasUserToggledCalendars {
-                HelperLog.info("Tray", "Keeping this session's filter over the \(hidden.count) stored")
-            } else {
+            let revision = params["hiddenCalendarsRevision"] as? Int
+            let isNewer = revision.map { $0 > lastAppliedFilterRevision } ?? true
+            if isNewer {
+                if let revision {
+                    lastAppliedFilterRevision = revision
+                }
                 let parsed: Set<CalendarRef> = Set(hidden.compactMap { entry in
                     guard let accountId = entry["accountId"] as? String,
                           let calendarId = entry["calendarId"] as? String else { return nil }
@@ -403,6 +469,11 @@ public final class TrayModel: ObservableObject {
                     disabledCalendars = parsed
                 }
                 HelperLog.info("Tray", "Applied \(hidden.count) stored hidden calendar(s)")
+            } else if let revision {
+                HelperLog.info(
+                    "Tray",
+                    "Ignored \(hidden.count) hidden calendar(s) at revision \(revision); already at \(lastAppliedFilterRevision)"
+                )
             }
         }
         if let rawEvents = params["events"] as? [[String: Any]] {
@@ -461,7 +532,9 @@ public final class TrayModel: ObservableObject {
     }
 
     @Published public var explicitCalendars: [TrayCalendarItem] = []
-    private var hasUserToggledCalendars: Bool = false
+    /// The newest `hiddenCalendarsRevision` this model has applied. -1 applies the first
+    /// push, including one from an older main process that carried no revision.
+    private var lastAppliedFilterRevision: Int = -1
 
     /// Available calendars derived from explicit list or fallback to accounts
     public var availableCalendars: [TrayCalendarItem] {
@@ -501,7 +574,6 @@ public final class TrayModel: ObservableObject {
     }
 
     public func toggleCalendar(_ calendar: TrayCalendarItem) {
-        hasUserToggledCalendars = true
         let ref = CalendarRef(accountId: calendar.accountId, calendarId: calendar.id)
         if disabledCalendars.contains(ref) {
             disabledCalendars.remove(ref)
@@ -513,7 +585,6 @@ public final class TrayModel: ObservableObject {
     }
 
     public func showAllCalendars() {
-        hasUserToggledCalendars = true
         disabledCalendars.removeAll()
         HelperLog.info("Tray", "Showing all calendars")
         onCalendarFilterChanged?([])
@@ -599,14 +670,26 @@ public final class TrayModel: ObservableObject {
             return cached
         }
         var map: [String: [Color]] = [:]
+        let calendar = Calendar.current
+        let df = TrayFormatters.dateFormatter
+
         for event in filteredEvents {
-            let key = event.dateKey
             let color = Color(hex: event.colorHex)
-            var list = map[key] ?? []
-            if !list.contains(color), list.count < 4 {
-                list.append(color)
+            var currentDay = event.scheduleDay
+            let lastDay = event.lastCoveredDay
+            var dayCount = 0
+
+            while currentDay <= lastDay, dayCount < 60 {
+                let key = df.string(from: currentDay)
+                var list = map[key] ?? []
+                if !list.contains(color), list.count < 4 {
+                    list.append(color)
+                    map[key] = list
+                }
+                guard let nextDay = calendar.date(byAdding: .day, value: 1, to: currentDay) else { break }
+                currentDay = nextDay
+                dayCount += 1
             }
-            map[key] = list
         }
         cachedDensityDots = map
         return map
@@ -893,6 +976,16 @@ public final class TrayModel: ObservableObject {
         }
     }
 
+    /// The pointer is over an agenda day. The grid follows that day's month, which is the
+    /// forward movement the top-anchored feed does not show on its own.
+    public func hoverScheduleDate(_ date: Date?) {
+        hoveredDate = date
+        guard let date,
+              !Calendar.current.isDate(date, equalTo: displayedMonthDate, toGranularity: .month)
+        else { return }
+        displayedMonthDate = date
+    }
+
     public func requestMoreEvents(around date: Date) {
         if let last = lastEnsuredRangeDate, abs(date.timeIntervalSince(last)) < 30 * 86400 {
             return
@@ -904,6 +997,7 @@ public final class TrayModel: ObservableObject {
     public func prepareForPresentation() {
         let today = Date()
         let cal = Calendar.current
+        hoveredDate = nil
         if !cal.isDateInToday(selectedDate) {
             selectedDate = today
         }

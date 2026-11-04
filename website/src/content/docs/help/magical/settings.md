@@ -54,7 +54,7 @@ The Appearance tab customises the calendar view, Google Calendar web interface, 
 
 - **Hide app sidebar**: Hides the left navigation sidebar in Google Calendar to give more room to the week or month grid.
 - **Hide Tasks tab**: Hides the Calendar and Tasks switcher at the top of the app. Tasks stays reachable from the sidebar. See [Google Tasks](/help/magical/tasks/).
-- **Show completed tasks**: Toggles whether completed Google Tasks remain visible in the menu bar popover and agenda widgets. See [Google Tasks](/help/magical/tasks/).
+- **Show completed tasks**: Toggles whether completed Google Tasks remain visible in the companion sidebar, the menu bar popover and the agenda widgets. It is the same setting as the one in the filter menu, and a change anywhere updates every surface immediately. See [Google Tasks](/help/magical/tasks/).
 
 ### Dock & Menu Bar
 

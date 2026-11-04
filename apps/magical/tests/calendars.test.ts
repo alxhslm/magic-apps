@@ -6,6 +6,8 @@ import {
   resolveCanonicalCalendarId,
   friendlyCalendarName,
   pollableCalendarIds,
+  canonicaliseCalendarId,
+  hiddenKey,
   GOOGLE_CALENDAR_DEFAULT_SWATCHES,
 } from '../src/calendars.js';
 
@@ -205,7 +207,7 @@ describe('calendars', () => {
       expect(calendars[0].name).toBe('alice@example.com');
       expect(calendars[0].colorHex).toBe('#a855f7');
 
-      expect(calendars[1].id).toBe('en.uk#holiday@group.v.calendar.google.com');
+      expect(calendars[1].id).toBe('en-gb.uk#holiday@group.v.calendar.google.com');
       expect(calendars[1].name).toBe('UK Holidays');
       expect(calendars[1].colorHex).toBe(GOOGLE_CALENDAR_DEFAULT_SWATCHES[0]);
       expect(calendarColorMap.get('acc_1')?.get('alice@example.com')).toBe('#a855f7');
@@ -275,6 +277,45 @@ describe('calendars', () => {
       expect(calendarColorMap.get('acc_personal')?.get(shared)).toBe('#828BC2');
       expect(calendarColorMap.get('acc_work')?.get(shared)).toBe('#55B080');
       expect(calendarNameMap.get('acc_work')?.get(shared)).toBe('Birthdays');
+    });
+  });
+
+  describe('canonicaliseCalendarId', () => {
+    it('normalises legacy Google holiday calendar IDs to modern BCP-47 IDs', () => {
+      expect(canonicaliseCalendarId('en.uk#holiday@group.v.calendar.google.com')).toBe(
+        'en-gb.uk#holiday@group.v.calendar.google.com',
+      );
+      expect(canonicaliseCalendarId('en.usa#holiday@group.v.calendar.google.com')).toBe(
+        'en-us.usa#holiday@group.v.calendar.google.com',
+      );
+      expect(canonicaliseCalendarId('de.german#holiday@group.v.calendar.google.com')).toBe(
+        'de-de.german#holiday@group.v.calendar.google.com',
+      );
+    });
+
+    it('decodes URL-encoded #holiday', () => {
+      expect(canonicaliseCalendarId('en.uk%23holiday@group.v.calendar.google.com')).toBe(
+        'en-gb.uk#holiday@group.v.calendar.google.com',
+      );
+    });
+
+    it('preserves already-canonical or standard IDs', () => {
+      expect(canonicaliseCalendarId('en-gb.uk#holiday@group.v.calendar.google.com')).toBe(
+        'en-gb.uk#holiday@group.v.calendar.google.com',
+      );
+      expect(canonicaliseCalendarId('alice@example.com')).toBe('alice@example.com');
+      expect(canonicaliseCalendarId('tasks@tasks.google.com')).toBe('tasks@tasks.google.com');
+    });
+  });
+
+  describe('hiddenKey', () => {
+    it('creates account-scoped keys using canonicalised calendar IDs', () => {
+      expect(hiddenKey('acc_1', 'en.uk#holiday@group.v.calendar.google.com')).toBe(
+        'acc_1\0en-gb.uk#holiday@group.v.calendar.google.com',
+      );
+      expect(hiddenKey('acc_1', 'en-gb.uk#holiday@group.v.calendar.google.com')).toBe(
+        'acc_1\0en-gb.uk#holiday@group.v.calendar.google.com',
+      );
     });
   });
 });

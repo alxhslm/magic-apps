@@ -31,6 +31,7 @@ let symbols: [(file: String, symbol: String)] = [
     ("trash", "trash"),
     ("envelope", "envelope"),
     ("printer", "printer"),
+    ("sidebar-right", "sidebar.right"),
 ]
 
 /// Large enough that the mask survives a Retina line of body text without
@@ -42,7 +43,7 @@ for entry in symbols {
     let configuration = NSImage.SymbolConfiguration(pointSize: pointSize, weight: .regular)
     guard
         let symbol = NSImage(systemSymbolName: entry.symbol, accessibilityDescription: nil)?
-        .withSymbolConfiguration(configuration)
+            .withSymbolConfiguration(configuration)
     else {
         print("missing: \(entry.symbol)")
         exit(1)

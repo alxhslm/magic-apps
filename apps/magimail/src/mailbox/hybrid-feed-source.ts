@@ -1,4 +1,5 @@
 import type { WebContentsView } from 'electron';
+import { viewIsAlive } from '@magimail/core';
 import { createLogger } from '@magimail/core/logger';
 import {
   AtomFeedPoller,
@@ -122,7 +123,7 @@ export class HybridFeedSource implements MailboxSource {
         this.options.wake ??
         (async (accId) => {
           const view = this.options.getView?.(accId);
-          if (!view || view.webContents.isDestroyed()) return undefined;
+          if (!viewIsAlive(view)) return undefined;
           return { view, release: () => {} };
         }),
       onActionHeld: this.options.onActionHeld,
@@ -159,7 +160,7 @@ export class HybridFeedSource implements MailboxSource {
 
   public async getRecentMessages(limit = 20): Promise<TrayMessageItem[]> {
     const view = this.options.getView?.(this.accountId);
-    if (view && !view.webContents.isDestroyed()) {
+    if (viewIsAlive(view)) {
       try {
         const snapshot = await readCachedInboxData(view.webContents, limit);
         if (snapshot) {
@@ -208,6 +209,10 @@ export class HybridFeedSource implements MailboxSource {
   }
 
   public async triageThread(threadId: string, action: TriageAction): Promise<boolean> {
+    // Triage leaves no other trace: the window does not move and a refusal rolls the
+    // ledger back without a word, so the line has to say it was asked for.
+    log.info(`Triage ${action} on ${this.accountId}: thread=${threadId}`);
+
     // 0ms latency: update ledger optimistically, but not yet confirmed.
     this.ledger.recordLocalTriage(threadId, threadId, action);
     this.ledger.markLocalTriageInFlight(threadId, threadId);
@@ -225,7 +230,12 @@ export class HybridFeedSource implements MailboxSource {
     }
 
     // The optimistic row must not outlive a failed action.
-    if (this.ledger.rollbackLocalTriage(threadId, threadId)) {
+    const rolledBack = this.ledger.rollbackLocalTriage(threadId, threadId);
+    log.warn(
+      `Triage ${action} on ${this.accountId} failed for thread=${threadId}; ` +
+        (rolledBack ? 'rolled back' : 'no pending row'),
+    );
+    if (rolledBack) {
       this.emitChange({
         addedMessageIds: [],
         removedMessageIds: [],
@@ -239,7 +249,7 @@ export class HybridFeedSource implements MailboxSource {
     await this.poller.pollNow();
 
     const view = this.options.getView?.(this.accountId);
-    if (view && !view.webContents.isDestroyed()) {
+    if (viewIsAlive(view)) {
       try {
         const snapshot = await readCachedInboxData(view.webContents, CACHE_HINT_MAX_ROWS);
         if (snapshot?.messages) {
@@ -317,14 +327,14 @@ export class HybridFeedSource implements MailboxSource {
 
     if (this.hintReadInFlight) return;
     const view = this.options.getView?.(this.accountId);
-    if (!view || view.webContents.isDestroyed()) return;
+    if (!viewIsAlive(view)) return;
 
     this.hintReadInFlight = true;
     try {
       for (let attempt = 0; attempt < CACHE_REREAD_ATTEMPTS; attempt += 1) {
         if (attempt > 0) {
           await new Promise((resolve) => setTimeout(resolve, CACHE_REREAD_INTERVAL_MS));
-          if (view.webContents.isDestroyed()) return;
+          if (!viewIsAlive(view)) return;
         }
         let moved = 0;
         try {
@@ -418,7 +428,7 @@ export class HybridFeedSource implements MailboxSource {
 
   public async dispatchUniversalSyncNudge(): Promise<void> {
     const view = this.options.getView?.(this.accountId);
-    if (!view || view.webContents.isDestroyed()) return;
+    if (!viewIsAlive(view)) return;
     await pressRefreshControl(view.webContents);
   }
 
