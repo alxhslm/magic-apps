@@ -71,6 +71,11 @@ resolution is one of the few things that can cause it, so the record is what dat
 occurrence against the rest of the log. Those listeners are registered on ready, because `screen`
 throws before the app is ready and the module loads before then.
 
+`display-metrics-changed` fires about eleven times a second while a display wakes or a resolution
+settles, which was 15,971 lines in three days on one machine. A burst is logged once as it starts and
+once as it ends, with the number of events and how long they spanned; a lone event keeps the single
+line. The repeats carried nothing the count does not.
+
 A `clean-exit` reason is logged at `info`. Ordinary teardown must not read as a crash, or the level
 stops meaning anything.
 

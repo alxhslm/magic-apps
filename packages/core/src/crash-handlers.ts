@@ -16,6 +16,15 @@ import { createLogger } from './logger.js';
 
 const log = createLogger('Crash');
 
+/**
+ * How long the display has to stay quiet before a metrics burst is over.
+ *
+ * macOS emits `display-metrics-changed` about eleven times a second while a display
+ * wakes or a resolution settles. One machine logged 15,971 of them in three days, in
+ * bursts of up to a hundred, which buries everything else in the file.
+ */
+const DISPLAY_SETTLE_QUIET_MS = 1000;
+
 export interface CrashHandlerOptions {
   /**
    * Names the account a renderer belonged to, given its `webContents` id.
@@ -60,6 +69,35 @@ export function installCrashHandlers(options: CrashHandlerOptions = {}): void {
   void app.whenReady().then(() => {
     screen.on('display-added', () => log.info('Display added'));
     screen.on('display-removed', () => log.info('Display removed'));
-    screen.on('display-metrics-changed', () => log.info('Display metrics changed'));
+
+    // One line as the burst starts, one when it ends, instead of a line per event.
+    // The count and the span are what the repeats could not say.
+    let burst:
+      | { count: number; startedAt: number; lastAt: number; timer?: ReturnType<typeof setTimeout> }
+      | undefined;
+
+    const endBurst = () => {
+      if (!burst) return;
+      const { count, startedAt, lastAt } = burst;
+      burst = undefined;
+      if (count > 1) {
+        log.info(`Display metrics changed ×${count} over ${lastAt - startedAt}ms`);
+      }
+    };
+
+    screen.on('display-metrics-changed', () => {
+      const now = Date.now();
+      if (burst) {
+        if (burst.timer) clearTimeout(burst.timer);
+        burst.count += 1;
+        burst.lastAt = now;
+      } else {
+        log.info('Display metrics changed');
+        burst = { count: 1, startedAt: now, lastAt: now };
+      }
+      burst.timer = setTimeout(endBurst, DISPLAY_SETTLE_QUIET_MS);
+      // A pending summary must not hold the app open on quit.
+      burst.timer.unref?.();
+    });
   });
 }
