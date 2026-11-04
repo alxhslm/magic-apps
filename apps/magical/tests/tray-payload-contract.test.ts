@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -150,6 +150,7 @@ describe('Magical Tray Payload Contracts', () => {
     expect(typeof fixture.menuBarDisplayMode).toBe('string');
     expect(typeof fixture.showMenuBarAccountColor).toBe('boolean');
     expect(Array.isArray(fixture.hiddenCalendars)).toBe(true);
+    expect(typeof fixture.hiddenCalendarsRevision).toBe('number');
     expect(typeof fixture.showCompletedTasks).toBe('boolean');
   });
 

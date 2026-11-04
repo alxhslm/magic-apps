@@ -868,6 +868,83 @@ kbd {
   display: none;
 }
 
+/* --- sidebar carousel: week, month and day views swapped by radio --- */
+
+.sidebar-carousel {
+  display: grid;
+  justify-items: center;
+  gap: 1rem;
+  width: 100%;
+}
+
+.sidebar-carousel__pick {
+  display: inline-flex;
+  padding: 3px;
+  background: rgb(11 9 24 / 65%);
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 25%);
+}
+
+.sidebar-carousel__pick input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.sidebar-carousel__pick label {
+  padding: 0.3rem 0.95rem;
+  border-radius: 999px;
+  font-size: var(--fs-small);
+  color: var(--mist);
+  cursor: pointer;
+  transition:
+    background 140ms ease,
+    color 140ms ease;
+  user-select: none;
+}
+
+.sidebar-carousel__pick label:hover {
+  color: var(--paper);
+}
+
+.sidebar-carousel__pick input:checked + label {
+  background: rgb(244 241 234 / 14%);
+  color: var(--paper);
+  font-weight: 500;
+}
+
+.sidebar-carousel__pick input:focus-visible + label {
+  outline: 2px solid var(--gilt);
+  outline-offset: 2px;
+}
+
+.sidebar-carousel__views {
+  display: grid;
+  place-items: center;
+  width: 100%;
+}
+
+.sidebar-carousel__slide {
+  grid-area: 1 / 1;
+  transition:
+    opacity 160ms ease,
+    transform 160ms ease;
+}
+
+.sidebar-carousel:has(#sidebar-view-week:checked)
+  .sidebar-carousel__slide:not(.sidebar-carousel__slide--week),
+.sidebar-carousel:has(#sidebar-view-month:checked)
+  .sidebar-carousel__slide:not(.sidebar-carousel__slide--month),
+.sidebar-carousel:has(#sidebar-view-day:checked)
+  .sidebar-carousel__slide:not(.sidebar-carousel__slide--day) {
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+}
+
 /* --- hero showcase: the apps in action under the hero --- */
 
 .hero-showcase {

@@ -46,6 +46,12 @@ export interface MagicalSettings {
    * not in the desktop client.
    */
   alwaysJoinInBrowser: boolean;
+  /** Whether the native companion sidebar in the main window is visible. */
+  sidebarVisible: boolean;
+  /** Last active calendar timeframe mode (day, week, month, etc.). */
+  lastTimeframe?: string;
+  /** Last active anchor date string (yyyy-MM-dd). */
+  lastDateStr?: string;
   /** Whether the mini calendar month grid in the menu bar tray is collapsed. */
   isCalendarCollapsed: boolean;
   /** Whether the menu bar status item is shown. */
@@ -65,6 +71,17 @@ export interface MagicalSettings {
    * holidays the same id in every account.
    */
   hiddenCalendars: CalendarRef[];
+  /**
+   * Monotonic version of `hiddenCalendars`, bumped on every save.
+   *
+   * The menu bar popover and the companion sidebar run in different processes and each
+   * toggles its own copy optimistically. Both receive the stored set on every push, so
+   * without an order an update already in flight when the user toggles would undo it,
+   * while a permanent "this session's choice wins" latch would ignore the other surface
+   * for the rest of the run. Each surface applies a push only when the revision moves
+   * forward.
+   */
+  hiddenCalendarsRevision: number;
   /**
    * Calendars the user has muted for meeting alerts and invitation banners.
    *
@@ -121,11 +138,14 @@ const DEFAULT_SETTINGS: MagicalSettings = {
   meetingAlertsEnabled: true,
   meetingAlertLeadMinutes: 5,
   alwaysJoinInBrowser: false,
+  sidebarVisible: true,
+  lastTimeframe: 'day',
   isCalendarCollapsed: false,
   showMenuBarIcon: true,
   menuBarDisplayMode: 'iconOnly',
   showMenuBarAccountColor: true,
   hiddenCalendars: [],
+  hiddenCalendarsRevision: 0,
   disabledAlertCalendarIds: [],
   dockBadgeMode: 'allPending',
   askAboutDefaultCalendarApp: true,

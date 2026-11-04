@@ -29,7 +29,8 @@ Clicking the menu bar icon reveals your interactive day agenda, which is also wh
   - Click the **chevron next to the month title** to expand or collapse a compact monthly grid with density dots for busy days.
   - Click the **Month Title** at any time to instantly jump the agenda back to **Today**.
   - Click any **date cell** in the mini month to smoothly scroll the agenda timeline straight to that day.
-  - **Endless Scrolling**: As you scroll towards the bottom of your agenda, Magical automatically streams upcoming events for the next 90 days.
+  - **Hovering** a day's events in the agenda highlights that day in the grid and moves the grid to its month, without moving the agenda underneath the pointer.
+  - **Endless Scrolling**: As you scroll towards the bottom of your agenda, Magical fetches and streams the next few months of events automatically.
 - <span class="sym sym-calendar-badge-plus" aria-hidden="true"></span> **Quick Add**: Opens the event composer from the header.
 - **Footer Link**: A dedicated **Open Calendar** button at the bottom of the popover brings the main window forward.
 
@@ -44,6 +45,7 @@ The popover header includes quick controls to keep your view focused:
 - <span class="sym sym-filter" aria-hidden="true"></span> **Filter Menu**:
   - Shows all connected Google accounts and their sub-calendars (Primary, Team, Birthdays, Holidays, and subscribed calendars).
   - Toggle any calendar on or off with a single click to instantly declutter your agenda view.
+  - Also carries **Show Completed Tasks**. Everything in this menu is kept in step with the [companion sidebar](/help/magical/sidebar/) and the settings window, so a change in one place moves the others immediately.
 - **Search Bar & Account Target**:
   - Type in the search box to find meetings by title, organiser, or location.
   - Click the **magnifier icon** in the search field to select a specific account or search across all accounts simultaneously.

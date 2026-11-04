@@ -6,7 +6,7 @@ import { conferenceLabel } from './notification-manager.js';
 import { toNativeMeetingUrl } from './calendar-service.js';
 import type { SerializedTrayAccount, SerializedTrayEvent } from './menubar-manager.js';
 import { uiString } from './strings.js';
-import type { SerializedTrayCalendar } from './calendars.js';
+import { type SerializedTrayCalendar, canonicaliseCalendarId } from './calendars.js';
 import type { CalendarRef } from './settings-store.js';
 
 const log = createLogger('WidgetCache');
@@ -259,7 +259,7 @@ export function buildWidgetCache(input: WidgetCacheInput): WidgetCache {
     })),
     hiddenCalendars: hiddenCalendars.map(({ accountId, calendarId }) => ({
       accountId,
-      calendarId,
+      calendarId: canonicaliseCalendarId(calendarId),
     })),
     ...(activeAccountId ? { activeAccountId } : {}),
     ...(isFocusActive !== undefined ? { isFocusActive } : {}),

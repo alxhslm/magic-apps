@@ -39,6 +39,7 @@ Both apps adhere to three shared foundations:
 - [Getting Started & Caching](/help/magical/getting-started/)
 - [Settings Reference](/help/magical/settings/)
 - [Window Toolbar](/help/magical/toolbar/)
+- [Companion Sidebar](/help/magical/sidebar/)
 - [Google Tasks](/help/magical/tasks/)
 - [Invitations & Badges](/help/magical/invitation-tray/)
 - [Menu Bar & Popover](/help/magical/menu-bar/)

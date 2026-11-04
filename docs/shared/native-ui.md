@@ -142,6 +142,13 @@ The monitor acts on release rather than press, which is what Chrome and AppKit b
 It is a local monitor, so it sees an event before the responder chain does; returning nil consumes
 the event, and the same press cannot also reach the web view.
 
+An overlaid native pane can own the gesture instead. `ToolbarManagerBase.shouldIgnoreMouseNavigation(_:)`
+is asked before the monitor accumulates any travel, and Magical's toolbar answers true for a
+`scrollWheel` over the companion sidebar. Both surfaces install local monitors and both see every
+event, so without that answer the window-wide monitor had already counted the travel by the time the
+sidebar consumed it: one swipe moved a day in the sidebar and navigated the calendar period at the
+same time. Side buttons are not excluded, because Back still means Back over the sidebar.
+
 The View menu's Back and Forward move the active account through its history, and both items are
 enabled from `canGoBack()` and `canGoForward()`, so they grey out when there is nowhere to go, as a
 browser's do. When an account view in Magimail is in a thread with no prior session history entry

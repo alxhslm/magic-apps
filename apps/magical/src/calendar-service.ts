@@ -161,6 +161,16 @@ const BACKOFF_CAP_MS = 60 * 60 * 1000;
 /** Ignore a focus re-poll this soon after the last one, so window switching is free. */
 const FOCUS_POLL_MIN_GAP_MS = 60 * 1000;
 
+/**
+ * Write-settling delay after observing a sync mutation in Google Calendar web UI.
+ *
+ * Gives Google's backend time to commit and index the write before we fetch the range.
+ */
+const CHANGE_HINT_POLL_DELAY_MS = 600;
+
+/** Rate-limits rapid sync mutations (e.g. dragging, multi-deletes). */
+const CHANGE_HINT_COOLDOWN_MS = 2500;
+
 /** How often to retry an action held back while the user edits, and when to give up. */
 const HELD_RETRY_MS = 5_000;
 const HELD_EXPIRY_MS = 15 * 60 * 1000;
@@ -441,6 +451,9 @@ export class CalendarService {
   /** Timestamp of the most-recently-started `pollAll` — used by `refreshIfStale`. */
   private lastPollStartedAt: number | null = null;
   private isPolling = false;
+  private hintTimer: ReturnType<typeof setTimeout> | null = null;
+  private lastHintPollAt = 0;
+  private needsFollowUpPoll = false;
   public onEventsUpdated?: (events: Map<string, NormalizedCalendarEvent[]>) => void;
 
   public getCachedEvents(): Map<string, NormalizedCalendarEvent[]> {
@@ -726,6 +739,35 @@ export class CalendarService {
   public pollOnFocus(): void {
     if (Date.now() - this.lastPollAt < FOCUS_POLL_MIN_GAP_MS) return;
     this.pollNow();
+  }
+
+  /**
+   * Triggers an accelerated poll in response to user actions in the Google Calendar web UI
+   * (e.g. creating, updating, or deleting an event, or completing a task).
+   *
+   * Rate-limited with a write-settling delay so Google's backend has completed committing
+   * the mutation before we query for the updated event range.
+   */
+  public requestImmediatePoll(_accountId?: string): void {
+    if (this.isSuspended) return;
+
+    if (this.isPolling) {
+      this.needsFollowUpPoll = true;
+    }
+
+    if (this.hintTimer) return;
+
+    const sinceLastPoll = Date.now() - this.lastHintPollAt;
+    const delay =
+      sinceLastPoll >= CHANGE_HINT_COOLDOWN_MS
+        ? CHANGE_HINT_POLL_DELAY_MS
+        : Math.max(CHANGE_HINT_POLL_DELAY_MS, CHANGE_HINT_COOLDOWN_MS - sinceLastPoll);
+
+    this.hintTimer = setTimeout(() => {
+      this.hintTimer = null;
+      this.lastHintPollAt = Date.now();
+      void this.pollAll();
+    }, delay);
   }
 
   /**
@@ -1485,6 +1527,10 @@ export class CalendarService {
       this.scheduleNext();
     } finally {
       this.isPolling = false;
+      if (this.needsFollowUpPoll) {
+        this.needsFollowUpPoll = false;
+        setTimeout(() => void this.pollAll(), CHANGE_HINT_POLL_DELAY_MS);
+      }
     }
   }
 
