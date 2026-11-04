@@ -564,6 +564,7 @@ function applySettingChange(key: string, value: unknown): void {
           );
         }
         menuBarManager.onHiddenCalendarsChanged = pushFilterStateToSurfaces;
+        menuBarManager.onShowCompletedTasksChanged = pushFilterStateToSurfaces;
         menuBarManager.createTray();
         if (accounts) menuBarManager.updateAccounts(accounts.getAccounts());
         if (calendarService) menuBarManager.updateEvents(calendarService.getCachedEvents());
@@ -1353,6 +1354,7 @@ function createWindow(
     );
   }
   menuBarManager.onHiddenCalendarsChanged = pushFilterStateToSurfaces;
+  menuBarManager.onShowCompletedTasksChanged = pushFilterStateToSurfaces;
 
   if (loadSettings().showMenuBarIcon) {
     menuBarManager.createTray();

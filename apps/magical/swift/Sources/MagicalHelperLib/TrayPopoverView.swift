@@ -147,11 +147,9 @@ public struct TrayPopoverView: View {
 
             // Settings gear menu matching Magimail
             Menu {
-                Toggle("Show Completed Tasks", isOn: Binding(
-                    get: { model.showCompletedTasks },
-                    set: { model.setShowCompletedTasks($0) }
-                ))
-                Divider()
+                // The completed-task toggle is in the filter menu with the calendars it
+                // filters. A second copy here was one more place for the setting to be
+                // changed and one more place for it to disagree.
                 Button("Refresh Calendars") {
                     model.isRefreshing = true
                     onRefresh()

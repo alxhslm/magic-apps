@@ -511,6 +511,16 @@ describe('MenuBarManager', () => {
     expect(onChange).toHaveBeenCalledWith([{ accountId: 'acc_1', calendarId: 'cal_family' }]);
   });
 
+  it('notifies the sidebar when the popover toggles completed tasks', () => {
+    const onChange = vi.fn();
+    manager.onShowCompletedTasksChanged = onChange;
+
+    manager.handleEvent('tray.setShowCompletedTasks', { showCompletedTasks: false });
+
+    expect(mockSaveSetting).toHaveBeenCalledWith('showCompletedTasks', false);
+    expect(onChange).toHaveBeenCalledTimes(1);
+  });
+
   it('sends the filter revision with the tray payload', () => {
     mockLoadSettings.mockReturnValue({
       isCalendarCollapsed: false,

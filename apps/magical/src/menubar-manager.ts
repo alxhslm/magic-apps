@@ -94,6 +94,14 @@ export class MenuBarManager {
   private retryScheduler = new RetryScheduler({ maxRetries: 1, delayMs: 1000 });
 
   public onHiddenCalendarsChanged?: (hidden: CalendarRef[]) => void;
+  /**
+   * Fired when the popover's completed-task toggle changes.
+   *
+   * The sidebar filters completed tasks too, from its own copy of the setting, so saving
+   * it here without telling the other surface leaves the two panes disagreeing until
+   * something unrelated pushes.
+   */
+  public onShowCompletedTasksChanged?: () => void;
 
   constructor(
     private getMainWindow: () => BaseWindow | null,
@@ -641,6 +649,8 @@ export class MenuBarManager {
         const show = Boolean(params.showCompletedTasks);
         saveSetting('showCompletedTasks', show);
         this.pushUpdate();
+        // The callback also pushes the sidebar; this manager only owns the popover.
+        this.onShowCompletedTasksChanged?.();
         return true;
       }
 

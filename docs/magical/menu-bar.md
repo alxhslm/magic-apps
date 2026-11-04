@@ -207,6 +207,10 @@ already carried `showCompletedTasks`; the sidebar payload carries it too, and a 
 `sidebarSetShowCompletedTasks`, which is persisted and pushed back to both surfaces. Without that the
 sidebar filtered completed tasks only in its own copy and the menu bar never saw the change.
 
+It lives in the filter menu only. The gear menu had a second copy on both surfaces, which gave the
+same setting two places to be changed and one more way for the panes to disagree. The settings
+window keeps its own row as the app-wide preference, and that path pushes both surfaces too.
+
 A macOS Focus can silence a calendar too, and that set is kept apart from this one. A Focus-silenced
 calendar is listed in the menu unticked and not tickable, so the menu still says which calendars exist
 and the tick cannot offer a choice the Focus overrules. `showAllCalendars()` gives back the user's own

@@ -21,11 +21,9 @@ public struct SidebarSettingsMenuView: View {
 
     public var body: some View {
         Menu {
-            Toggle("Show Completed Tasks", isOn: Binding(
-                get: { model.showCompletedTasks },
-                set: { model.setShowCompletedTasks($0) }
-            ))
-            Divider()
+            // Completed tasks are a filter, not a preference, so the toggle lives in
+            // `CalendarFilterMenuView` beside the calendar ticks. Keeping a second copy
+            // here gave the same setting two places to be changed and one more to drift.
             Button("Refresh Calendars") {
                 model.isRefreshing = true
                 onRefresh()
