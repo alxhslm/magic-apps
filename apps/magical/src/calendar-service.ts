@@ -8,6 +8,7 @@ import { collapseWorkingLocations } from './working-locations.js';
 import { CalendarPoller, classifyFailure, type SourceHealth } from './calendar-poller.js';
 import { TasksPoller } from './tasks-poller.js';
 import {
+  TasksRateLimitedError,
   TasksRefusedError,
   type TaskEntry,
   type TaskOccurrence,
@@ -1350,10 +1351,10 @@ export class CalendarService {
       // The cached state stands. It is the last thing Google actually said, and
       // guessing is worse than showing it.
       //
-      // A refusal has already been said once by the poller and is paused there, so it is
-      // not repeated here on every poll; a decode or network failure is worth a line
-      // each time it happens.
-      if (!(err instanceof TasksRefusedError)) {
+      // A refusal or a rate limit has already been said once by the poller and is paused
+      // there, so it is not repeated here on every poll; a decode or network failure is
+      // worth a line each time it happens.
+      if (!(err instanceof TasksRefusedError) && !(err instanceof TasksRateLimitedError)) {
         log.warn(`could not sync tasks completion for ${accountId}:`, err);
       }
       return;
