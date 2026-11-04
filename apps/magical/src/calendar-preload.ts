@@ -103,6 +103,32 @@ let lastReportedTimeframe: string | null = null;
 let lastReportedDate: string | null = null;
 
 /**
+ * Month view turns a vertical wheel into a month change.
+ *
+ * It is Calendar's own gesture, and it means a trackpad cannot be used to scroll the
+ * grid without the month moving under it. Horizontal scroll stays with Calendar, which
+ * is how time is moved in its grid; only the vertical, month-changing one is stopped.
+ *
+ * Registered from the preload so it is earlier than Calendar's own listener: a listener
+ * added later loses the race, even with `stopImmediatePropagation`.
+ */
+function isMonthGridWheel(event: WheelEvent): boolean {
+  if (lastReportedTimeframe !== 'month' || event.ctrlKey) return false;
+  if (Math.abs(event.deltaY) < Math.abs(event.deltaX)) return false;
+  const target = event.target;
+  return target instanceof Element && target.closest('[role="main"]') !== null;
+}
+
+window.addEventListener(
+  'wheel',
+  (event) => {
+    if (!isMonthGridWheel(event)) return;
+    event.stopImmediatePropagation();
+  },
+  { capture: true, passive: false },
+);
+
+/**
  * Every date Calendar has drawn in its main grid, from the packed `data-datekey`
  * attribute. The left-hand mini month is outside `[role="main"]`, so its dates cannot
  * be mistaken for the displayed range.

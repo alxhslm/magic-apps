@@ -242,7 +242,12 @@ application tracks CSS `prefers-color-scheme`, so Magical only has to drive that
 
 A trackpad swipe or the mouse's own horizontal wheel moves a day, a week or a month, depending on the
 view: it makes the same semantic DOM clicks the `navGroup` arrows make, through `navPrev` and `navNext`.
-Sideways movement belongs to the wheel here because a calendar has nowhere sideways to scroll. The
+Sideways movement belongs to the wheel here because a calendar has nowhere sideways to scroll.
+
+Month view also treats a vertical wheel over the grid as previous or next month, which leaves a
+trackpad unable to scroll without the month moving under it. `calendar-preload.ts` stops that wheel
+before Calendar's own listener sees it, registered from the preload so it runs first. Horizontal
+wheel is untouched and still moves through time; only the vertical month change is refused. The
 mouse's side buttons navigate history: Calendar manages popups, search, and settings through `popstate`,
 so Back dismisses them and returns to the grid. The calendar grid itself does not navigate periods on
 the side buttons — horizontal scroll moves through time instead.
