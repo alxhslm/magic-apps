@@ -59,24 +59,24 @@ The status item's ownership, the template-image glyph rule and the glyph grid ar
 [`../shared/menu-bar.md`](../shared/menu-bar.md). Magimail adds one mark per account to the title,
 chosen by the `menuBarUnreadDisplay` setting:
 
-| Reading   | Per account                            | Two accounts | What changes when mail arrives    |
-| :-------- | :------------------------------------- | -----------: | :-------------------------------- |
-| `nothing` | Nothing; the glyph alone               |          0pt | Nothing                           |
-| `dots`    | One 6pt dot, 1.5pt gap; 3pt from glyph |       16.5pt | The dot fills or rings            |
-| `numbers` | A two-digit cell, 18.1pt               |         36pt | The digits change, never the cell |
+| Reading                        | Per account                            | Two accounts | What changes when mail arrives    |
+| :----------------------------- | :------------------------------------- | -----------: | :-------------------------------- |
+| Menu bar icon only (`nothing`) | Nothing; the glyph alone               |          0pt | Nothing                           |
+| Unread status dots (`dots`)    | One 6pt dot, 1.5pt gap; 3pt from glyph |       16.5pt | The dot fills or rings            |
+| Unread count (`numbers`)       | A two-digit cell, 18.1pt               |         36pt | The digits change, never the cell |
 
 The rule is that the title's width is a function of the account count and the reading, never of the
-mail. Dots mode draws one dot per account in account list order, filled when that account has unread
-and ringed when it does not, so a dot stays put and changes state rather than disappearing. Numbers
-mode draws one cell per account, in the account's colour; a quiet account shows `0` dimmed to about
-35%, because the zero is what keeps that account's position visible. Both modes reserve their space
-whether or not there is mail, which is why marking a message read in the popover cannot move the glyph
-or the popover anchored to it. An account needing sign-in takes a ring or a dimmed zero rather than a
-filled mark, because its count cannot be trusted.
+mail. Unread status dots draws one dot per account in account list order, filled when that account
+has unread and ringed when it does not, so a dot stays put and changes state rather than disappearing.
+Unread count draws one cell per account, in the account's colour; a quiet account shows `0` dimmed to
+about 35%, because the zero is what keeps that account's position visible. Both readings reserve their
+space whether or not there is mail, which is why marking a message read in the popover cannot move the
+glyph or the popover anchored to it. An account needing sign-in takes a ring or a dimmed zero rather
+than a filled mark, because its count cannot be trusted.
 
-Numbers reserve two digits. `9+` was two characters too, so an exact count costs nothing until it
-passes 99; that crossing grows the cell once by one digit width, about 7.6pt, rather than truncating
-the number. The 15pt jump at ten unread that the old dot-plus-count title had is gone.
+Unread count reserves two digits. `9+` was two characters too, so an exact count costs nothing until
+it passes 99; that crossing grows the cell once by one digit width, about 7.6pt, rather than
+truncating the number. The 15pt jump at ten unread that the old dot-plus-count title had is gone.
 
 The dots and spacers are `NSTextAttachment`s and the words are coloured runs, so AppKit keeps the
 glyph a template image over a light desktop, a dark desktop and a fullscreen menu bar. The popover

@@ -10,24 +10,24 @@ Magimail places a lightweight status icon in your macOS menu bar, allowing you t
 In **Settings → Appearance** (under **Dock & Menu Bar**), which the [Settings Reference](/help/magimail/settings/) describes, these controls decide what the menu bar shows:
 
 - **Show menu bar tray**: shows or hides the Magimail item itself.
-- **Menu bar shows**: chooses **Nothing**, **Dots**, or **Numbers** beside the icon.
+- **Menu bar status**: chooses **Menu bar icon only**, **Unread status dots**, or **Unread count** beside the icon.
 - **Show verification codes**: displays an OTP hero card above your message feeds whenever a verification code arrives.
 - **Keep in menu bar for**: chooses how long (5, 10, 15, or 30 minutes) the code remains pinned before expiring.
 
-### Nothing, dots, or numbers
+### Menu bar status
 
 Each reading draws one mark per account, in the same order as your account list. Examples below use two accounts: Work in blue and Personal in green.
 
 <div class="menu-bar-readings">
   <div class="menu-bar-reading">
-    <div class="menu-bar-reading__title">Nothing</div>
+    <div class="menu-bar-reading__title">Menu bar icon only</div>
     <div class="menu-bar-reading__sample" aria-hidden="true">
       <span class="menu-bar-glyph"></span>
     </div>
     <p class="menu-bar-reading__note">The glyph alone. Nothing moves.</p>
   </div>
   <div class="menu-bar-reading">
-    <div class="menu-bar-reading__title">Dots</div>
+    <div class="menu-bar-reading__title">Unread status dots</div>
     <div class="menu-bar-reading__sample" aria-hidden="true">
       <span class="menu-bar-glyph"></span>
       <span class="menu-bar-dots">
@@ -38,7 +38,7 @@ Each reading draws one mark per account, in the same order as your account list.
     <p class="menu-bar-reading__note">Filled means unread; a ring means caught up.</p>
   </div>
   <div class="menu-bar-reading">
-    <div class="menu-bar-reading__title">Numbers</div>
+    <div class="menu-bar-reading__title">Unread count</div>
     <div class="menu-bar-reading__sample" aria-hidden="true">
       <span class="menu-bar-glyph"></span>
       <span class="menu-bar-numbers">
@@ -50,7 +50,7 @@ Each reading draws one mark per account, in the same order as your account list.
   </div>
 </div>
 
-**Dots** gives you the quickest read: one dot per account, filled when that account has unread mail and ringed when it does not. **Numbers** gives you the count: one cell per account, in the account's colour, with a dimmed `0` for a quiet inbox. **Nothing** leaves just the glyph.
+**Unread status dots** gives you the quickest read: one dot per account, filled when that account has unread mail and ringed when it does not. **Unread count** gives you the count: one cell per account, in the account's colour, with a dimmed `0` for a quiet inbox. **Menu bar icon only** leaves just the glyph.
 
 The item keeps the same width as mail arrives or is read, so it never shifts the other items in your menu bar. An account that needs signing in shows a ring or a dimmed `0` rather than a mark that claims unread mail.
 

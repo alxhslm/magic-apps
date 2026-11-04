@@ -221,10 +221,10 @@ struct AppearanceTab: View {
                         .foregroundStyle(.secondary)
                 }
                 Toggle("Show menu bar tray", isOn: $model.showMenuBarTray)
-                Picker("Menu bar shows:", selection: $model.menuBarUnreadDisplay) {
-                    Text("Nothing").tag("nothing")
-                    Text("Dots").tag("dots")
-                    Text("Numbers").tag("numbers")
+                Picker("Menu bar status:", selection: $model.menuBarUnreadDisplay) {
+                    Text("Menu bar icon only").tag("nothing")
+                    Text("Unread status dots").tag("dots")
+                    Text("Unread count").tag("numbers")
                 }
                 if model.menuBarUnreadDisplay == "numbers" {
                     Text("One cell per account, with 0 for a quiet one, so the item keeps its width as mail arrives or is read.")
