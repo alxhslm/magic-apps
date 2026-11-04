@@ -15,7 +15,7 @@ Ahead of a meeting, Magical posts a native notification carrying the meeting tit
 - **Snooze**: re-arms the alert five minutes later, for when you are finishing something.
 - **Always open calls in the browser**: a toggle in **Settings → Notifications** that sends conference links to your default browser instead of the desktop app, which is what you want when your work Zoom or Teams account is signed in to one browser session. See [Settings Reference](/help/magical/settings/).
 
-The start time on the banner follows your Mac's clock, so a Mac set to 24-hour time reads `14:35` where a 12-hour one reads `2:35 pm`. The [Settings Reference](/help/magical/settings/#times-and-dates) says where that setting lives.
+The start time on the banner follows your Mac's clock, so a Mac set to 24-hour time reads `14:35` where a 12-hour one reads `2:35 pm`. See the [Settings Reference](/help/magical/settings/#times-and-dates).
 
 ![Magical meeting notification banner with one-click Join Call button](/assets/shot-notification-magical.webp)
 
