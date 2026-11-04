@@ -336,6 +336,11 @@ count or draw from them have to agree at once.
   removing the event the way a delete does. The Tasks poller corrects the write on the next sync that
   names the task; `COMPLETION_GRACE_MS` (30 seconds) keeps a sync that disagrees from overruling the
   write before Google has recorded it. See [`google-tasks.md`](google-tasks.md).
+- **A change made in the account's view triggers a poll.** `observeSyncState` asks for an immediate
+  poll once the view's own write to Calendar or Tasks completes, so an edit or a tick made in Google's
+  UI lands in seconds rather than at the next five-minute poll. Only a request the view made counts as
+  a mutation; the app's own reads are excluded, which is what stops the poll that makes a read from
+  being triggered by it.
 - **A delete takes the event out at once.** The cached list is rewritten as the press is made, so the
   popover redraws without it rather than one poll later.
 - **A held action runs once the editor closes.** When an account is mid-edit, `deliverRsvp`,

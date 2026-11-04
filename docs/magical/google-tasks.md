@@ -155,6 +155,14 @@ transient failures that the ordinary poll cadence retries.
   the cached state alone and logging it says so instead.
 - Completed tasks are excluded from alert scheduling (`AlertScheduler`), preventing stale
   notifications for finished tasks.
+- **Only a request the account's own view made counts as a mutation.** `observeSyncState` watches the
+  session for a successful `POST` to `sync.sync` or to the Tasks `Sync` RPC and asks for an immediate
+  poll. The poller's own Tasks _read_ is a `POST` to that same RPC through that same session, so it
+  answers `2xx` like a write does; counting it made every poll trigger the next, about one a second,
+  and Google answered the account with `429`. A request the browser process started carries no
+  `webContentsId`, so it is not a mutation: that is the distinction the observer draws. It does not
+  try to tell a page's read from a page's write, so a page's `sync.sync` still counts; that is
+  accepted because its cadence is the page's own rather than a poll the app scheduled.
 - If the user marks a task complete or incomplete from the context menu (`setTaskCompleted`), Magical
   updates the event cache optimistically and schedules an immediate poll. That write outlives a sync
   that disagrees for 30 seconds: Google Tasks takes a moment to record a completion driven through
