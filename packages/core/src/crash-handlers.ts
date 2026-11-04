@@ -19,9 +19,8 @@ const log = createLogger('Crash');
 /**
  * How long the display has to stay quiet before a metrics burst is over.
  *
- * A display waking or settling a resolution emits `display-metrics-changed` about
- * eleven times a second for several seconds, and each event says the same thing. One
- * machine logged 15,971 of them in three days, against five real errors.
+ * A display settling fires this hundreds of times, so a burst logs its first event and
+ * then its last, with a count.
  */
 const DISPLAY_SETTLE_QUIET_MS = 1000;
 
@@ -70,8 +69,6 @@ export function installCrashHandlers(options: CrashHandlerOptions = {}): void {
     screen.on('display-added', () => log.info('Display added'));
     screen.on('display-removed', () => log.info('Display removed'));
 
-    // The events are one display settling, so they are recorded as one entry with a
-    // count: what dates a window that stopped presenting is the burst, not each tick.
     let burst:
       | { count: number; startedAt: number; lastAt: number; timer?: ReturnType<typeof setTimeout> }
       | undefined;
