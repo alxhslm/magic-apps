@@ -1350,7 +1350,9 @@ export class AccountsManager {
     }).then((email) => {
       if (!email) {
         // A page that never showed one may be signed out, or may need a reload. Either way
-        // the next load is the next chance, so it is not remembered as a failure.
+        // the next load is the next chance, so it is not remembered as a failure. Said out
+        // loud because the alternative is an account that silently never matches a profile.
+        log.info(`No signed-in address on the page for account ${accountId}`);
         this.emailCaptured.delete(accountId);
         return;
       }
