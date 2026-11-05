@@ -135,9 +135,10 @@ order, not one of our account ids, so it is dropped and the receiving app opens 
 account. And the day path becomes midnight, because the calendar side either reveals an event,
 which is a moment, or opens a day, which is a date.
 
-The deep link is only used when the other app is installed, which is decided by asking
-LaunchServices what handles that scheme: an uninstalled app would leave the user on an error page
-where a browser tab would have worked.
+The deep link is only used when the other app is installed, because an uninstalled app leaves the
+user on an error page where a browser tab would have worked. Installed is asked by bundle id:
+`URLForApplicationToOpenURL` answers `nil` for a custom scheme even where the app is there, so the
+scheme question would make every deep link look unowned.
 
 ### The owning app comes first
 
