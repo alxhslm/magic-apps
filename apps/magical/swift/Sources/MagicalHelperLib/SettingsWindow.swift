@@ -87,6 +87,11 @@ public enum SettingsWindow {
 struct GeneralTab: View {
     @EnvironmentObject var model: SettingsModel
 
+    /// The apps in the table that this Mac has, which is what the list shows.
+    private var installedAppLinks: [[String: String]] {
+        model.appLinks.filter { InstalledBrowsers.isInstalled(bundleId: $0["bundleId"] ?? "") }
+    }
+
     /// The choice for one app, read and written straight into the shared map.
     private func appLinkChoice(for bundleId: String) -> Binding<String> {
         Binding(
@@ -119,14 +124,32 @@ struct GeneralTab: View {
 
             // One row per app rather than one switch for all of them: wanting Notion in its app says
             // nothing about wanting Figma in its app, and "ask" is a per-app answer too.
-            // Only the apps this Mac has: a row for an app that is not installed could only ever
-            // fall back to the browser, and the list is shorter than the table because of it.
-            ForEach(model.appLinks.filter { InstalledBrowsers.isInstalled(bundleId: $0["bundleId"] ?? "") }, id: \.self) { entry in
-                let bundleId = entry["bundleId"] ?? ""
-                Picker("\(entry["name"] ?? "") links:", selection: appLinkChoice(for: bundleId)) {
-                    Text("Open in the app").tag("auto")
-                    Text("Ask each time").tag("ask")
-                    Text("Use the browser").tag("never")
+            // A list rather than one popup per app: the row is the app, and the control beside it is
+            // the answer, which is how Settings reads elsewhere. Only installed apps appear, because
+            // a row for an app that is absent could only ever fall back to the browser.
+            if !installedAppLinks.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Links owned by an app")
+                        .font(.headline)
+
+                    List(installedAppLinks, id: \.self) { entry in
+                        let bundleId = entry["bundleId"] ?? ""
+                        HStack(spacing: 8) {
+                            Text(entry["name"] ?? "")
+                            Spacer()
+                            Picker("", selection: appLinkChoice(for: bundleId)) {
+                                Text("Open in the app").tag("auto")
+                                Text("Ask each time").tag("ask")
+                                Text("Use the browser").tag("never")
+                            }
+                            .labelsHidden()
+                            .pickerStyle(.menu)
+                            .frame(width: 170)
+                        }
+                        .padding(.vertical, 2)
+                    }
+                    .listStyle(.bordered)
+                    .frame(height: min(CGFloat(installedAppLinks.count) * 32 + 10, 200))
                 }
             }
 
