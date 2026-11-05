@@ -24,14 +24,12 @@ The General tab manages startup behaviour and default calendar file handling:
 
 ### Open links in
 
-Which browser opens links that leave Google Calendar, such as an event location, an attachment or a link in an event description:
+Which browser opens meeting links: Google Meet, Zoom, Microsoft Teams, Webex and the other call
+services. Everything else is left to macOS, so a link to a site with its own desktop app (Notion,
+Linear, Todoist) still opens in that app.
 
-- **Only installed browsers are listed**, and the row macOS opens links with is marked `(default)`. Leaving that row alone follows the Mac's default, including if you change it later.
-- **Safari, Firefox and other non-Chromium browsers** work here, but cannot be told which profile to use. See [Chromium profiles](#chromium-profiles).
-
-Applies to every link that leaves Magical. Chromium browsers can also open each account in its own profile, which the next section covers.
-
-> **One side effect.** A link is checked with macOS first: if a desktop app owns the address, that app opens it and no profile is involved. Only links no app claims are opened in the browser, and only those are started directly when a profile has to be chosen.
+- **Only installed browsers are listed**, and the row macOS opens links with is marked `(default)`.
+- **Other links follow your Mac's default browser**, whichever row is chosen here.
 
 ### Times and Dates
 
@@ -61,16 +59,22 @@ The Accounts tab manages your connected Google accounts and calendar access, whi
 
 ### Chromium profiles
 
-Each account can choose which browser profile its links open in, so a work link opens as you at work rather than as you at home.
+Each account chooses which browser profile its meeting links open in, so a work call joins as you
+at work rather than as you at home.
 
 The control sits on the account's row in **Accounts**, and reads the profile that will be used:
 
-- **A profile name**, such as `Alex`, means links open in that profile. Chrome, Brave and Edge can be told this; they read it when they start, so a profile that is not already open arrives in its own window.
-- **`None`**, which is what an account shows by default when its address matches no profile, means the link goes to the browser and opens in whatever window is already there.
-- **Choosing a profile pins it**, even if the Mac's default browser changes later. Unticking it returns the account to matching.
+- **A profile name**, such as `Alex`, means meeting links open in that profile. Chrome, Brave and
+  Edge can be told this; they read it when they start, so a profile that is not already open
+  arrives in its own window.
+- **`None`**, which is what an account shows when its address matches no profile, means the link
+  opens in whatever window the browser already has.
+- **Choosing a profile pins it.** Unticking it returns the account to matching.
 
 :::note[Chromium browsers only, for now]
-Chrome, Brave and Edge keep profiles in the same place and accept the same flag, which is what makes this work. Safari has profiles but no supported way for another app to choose one, and Firefox differs again. With any other browser the profile menu is greyed out.
+Chrome, Brave and Edge keep profiles in the same place and accept the same flag, which is what
+makes this work. Safari has profiles but no supported way for another app to choose one, and
+Firefox differs again. With any other browser the profile menu is greyed out.
 :::
 
 ---

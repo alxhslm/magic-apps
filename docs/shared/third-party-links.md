@@ -53,106 +53,50 @@ account names a browser, see below — LaunchServices resolves it:
 Because Universal Links are maintained by macOS LaunchServices per installed application,
 supporting external tools requires no per-app custom schemes or individual user settings.
 
-## Browser and Chromium profile
+## Browser and Chromium profile for meetings
 
 Two Google accounts signed in to the same Chromium browser share nothing, and a Meet link that
-lands in the wrong profile asks to be let in. Two settings answer which browser a link opens
-in, and they are deliberately split by what varies:
+lands in the wrong profile asks to be let in. An account can therefore name a Chromium profile,
+and the app a browser, for **meeting links only**: `isMeetingUrl` in `@magimail/core` matches the
+call hosts, and nothing else is routed this way.
 
-| Setting                            | Where    | Answers                                    |
-| :--------------------------------- | :------- | :----------------------------------------- |
-| `openLinksIn` (`settings.json`)    | General  | Which browser leaves the app for the web   |
-| `browserProfile` (`accounts.json`) | Accounts | Which Google session it opens that link in |
+| Setting                            | Where    | Answers                          |
+| :--------------------------------- | :------- | :------------------------------- |
+| `openLinksIn` (`settings.json`)    | General  | Which browser opens a call       |
+| `browserProfile` (`accounts.json`) | Accounts | Which Google session it joins as |
 
-The browser is one answer for the machine — it is where someone works, and picking it twice for
-two accounts of the same person would only invite them to disagree. The profile is the part that
-differs per account, so it sits on the account's own row in Settings, and the row shows the
-resulting choice (`Match email`, `Last used`, or a profile's name). The menu is greyed out when
-the chosen browser keeps no profiles, which is what tells a user why Safari offers nothing.
+### Why meetings only
+
+Applying a profile means starting the browser ourselves, and starting the browser is what stops
+macOS handing a URL to the desktop app that claims its domain. That resolution happens inside
+`swcd` at open time and cannot be asked for in advance: `LSCopyDefaultApplicationURLForURL`,
+`LSCopyApplicationURLsForURL`, `NSWorkspace.urlForApplication(toOpen:)`, `app.getApplicationInfoForProtocol`
+and `/usr/bin/open` all answer with a browser for a domain that `shell.openExternal` then gives to
+its app. `swcutil` would know, and requires root.
+
+So the two cannot both apply to the same link. A meeting is where the wrong session costs
+something, so it gets the profile and gives up the hand-off. Every other link is handed to macOS,
+which keeps the claiming app and the Mac's default browser.
 
 ### Resolving a profile
 
-Profiles come from each browser's `Local State` (`profile.info_cache`), the one file Chrome,
-Brave and Edge all write: directory name, display name, and the Google account signed in.
-`profile.last_used` names the profile the browser is working in, which is the one its open
-window shows.
+Profiles come from each browser's `Local State` (`profile.info_cache`), the one file Chrome, Brave
+and Edge all write: directory name, display name, and the Google account signed in. An account's
+`browserProfile` is `_auto` (the default), `_none`, or a profile directory.
 
-An account's `browserProfile` is `_auto` (the default), `_none`, or a profile directory. The menu
-lists **None** and the profiles; it never names the rule that chose. _Match email_ asked a user to
-reason about a rule and then guess its outcome, where a profile's name states the outcome. So the
-row reads `Alex` or `None`, and what it says is what happens:
+`_auto` means the profile signed in as the account's address, and nothing more: where no profile
+carries that address the answer is `null`, which leaves `--profile-directory` off the launch line
+so the browser opens the call in whatever window it already has. `accounts.json` did not carry an
+address at all, so each app reads it from Google's account chip once the page settles
+(`ACCOUNT_EMAIL_SCRIPT` and `readAccountEmail` in `account-email.ts`), and treats the answer as
+input rather than fact before storing it.
 
-| Stored                             | Menu shows   | Launch                         |
-| :--------------------------------- | :----------- | :----------------------------- |
-| `_auto`, address matches a profile | that profile | `-n --profile-directory=<dir>` |
-| `_auto`, no match                  | `None`       | handed to the browser          |
-| `_none`                            | `None`       | handed to the browser          |
-| a directory                        | that profile | `-n --profile-directory=<dir>` |
+### Launching
 
-The cost of naming outcomes instead of rules is that the automatic row can change on its own when
-an account's address starts or stops matching a profile. `None` exists so that "let the browser
-decide" is something the user can say, rather than the state they end up in after unticking.
-
-`_auto` means the profile signed in as the account's address. Where no profile carries that
-address the resolver returns `null`, which leaves `--profile-directory` off the launch line;
-Chromium then does what it does with any URL and opens it in the profile it is already working
-in. Naming `Default` there instead would send the link to a profile the user may never touch, and
-would show as a second instance for no gain.
-
-That address is the piece `accounts.json` did not carry. An account is a name, a colour and a
-partition, which is enough to show a mailbox and not enough to know which Chromium profile belongs
-to the same person. Both apps read it from the page instead, through the same two pieces in
-`@magimail/core/account-email.ts`: `ACCOUNT_EMAIL_SCRIPT` finds it in Google's own account chip
-(`Google Account: Name (someone@example.com)`, with the address in parentheses whatever the
-interface language is), and `readAccountEmail` retries the read because a settled document is not
-a painted one — the chip arrives after `did-stop-loading`. Google's answer is treated as input,
-not fact: `isAccountEmail` decides whether it is an address before anything is written. Each app
-then stores it on the account, once, and logs the id rather than the address.
-
-Magimail's Atom feed also carries the address in its header, which the poller already downloads;
-it is not read, so that one mechanism serves both apps and there is one place to fix if the chip
-moves.
-
-Safari has no supported flag or URL scheme for profile targeting, so it is offered as a browser
-and nothing more.
-
-### Who owns the link
-
-A link to a domain claimed by a desktop app opens in that app, and the resolution happens inside
-macOS when the URL is handed over by `shell.openExternal`. It cannot be asked for in advance:
-`URLForApplicationToOpenURL`, `app.getApplicationInfoForProtocol` and a plain `/usr/bin/open` all
-answer with the default browser even where a universal link would open an app, so the only thing
-that knows is the hand-off itself. Starting a browser by name skips it entirely.
-
-That is why the router hands the URL to macOS whenever it does not need to start a browser:
-`open -b <bundleId>` and `open -b <bundleId> -n --args --profile-directory=…` both bypass the
-resolution, so they are used only where the browser choice or the profile makes a hand-off
-impossible.
-
-### Launching### Launching
-
-`openExternalUrl` launches the browser itself when it has a profile to apply:
-`/usr/bin/open -b <bundleId> -n --args --profile-directory="<dir>" <url>`. Chromium reads
-`--profile-directory` only when it is starting, so `-n` is what makes the flag mean anything —
-and the cost is a second instance. When the resolved profile is already the one the browser is
-in there is nothing to gain from that, so the URL takes a plain `open -b` and lands in the
-window that is open. When there is no profile at all, or the browser cannot be launched by
-bundle id, the URL goes to `shell.openExternal` as before.
-
-That last fallback is also why `openLinksIn` starts as `system` on an install that never chose.
-`loadSettings` adopts the Mac's default browser only when it is one whose profiles we can
-apply — so an account's profile works without a second step — and leaves `system` in place for
-anything else, which keeps Universal Links working for a Safari or Firefox default. Once a
-Chromium browser is adopted or chosen, links to a domain owned by a desktop app open in that
-browser instead of the app: the profile is only reachable by starting the browser, and macOS
-would otherwise route the URL to the app. A failed launch still falls back to
-`shell.openExternal`, so a URL cannot be left unopened.
-
-`getDefaultBrowser` reads the LaunchServices handler for `https`, and the General tab marks that
-row `(default)`. It is not a separate choice: the row and the Mac's default are the same
-browser, and a picker that lists one browser twice asks the user to choose between two names
-for one thing. A default browser outside `SUPPORTED_BROWSERS` (Firefox, Arc) gets a row named by
-macOS — `Firefox (default)` — which stores `system`, and the profile menu greys out with it.
+`/usr/bin/open -b <bundleId> -n --args --profile-directory="<dir>" <url>`, because Chromium reads
+`--profile-directory` only when it is starting. When the resolved profile is already the open one,
+the flag is dropped and the plain `-b` launch reuses that window. A failed launch falls back to
+`shell.openExternal`, so a call cannot be left unopened.
 
 ## App-specific integration
 

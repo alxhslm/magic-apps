@@ -5,6 +5,7 @@ import { execFile, execFileSync } from 'node:child_process';
 import { promisify } from 'node:util';
 import { app, shell } from 'electron';
 import { createLogger, redactUrl } from './logger.js';
+import { isMeetingUrl } from './meeting-urls.js';
 import type { AccountConfig } from './account.js';
 
 const log = createLogger('BrowserRouter');
@@ -318,6 +319,16 @@ export async function openExternalUrl(
     return;
   }
 
+  // Everything that is not a meeting belongs to macOS. Handing it over is what lets a domain
+  // claimed by a desktop app open in that app, which no query API can tell us in advance, and it
+  // keeps the browser and session choice the Mac already has. The account's profile is applied to
+  // meetings only: they are the link where the wrong session costs something, and starting the
+  // browser ourselves is what gives up the hand-off.
+  if (!isMeetingUrl(url)) {
+    await fallback(url);
+    return;
+  }
+
   const browserId = options.browser ?? 'system';
   const browserDef = SUPPORTED_BROWSERS.find((b) => b.id === browserId);
 
@@ -367,16 +378,6 @@ export async function openExternalUrl(
           `--profile-directory=${profileDir}`,
           url,
         ]);
-        return;
-      }
-
-      // Asked of macOS when the browser is already the Mac's default: LaunchServices sends
-      // the URL to the same browser either way, and a link whose domain is claimed by a
-      // desktop app reaches that app when the default browser is one that hands it over.
-      const macDefault = options.defaultBrowserId ?? getDefaultBrowser().id;
-      if (browserId === macDefault) {
-        log.info(`Opening ${redactUrl(url)} in ${browserDef.name} (current profile, via macOS)`);
-        await fallback(url);
         return;
       }
 

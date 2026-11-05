@@ -114,7 +114,7 @@ struct GeneralTab: View {
                 browsers: model.browsers,
                 defaultBrowser: model.defaultBrowser
             )
-            .help("Applies to links clicked in a message that leave Gmail. Each account chooses its own Chromium profile in Accounts.")
+            .help("Applies to meeting links (Meet, Zoom, Teams, Webex). Other links open in your Mac\u{2019}s default browser, so a site with its own app still opens there. Each account chooses its own Chromium profile in Accounts.")
 
             Divider()
 

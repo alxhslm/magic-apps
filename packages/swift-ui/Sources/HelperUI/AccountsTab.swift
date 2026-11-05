@@ -198,7 +198,7 @@ public struct AccountsTab<Model: AccountListModel>: View {
         .disabled(!supportsProfiles)
         .help(
             supportsProfiles
-                ? "The Chromium profile this account’s links open in."
+                ? "The Chromium profile this account’s meeting links open in."
                 : "\(linkedBrowserName) has no profiles to choose between."
         )
     }

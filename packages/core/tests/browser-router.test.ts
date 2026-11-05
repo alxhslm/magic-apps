@@ -175,7 +175,7 @@ describe('browser-router', () => {
 
     const runner = vi.fn().mockResolvedValue(undefined);
 
-    await openExternalUrl('https://example.com', {
+    await openExternalUrl('https://meet.google.com/abc-defg-hij', {
       browser: 'chrome',
       account: { browserProfile: 'Default' },
       customHome: tmpDir,
@@ -191,7 +191,7 @@ describe('browser-router', () => {
       '-n',
       '--args',
       '--profile-directory=Default',
-      'https://example.com',
+      'https://meet.google.com/abc-defg-hij',
     ]);
   });
 
@@ -234,7 +234,7 @@ describe('browser-router', () => {
     const fallback = vi.fn().mockResolvedValue(undefined);
     const runner = vi.fn().mockResolvedValue(undefined);
 
-    await openExternalUrl('https://example.com', {
+    await openExternalUrl('https://meet.google.com/abc-defg-hij', {
       browser: 'chrome',
       account: { browserProfile: '_auto', email: 'personal@gmail.com' },
       customHome: tmpDir,
@@ -245,7 +245,11 @@ describe('browser-router', () => {
 
     // `-n` would start a second browser for a profile that is already on screen, and the
     // browser is not the Mac's default, so it is started by name without the flag.
-    expect(runner).toHaveBeenCalledWith(['-b', 'com.google.Chrome', 'https://example.com']);
+    expect(runner).toHaveBeenCalledWith([
+      '-b',
+      'com.google.Chrome',
+      'https://meet.google.com/abc-defg-hij',
+    ]);
     expect(fallback).not.toHaveBeenCalled();
   });
 
@@ -280,7 +284,7 @@ describe('browser-router', () => {
     const fallback = vi.fn().mockResolvedValue(undefined);
     const runner = vi.fn().mockResolvedValue(undefined);
 
-    await openExternalUrl('https://example.com', {
+    await openExternalUrl('https://meet.google.com/abc-defg-hij', {
       browser: 'chrome',
       account: { browserProfile: '_auto', email: 'personal@gmail.com' },
       customHome: tmpDir,
@@ -289,20 +293,58 @@ describe('browser-router', () => {
       openCommandRunner: runner,
     });
 
-    expect(runner).toHaveBeenCalledWith(['-b', 'com.google.Chrome', 'https://example.com']);
+    expect(runner).toHaveBeenCalledWith([
+      '-b',
+      'com.google.Chrome',
+      'https://meet.google.com/abc-defg-hij',
+    ]);
+  });
+
+  it('openExternalUrl hands anything that is not a meeting to macOS', async () => {
+    const chromeDir = path.join(tmpDir, 'Library/Application Support/Google/Chrome');
+    fs.mkdirSync(chromeDir, { recursive: true });
+
+    fs.writeFileSync(
+      path.join(chromeDir, 'Local State'),
+      JSON.stringify({
+        profile: {
+          info_cache: {
+            Default: { name: 'Personal', user_name: 'personal@gmail.com' },
+            'Profile 1': { name: 'Work', user_name: 'work@company.com' },
+          },
+          last_used: 'Default',
+        },
+      }),
+    );
+
+    const fallback = vi.fn().mockResolvedValue(undefined);
+    const runner = vi.fn().mockResolvedValue(undefined);
+
+    await openExternalUrl('https://app.notion.com/p/page', {
+      browser: 'chrome',
+      account: { browserProfile: 'Profile 1', email: 'work@company.com' },
+      customHome: tmpDir,
+      fallbackOpenExternal: fallback,
+      openCommandRunner: runner,
+    });
+
+    // The account names a profile that is not open, and it is still not used: a Notion link has
+    // to reach Notion, and only the hand-off resolves that.
+    expect(fallback).toHaveBeenCalledWith('https://app.notion.com/p/page');
+    expect(runner).not.toHaveBeenCalled();
   });
 
   it('openExternalUrl delegates system browser to fallback', async () => {
     const fallback = vi.fn().mockResolvedValue(undefined);
     const runner = vi.fn().mockResolvedValue(undefined);
 
-    await openExternalUrl('https://example.com', {
+    await openExternalUrl('https://meet.google.com/abc-defg-hij', {
       account: { browser: 'system' },
       fallbackOpenExternal: fallback,
       openCommandRunner: runner,
     });
 
-    expect(fallback).toHaveBeenCalledWith('https://example.com');
+    expect(fallback).toHaveBeenCalledWith('https://meet.google.com/abc-defg-hij');
     expect(runner).not.toHaveBeenCalled();
   });
 
@@ -310,13 +352,17 @@ describe('browser-router', () => {
     const fallback = vi.fn().mockResolvedValue(undefined);
     const runner = vi.fn().mockResolvedValue(undefined);
 
-    await openExternalUrl('https://example.com', {
+    await openExternalUrl('https://meet.google.com/abc-defg-hij', {
       browser: 'safari',
       fallbackOpenExternal: fallback,
       openCommandRunner: runner,
     });
 
-    expect(runner).toHaveBeenCalledWith(['-b', 'com.apple.Safari', 'https://example.com']);
+    expect(runner).toHaveBeenCalledWith([
+      '-b',
+      'com.apple.Safari',
+      'https://meet.google.com/abc-defg-hij',
+    ]);
     expect(fallback).not.toHaveBeenCalled();
   });
 
@@ -376,7 +422,7 @@ describe('browser-router', () => {
     const fallback = vi.fn().mockResolvedValue(undefined);
     const runner = vi.fn().mockResolvedValue(undefined);
 
-    await openExternalUrl('https://example.com', {
+    await openExternalUrl('https://meet.google.com/abc-defg-hij', {
       browser: 'brave',
       account: { browserProfile: 'Default' },
       customHome: tmpDir,
@@ -390,7 +436,7 @@ describe('browser-router', () => {
       '-n',
       '--args',
       '--profile-directory=Default',
-      'https://example.com',
+      'https://meet.google.com/abc-defg-hij',
     ]);
   });
 
@@ -398,14 +444,14 @@ describe('browser-router', () => {
     const fallback = vi.fn().mockResolvedValue(undefined);
     const runner = vi.fn().mockRejectedValue(new Error('App not found'));
 
-    await openExternalUrl('https://example.com', {
+    await openExternalUrl('https://meet.google.com/abc-defg-hij', {
       browser: 'chrome',
       customHome: tmpDir,
       fallbackOpenExternal: fallback,
       openCommandRunner: runner,
     });
 
-    expect(fallback).toHaveBeenCalledWith('https://example.com');
+    expect(fallback).toHaveBeenCalledWith('https://meet.google.com/abc-defg-hij');
   });
 });
 
