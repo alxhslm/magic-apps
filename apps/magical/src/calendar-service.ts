@@ -2035,6 +2035,11 @@ export class CalendarService {
    */
   public async joinCall(conferenceUrl: string, accountId?: string): Promise<void> {
     const account = accountId ? loadAccounts().find((a) => a.id === accountId) : undefined;
+    if (!account) {
+      // Only a caller that has no account to give, which today is a notification action. The
+      // browser profile decides which session the call joins as, so the difference is worth a line.
+      log.warn(`Joining ${redactUrl(conferenceUrl)} without an account`);
+    }
     await openExternalUrl(conferenceUrl, account);
   }
 

@@ -9,7 +9,6 @@ import {
   type WebContents,
   type WebFrameMain,
   session,
-  shell,
   dialog,
   clipboard,
 } from 'electron';
@@ -30,6 +29,7 @@ import {
   viewIsAlive,
   unwrapRedirectors,
   openExternalUrl,
+  type OpenExternalUrlOptions,
   ACCOUNT_EMAIL_SCRIPT,
   readAccountEmail,
 } from '@magimail/core';
@@ -867,7 +867,7 @@ export class AccountsManager {
         }
         const target = unwrapRedirectors(childUrl);
         const activeAcc = this.accounts.find((a) => a.id === this.activeAccountId);
-        void openExternalUrl(target, { browser: loadSettings().openLinksIn, account: activeAcc });
+        void openExternalUrl(target, this.outboundLinkOptions(activeAcc));
         return { action: 'deny' };
       });
 
@@ -943,7 +943,7 @@ export class AccountsManager {
 
       const target = unwrapRedirectors(url);
       log.info(`Account ${account.id} opening in the browser:`, redactUrl(target));
-      void openExternalUrl(target, { browser: loadSettings().openLinksIn, account });
+      void openExternalUrl(target, this.outboundLinkOptions(account));
       return { action: 'deny' };
     });
 
@@ -959,7 +959,7 @@ export class AccountsManager {
         event.preventDefault();
         const target = unwrapRedirectors(url);
         log.info(`Account ${account.id} navigating out to the browser:`, redactUrl(target));
-        void openExternalUrl(target, { browser: loadSettings().openLinksIn, account });
+        void openExternalUrl(target, this.outboundLinkOptions(account));
       }
     });
 
@@ -1822,12 +1822,10 @@ export class AccountsManager {
   }
 
   /**
-   * Learns the address the account is signed in as, once, and keeps it.
+   * Learns and stores the address the account is signed in as.
    *
-   * Nothing else in the app knows it: an account is a name, a colour and a partition, which
-   * is enough to show a mailbox and not enough to answer which Chromium profile belongs to
-   * the same person. The page knows, so it is asked when it settles, and the answer is
-   * written to `accounts.json` for the link router to match against.
+   * An account record holds a name, colour and partition, which cannot tell the link router
+   * which Chromium profile is the same person. The page can, so it is asked once it settles.
    */
   private captureAccountEmail(accountId: string, contents: WebContents): void {
     const account = this.accounts.find((a) => a.id === accountId);
@@ -1857,6 +1855,20 @@ export class AccountsManager {
       log.info(`Recorded the signed-in address for account ${accountId}`);
       this.onAccountsChanged?.();
     });
+  }
+
+  /**
+   * How a link should leave this app, for one account.
+   *
+   * Reads settings each time rather than caching: the user can change any of it while the window is
+   * open, and a link clicked a second later should follow the new answer.
+   */
+  private outboundLinkOptions(account?: AccountConfig): OpenExternalUrlOptions {
+    const settings = loadSettings();
+    return {
+      browser: settings.openLinksIn,
+      account,
+    };
   }
 
   public setAccountAuthRequired(accountId: string, needsAuth: boolean): void {

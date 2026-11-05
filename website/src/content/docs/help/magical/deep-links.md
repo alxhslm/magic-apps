@@ -1,6 +1,6 @@
 ---
 title: Deep Links & Automation
-description: Using the magical:// URL scheme with Apple Shortcuts, Raycast, Alfred, and opening external links in native desktop apps.
+description: Using the magical:// URL scheme with Apple Shortcuts, Raycast, Alfred, and where external links open.
 ---
 
 Magical registers the native macOS `magical://` URL scheme, allowing you to trigger navigation, open the new event composer, search events, or RSVP to meetings from Apple Shortcuts, Raycast, Alfred, or terminal scripts.
@@ -59,11 +59,11 @@ open "magical://search?q=Dentist"
 - In **Raycast**, create a **Quicklink** with the URL `magical://search?q={query}` to query Google Calendar instantly from your launcher.
 - In **Alfred**, create a keyword trigger to launch `magical://quick-add`.
 
-## Opening Links in Desktop Apps
+## Opening Links
 
 Event descriptions and Google Tasks frequently include links to external tools such as Todoist, Notion, Linear, Figma, or Slack.
 
-Magical strips Google's redirect prefix from outbound links so they open directly in their native macOS desktop apps when installed, or in your default browser when not.
+Magical strips Google's redirect prefix before routing a link, then opens it in the browser chosen in **Settings → General → Opening links**, in the Chromium profile for the account it came from. Todoist task and project links open in the Todoist app when it is installed; turn off **Open Todoist links in the Todoist app** to keep them in the browser. See [Settings Reference](/help/magical/settings/#opening-links).
 
 :::tip[Video conference calls]
 Meeting links for Zoom and Microsoft Teams also open in their native desktop apps when installed. If you prefer to join meetings in your browser, turn on **Always open calls in the browser** in **Settings → Notifications**. See [Settings Reference](/help/magical/settings/).

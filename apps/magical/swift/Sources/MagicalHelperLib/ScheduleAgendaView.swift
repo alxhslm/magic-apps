@@ -5,7 +5,7 @@ public struct ScheduleAgendaView: View {
     public let selectedDate: Date
     public let requestedScrollDate: Date?
     public let onSelectEvent: (TrayEvent) -> Void
-    public let onJoinCall: (String) -> Void
+    public let onJoinCall: (String, String) -> Void
     public let onRsvp: (TrayEvent, String) -> Void
     public let onDeleteEvent: ((TrayEvent) -> Void)?
     public let onCompleteTask: ((TrayEvent, Bool) -> Void)?
@@ -54,7 +54,7 @@ public struct ScheduleAgendaView: View {
         selectedDate: Date,
         requestedScrollDate: Date? = nil,
         onSelectEvent: @escaping (TrayEvent) -> Void,
-        onJoinCall: @escaping (String) -> Void,
+        onJoinCall: @escaping (String, String) -> Void,
         onRsvp: @escaping (TrayEvent, String) -> Void,
         onDeleteEvent: ((TrayEvent) -> Void)? = nil,
         onCompleteTask: ((TrayEvent, Bool) -> Void)? = nil,

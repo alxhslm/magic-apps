@@ -24,7 +24,19 @@ export const SUPPORTED_BROWSERS: BrowserOption[] = [
   { id: 'brave', name: 'Brave Browser', bundleId: 'com.brave.Browser', isChromium: true },
   { id: 'edge', name: 'Microsoft Edge', bundleId: 'com.microsoft.edgemac', isChromium: true },
   { id: 'safari', name: 'Safari', bundleId: 'com.apple.Safari', isChromium: false },
+  { id: 'firefox', name: 'Firefox', bundleId: 'org.mozilla.firefox', isChromium: false },
 ];
+
+/**
+ * How a browser id should be written in our own sentences.
+ *
+ * `system` is not a browser, so it reads as "your browser"; an id we do not know falls back to the
+ * id itself rather than to nothing, because a wrong name is more useful than a blank one.
+ */
+export function browserDisplayName(browserId: string): string {
+  if (!browserId || browserId === 'system') return 'your browser';
+  return SUPPORTED_BROWSERS.find((b) => b.id === browserId)?.name ?? browserId;
+}
 
 export interface ChromiumProfile {
   directory: string;
@@ -49,7 +61,7 @@ const UNCLAIMED_BUNDLE_ID = 'com.apple.Safari';
 export interface DefaultBrowser {
   /** An id from `SUPPORTED_BROWSERS`, or `other` for a browser we cannot name. */
   id: string;
-  /** The name macOS gives the application, e.g. `Firefox`. */
+  /** The name macOS gives the application, e.g. `Arc`. */
   name: string;
   bundleId: string;
   /** Only the three browsers in `CHROMIUM_DATA_PATHS` offer profile selection. */
@@ -63,12 +75,8 @@ export interface DefaultBrowserOptions {
 }
 
 /**
- * Reports the browser macOS opens `https` links with.
- *
- * The settings tab preselects this so a user who has never touched the picker sees which
- * browser links actually open in, and gets the profile picker when that browser is one of
- * ours. Reading it here rather than in the helper keeps `SUPPORTED_BROWSERS` the only list
- * mapping a bundle identifier to a browser id.
+ * Reports the browser macOS opens `https` links with. The settings tab preselects it, and the
+ * profile picker reads it, so `SUPPORTED_BROWSERS` stays the only bundle-id mapping.
  */
 export function getDefaultBrowser(options: DefaultBrowserOptions = {}): DefaultBrowser {
   // Routing asks this per external link, and a LaunchServices read is a subprocess. The
@@ -101,7 +109,7 @@ function detectDefaultBrowser(options: DefaultBrowserOptions): DefaultBrowser {
     };
   }
 
-  // A browser outside the list (Firefox, Arc, a Chromium fork we do not read profiles for).
+  // A browser outside the list (Arc, Orion, a Chromium fork we do not read profiles for).
   return {
     id: 'other',
     name: defaultHandlerName() ?? bundleId,
@@ -140,39 +148,6 @@ function readLaunchServicesJson(plistPath: string): string {
   return execFileSync('/usr/bin/plutil', ['-convert', 'json', '-o', '-', plistPath], {
     encoding: 'utf-8',
   });
-}
-
-/**
- * Which application macOS would use for a URL.
- *
- * LaunchServices answers with the app that claims the domain (a universal link) when there is
- * one, and with the default browser otherwise. JXA rather than a plist or a directory scan:
- * it is the same registry `open` consults, it needs no accessibility permission, and it says
- * nothing about the user's files.
- */
-const HANDLER_SCRIPT = `function run(argv) {
-  ObjC.import('AppKit');
-  const url = $.NSURL.URLWithString(argv[0]);
-  if (!url) return '';
-  const app = $.NSWorkspace.sharedWorkspace.URLForApplicationToOpenURL(url);
-  return app && app.bundleIdentifier ? app.bundleIdentifier.js : '';
-}`;
-
-async function osHandlerFor(url: string): Promise<string | null> {
-  try {
-    const { stdout } = await execFileAsync('/usr/bin/osascript', [
-      '-l',
-      'JavaScript',
-      '-e',
-      HANDLER_SCRIPT,
-      url,
-    ]);
-    const bundleId = stdout.trim();
-    return bundleId ? bundleId : null;
-  } catch (err) {
-    log.warn(`Could not ask which app handles ${redactUrl(url)}:`, err);
-    return null;
-  }
 }
 
 /**
@@ -233,10 +208,8 @@ interface ChromiumLocalState {
 }
 
 /**
- * Reads Chromium's Local State once for both the profile list and the last profile used.
- *
- * The two live in the same file, and resolving a profile needs both, so reading them apart
- * meant parsing the same JSON twice per link.
+ * Reads the profile list and last-used profile together, since both live in Local State and
+ * resolving a profile needs both.
  */
 function readChromiumLocalState(browserId: string, customHome?: string): ChromiumLocalState {
   const relativePath = CHROMIUM_DATA_PATHS[browserId];
@@ -293,9 +266,7 @@ export function getChromiumProfiles(browserId: string, customHome?: string): Chr
   return readChromiumLocalState(browserId, customHome).profiles;
 }
 
-/**
- * The profile the browser was last working in, which is the one its open window shows.
- */
+/** The profile the browser was last working in, which is the one its open window shows. */
 export function getLastUsedProfile(browserId: string, customHome?: string): string | null {
   const { profiles, lastUsed } = readChromiumLocalState(browserId, customHome);
   return profiles.some((p) => p.directory === lastUsed) ? (lastUsed ?? null) : null;
@@ -304,12 +275,9 @@ export function getLastUsedProfile(browserId: string, customHome?: string): stri
 /**
  * Resolves the Chromium profile directory an account's links should open in.
  *
- * An explicit directory is used when the browser still has it. `_auto` and an unset setting
- * both mean "the profile signed in as the account", and nothing more: where no profile
- * carries that address the answer is `null`, which leaves `--profile-directory` off the
- * launch line and lets Chromium do what it does with any URL, which is open it in the
- * profile it is already working in. Naming `Default` there would send the link to a profile
- * the user may never touch.
+ * An explicit directory is used while the browser still has it. `_auto` and an unset setting mean
+ * the profile signed in as the account; where none carries that address the answer is `null`, so
+ * the launch line keeps no `--profile-directory` and Chromium opens in its current profile.
  */
 export function resolveChromiumProfile(
   browserId: string,
@@ -350,22 +318,13 @@ export interface OpenExternalUrlOptions {
   fallbackOpenExternal?: (url: string) => Promise<void>;
   /** Custom home dir for profile reading (testing). */
   customHome?: string;
-  /**
-   * Which application macOS would use for a URL, asked before we launch anything ourselves.
-   * Injectable so a test does not need LaunchServices.
-   */
-  resolveHandler?: (url: string) => Promise<string | null>;
   /** Whether another app is installed. Injectable so a test does not need it to be. */
   isAppInstalled?: (bundleId: string) => Promise<boolean>;
 }
 
 /**
- * Opens an external URL in the designated browser and profile for an account.
- *
- * If the browser is 'system' or not one we know, delegates to shell.openExternal.
- * If a Chromium browser is selected, launches via /usr/bin/open with --profile-directory,
- * which is the only way an account's profile can be honoured.
- * If an error occurs, falls back gracefully to system default.
+ * Opens an external URL for an account in the chosen browser, with the account's Chromium profile
+ * where one resolves. `system` and unknown browsers go to `shell.openExternal`.
  */
 export async function openExternalUrl(
   url: string,
@@ -399,27 +358,14 @@ export async function openExternalUrl(
     return;
   }
 
-  // A URL that another application claims belongs to that application, whatever profile the
-  // account names. Asked before anything is launched, because starting a browser by name is
-  // exactly what skips this decision.
-  const resolveHandler = options.resolveHandler ?? osHandlerFor;
-
-  // The other app's own web interface belongs in that app, which is already running and shows
-  // the same Google data. Only offered when that app is installed, because a deep link nobody
-  // handles leaves the user on an error page where a browser tab would have worked.
+  // The other app's own web interface belongs in that app, which already shows the same data.
+  // Only offered when that app is installed, because a deep link nobody handles leaves the
+  // user on an error page where a browser tab would have worked.
   const crossApp = crossAppLink(url);
   const appInstalled = options.isAppInstalled ?? isAppInstalled;
   if (crossApp && (await appInstalled(APP_BUNDLE_IDS[crossApp.scheme]).catch(() => false))) {
     log.info(`Opening ${redactUrl(url)} in ${crossApp.scheme} (${crossApp.deepLink})`);
     await fallback(crossApp.deepLink);
-    return;
-  }
-
-  const handler = await resolveHandler(url).catch(() => null);
-  const macDefaultBundleId = getDefaultBrowser().bundleId?.toLowerCase();
-  if (handler && macDefaultBundleId && handler.toLowerCase() !== macDefaultBundleId) {
-    log.info(`Opening ${redactUrl(url)} in the app that claims it (${handler})`);
-    await fallback(url);
     return;
   }
 
@@ -434,12 +380,8 @@ export async function openExternalUrl(
       );
 
       // Chromium reads --profile-directory only when it is starting, so naming a profile
-      // costs a second instance. Where the answer is the profile already open there is
-      // nothing to gain from that, and the URL goes to macOS instead.
-      //
-      // macOS rather than `-b`: LaunchServices also hands a URL to a desktop app that claims
-      // the domain, which starting the browser by hand would bypass. When the browser we want
-      // is the Mac's default, letting macOS route it costs nothing and keeps that.
+      // costs a second instance. An automatic answer that resolves to the profile already
+      // open is handed over without the flag, which reuses that window.
       //
       // An account that names a profile always gets it. "The profile already open" is
       // whichever one we launched last, so treating that as a match let one account's link

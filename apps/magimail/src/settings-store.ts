@@ -9,11 +9,10 @@ const log = createLogger('Settings');
 export interface AppSettings {
   theme: 'system' | 'light' | 'dark';
   /**
-   * Which browser opens this account's links to the wider web.
+   * Which browser opens links that leave the app. `system` hands the URL to macOS.
    *
-   * One setting for the app rather than one per account: it is where someone works, not
-   * who they are, and the per-account part that does vary is the Chromium profile. `system`
-   * hands the URL to macOS, which is what an install that never chose does.
+   * One setting for the app: the browser is where someone works, while the per-account
+   * variable is the Chromium profile.
    */
   openLinksIn: string;
   launchAtLogin: boolean;

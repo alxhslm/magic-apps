@@ -796,7 +796,7 @@ public struct DayFocusedEventsList: View {
                 date: date,
                 events: timedEvents,
                 onSelectEvent: { onAction?("sidebarOpenEvent", $0.id) },
-                onJoinCall: { onAction?("sidebarJoinCall", $0) },
+                onJoinCall: { url, accountId in onAction?("sidebarJoinCall", "\(accountId)|\(url)") },
                 onRsvp: { onAction?("sidebarRsvp", "\($0.accountId):\($0.id):\($1)") },
                 onDeleteEvent: { onAction?("sidebarDeleteEvent", "\($0.accountId):\($0.id)") },
                 onCompleteTask: { onAction?("sidebarCompleteTask", "\($0.accountId):\($0.id):\($1)") }
@@ -1014,7 +1014,7 @@ public struct SidebarRootView: View {
                 // `selectedDate` back without asking for another scroll.
                 requestedScrollDate: model.requestedScrollDate,
                 onSelectEvent: { event in model.onAction?("sidebarOpenEvent", event.id) },
-                onJoinCall: { model.onAction?("sidebarJoinCall", $0) },
+                onJoinCall: { url, accountId in model.onAction?("sidebarJoinCall", "\(accountId)|\(url)") },
                 onRsvp: { event, reply in model.onAction?("sidebarRsvp", "\(event.accountId):\(event.id):\(reply)") },
                 onDeleteEvent: { event in model.onAction?("sidebarDeleteEvent", "\(event.accountId):\(event.id)") },
                 onCompleteTask: { event, completed in model.onAction?("sidebarCompleteTask", "\(event.accountId):\(event.id):\(completed)") },

@@ -22,16 +22,18 @@ The General tab manages startup behaviour and default calendar file handling:
   - **Importing by hand**: **File → Import Calendar File…** (<kbd>⇧⌘I</kbd>) reaches the same flow for a file you have already found.
   - **New event account**: Choose whether new events are added to your currently active calendar account or prompt you to pick an account every time.
 
-### Open links in
+### Opening links
 
-Which browser opens links that leave Google Calendar, such as an event location, an attachment or a link in an event description:
+Which browser opens links that leave the app.
 
-- **Only installed browsers are listed**, and the row macOS opens links with is marked `(default)`. Leaving that row alone follows the Mac's default, including if you change it later.
-- **Safari, Firefox and other non-Chromium browsers** work here, but cannot be told which profile to use. See [Chromium profiles](#chromium-profiles).
-
-Applies to every link that leaves Magical. Chromium browsers can also open each account in its own profile, which the next section covers.
-
-> **One side effect.** A link is checked with macOS first: if a desktop app owns the address, that app opens it and no profile is involved. Only links no app claims are opened in the browser, and only those are started directly when a profile has to be chosen.
+- **The Mac's default browser is preselected and marked `(default)`.** Picking a row pins that
+  browser, so the app keeps using it if the Mac's default changes later.
+- **Only installed browsers are listed.** Picking one sends every link through that browser. If it
+  is Chrome, Brave or Edge, links also open in the account's profile; see
+  [Chromium profiles](#chromium-profiles).
+- **Todoist task and project links open in the Todoist app** when it is installed, and in the
+  browser otherwise. Turn off **Open Todoist links in the Todoist app** to keep them in the
+  browser and account profile.
 
 ### Times and Dates
 
@@ -61,16 +63,21 @@ The Accounts tab manages your connected Google accounts and calendar access, whi
 
 ### Chromium profiles
 
-Each account can choose which browser profile its links open in, so a work link opens as you at work rather than as you at home.
+If you use Chrome, Brave or Edge, an account can send its links to a particular profile, so a work
+link opens as you at work.
 
-The control sits on the account's row in **Accounts**, and reads the profile that will be used:
+Each account names its profile on the **Accounts** tab. Its row shows the profile that will be
+used:
 
-- **A profile name**, such as `Alex`, means links open in that profile. Chrome, Brave and Edge can be told this; they read it when they start, so a profile that is not already open arrives in its own window.
-- **`None`**, which is what an account shows by default when its address matches no profile, means the link goes to the browser and opens in whatever window is already there.
-- **Choosing a profile pins it**, even if the Mac's default browser changes later. Unticking it returns the account to matching.
+- **The profile signed in as the account's address is selected automatically.** A profile name,
+  such as `Work`, means links open in that profile, and choosing a name pins the account to it.
+- **`None`** opens the link in whatever browser window is already there. An account also shows
+  `None` when its address matches no profile.
 
-:::note[Chromium browsers only, for now]
-Chrome, Brave and Edge keep profiles in the same place and accept the same flag, which is what makes this work. Safari has profiles but no supported way for another app to choose one, and Firefox differs again. With any other browser the profile menu is greyed out.
+:::note[Chromium browsers only]
+Chrome, Brave and Edge keep profiles in the same place and accept the same flag, which is what
+makes this work. Safari has profiles but no supported way for another app to choose one, and
+Firefox differs again. With any other browser the profile menu is greyed out.
 :::
 
 ---
@@ -126,7 +133,7 @@ Under **Alerts by Calendar**, you can toggle alerts on or off for individual cal
 
 ### Joining Video Calls
 
-**Always open calls in the browser** sends a Google Meet, Zoom or Microsoft Teams link to your default browser instead of the desktop app.
+**Always open calls in the browser** sends a Google Meet, Zoom or Microsoft Teams link to your chosen browser and account profile instead of the desktop app.
 
 ### Focus Filters
 

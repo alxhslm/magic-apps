@@ -235,6 +235,7 @@ describe('SidebarManager', () => {
       setTaskCompleted: vi.fn(),
       answerRsvp: vi.fn(),
       pollNow: vi.fn(),
+      joinCall: vi.fn(),
     };
 
     const manager = new SidebarManager(
@@ -274,8 +275,15 @@ describe('SidebarManager', () => {
     expect(mockCalendarService.openDeepLink).toHaveBeenCalled();
 
     // 3. Join call
-    manager.handleSidebarAction('sidebarJoinCall', 'https://meet.google.com/xyz-uvw-rst');
-    expect(mockOpenExternal).toHaveBeenCalledWith('https://meet.google.com/xyz-uvw-rst');
+    // Through the service, which owns the native-client check and the browser profile.
+    manager.handleSidebarAction(
+      'sidebarJoinCall',
+      'acc_personal|https://meet.google.com/xyz-uvw-rst',
+    );
+    expect(mockCalendarService.joinCall).toHaveBeenCalledWith(
+      'https://meet.google.com/xyz-uvw-rst',
+      'acc_personal',
+    );
 
     // 4. Delete event
     manager.handleSidebarAction('sidebarDeleteEvent', 'acc_personal:evt_special');

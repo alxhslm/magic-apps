@@ -153,12 +153,8 @@ public struct AccountsTab<Model: AccountListModel>: View {
         model.browserProfiles[browser] ?? []
     }
 
-    /// The menu's own label, naming the profile that will actually be used.
-    ///
-    /// It never says how the answer was reached. `Match email` asked the user to reason about
-    /// a rule and then guess at its outcome; naming the profile shows the outcome itself.
-    /// The menu offers `None` beside the profiles, so "the browser decides" is a choice the
-    /// user can see and make rather than a silent default.
+    /// The menu's label, naming the profile that will actually be used rather than how the answer
+    /// was reached: the outcome is what the user needs to see.
     private func profileSummary(for id: String) -> String {
         guard supportsProfiles else { return "No profiles" }
 
@@ -171,11 +167,8 @@ public struct AccountsTab<Model: AccountListModel>: View {
         return chosen?["name"] ?? setting
     }
 
-    /// The per-account half of link routing, on the row it belongs to.
-    ///
-    /// The browser itself is one setting for the app, on the General tab: it is where
-    /// someone works, not who they are. The profile is the part that differs per account,
-    /// which is the whole reason a link needs to know which Google session it belongs to.
+    /// The per-account half of link routing. The browser is one setting for the app, on the
+    /// General tab; the Google session differs per account, so the profile does too.
     private func profileMenu(for id: String) -> some View {
         Menu {
             Toggle("None", isOn: profileToggle("_none", for: id))
@@ -203,10 +196,8 @@ public struct AccountsTab<Model: AccountListModel>: View {
         )
     }
 
-    /// Which row the menu shows as chosen.
-    ///
-    /// An unmatched automatic account ticks `None`, because that is what will happen: the
-    /// label and the tick have to agree, or the menu shows two different answers.
+    /// Which row the menu ticks. An unmatched automatic account ticks `None`, because that is
+    /// what will happen; the label and the tick have to agree.
     private func effectiveProfile(for id: String) -> String {
         let setting = value(of: id, "browserProfile") ?? "_auto"
         if setting != "_auto" {
@@ -222,10 +213,8 @@ public struct AccountsTab<Model: AccountListModel>: View {
         return matched["directory"] ?? "_none"
     }
 
-    /// Profile rows behave as a radio group whose off position is "no choice".
-    ///
-    /// Unticking the chosen profile returns the account to the automatic answer rather than
-    /// leaving the menu with nothing that could express it.
+    /// Profile rows act as a radio group. Turning the chosen one off returns to the automatic
+    /// answer rather than leaving no way to express it.
     private func profileToggle(_ setting: String, for id: String) -> Binding<Bool> {
         Binding(
             get: { effectiveProfile(for: id) == setting },

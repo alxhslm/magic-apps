@@ -12,7 +12,7 @@ public struct DayTimeGridView: View {
     public let date: Date
     public let events: [TrayEvent]
     public let onSelectEvent: (TrayEvent) -> Void
-    public let onJoinCall: ((String) -> Void)?
+    public let onJoinCall: ((String, String) -> Void)?
     public let onRsvp: ((TrayEvent, String) -> Void)?
     public let onDeleteEvent: ((TrayEvent) -> Void)?
     public let onCompleteTask: ((TrayEvent, Bool) -> Void)?
@@ -29,7 +29,7 @@ public struct DayTimeGridView: View {
         date: Date,
         events: [TrayEvent],
         onSelectEvent: @escaping (TrayEvent) -> Void,
-        onJoinCall: ((String) -> Void)? = nil,
+        onJoinCall: ((String, String) -> Void)? = nil,
         onRsvp: ((TrayEvent, String) -> Void)? = nil,
         onDeleteEvent: ((TrayEvent) -> Void)? = nil,
         onCompleteTask: ((TrayEvent, Bool) -> Void)? = nil

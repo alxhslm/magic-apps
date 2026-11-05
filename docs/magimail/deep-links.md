@@ -71,6 +71,5 @@ security checks.
 
 External links clicked in email bodies, detached thread views, and compose popouts are intercepted by
 `setWindowOpenHandler` and `will-navigate` in `accounts-manager.ts` and `compose.ts`. Magimail unwraps
-Google tracking redirectors via `@magimail/core`, routing recognised destinations to native desktop
-applications (such as Todoist, Notion, Linear, Figma, and Slack) via macOS Universal Links. See
-[`../shared/third-party-links.md`](../shared/third-party-links.md).
+Google tracking redirectors via `@magimail/core` and opens the result in the chosen browser and
+account profile. See [`../shared/third-party-links.md`](../shared/third-party-links.md).

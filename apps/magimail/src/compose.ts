@@ -1,5 +1,6 @@
-import { BrowserWindow, shell } from 'electron';
-import { unwrapRedirectors } from '@magimail/core';
+import { openExternalUrl, unwrapRedirectors } from '@magimail/core';
+import { loadAccounts } from './account-store.js';
+import { BrowserWindow } from 'electron';
 import { GMAIL_COMPOSE_URL, DEFAULT_PARTITION } from './constants.js';
 import { createComposeWindowOptions, createThreadWindowOptions } from './window.js';
 import { getHideSidebarCss, injectGmailStyles } from './css.js';
@@ -55,7 +56,13 @@ export function openDetachedComposeWindow(
     ) {
       return { action: 'allow' };
     }
-    shell.openExternal(unwrapRedirectors(url));
+    // A pop-out belongs to one account, and its links belong wherever that account's links
+    // go: the same browser, and the profile signed in as the same person.
+    const settings = loadSettings();
+    void openExternalUrl(unwrapRedirectors(url), {
+      browser: settings.openLinksIn,
+      account: loadAccounts().find((a) => a.partition === partitionName),
+    });
     return { action: 'deny' };
   });
 
@@ -108,7 +115,13 @@ export function openDetachedThreadWindow(
     ) {
       return { action: 'allow' };
     }
-    shell.openExternal(unwrapRedirectors(url));
+    // A pop-out belongs to one account, and its links belong wherever that account's links
+    // go: the same browser, and the profile signed in as the same person.
+    const settings = loadSettings();
+    void openExternalUrl(unwrapRedirectors(url), {
+      browser: settings.openLinksIn,
+      account: loadAccounts().find((a) => a.partition === partitionName),
+    });
     return { action: 'deny' };
   });
 

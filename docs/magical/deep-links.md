@@ -81,8 +81,13 @@ Emitted by WidgetKit widgets and the menu bar popover:
 ## Outbound links
 
 External links clicked in Google Calendar views, event descriptions and tasks pass through `openExternalUrl`
-in `links.ts`. Magical unwraps Google tracking redirectors via `@magimail/core`, routing recognised
-destinations to native desktop applications (such as Todoist, Notion, Linear, Figma, and Slack) via
-macOS Universal Links. See [`../shared/third-party-links.md`](../shared/third-party-links.md). Meeting
-links (Zoom and Microsoft Teams) are rewritten to custom URL schemes; see
-[`conference-links.md`](conference-links.md).
+in `links.ts`. Magical unwraps Google tracking redirectors via `@magimail/core` and opens the result
+in the chosen browser and account profile. Meeting links (Zoom and Microsoft Teams) and Todoist tasks
+and projects are rewritten to custom URL schemes; see
+[`conference-links.md`](conference-links.md) and
+[`../shared/third-party-links.md`](../shared/third-party-links.md).
+
+`toTodoistAppUrl` rewrites `app.todoist.com/app/task/<id>` to `todoist://task?id=<id>` and the
+project form the same way. `openTodoistLinksInApp` (General, **Open Todoist links in the Todoist
+app**) is on by default; off sends those links to the browser and account profile. A missing Todoist
+client falls back to the browser through `hasApplicationForUrl`, like a meeting link.

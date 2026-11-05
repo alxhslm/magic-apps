@@ -72,8 +72,9 @@ A triage that arrives with no window runs through `routeAcrossWindow`, `WindowRo
 - **Magical**: [`../magical/deep-links.md`](../magical/deep-links.md) records the `magical://` routes
   (`event`, `date`, `search`, `quick-add`, `open`).
 
-## Outbound links and desktop apps
+## Outbound links
 
-Outbound links clicked inside email bodies, event descriptions and tasks are unwrapped via `@magimail/core`
-to strip Google tracking prefixes and restore Apple Universal Links for external tools (such as Todoist,
-Notion, Linear, Figma, and Slack). See [`third-party-links.md`](third-party-links.md).
+Outbound links clicked inside email bodies, event descriptions and tasks are unwrapped via
+`@magimail/core` to strip Google tracking prefixes, then opened in the chosen browser and account
+profile. Magical rewrites Zoom, Teams and Todoist links to their desktop schemes. See
+[`third-party-links.md`](third-party-links.md).

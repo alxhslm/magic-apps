@@ -17,11 +17,10 @@ export interface MagicalSettings {
   theme: 'system' | 'light' | 'dark';
   launchAtLogin: boolean;
   /**
-   * Which browser opens event links and browser-joined calls.
+   * Which browser opens event links and browser-joined calls. `system` hands the URL to macOS.
    *
-   * One setting for the app rather than one per account: it is where someone works, not
-   * who they are, and the per-account part that does vary is the Chromium profile. `system`
-   * hands the URL to macOS, which is what an install that never chose does.
+   * One setting for the app: the browser is where someone works, while the per-account
+   * variable is the Chromium profile.
    */
   openLinksIn: string;
   transparentBackground: boolean;
@@ -54,6 +53,8 @@ export interface MagicalSettings {
    * not in the desktop client.
    */
   alwaysJoinInBrowser: boolean;
+  /** Open Todoist task and project links in the Todoist app, falling back to the browser. */
+  openTodoistLinksInApp: boolean;
   /** Whether the native companion sidebar in the main window is visible. */
   sidebarVisible: boolean;
   /** Last active calendar timeframe mode (day, week, month, etc.). */
@@ -147,6 +148,7 @@ const DEFAULT_SETTINGS: MagicalSettings = {
   meetingAlertsEnabled: true,
   meetingAlertLeadMinutes: 5,
   alwaysJoinInBrowser: false,
+  openTodoistLinksInApp: true,
   sidebarVisible: true,
   lastTimeframe: 'day',
   isCalendarCollapsed: false,
@@ -237,9 +239,10 @@ export function loadSettings(): MagicalSettings {
     const stored = readSecretFile<unknown>(settingsPath());
     if (stored !== null) {
       const merged = mergeSettings(stored);
-      // `mergeSettings` cannot tell "never chose" from "chose the Mac's default", and the
-      // first should adopt that browser so an account's profile works without a second
-      // step. Anything we cannot launch with a profile stays `system`.
+      // A settings file written before this setting existed has no `openLinksIn`, and `mergeSettings`
+      // would give it the default `system`, which is indistinguishable from someone who chose to let
+      // macOS decide. A fresh install should follow the Mac's browser, so that is filled in here.
+      // Anything we cannot launch with a profile stays `system`.
       const storedChoice = (stored as Record<string, unknown>)?.openLinksIn;
       if (typeof storedChoice !== 'string') {
         merged.openLinksIn = defaultLinkBrowser();

@@ -85,10 +85,10 @@
     "Always open calls in the browser": {
       "extractionState": "manual"
     },
-    "An account's organization has blocked Google Calendar.": {
+    "An account you switch away from stays in memory for this long, then unloads to free around 300MB. Background events and alerts keep arriving either way, and returning to an unloaded account reopens it where you left off.": {
       "extractionState": "manual"
     },
-    "An account you switch away from stays in memory for this long, then unloads to free around 300MB. Background events and alerts keep arriving either way, and returning to an unloaded account reopens it where you left off.": {
+    "An account's organization has blocked Google Calendar.": {
       "extractionState": "manual"
     },
     "Appearance": {
@@ -411,6 +411,9 @@
       "extractionState": "manual"
     },
     "Open in Magical": {
+      "extractionState": "manual"
+    },
+    "Open links in:": {
       "extractionState": "manual"
     },
     "Other": {

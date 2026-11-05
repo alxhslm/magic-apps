@@ -51,7 +51,7 @@ public struct TrayPopoverView: View {
     let onQuickAdd: (String?) -> Void
     let onOpenSettings: () -> Void
     let onQuit: () -> Void
-    let onJoinCall: (String) -> Void
+    let onJoinCall: (String, String) -> Void
     let onSelectEvent: (TrayEvent) -> Void
     let onRsvp: (TrayEvent, String) -> Void
     let onShowAccount: (String) -> Void
@@ -65,7 +65,7 @@ public struct TrayPopoverView: View {
         onQuickAdd: @escaping (String?) -> Void,
         onOpenSettings: @escaping () -> Void,
         onQuit: @escaping () -> Void,
-        onJoinCall: @escaping (String) -> Void,
+        onJoinCall: @escaping (String, String) -> Void,
         onSelectEvent: @escaping (TrayEvent) -> Void,
         onRsvp: @escaping (TrayEvent, String) -> Void,
         onShowAccount: @escaping (String) -> Void,

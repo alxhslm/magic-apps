@@ -114,7 +114,7 @@ struct GeneralTab: View {
                 browsers: model.browsers,
                 defaultBrowser: model.defaultBrowser
             )
-            .help("Applies to links clicked in a message that leave Gmail. Each account chooses its own Chromium profile in Accounts.")
+            .help("Each account chooses its own Chromium profile in Accounts.")
 
             Divider()
 

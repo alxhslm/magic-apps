@@ -13,7 +13,7 @@ Ahead of a meeting, Magical posts a native notification carrying the meeting tit
 
 - **Join Call**: appears when the event has a conference link, for Google Meet, Zoom, Microsoft Teams and Webex, and opens the meeting without bringing the Magical window forward.
 - **Snooze**: re-arms the alert five minutes later, for when you are finishing something.
-- **Always open calls in the browser**: a toggle in **Settings → Notifications** that sends conference links to your default browser instead of the desktop app, which is what you want when your work Zoom or Teams account is signed in to one browser session. See [Settings Reference](/help/magical/settings/).
+- **Always open calls in the browser**: a toggle in **Settings → Notifications** that sends conference links to your chosen browser and account profile instead of the desktop app, which is what you want when your work Zoom or Teams account is signed in to one browser session. See [Settings Reference](/help/magical/settings/).
 
 The start time on the banner follows your Mac's clock, so a Mac set to 24-hour time reads `14:35` where a 12-hour one reads `2:35 pm`. See the [Settings Reference](/help/magical/settings/#times-and-dates).
 
