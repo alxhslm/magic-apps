@@ -12,6 +12,17 @@ describe('appForUrl', () => {
     expect(appForUrl('https://www.notion.so/page')?.bundleId).toBe('notion.id');
     expect(appForUrl('https://app.notion.com/p/page')?.bundleId).toBe('notion.id');
     expect(appForUrl('https://linear.app/acme/issue/ABC-1')?.bundleId).toBe('com.linear');
+    expect(appForUrl('https://acme.slack.com/archives/C1')?.bundleId).toBe(
+      'com.tinyspeck.slackmacgap',
+    );
+    expect(appForUrl('https://app.todoist.com/app/task/1')?.bundleId).toBe(
+      'com.todoist.mac.Todoist',
+    );
+    expect(appForUrl('https://www.figma.com/file/abc')?.bundleId).toBe('com.figma.Desktop');
+    expect(appForUrl('https://www.loom.com/share/abc')?.bundleId).toBe('com.loom.desktop');
+    expect(appForUrl('https://www.dropbox.com/scl/fi/abc')?.bundleId).toBe(
+      'com.getdropbox.dropbox',
+    );
     expect(appForUrl('https://miro.com/app/board/abc')?.bundleId).toBe(
       'com.electron.realtimeboard',
     );
@@ -30,6 +41,8 @@ describe('appForUrl', () => {
     expect(appForUrl('https://mg.mail.notion.so/c/abc')).toBeNull();
     expect(appForUrl('https://mail.notion.so/')).toBeNull();
     expect(appForUrl('https://www.notion.com/')).toBeNull();
+    expect(appForUrl('https://todoist.com/app/task/1')).toBeNull();
+    expect(appForUrl('https://figma.com/file/abc')).toBeNull();
   });
 
   it('does not match a lookalike host', () => {
