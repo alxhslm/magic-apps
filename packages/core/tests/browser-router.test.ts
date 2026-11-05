@@ -292,6 +292,42 @@ describe('browser-router', () => {
     expect(runner).toHaveBeenCalledWith(['-b', 'com.google.Chrome', 'https://example.com']);
   });
 
+  it('openExternalUrl sends the other app its own links when it is installed', async () => {
+    const fallback = vi.fn().mockResolvedValue(undefined);
+    const runner = vi.fn().mockResolvedValue(undefined);
+
+    await openExternalUrl('https://calendar.google.com/calendar/u/0/r/day/2026/11/5', {
+      browser: 'chrome',
+      customHome: tmpDir,
+      resolveHandler: async (url) =>
+        url.startsWith('magical://') ? 'com.alexhaslam.magical' : 'com.apple.Safari',
+      fallbackOpenExternal: fallback,
+      openCommandRunner: runner,
+    });
+
+    expect(fallback).toHaveBeenCalledWith('magical://date?at=2026-11-05T00%3A00%3A00.000Z');
+    expect(runner).not.toHaveBeenCalled();
+  });
+
+  it('openExternalUrl opens a calendar link in the browser when Magical is absent', async () => {
+    const runner = vi.fn().mockResolvedValue(undefined);
+
+    await openExternalUrl('https://calendar.google.com/calendar/u/0/r/day/2026/11/5', {
+      browser: 'chrome',
+      customHome: tmpDir,
+      // No app registered for the scheme, so macOS would answer with the default browser.
+      resolveHandler: async () => 'com.apple.Safari',
+      fallbackOpenExternal: vi.fn().mockResolvedValue(undefined),
+      openCommandRunner: runner,
+    });
+
+    expect(runner).toHaveBeenCalledWith([
+      '-b',
+      'com.google.Chrome',
+      'https://calendar.google.com/calendar/u/0/r/day/2026/11/5',
+    ]);
+  });
+
   it('openExternalUrl delegates system browser to fallback', async () => {
     const fallback = vi.fn().mockResolvedValue(undefined);
     const runner = vi.fn().mockResolvedValue(undefined);
