@@ -835,7 +835,16 @@ enum AccountDot {
 
     /// Non-template so AppKit draws the real colour rather than tinting it to
     /// match the control.
-    static func image(hex: String, filled: Bool) -> NSImage {
+    ///
+    /// The popover's dot is 9pt; the status item's is 6pt and wants a thinner
+    /// ring. Both are drawn from the same path so the two sizes cannot drift
+    /// into different shapes.
+    static func image(
+        hex: String,
+        filled: Bool,
+        diameter: CGFloat = 9,
+        ringStroke: CGFloat = 1.5
+    ) -> NSImage {
         let image = NSImage(
             size: NSSize(width: diameter, height: diameter),
             flipped: false

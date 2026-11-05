@@ -6,8 +6,7 @@ import type { AccountConfig } from '@magimail/core';
 const mockSendToHelper = vi.fn();
 const mockIsHelperRunning = vi.fn().mockReturnValue(true);
 const mockLoadSettings = vi.fn().mockReturnValue({
-  menuBarShowCount: true,
-  menuBarShowDots: true,
+  menuBarUnreadDisplay: 'numbers',
 });
 
 vi.mock('../src/swift-helper.js', () => ({
@@ -46,8 +45,7 @@ describe('Magimail Tray Payload Contracts', () => {
     }
 
     expect(typeof fixture.totalUnread).toBe('number');
-    expect(typeof fixture.showCount).toBe('boolean');
-    expect(typeof fixture.showDots).toBe('boolean');
+    expect(['nothing', 'dots', 'numbers']).toContain(fixture.unreadDisplay);
     expect(typeof fixture.isOffline).toBe('boolean');
     expect(typeof fixture.isRestricted).toBe('boolean');
   });
@@ -84,8 +82,7 @@ describe('Magimail Tray Payload Contracts', () => {
     expect(mockSendToHelper).toHaveBeenCalledWith('tray.update', {
       accounts: fixture.accounts,
       totalUnread: fixture.totalUnread,
-      showCount: fixture.showCount,
-      showDots: fixture.showDots,
+      unreadDisplay: fixture.unreadDisplay,
       isOffline: fixture.isOffline,
       isRestricted: fixture.isRestricted,
     });

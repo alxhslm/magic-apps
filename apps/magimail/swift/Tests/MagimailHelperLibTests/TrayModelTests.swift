@@ -42,8 +42,7 @@ struct TrayModelTests {
         #expect(model.accounts[1].needsAuth == false)
 
         #expect(model.totalUnread == 3)
-        #expect(model.showCount == true)
-        #expect(model.showDots == true)
+        #expect(model.unreadDisplay == .numbers)
         #expect(model.isOffline == false)
         #expect(model.isRestricted == false)
 

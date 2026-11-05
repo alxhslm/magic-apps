@@ -53,8 +53,16 @@ between the bar's height and the font's cap height.
 ## Sizing the status item
 
 The status item is `variableLength`, so every item to the left of it moves whenever the title's width
-changes. A title that changes on its own therefore has to be drawn into a field of a constant width,
-with whatever the reading leaves over appended as a transparent `NSTextAttachment` of the measured
+changes. That matters most while someone is using the tray: marking a message read in the popover
+changes the count the title reports, and the item and the popover anchored to it must not move under
+the pointer.
+
+**Make the title's width depend on something stable**, such as the account count or display mode, not
+on the counts. Magimail draws one mark per account, so the count changes the mark, not the space. Its
+three readings and widths are in [`../magimail/menu-bar.md`](../magimail/menu-bar.md).
+
+A title that cannot be made stable that way can be drawn into a field of a constant width, with
+whatever the reading leaves over appended as a transparent `NSTextAttachment` of the measured
 difference. The reserve trails the title rather than leading it: in front it would hold the item's
 width just as well, but the words would slide rightwards as the text shortened; at the end it is empty
 space against the neighbouring item and nothing visible moves.
@@ -63,7 +71,7 @@ The item keeps `variableLength` rather than taking a fixed `length`. A fixed wid
 longest title the mode can draw, and macOS hides menu bar extras when it needs the room for app menus,
 so that width comes out of whatever else the user keeps up there.
 
-Magical's countdown is the title that changes on its own, and how its constant width is measured and
+Magical's countdown is a title that changes on its own, and how its constant width is measured and
 why is in [`../magical/menu-bar.md`](../magical/menu-bar.md).
 
 ## Popover
