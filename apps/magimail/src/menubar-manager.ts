@@ -60,8 +60,7 @@ function sendTrayUpdate(
       needsAuth: Boolean(a.needsAuth),
     })),
     totalUnread,
-    showCount: settings.menuBarShowCount,
-    showDots: settings.menuBarShowDots,
+    unreadDisplay: settings.menuBarUnreadDisplay,
     isOffline: options?.isOffline ?? cachedTrayData.isOffline ?? false,
     isRestricted: options?.isRestricted ?? cachedTrayData.isRestricted ?? false,
   });

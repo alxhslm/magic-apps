@@ -18,8 +18,7 @@
     }
   ],
   "totalUnread": 3,
-  "showCount": true,
-  "showDots": true,
+  "unreadDisplay": "numbers",
   "isOffline": false,
   "isRestricted": false
 }

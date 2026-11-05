@@ -12,6 +12,16 @@ public enum TrayThreadAction: String {
     case markUnread
 }
 
+/// What the status item draws for each account.
+///
+/// The three readings all draw one mark per account, which is what makes the
+/// item's width a function of the account count rather than of the mail.
+public enum MenuBarUnreadDisplay: String, CaseIterable {
+    case nothing
+    case dots
+    case numbers
+}
+
 /// Data model for the menu bar tray popover.
 @MainActor
 public final class TrayModel: ObservableObject {
@@ -24,9 +34,8 @@ public final class TrayModel: ObservableObject {
     /// Selected account filter. `nil` shows every account.
     @Published public var selectedAccountId: String?
 
-    // Settings that affect the status item title
-    @Published public var showCount: Bool = true
-    @Published public var showDots: Bool = true
+    /// Settings that affect the status item title
+    @Published public var unreadDisplay: MenuBarUnreadDisplay = .numbers
     /// Whether the popover draws only unread threads. A view filter, not a
     /// setting that changes what is fetched; `TrayModel` still holds the whole
     /// list so turning it off restores the read context without a round trip.
@@ -229,11 +238,10 @@ public final class TrayModel: ObservableObject {
         if let total = params["totalUnread"] as? Int {
             totalUnread = total
         }
-        if let sc = params["showCount"] as? Bool {
-            showCount = sc
-        }
-        if let sd = params["showDots"] as? Bool {
-            showDots = sd
+        if let display = params["unreadDisplay"] as? String,
+           let parsed = MenuBarUnreadDisplay(rawValue: display)
+        {
+            unreadDisplay = parsed
         }
         if let unreadOnly = params["showUnreadOnly"] as? Bool {
             showUnreadOnly = unreadOnly

@@ -220,3 +220,108 @@ header.header {
 .sym-sidebar-right {
   --sym: url('/assets/sym/sidebar-right.png');
 }
+
+/* The three menu bar readings, drawn rather than screenshotted so the example
+   shows the real marks at any screen density and in either theme. The glyph is
+   a mask, the dots and numbers take the same fixed account colours the app uses. */
+.menu-bar-readings {
+  display: grid;
+  gap: 0.75rem;
+  margin: 1.5rem 0;
+}
+
+@media (min-width: 50rem) {
+  .menu-bar-readings {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.menu-bar-reading {
+  border: 1px solid var(--sl-color-hairline);
+  border-radius: 0.75rem;
+  background: var(--sl-color-gray-7);
+  padding: 0.9rem;
+}
+
+.menu-bar-reading__title {
+  font-weight: 600;
+  margin-bottom: 0.65rem;
+}
+
+.menu-bar-reading__sample {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 2.5rem;
+  border: 1px solid var(--sl-color-hairline);
+  border-radius: 0.5rem;
+  background: var(--sl-color-black);
+  padding: 0.45rem 0.75rem;
+}
+
+.menu-bar-reading__note {
+  color: var(--sl-color-gray-2);
+  font-size: 0.875rem;
+  line-height: 1.4;
+  margin: 0.6rem 0 0;
+}
+
+.menu-bar-glyph {
+  flex: none;
+  width: 1.15rem;
+  height: 1.15rem;
+  background-color: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M3 5h18a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Zm1.5 2L12 12.5 19.5 7h-15Zm-.5 1.7V17h16V8.7l-8 5.9-8-5.9Z'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M3 5h18a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Zm1.5 2L12 12.5 19.5 7h-15Zm-.5 1.7V17h16V8.7l-8 5.9-8-5.9Z'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+}
+
+.menu-bar-dots {
+  display: flex;
+  align-items: center;
+  gap: 0.22rem;
+}
+
+.menu-bar-dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  box-sizing: border-box;
+}
+
+.menu-bar-dot--work {
+  background: #0096ff;
+}
+
+.menu-bar-dot--personal {
+  border: 1px solid #2f9e44;
+}
+
+.menu-bar-numbers {
+  display: flex;
+  align-items: center;
+  gap: 0.22rem;
+  font-family: var(--sl-font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.95rem;
+  line-height: 1;
+}
+
+.menu-bar-number {
+  display: inline-block;
+  width: 2ch;
+  text-align: right;
+}
+
+.menu-bar-number--work {
+  color: #0096ff;
+}
+
+.menu-bar-number--personal {
+  color: #2f9e44;
+}
+
+.menu-bar-number--quiet {
+  opacity: 0.35;
+}
