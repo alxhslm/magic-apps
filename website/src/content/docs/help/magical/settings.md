@@ -24,7 +24,7 @@ The General tab manages startup behaviour and default calendar file handling:
 
 ### Times and Dates
 
-Magical has no clock or date format of its own: every time and date it shows follows your Mac.
+Magical's date and time formats follow your Mac.
 
 - **12- or 24-hour clock**: the **24-Hour Time** switch in **System Settings → General → Date & Time**. On, a meeting reads `14:35`; off, `2:35 pm`.
 - **Date order and language**: **System Settings → General → Language & Region**. A British Mac reads `18 Oct`, an American one `Oct 18`.

@@ -7,9 +7,7 @@ The region and the 12/24-hour switch are separate macOS settings. The region is 
 (`en_GB`); the switch writes `AppleICUForce24HourTime` when 24-hour is on and
 `AppleICUForce12HourTime` when it is off, so either region can be on either clock.
 
-A change to either takes effect when Magical is relaunched. Nothing polls, and no surface updates
-ahead of another, so the menu bar, popover, sidebar and widgets cannot disagree about the clock or
-the date order part-way through a session.
+A change to either takes effect when Magical is relaunched.
 
 ## Where the setting is read
 
