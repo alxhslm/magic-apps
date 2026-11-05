@@ -26,13 +26,12 @@ The General tab controls startup behaviour, default app registration, and messag
 
 Which browser opens links that leave Gmail, such as a link in an email that goes somewhere other than Gmail:
 
-- **Only installed browsers are listed.** The list comes from macOS, so a browser you do not have is not offered; picking one would fail at launch and quietly open somewhere else.
-- **The row macOS opens links with is marked `(default)`.** Leaving the setting alone follows the Mac's default browser, and keeps following it if you change it later.
-- **Safari and other non-Chromium browsers** are supported here, but they cannot be told which profile to use. See [Chromium profiles](#chromium-profiles) below.
+- **Only installed browsers are listed**, and the row macOS opens links with is marked `(default)`. Leaving that row alone follows the Mac's default, including if you change it later.
+- **Safari, Firefox and other non-Chromium browsers** work here, but cannot be told which profile to use. See [Chromium profiles](#chromium-profiles).
 
 One setting covers the whole app, because the browser is where you work rather than who you are. Which session a link lands in is per account, and is set on the account itself.
 
-> **One side effect.** Choosing Chrome, Brave or Edge means Magimail starts that browser itself, so a link to a site that has its own desktop app (Notion, Linear, Todoist) opens in the browser instead of the app. With `Safari (default)` left in place, macOS hands those links to the app as before.
+> **One side effect.** A link that has to be sent to a particular profile starts the browser directly, so a site with its own desktop app (Notion, Linear, Todoist) opens in the browser for that link. Links that do not need a profile go through macOS and still reach the app.
 
 ### Global Quick Compose Shortcut
 
@@ -66,9 +65,9 @@ The control sits on the account's row in **Accounts**, and reads the profile tha
 - **`None`**, which is what an account shows by default when its address matches no profile, means the link goes to the browser and opens in whatever window is already there.
 - **Choosing a profile pins it**, even if the Mac's default browser changes later. Unticking it returns the account to matching.
 
-If the address you are signed in as is also signed in to a Chromium profile, the row names that profile without you choosing anything. The address is read from the signed-in Google page, so an account that matches no profile reads `None` rather than guessing at one.
-
-**Chromium browsers only, for now.** Chrome, Brave and Edge all keep profiles in the same place and accept the same command line flag, which is what makes this work. Safari keeps profiles too but offers no supported way for another app to choose one, and Firefox and others differ again. When the chosen browser is not one of the three, the profile menu is greyed out: that is why, not a missing feature on your side.
+:::note[Chromium browsers only, for now]
+Chrome, Brave and Edge keep profiles in the same place and accept the same flag, which is what makes this work. Safari has profiles but no supported way for another app to choose one, and Firefox differs again. With any other browser the profile menu is greyed out.
+:::
 
 ---
 

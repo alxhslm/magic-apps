@@ -287,6 +287,8 @@ export interface OpenExternalUrlOptions {
   fallbackOpenExternal?: (url: string) => Promise<void>;
   /** Custom home dir for profile reading (testing). */
   customHome?: string;
+  /** The Mac's default browser id, when the caller already knows it. */
+  defaultBrowserId?: string;
 }
 
 /**
@@ -340,8 +342,12 @@ export async function openExternalUrl(
       );
 
       // Chromium reads --profile-directory only when it is starting, so naming a profile
-      // costs a second instance. Where the automatic answer is the profile already open
-      // there is nothing to gain from that, and a plain hand-off reuses the running window.
+      // costs a second instance. Where the answer is the profile already open there is
+      // nothing to gain from that, and the URL goes to macOS instead.
+      //
+      // macOS rather than `-b`: LaunchServices also hands a URL to a desktop app that claims
+      // the domain, which starting the browser by hand would bypass. When the browser we want
+      // is the Mac's default, letting macOS route it costs nothing and keeps that.
       //
       // An account that names a profile always gets it. "The profile already open" is
       // whichever one we launched last, so treating that as a match let one account's link
@@ -358,6 +364,13 @@ export async function openExternalUrl(
           `--profile-directory=${profileDir}`,
           url,
         ]);
+        return;
+      }
+
+      const macDefault = options.defaultBrowserId ?? getDefaultBrowser().id;
+      if (browserId === macDefault) {
+        log.info(`Opening ${redactUrl(url)} in ${browserDef.name} (current profile, via macOS)`);
+        await fallback(url);
         return;
       }
 
