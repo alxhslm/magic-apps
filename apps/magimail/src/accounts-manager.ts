@@ -862,7 +862,7 @@ export class AccountsManager {
         }
         const target = unwrapRedirectors(childUrl);
         const activeAcc = this.accounts.find((a) => a.id === this.activeAccountId);
-        void openExternalUrl(target, { account: activeAcc });
+        void openExternalUrl(target, { browser: loadSettings().openLinksIn, account: activeAcc });
         return { action: 'deny' };
       });
 
@@ -938,7 +938,7 @@ export class AccountsManager {
 
       const target = unwrapRedirectors(url);
       log.info(`Account ${account.id} opening in the browser:`, redactUrl(target));
-      void openExternalUrl(target, { account });
+      void openExternalUrl(target, { browser: loadSettings().openLinksIn, account });
       return { action: 'deny' };
     });
 
@@ -954,7 +954,7 @@ export class AccountsManager {
         event.preventDefault();
         const target = unwrapRedirectors(url);
         log.info(`Account ${account.id} navigating out to the browser:`, redactUrl(target));
-        void openExternalUrl(target, { account });
+        void openExternalUrl(target, { browser: loadSettings().openLinksIn, account });
       }
     });
 
@@ -2793,18 +2793,12 @@ export class AccountsManager {
 
   public updateAccountConfig(
     accountId: string,
-    updates: {
-      name?: string;
-      color?: string;
-      browser?: string;
-      browserProfile?: string;
-    },
+    updates: { name?: string; color?: string; browserProfile?: string },
   ): boolean {
     const account = this.accounts.find((a) => a.id === accountId);
     if (!account) return false;
     if (updates.name !== undefined) account.name = updates.name;
     if (updates.color !== undefined) account.color = updates.color;
-    if (updates.browser !== undefined) account.browser = updates.browser;
     if (updates.browserProfile !== undefined) account.browserProfile = updates.browserProfile;
     saveAccounts(this.accounts);
     this.notifyToolbar();

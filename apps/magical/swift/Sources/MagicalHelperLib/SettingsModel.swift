@@ -47,6 +47,11 @@ public final class SettingsModel: ObservableObject {
         didSet { emit("disabledAlertCalendarIds", disabledAlertCalendarIds) }
     }
 
+    /// Browser id for links that leave the app, or `system` to let macOS choose.
+    @Published public var openLinksIn: String = "system" {
+        didSet { emit("openLinksIn", openLinksIn) }
+    }
+
     @Published public var alwaysJoinInBrowser: Bool = false {
         didSet { emit("alwaysJoinInBrowser", alwaysJoinInBrowser) }
     }
@@ -96,6 +101,8 @@ public final class SettingsModel: ObservableObject {
 
     @Published public var accounts: [[String: Any]] = []
     @Published public var browserProfiles: [String: [[String: String]]] = [:]
+    /// The browsers the app can open links in, without `system`, as `{ id, name, isChromium }`.
+    @Published public var browsers: [[String: Any]] = []
     /// The browser macOS opens `https` links with, as `{ id, name, bundleId, isChromium }`.
     @Published public var defaultBrowser: [String: Any] = [:]
 
@@ -254,6 +261,9 @@ public final class SettingsModel: ObservableObject {
         }
         if let v = dict["disabledAlertCalendarIds"] as? [String] {
             disabledAlertCalendarIds = v
+        }
+        if let v = dict["openLinksIn"] as? String {
+            openLinksIn = v
         }
         if let v = dict["alwaysJoinInBrowser"] as? Bool {
             alwaysJoinInBrowser = v

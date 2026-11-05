@@ -70,6 +70,22 @@ export interface DefaultBrowserOptions {
  * mapping a bundle identifier to a browser id.
  */
 export function getDefaultBrowser(options: DefaultBrowserOptions = {}): DefaultBrowser {
+  // Routing asks this per external link, and a LaunchServices read is a subprocess. The
+  // Mac's default browser changes when the user changes it, not between two clicks, so a
+  // short cache costs nothing and keeps a link from waiting on `plutil`.
+  const cacheable = options.customHome === undefined && options.readPlistJson === undefined;
+  if (cacheable && defaultBrowserCache && Date.now() - defaultBrowserCache.at < 30_000) {
+    return defaultBrowserCache.value;
+  }
+
+  const browser: DefaultBrowser = detectDefaultBrowser(options);
+  if (cacheable) defaultBrowserCache = { at: Date.now(), value: browser };
+  return browser;
+}
+
+let defaultBrowserCache: { at: number; value: DefaultBrowser } | undefined;
+
+function detectDefaultBrowser(options: DefaultBrowserOptions): DefaultBrowser {
   const bundleId = readDefaultBrowserBundleId(options);
   const known = SUPPORTED_BROWSERS.find(
     (b) => b.bundleId !== undefined && b.bundleId.toLowerCase() === bundleId.toLowerCase(),
@@ -144,22 +160,35 @@ export function getAllChromiumProfiles(customHome?: string): Record<string, Chro
   };
 }
 
+/** Match the account's own email address against the browser's profiles. */
+export const AUTO_PROFILE = '_auto';
+/** Whatever profile the browser used last, which is the one the user is working in. */
+export const LAST_USED_PROFILE = '_last';
+
+interface ChromiumLocalState {
+  profiles: ChromiumProfile[];
+  lastUsed?: string;
+}
+
 /**
- * Reads the list of user profiles from Chromium's Local State file on macOS.
+ * Reads Chromium's Local State once for both the profile list and the last profile used.
+ *
+ * The two live in the same file, and resolving a profile needs both, so reading them apart
+ * meant parsing the same JSON twice per link.
  */
-export function getChromiumProfiles(browserId: string, customHome?: string): ChromiumProfile[] {
+function readChromiumLocalState(browserId: string, customHome?: string): ChromiumLocalState {
   const relativePath = CHROMIUM_DATA_PATHS[browserId];
-  if (!relativePath) return [];
+  if (!relativePath) return { profiles: [] };
 
   const home = customHome ?? os.homedir();
   const filePath = path.join(home, relativePath);
 
   try {
-    if (!fs.existsSync(filePath)) return [];
+    if (!fs.existsSync(filePath)) return { profiles: [] };
     const content = fs.readFileSync(filePath, 'utf-8');
     const parsed = JSON.parse(content);
     const infoCache = parsed?.profile?.info_cache;
-    if (!infoCache || typeof infoCache !== 'object') return [];
+    if (!infoCache || typeof infoCache !== 'object') return { profiles: [] };
 
     const profiles: ChromiumProfile[] = [];
     for (const [dir, data] of Object.entries(infoCache)) {
@@ -179,22 +208,45 @@ export function getChromiumProfiles(browserId: string, customHome?: string): Chr
       });
     }
 
-    return profiles.sort((a, b) => {
+    profiles.sort((a, b) => {
       if (a.directory === 'Default') return -1;
       if (b.directory === 'Default') return 1;
       return a.name.localeCompare(b.name);
     });
+
+    const lastUsed =
+      typeof parsed?.profile?.last_used === 'string' ? parsed.profile.last_used : undefined;
+
+    return { profiles, lastUsed };
   } catch (err) {
     log.warn(`Could not read profiles for ${browserId}:`, err);
-    return [];
+    return { profiles: [] };
   }
 }
 
 /**
- * Resolves the target Chromium profile directory name for an account.
+ * Reads the list of user profiles from Chromium's Local State file on macOS.
+ */
+export function getChromiumProfiles(browserId: string, customHome?: string): ChromiumProfile[] {
+  return readChromiumLocalState(browserId, customHome).profiles;
+}
+
+/**
+ * The profile the browser was last working in, which is the one its open window shows.
+ */
+export function getLastUsedProfile(browserId: string, customHome?: string): string | null {
+  const { profiles, lastUsed } = readChromiumLocalState(browserId, customHome);
+  return profiles.some((p) => p.directory === lastUsed) ? (lastUsed ?? null) : null;
+}
+
+/**
+ * Resolves the Chromium profile directory an account's links should open in.
  *
- * If explicit setting is provided (and not `_auto`), uses that if available.
- * If set to `_auto` (or omitted), matches the account email against user_name.
+ * An explicit directory is used when the browser still has it. `_auto` and an unset
+ * setting both mean the same thing: the profile signed in as the account, then the one the
+ * browser used last, then `Default`. `_last` skips the email match. The last-used profile
+ * is the fallback rather than `Default` because a user who has one browser profile that is
+ * not called `Default` is offered the browser's own guess instead of a fresh empty one.
  */
 export function resolveChromiumProfile(
   browserId: string,
@@ -202,26 +254,36 @@ export function resolveChromiumProfile(
   accountEmail?: string,
   customHome?: string,
 ): string | null {
-  const profiles = getChromiumProfiles(browserId, customHome);
+  const { profiles, lastUsed } = readChromiumLocalState(browserId, customHome);
   if (profiles.length === 0) return null;
 
-  if (profileSetting && profileSetting !== '_auto') {
+  if (profileSetting && profileSetting !== AUTO_PROFILE && profileSetting !== LAST_USED_PROFILE) {
     const found = profiles.find((p) => p.directory === profileSetting);
     return found ? found.directory : null;
   }
 
-  if (accountEmail) {
+  if (profileSetting !== LAST_USED_PROFILE && accountEmail) {
     const normalizedEmail = accountEmail.trim().toLowerCase();
     const matched = profiles.find((p) => p.email?.trim().toLowerCase() === normalizedEmail);
     if (matched) return matched.directory;
   }
 
-  const defaultProfile = profiles.find((p) => p.directory === 'Default');
-  return defaultProfile?.directory ?? profiles[0]?.directory ?? null;
+  return (
+    profiles.find((p) => p.directory === lastUsed)?.directory ??
+    profiles.find((p) => p.directory === 'Default')?.directory ??
+    profiles[0]?.directory ??
+    null
+  );
 }
 
 export interface OpenExternalUrlOptions {
-  account?: Pick<AccountConfig, 'browser' | 'browserProfile' | 'email'>;
+  /**
+   * The app's choice of browser, from settings. `system` hands the URL to macOS, which is
+   * what an install that never touched the setting does.
+   */
+  browser?: string;
+  /** The account, for the profile its links should open in. */
+  account?: Pick<AccountConfig, 'browserProfile' | 'email'>;
   /** Injectable runner for /usr/bin/open commands, mainly for testing. */
   openCommandRunner?: (args: string[]) => Promise<void>;
   /** Injectable shell.openExternal fallback. */
@@ -233,8 +295,9 @@ export interface OpenExternalUrlOptions {
 /**
  * Opens an external URL in the designated browser and profile for an account.
  *
- * If the account specifies 'system' or an unknown browser, delegates to shell.openExternal.
- * If a Chromium browser is selected, launches via /usr/bin/open with --profile-directory.
+ * If the browser is 'system' or not one we know, delegates to shell.openExternal.
+ * If a Chromium browser is selected, launches via /usr/bin/open with --profile-directory,
+ * which is the only way an account's profile can be honoured.
  * If an error occurs, falls back gracefully to system default.
  */
 export async function openExternalUrl(
@@ -253,7 +316,7 @@ export async function openExternalUrl(
     return;
   }
 
-  const browserId = options.account?.browser ?? 'system';
+  const browserId = options.browser ?? 'system';
   const browserDef = SUPPORTED_BROWSERS.find((b) => b.id === browserId);
 
   const runner =
@@ -262,13 +325,16 @@ export async function openExternalUrl(
       await execFileAsync('/usr/bin/open', args);
     });
 
-  if (!browserDef || browserId === 'system' || !browserDef.bundleId) {
+  // Anything we cannot launch ourselves goes to macOS, which is also what keeps a domain
+  // owned by a desktop app (Universal Links) out of the browser.
+  if (!browserDef || !browserDef.bundleId) {
     await fallback(url);
     return;
   }
 
   try {
     if (browserDef.isChromium) {
+      const lastUsed = getLastUsedProfile(browserId, options.customHome);
       const profileDir = resolveChromiumProfile(
         browserId,
         options.account?.browserProfile,
@@ -276,7 +342,10 @@ export async function openExternalUrl(
         options.customHome,
       );
 
-      if (profileDir) {
+      // Chromium reads --profile-directory only when it is starting, so a second profile
+      // costs a second instance. Where the resolved profile is the one already open there
+      // is nothing to gain from that, and a plain hand-off reuses the running window.
+      if (profileDir && profileDir !== lastUsed) {
         log.info(`Opening ${redactUrl(url)} in ${browserDef.name} (profile: ${profileDir})`);
         await runner([
           '-b',
@@ -289,7 +358,7 @@ export async function openExternalUrl(
         return;
       }
 
-      log.info(`Opening ${redactUrl(url)} in ${browserDef.name} (default profile)`);
+      log.info(`Opening ${redactUrl(url)} in ${browserDef.name} (current profile)`);
       await runner(['-b', browserDef.bundleId, url]);
       return;
     }

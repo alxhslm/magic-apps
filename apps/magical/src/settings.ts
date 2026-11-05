@@ -1,8 +1,16 @@
 import { app } from 'electron';
-import { getAllChromiumProfiles, getDefaultBrowser } from '@magimail/core';
+import { getAllChromiumProfiles, getDefaultBrowser, SUPPORTED_BROWSERS } from '@magimail/core';
 import { createLogger } from '@magimail/core/logger';
 import { sendToHelper } from './swift-helper.js';
 import { loadSettings } from './settings-store.js';
+
+/** Every browser we can launch ourselves, which is not the same as one we have profiles for. */
+const CHOOSABLE_BROWSERS = SUPPORTED_BROWSERS.filter((b) => b.id !== 'system').map((b) => ({
+  id: b.id,
+  name: b.name,
+  bundleId: b.bundleId ?? '',
+  isChromium: b.isChromium === true,
+}));
 import { buildSerializedCalendars } from './calendars.js';
 import type { AccountsManager } from './accounts-manager.js';
 import type { NormalizedCalendarEvent } from './calendar-decoder.js';
@@ -29,6 +37,7 @@ export function openSettingsWindow(
     accounts: accountPayload(accounts, needsSignIn),
     browserProfiles: getAllChromiumProfiles(),
     defaultBrowser: getDefaultBrowser(),
+    browsers: CHOOSABLE_BROWSERS,
     calendars,
     appVersion: app.getVersion(),
   });

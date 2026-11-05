@@ -53,43 +53,66 @@ account names a browser, see below — LaunchServices resolves it:
 Because Universal Links are maintained by macOS LaunchServices per installed application,
 supporting external tools requires no per-app custom schemes or individual user settings.
 
-## Per-account browser and Chromium profile
+## Browser and Chromium profile
 
 Two Google accounts signed in to the same Chromium browser share nothing, and a Meet link that
-lands in the wrong profile asks to be let in. An account can therefore name a browser
-(`browser`) and, for Chromium, a profile directory (`browserProfile`) in `AccountConfig` in
-`@magimail/core`. Both are optional; with neither, links take the `shell.openExternal` path
-above and macOS decides.
+lands in the wrong profile asks to be let in. Two settings answer which browser a link opens
+in, and they are deliberately split by what varies:
 
-`openExternalUrl` honours the pair by launching the browser itself:
-`/usr/bin/open -b <bundleId> -n --args --profile-directory="<dir>" <url>`. The `-n` is not
-optional: Chromium applies `--profile-directory` only to an instance it is starting, so an
-already-running browser ignores the flag. The cost is a second instance, with its own dock
-tile and window set, which is why the path is opt-in per account rather than the default.
+| Setting                            | Where    | Answers                                    |
+| :--------------------------------- | :------- | :----------------------------------------- |
+| `openLinksIn` (`settings.json`)    | General  | Which browser leaves the app for the web   |
+| `browserProfile` (`accounts.json`) | Accounts | Which Google session it opens that link in |
 
-Profiles are read from each browser's `Local State` (`profile.info_cache`), the one file
-Chrome, Brave and Edge all write, which gives the directory name, the profile's display name
-and the Google account signed into it. `_auto` matches that last field against the account's
-email; an unmatched `_auto` falls back to the browser's `Default` profile. Safari has no
-supported flag or URL scheme for profile targeting, so it is offered as a browser and nothing
-more.
+The browser is one answer for the machine — it is where someone works, and picking it twice for
+two accounts of the same person would only invite them to disagree. The profile is the part that
+differs per account, so it sits on the account's own row in Settings, and the row shows the
+resulting choice (`Match email`, `Last used`, or a profile's name). The menu is greyed out when
+the chosen browser keeps no profiles, which is what tells a user why Safari offers nothing.
 
-Each step degrades rather than fails: no resolved profile launches the browser without
-`--profile-directory`, and a failed launch passes the URL to `shell.openExternal`. Handing the
-URL to a browser we opened cannot leave it unopened.
+### Resolving a profile
 
-The settings tab avoids asking a question the answer is already known for. `getDefaultBrowser`
-reads the LaunchServices handler for `https`, and the tab marks that row `(default)` and
-preselects it for any account that has not chosen. The picker therefore states which browser
-links actually reach, and the profile row appears for the common case of a Chrome default.
-Nothing is written until the user changes something, so the account keeps following the Mac's
-default.
+Profiles come from each browser's `Local State` (`profile.info_cache`), the one file Chrome,
+Brave and Edge all write: directory name, display name, and the Google account signed in.
+`profile.last_used` names the profile the browser is working in, which is the one its open
+window shows.
 
-A default browser outside `SUPPORTED_BROWSERS` (Firefox, Arc) is reported as `other` and gets a
-row of its own, named by macOS — `Firefox (default)` — which stores `system` and hides the
-profile picker, since there is nothing to match an account against. That row is not offered
-beside a browser the list already contains: it would name the same browser twice, and the
-difference between pinning a browser and following the Mac has nowhere to be said in a picker.
+An account's `browserProfile` is one of three things, in the order the menu offers them:
+
+- `_auto`, the default: the profile signed in as the account's email, then `last_used`, then
+  `Default`. Email matching is what makes two accounts of the same person Just Work; the
+  last-used fallback is what stops an unmatched account from being sent to an empty-looking
+  `Default` profile when the user has one profile with another name.
+- `_last`: the profile the browser used last, regardless of the account's address.
+- A profile directory: that profile, where the browser still has it.
+
+Safari has no supported flag or URL scheme for profile targeting, so it is offered as a browser
+and nothing more.
+
+### Launching
+
+`openExternalUrl` launches the browser itself when it has a profile to apply:
+`/usr/bin/open -b <bundleId> -n --args --profile-directory="<dir>" <url>`. Chromium reads
+`--profile-directory` only when it is starting, so `-n` is what makes the flag mean anything —
+and the cost is a second instance. When the resolved profile is already the one the browser is
+in there is nothing to gain from that, so the URL takes a plain `open -b` and lands in the
+window that is open. When there is no profile at all, or the browser cannot be launched by
+bundle id, the URL goes to `shell.openExternal` as before.
+
+That last fallback is also why `openLinksIn` starts as `system` on an install that never chose.
+`loadSettings` adopts the Mac's default browser only when it is one whose profiles we can
+apply — so an account's profile works without a second step — and leaves `system` in place for
+anything else, which keeps Universal Links working for a Safari or Firefox default. Once a
+Chromium browser is adopted or chosen, links to a domain owned by a desktop app open in that
+browser instead of the app: the profile is only reachable by starting the browser, and macOS
+would otherwise route the URL to the app. A failed launch still falls back to
+`shell.openExternal`, so a URL cannot be left unopened.
+
+`getDefaultBrowser` reads the LaunchServices handler for `https`, and the General tab marks that
+row `(default)`. It is not a separate choice: the row and the Mac's default are the same
+browser, and a picker that lists one browser twice asks the user to choose between two names
+for one thing. A default browser outside `SUPPORTED_BROWSERS` (Firefox, Arc) gets a row named by
+macOS — `Firefox (default)` — which stores `system`, and the profile menu greys out with it.
 
 ## App-specific integration
 

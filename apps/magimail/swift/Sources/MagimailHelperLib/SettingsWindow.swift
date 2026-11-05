@@ -41,7 +41,7 @@ public enum SettingsWindow {
                         id: "accounts",
                         label: String(localized: "Accounts"),
                         icon: "person.2",
-                        height: 340
+                        height: 240
                     ) {
                         AccountsTab(model: model, startingColors: Self.startingColors)
                     },
@@ -106,6 +106,15 @@ struct GeneralTab: View {
                 Text(verbatim: "⌃⌥⌘C").tag("Control+Alt+Command+C")
             }
             .help("Opens a compose window from any application. It always asks which account to send from when there is more than one, since no account is on screen to be the active one.")
+
+            Divider()
+
+            LinksBrowserPicker(
+                selection: $model.openLinksIn,
+                browsers: model.browsers,
+                defaultBrowser: model.defaultBrowser
+            )
+            .help("Applies to links clicked in a message that leave Gmail. Each account chooses its own Chromium profile in Accounts.")
 
             Divider()
 

@@ -126,12 +126,84 @@ describe('browser-router', () => {
     expect(unknown).toBe('Default');
   });
 
+  it('resolveChromiumProfile falls back to the profile the browser used last', () => {
+    const chromeDir = path.join(tmpDir, 'Library/Application Support/Google/Chrome');
+    fs.mkdirSync(chromeDir, { recursive: true });
+
+    fs.writeFileSync(
+      path.join(chromeDir, 'Local State'),
+      JSON.stringify({
+        profile: {
+          info_cache: {
+            Default: { name: 'Personal', user_name: 'personal@gmail.com' },
+            'Profile 1': { name: 'Work', user_name: 'work@company.com' },
+          },
+          last_used: 'Profile 1',
+        },
+      }),
+    );
+
+    // No profile carries the account's address, so the one already open is the best guess.
+    expect(resolveChromiumProfile('chrome', '_auto', 'random@xyz.com', tmpDir)).toBe('Profile 1');
+    // An explicit `_last` asks for that row rather than deriving it from the email.
+    expect(resolveChromiumProfile('chrome', '_last', 'personal@gmail.com', tmpDir)).toBe(
+      'Profile 1',
+    );
+  });
+
+  it('resolveChromiumProfile ignores a last-used profile the browser no longer has', () => {
+    const chromeDir = path.join(tmpDir, 'Library/Application Support/Google/Chrome');
+    fs.mkdirSync(chromeDir, { recursive: true });
+
+    fs.writeFileSync(
+      path.join(chromeDir, 'Local State'),
+      JSON.stringify({
+        profile: {
+          info_cache: { Default: { name: 'Personal', user_name: 'personal@gmail.com' } },
+          last_used: 'Profile 7',
+        },
+      }),
+    );
+
+    expect(resolveChromiumProfile('chrome', '_last', undefined, tmpDir)).toBe('Default');
+  });
+
+  it('openExternalUrl hands the URL to the open window when the profile is the current one', async () => {
+    const chromeDir = path.join(tmpDir, 'Library/Application Support/Google/Chrome');
+    fs.mkdirSync(chromeDir, { recursive: true });
+
+    fs.writeFileSync(
+      path.join(chromeDir, 'Local State'),
+      JSON.stringify({
+        profile: {
+          info_cache: { Default: { name: 'Personal', user_name: 'personal@gmail.com' } },
+          last_used: 'Default',
+        },
+      }),
+    );
+
+    const fallback = vi.fn().mockResolvedValue(undefined);
+    const runner = vi.fn().mockResolvedValue(undefined);
+
+    await openExternalUrl('https://example.com', {
+      browser: 'chrome',
+      account: { browserProfile: '_auto', email: 'personal@gmail.com' },
+      customHome: tmpDir,
+      fallbackOpenExternal: fallback,
+      openCommandRunner: runner,
+    });
+
+    // `-n` would start a second browser for a profile that is already on screen.
+    expect(runner).toHaveBeenCalledWith(['-b', 'com.google.Chrome', 'https://example.com']);
+    expect(fallback).not.toHaveBeenCalled();
+  });
+
   it('openExternalUrl delegates non-http URLs to fallback', async () => {
     const fallback = vi.fn().mockResolvedValue(undefined);
     const runner = vi.fn().mockResolvedValue(undefined);
 
     await openExternalUrl('mailto:test@example.com', {
-      account: { browser: 'chrome' },
+      browser: 'chrome',
       fallbackOpenExternal: fallback,
       openCommandRunner: runner,
     });
@@ -159,7 +231,7 @@ describe('browser-router', () => {
     const runner = vi.fn().mockResolvedValue(undefined);
 
     await openExternalUrl('https://example.com', {
-      account: { browser: 'safari' },
+      browser: 'safari',
       fallbackOpenExternal: fallback,
       openCommandRunner: runner,
     });
@@ -186,8 +258,8 @@ describe('browser-router', () => {
     const runner = vi.fn().mockResolvedValue(undefined);
 
     await openExternalUrl('https://meet.google.com/abc', {
+      browser: 'chrome',
       account: {
-        browser: 'chrome',
         browserProfile: '_auto',
         email: 'alex@corp.com',
       },
@@ -225,10 +297,8 @@ describe('browser-router', () => {
     const runner = vi.fn().mockResolvedValue(undefined);
 
     await openExternalUrl('https://example.com', {
-      account: {
-        browser: 'brave',
-        browserProfile: 'Default',
-      },
+      browser: 'brave',
+      account: { browserProfile: 'Default' },
       customHome: tmpDir,
       fallbackOpenExternal: fallback,
       openCommandRunner: runner,
@@ -249,7 +319,7 @@ describe('browser-router', () => {
     const runner = vi.fn().mockRejectedValue(new Error('App not found'));
 
     await openExternalUrl('https://example.com', {
-      account: { browser: 'chrome' },
+      browser: 'chrome',
       customHome: tmpDir,
       fallbackOpenExternal: fallback,
       openCommandRunner: runner,

@@ -100,7 +100,7 @@ export async function openExternalUrl(rawUrl: string, account?: CalendarAccount)
   }
 
   try {
-    await openBrowserUrl(unwrappedUrl, { account });
+    await openBrowserUrl(unwrappedUrl, { browser: settings.openLinksIn, account });
   } catch (err) {
     log.error('Could not open external link:', redactUrl(unwrappedUrl), err);
   }

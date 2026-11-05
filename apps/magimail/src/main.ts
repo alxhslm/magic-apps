@@ -1164,7 +1164,6 @@ if (!hasLock) {
         accountsManager?.updateAccountConfig(params.accountId as string, {
           name: params.name as string | undefined,
           color: params.color as string | undefined,
-          browser: params.browser as string | undefined,
           browserProfile: params.browserProfile as string | undefined,
         });
         const accounts = accountsManager?.getAccounts() || [];

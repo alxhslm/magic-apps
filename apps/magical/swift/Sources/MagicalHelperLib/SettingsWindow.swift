@@ -39,7 +39,7 @@ public enum SettingsWindow {
                         id: "accounts",
                         label: String(localized: "Accounts"),
                         icon: "person.2",
-                        height: 340
+                        height: 240
                     ) {
                         AccountsTab(model: model, startingColors: Self.startingColors)
                     },
@@ -99,6 +99,15 @@ struct GeneralTab: View {
                 Text("Always ask").tag("ask")
             }
             .help("Applies to the menu bar, widgets and links. Inside the app, the account on screen is always used.")
+
+            Divider()
+
+            LinksBrowserPicker(
+                selection: $model.openLinksIn,
+                browsers: model.browsers,
+                defaultBrowser: model.defaultBrowser
+            )
+            .help("Applies to event links, attachments and calls opened in the browser. Each account chooses its own Chromium profile in Accounts.")
 
             Divider()
 

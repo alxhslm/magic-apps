@@ -19,8 +19,12 @@ import SwiftUI
 public protocol AccountListModel: ObservableObject {
     var accounts: [[String: Any]] { get set }
     var browserProfiles: [String: [[String: String]]] { get set }
+    /// The browsers the app can launch, without `system`, as `{ id, name, isChromium }`.
+    var browsers: [[String: Any]] { get }
     /// The browser macOS opens `https` links with, as `{ id, name, bundleId, isChromium }`.
-    var defaultBrowser: [String: Any] { get set }
+    var defaultBrowser: [String: Any] { get }
+    /// Which browser links open in, or `system` to follow the Mac's default.
+    var openLinksIn: String { get }
     var transport: StdioTransport? { get }
 }
 
@@ -56,6 +60,7 @@ public struct AccountsTab<Model: AccountListModel>: View {
                         name: value(of: id, "name") ?? "",
                         color: value(of: id, "color") ?? startingColors[0],
                         needsAuth: boolValue(of: id, "needsAuth"),
+                        linksMenu: AnyView(profileMenu(for: id)),
                         onCommit: { name, color in update(id: id, name: name, color: color) },
                         onSignIn: { signIn(id: id) },
                         onRemove: { remove(id: id) }
@@ -93,55 +98,6 @@ public struct AccountsTab<Model: AccountListModel>: View {
             .buttonStyle(.bordered)
             .controlSize(.small)
             .padding(.top, 6)
-
-            if let selectedId = selectedAccountId {
-                Divider()
-                    .padding(.vertical, 8)
-
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("External & Meeting Links")
-                        .font(.headline)
-
-                    Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 6) {
-                        GridRow {
-                            Text("Browser:")
-                                .gridColumnAlignment(.trailing)
-                                .foregroundStyle(.secondary)
-                            Picker("", selection: browserBinding(for: selectedId)) {
-                                if showsUnlistedDefault {
-                                    Text(unlistedDefaultLabel).tag("system")
-                                }
-                                Text(browserLabel("chrome", "Google Chrome")).tag("chrome")
-                                Text(browserLabel("brave", "Brave Browser")).tag("brave")
-                                Text(browserLabel("edge", "Microsoft Edge")).tag("edge")
-                                Text(browserLabel("safari", "Safari")).tag("safari")
-                            }
-                            .labelsHidden()
-                            .frame(maxWidth: 180)
-                        }
-
-                        if isChromium(selectedId) {
-                            GridRow {
-                                Text("Profile:")
-                                    .gridColumnAlignment(.trailing)
-                                    .foregroundStyle(.secondary)
-                                Picker("", selection: profileBinding(for: selectedId)) {
-                                    Text("Automatic (Match Email)").tag("_auto")
-                                    let profiles = profilesForBrowser(browser(for: selectedId))
-                                    ForEach(profiles, id: \.self) { prof in
-                                        let dir = prof["directory"] ?? ""
-                                        let label = formatProfileLabel(prof)
-                                        Text(label).tag(dir)
-                                    }
-                                }
-                                .labelsHidden()
-                                .frame(maxWidth: 240)
-                            }
-                        }
-                    }
-                }
-                .padding(.horizontal, 4)
-            }
         }
         .onAppear {
             if selectedAccountId == nil {
@@ -172,98 +128,88 @@ public struct AccountsTab<Model: AccountListModel>: View {
         model.transport?.sendEvent(method: "account.signIn", params: ["accountId": id])
     }
 
-    private func isChromium(_ id: String) -> Bool {
-        let b = browser(for: id)
-        return b == "chrome" || b == "brave" || b == "edge"
+    /// The browser links actually open in: the app's choice, or the Mac's default.
+    private var linkedBrowser: String {
+        let chosen = model.openLinksIn
+        return chosen == "system" ? (model.defaultBrowser["id"] as? String ?? "system") : chosen
     }
 
-    /// The account's own choice, and until it makes one, whatever macOS opens links with.
-    ///
-    /// Preselecting the Mac's default means the picker states what actually happens, and the
-    /// profile row appears for the common case of a Chrome default on an account that has
-    /// never been configured. Nothing is written until the user changes something, so such an
-    /// account keeps following the Mac's default.
-    private func browser(for id: String) -> String {
-        // `system` is shown as the browser it stands for today: an account stored with it
-        // while the Mac's default was outside our list would otherwise sit on a tag the
-        // picker no longer contains.
-        if let explicit = value(of: id, "browser"), explicit != "system" {
-            return explicit
+    /// Whether that browser keeps profiles we can choose between.
+    private var supportsProfiles: Bool {
+        if let row = model.browsers.first(where: { ($0["id"] as? String) == linkedBrowser }) {
+            return row["isChromium"] as? Bool ?? false
         }
-        return showsUnlistedDefault ? "system" : defaultBrowserId
+        // `system` with a default browser outside our list: the answer is in the default.
+        return model.openLinksIn == "system" && (model.defaultBrowser["isChromium"] as? Bool ?? false)
     }
 
-    /// The id in `SUPPORTED_BROWSERS` that macOS opens `https` with, or `other`.
-    private var defaultBrowserId: String {
-        model.defaultBrowser["id"] as? String ?? "system"
-    }
-
-    /// Marks the row the account inherits, so the preselection is explicable rather than
-    /// looking like a choice someone else made on the user's behalf.
-    private func browserLabel(_ id: String, _ name: String) -> String {
-        id == defaultBrowserId ? "\(name) (default)" : name
-    }
-
-    /// True when the Mac's default browser is one the list does not contain, which is the
-    /// only case that needs a row of its own. Beside Chrome's own row it listed the same
-    /// browser twice, and the choice between them rested on a distinction the window had no
-    /// space to explain: one pins the browser, the other follows the Mac.
-    private var showsUnlistedDefault: Bool {
-        defaultBrowserId == "other"
-    }
-
-    /// Names the browser the unlisted row stands for, since the list omits it. It carries
-    /// `(default)` like any other inherited row, so one rule covers the whole picker.
-    private var unlistedDefaultLabel: String {
-        guard let name = model.defaultBrowser["name"] as? String, !name.isEmpty else {
-            return "System Default"
-        }
-        return "\(name) (default)"
+    private var linkedBrowserName: String {
+        model.browsers.first { ($0["id"] as? String) == linkedBrowser }?["name"] as? String
+            ?? model.defaultBrowser["name"] as? String
+            ?? "This browser"
     }
 
     private func profilesForBrowser(_ browser: String) -> [[String: String]] {
         model.browserProfiles[browser] ?? []
     }
 
-    private func formatProfileLabel(_ profile: [String: String]) -> String {
-        let name = profile["name"] ?? profile["directory"] ?? "Profile"
-        if let email = profile["email"], !email.isEmpty {
-            return "\(name) (\(email))"
+    /// The menu's own label: the profile this account's links open in, in one word where
+    /// the setting is one of the two rules rather than a named profile.
+    private func profileSummary(for id: String) -> String {
+        guard supportsProfiles else { return "No profiles" }
+        let setting = value(of: id, "browserProfile") ?? "_auto"
+        if setting == "_auto" {
+            return "Match email"
         }
-        return name
+        if setting == "_last" {
+            return "Last used"
+        }
+        let profile = profilesForBrowser(linkedBrowser).first { $0["directory"] == setting }
+        return profile?["name"] ?? setting
     }
 
-    private func browserBinding(for id: String) -> Binding<String> {
-        Binding(
-            get: { browser(for: id) },
-            set: { newBrowser in
-                guard let name = value(of: id, "name"),
-                      let color = value(of: id, "color")
-                else { return }
-                // A profile directory belongs to one browser, so it cannot carry across;
-                // matching the account email is the only sensible place to start again.
-                update(id: id, name: name, color: color, browser: newBrowser, browserProfile: "_auto")
+    /// The per-account half of link routing, on the row it belongs to.
+    ///
+    /// The browser itself is one setting for the app, on the General tab: it is where
+    /// someone works, not who they are. The profile is the part that differs per account,
+    /// which is the whole reason a link needs to know which Google session it belongs to.
+    private func profileMenu(for id: String) -> some View {
+        Menu {
+            Toggle("Match this account’s email", isOn: profileToggle("_auto", for: id))
+            Toggle("Last used profile", isOn: profileToggle("_last", for: id))
+
+            let profiles = profilesForBrowser(linkedBrowser)
+            if !profiles.isEmpty {
+                Divider()
+                ForEach(profiles, id: \.self) { profile in
+                    Toggle(
+                        profile["name"] ?? profile["directory"] ?? "Profile",
+                        isOn: profileToggle(profile["directory"] ?? "", for: id)
+                    )
+                }
             }
+        } label: {
+            Text(profileSummary(for: id))
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .disabled(!supportsProfiles)
+        .help(
+            supportsProfiles
+                ? "The Chromium profile this account’s links open in."
+                : "\(linkedBrowserName) has no profiles to choose between."
         )
     }
 
-    private func profileBinding(for id: String) -> Binding<String> {
+    private func profileToggle(_ setting: String, for id: String) -> Binding<Bool> {
         Binding(
-            get: { value(of: id, "browserProfile") ?? "_auto" },
-            set: { newProfile in
-                guard let name = value(of: id, "name"),
+            get: { (value(of: id, "browserProfile") ?? "_auto") == setting },
+            set: { isOn in
+                guard isOn,
+                      let name = value(of: id, "name"),
                       let color = value(of: id, "color")
                 else { return }
-                // A profile only reaches the browser when the account names one, since
-                // the `system` path hands the URL to macOS. Choosing a profile therefore
-                // commits the browser the picker is showing.
-                update(
-                    id: id,
-                    name: name,
-                    color: color,
-                    browser: browser(for: id),
-                    browserProfile: newProfile
-                )
+                update(id: id, name: name, color: color, browserProfile: setting)
             }
         )
     }
@@ -272,7 +218,6 @@ public struct AccountsTab<Model: AccountListModel>: View {
         id: String,
         name: String,
         color: String,
-        browser: String? = nil,
         browserProfile: String? = nil
     ) {
         guard !id.isEmpty,
@@ -281,18 +226,12 @@ public struct AccountsTab<Model: AccountListModel>: View {
 
         model.accounts[index]["name"] = name
         model.accounts[index]["color"] = color
-        let currentBrowser = browser ?? (model.accounts[index]["browser"] as? String) ?? "system"
-        let currentProfile = browserProfile ?? (model.accounts[index]["browserProfile"] as? String) ?? "_auto"
-        model.accounts[index]["browser"] = currentBrowser
-        model.accounts[index]["browserProfile"] = currentProfile
 
-        let params: [String: Any] = [
-            "accountId": id,
-            "name": name,
-            "color": color,
-            "browser": currentBrowser,
-            "browserProfile": currentProfile,
-        ]
+        var params: [String: Any] = ["accountId": id, "name": name, "color": color]
+        if let browserProfile {
+            model.accounts[index]["browserProfile"] = browserProfile
+            params["browserProfile"] = browserProfile
+        }
         model.transport?.sendEvent(method: "account.update", params: params)
     }
 

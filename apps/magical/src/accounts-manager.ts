@@ -1322,12 +1322,7 @@ export class AccountsManager {
 
   public updateAccount(
     accountId: string,
-    fields: {
-      name?: string;
-      color?: string;
-      browser?: string;
-      browserProfile?: string;
-    },
+    fields: { name?: string; color?: string; browserProfile?: string },
   ): void {
     const account = this.accounts.find((a) => a.id === accountId);
     if (!account) return;
@@ -1335,7 +1330,6 @@ export class AccountsManager {
     const name = fields.name?.trim();
     if (name) account.name = name;
     if (fields.color) account.color = fields.color;
-    if (fields.browser !== undefined) account.browser = fields.browser;
     if (fields.browserProfile !== undefined) account.browserProfile = fields.browserProfile;
 
     saveAccounts(this.accounts);

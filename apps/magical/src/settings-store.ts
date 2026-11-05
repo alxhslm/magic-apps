@@ -1,6 +1,6 @@
 import { app } from 'electron';
 import { createLogger } from '@magimail/core/logger';
-import { readSecretFile, writeSecretFile } from '@magimail/core';
+import { getDefaultBrowser, readSecretFile, writeSecretFile } from '@magimail/core';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -16,6 +16,14 @@ export interface CalendarRef {
 export interface MagicalSettings {
   theme: 'system' | 'light' | 'dark';
   launchAtLogin: boolean;
+  /**
+   * Which browser opens event links and browser-joined calls.
+   *
+   * One setting for the app rather than one per account: it is where someone works, not
+   * who they are, and the per-account part that does vary is the Chromium profile. `system`
+   * hands the URL to macOS, which is what an install that never chose does.
+   */
+  openLinksIn: string;
   transparentBackground: boolean;
   /** Hides Google's companion rail, the same thing Magimail's setting of this
    *  name hides in Gmail — both are `[role="complementary"]`. */
@@ -130,6 +138,7 @@ const SETTINGS_FILENAME = 'settings.json';
 const DEFAULT_SETTINGS: MagicalSettings = {
   theme: 'system',
   launchAtLogin: false,
+  openLinksIn: 'system',
   transparentBackground: true,
   hideSidebar: false,
   hideTasksTab: false,
@@ -209,12 +218,33 @@ export function mergeSettings(stored: unknown): MagicalSettings {
   return merged;
 }
 
+/**
+ * The browser links open in before the user has chosen one.
+ *
+ * An install that never touched the setting adopts the Mac's default when we can launch
+ * that browser with a profile, so an account's profile works without a second step.
+ * Anything else stays `system`, which leaves the URL to macOS and keeps a domain owned by a
+ * desktop app opening there.
+ */
+function defaultLinkBrowser(): string {
+  const browser = getDefaultBrowser();
+  return browser.isChromium ? browser.id : 'system';
+}
+
 export function loadSettings(): MagicalSettings {
   if (cached) return { ...cached };
   try {
     const stored = readSecretFile<unknown>(settingsPath());
     if (stored !== null) {
-      cached = mergeSettings(stored);
+      const merged = mergeSettings(stored);
+      // `mergeSettings` cannot tell "never chose" from "chose the Mac's default", and the
+      // first should adopt that browser so an account's profile works without a second
+      // step. Anything we cannot launch with a profile stays `system`.
+      const storedChoice = (stored as Record<string, unknown>)?.openLinksIn;
+      if (typeof storedChoice !== 'string') {
+        merged.openLinksIn = defaultLinkBrowser();
+      }
+      cached = merged;
       return { ...cached };
     }
   } catch (err) {
@@ -226,7 +256,7 @@ export function loadSettings(): MagicalSettings {
       err,
     );
   }
-  cached = { ...DEFAULT_SETTINGS };
+  cached = { ...DEFAULT_SETTINGS, openLinksIn: defaultLinkBrowser() };
   return { ...cached };
 }
 

@@ -1,13 +1,21 @@
 import { app } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
-import { readSecretFile, writeSecretFile } from '@magimail/core';
+import { getDefaultBrowser, readSecretFile, writeSecretFile } from '@magimail/core';
 import { createLogger } from '@magimail/core/logger';
 
 const log = createLogger('Settings');
 
 export interface AppSettings {
   theme: 'system' | 'light' | 'dark';
+  /**
+   * Which browser opens this account's links to the wider web.
+   *
+   * One setting for the app rather than one per account: it is where someone works, not
+   * who they are, and the per-account part that does vary is the Chromium profile. `system`
+   * hands the URL to macOS, which is what an install that never chose does.
+   */
+  openLinksIn: string;
   launchAtLogin: boolean;
   dockBadgeMode: DockBadgeMode;
   showMenuBarTray: boolean;
@@ -100,6 +108,7 @@ const SETTINGS_FILENAME = 'settings.json';
 
 const DEFAULT_SETTINGS: AppSettings = {
   theme: 'system',
+  openLinksIn: 'system',
   launchAtLogin: false,
   dockBadgeMode: 'allUnread',
   showMenuBarTray: true,
@@ -194,15 +203,32 @@ function migrateMenuBarUnreadDisplay(data: Record<string, unknown>): Record<stri
   return rest;
 }
 
+/**
+ * The browser links open in before the user has chosen one.
+ *
+ * An install that never touched the setting adopts the Mac's default when we can launch
+ * that browser with a profile, so an account's profile works without a second step.
+ * Anything else stays `system`, which leaves the URL to macOS and keeps a domain owned by a
+ * desktop app opening there.
+ */
+function defaultLinkBrowser(): string {
+  const browser = getDefaultBrowser();
+  return browser.isChromium ? browser.id : 'system';
+}
+
 export function loadSettings(): AppSettings {
   if (cachedSettings) return { ...cachedSettings };
   try {
     const stored = readSecretFile<Record<string, unknown>>(getSettingsPath());
     if (stored) {
-      cachedSettings = {
+      const merged = {
         ...DEFAULT_SETTINGS,
         ...migrateMenuBarUnreadDisplay(migrateDockBadge(stored)),
       } as AppSettings;
+      cachedSettings = {
+        ...merged,
+        openLinksIn: (stored.openLinksIn as string | undefined) ?? defaultLinkBrowser(),
+      };
       return { ...cachedSettings };
     }
   } catch (err) {
@@ -211,7 +237,7 @@ export function loadSettings(): AppSettings {
     // apart from a fresh install.
     log.error('settings.json could not be read; every setting is back to its default:', err);
   }
-  cachedSettings = { ...DEFAULT_SETTINGS };
+  cachedSettings = { ...DEFAULT_SETTINGS, openLinksIn: defaultLinkBrowser() };
   return { ...cachedSettings };
 }
 
