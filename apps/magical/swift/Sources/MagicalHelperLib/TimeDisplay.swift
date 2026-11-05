@@ -9,19 +9,35 @@ import Foundation
 /// switch is turned off. So the key is read here instead, and the formatters are rebuilt
 /// when it changes.
 ///
-/// Reading it also settles the absent case. macOS removes the key when the switch is off
-/// and forces 24-hour time for any value while it is present, whatever that value is, so
-/// presence is the whole signal.
+/// The value decides rather than its presence: `1` is 24-hour, `0` is 12-hour, and no key
+/// means the region. A presence test pins the clock to 24-hour after the switch is turned
+/// off on a Mac that leaves a `0` behind, which is the bug this replaced.
 ///
 /// Fixed patterns such as `HH:mm` bypass all of this and pin one of the two clocks. They
 /// belong to sort keys and log timestamps, never to something on screen.
 enum TimeDisplay {
     private static let force24HourKey = "AppleICUForce24HourTime"
 
-    /// The Mac's switch, read live. `nil` means the user has never turned it on, and the
-    /// locale's own cycle applies.
+    /// Reads the switch's stored value. `nil` means never set, or a shape this build does
+    /// not know, and the locale's own cycle applies.
+    static func forced24Hour(from value: Any?) -> Bool? {
+        guard let value else { return nil }
+        if let number = value as? NSNumber {
+            return number.boolValue
+        }
+        if let text = value as? String {
+            switch text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+            case "1", "true", "yes": return true
+            case "0", "false", "no": return false
+            default: return nil
+            }
+        }
+        return nil
+    }
+
+    /// The Mac's switch, read live.
     static var forced24Hour: Bool? {
-        UserDefaults.standard.object(forKey: force24HourKey) == nil ? nil : true
+        forced24Hour(from: UserDefaults.standard.object(forKey: force24HourKey))
     }
 
     /// `base` with the forced cycle applied.

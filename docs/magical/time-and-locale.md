@@ -16,11 +16,11 @@ absent key reads as an empty string, and reading it as `false` would pin a 24-ho
 12-hour clock, which is the same bug in the other direction. `time-format.ts` then takes the forced
 value if there is one and otherwise the locale's own `hourCycle` from `Intl`.
 
-Presence of the key means on. macOS forces 24-hour time for any present value, whatever it is, and
-removes the key when the switch is turned off rather than storing `false`. The key is not honoured
-from the NSUserDefaults argument domain, so `-AppleICUForce24HourTime 1` on a launch changes
-Electron's reading but not Foundation's; it is useful for testing the read path, not for pretending
-to be the system setting.
+The value decides, not its presence: `1` is 24-hour, `0` is 12-hour, and no key means the region.
+Presence is the wrong signal, because a Mac that leaves a `0` behind when the switch is turned off
+would stay on a 24-hour clock. The key is not honoured from the NSUserDefaults argument domain, so
+`-AppleICUForce24HourTime 1` on a launch changes Electron's reading but not Foundation's; it is
+useful for testing the read path, not for pretending to be the system setting.
 
 The Swift helper cannot lean on Foundation here. `Locale.current` folds the switch in once at launch
 and never refreshes, and a running process still asked for 24-hour after the key was deleted. So

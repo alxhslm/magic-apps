@@ -60,6 +60,23 @@ struct TimeDisplayTests {
         #expect(twelve.string(from: date(hour: 13)).lowercased().contains("pm"))
     }
 
+    @Test func theStoredSwitchValueDecides() {
+        #expect(TimeDisplay.forced24Hour(from: true) == true)
+        #expect(TimeDisplay.forced24Hour(from: false) == false)
+        #expect(TimeDisplay.forced24Hour(from: 1) == true)
+        #expect(TimeDisplay.forced24Hour(from: 0) == false)
+        #expect(TimeDisplay.forced24Hour(from: "1") == true)
+        #expect(TimeDisplay.forced24Hour(from: "0") == false)
+        #expect(TimeDisplay.forced24Hour(from: "true") == true)
+        #expect(TimeDisplay.forced24Hour(from: "false") == false)
+    }
+
+    @Test func anAbsentOrUnknownSwitchSaysNothing() {
+        #expect(TimeDisplay.forced24Hour(from: nil) == nil)
+        #expect(TimeDisplay.forced24Hour(from: "") == nil)
+        #expect(TimeDisplay.forced24Hour(from: [:]) == nil)
+    }
+
     @Test func withNothingForcedTheRegionAnswers() {
         #expect(!TimeDisplay.uses24Hour(in: TimeDisplay.displayLocale(Locale(identifier: "en_US"))))
         #expect(TimeDisplay.uses24Hour(in: TimeDisplay.displayLocale(Locale(identifier: "en_GB"))))
