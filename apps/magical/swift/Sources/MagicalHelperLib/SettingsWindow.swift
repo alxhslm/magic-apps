@@ -124,32 +124,23 @@ struct GeneralTab: View {
 
             // One row per app rather than one switch for all of them: wanting Notion in its app says
             // nothing about wanting Figma in its app, and "ask" is a per-app answer too.
-            // A list rather than one popup per app: the row is the app, and the control beside it is
-            // the answer, which is how Settings reads elsewhere. Only installed apps appear, because
-            // a row for an app that is absent could only ever fall back to the browser.
+            // The standard form row: label on the left, control on the right, laid out by the
+            // system rather than by an HStack here. Only installed apps appear, because a row for
+            // an app that is absent could only fall back to the browser.
             if !installedAppLinks.isEmpty {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Links owned by an app")
-                        .font(.headline)
-
-                    List(installedAppLinks, id: \.self) { entry in
-                        let bundleId = entry["bundleId"] ?? ""
-                        HStack(spacing: 8) {
-                            Text(entry["name"] ?? "")
-                            Spacer()
-                            Picker("", selection: appLinkChoice(for: bundleId)) {
+                Section("Universal links") {
+                    ForEach(installedAppLinks, id: \.self) { entry in
+                        LabeledContent(entry["name"] ?? "") {
+                            Picker("", selection: appLinkChoice(for: entry["bundleId"] ?? "")) {
                                 Text("Open in the app").tag("auto")
                                 Text("Ask each time").tag("ask")
                                 Text("Use the browser").tag("never")
                             }
                             .labelsHidden()
                             .pickerStyle(.menu)
-                            .frame(width: 170)
+                            .fixedSize()
                         }
-                        .padding(.vertical, 2)
                     }
-                    .listStyle(.bordered)
-                    .frame(height: min(CGFloat(installedAppLinks.count) * 32 + 10, 200))
                 }
             }
 
