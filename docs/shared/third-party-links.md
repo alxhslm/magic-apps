@@ -89,10 +89,17 @@ would show as a second instance for no gain.
 
 That address is the piece `accounts.json` did not carry. An account is a name, a colour and a
 partition, which is enough to show a mailbox and not enough to know which Chromium profile belongs
-to the same person, so `captureAccountEmail` in each app reads it off Google's own account chip
-once the page settles — `Google Account: Name (someone@example.com)`, with the address in
-parentheses whatever the interface language is — and writes it to the account. It is read once per
-account and kept, and the log records the id rather than the address.
+to the same person. Both apps read it from the page instead, through the same two pieces in
+`@magimail/core/account-email.ts`: `ACCOUNT_EMAIL_SCRIPT` finds it in Google's own account chip
+(`Google Account: Name (someone@example.com)`, with the address in parentheses whatever the
+interface language is), and `readAccountEmail` retries the read because a settled document is not
+a painted one — the chip arrives after `did-stop-loading`. Google's answer is treated as input,
+not fact: `isAccountEmail` decides whether it is an address before anything is written. Each app
+then stores it on the account, once, and logs the id rather than the address.
+
+Magimail's Atom feed also carries the address in its header, which the poller already downloads;
+it is not read, so that one mechanism serves both apps and there is one place to fix if the chip
+moves.
 
 Safari has no supported flag or URL scheme for profile targeting, so it is offered as a browser
 and nothing more.

@@ -31,7 +31,7 @@ import {
   unwrapRedirectors,
   openExternalUrl,
   ACCOUNT_EMAIL_SCRIPT,
-  isAccountEmail,
+  readAccountEmail,
 } from '@magimail/core';
 import {
   GMAIL_LOGIN_URL,
@@ -1829,43 +1829,32 @@ export class AccountsManager {
    * the same person. The page knows, so it is asked when it settles, and the answer is
    * written to `accounts.json` for the link router to match against.
    */
-  private captureAccountEmail(accountId: string, contents: WebContents, attempt = 0): void {
+  private captureAccountEmail(accountId: string, contents: WebContents): void {
     const account = this.accounts.find((a) => a.id === accountId);
-    if (!account || account.email || contents.isDestroyed()) return;
+    if (!account || account.email) return;
     if (!contents.getURL().startsWith('https://mail.google.com/mail/')) return;
-
-    // Not one attempt per load: the page settles before it has painted its chrome, so a
-    // missing chip means "not drawn yet" more often than "not signed in". A few short
-    // retries cover that, and the last one gives up until the next load.
+    if (this.emailCaptured.has(accountId)) return;
     this.emailCaptured.add(accountId);
-    const retry = (): void => {
-      if (attempt >= 4) {
+
+    void readAccountEmail({
+      read: () => contents.executeJavaScript(ACCOUNT_EMAIL_SCRIPT, true),
+      isAlive: () => !contents.isDestroyed(),
+    }).then((email) => {
+      if (!email) {
+        // A page that never showed one may be signed out, or may need a reload. Either way
+        // the next load is the next chance, so it is not remembered as a failure.
         this.emailCaptured.delete(accountId);
         return;
       }
-      setTimeout(() => this.captureAccountEmail(accountId, contents, attempt + 1), 1500);
-    };
-
-    void contents
-      .executeJavaScript(ACCOUNT_EMAIL_SCRIPT, true)
-      .then((value: unknown) => {
-        if (!isAccountEmail(value)) {
-          retry();
-          return;
-        }
-        const target = this.accounts.find((a) => a.id === accountId);
-        if (!target || target.email === value.trim()) return;
-        target.email = value.trim();
-        saveAccounts(this.accounts);
-        // The address itself stays out of the log: it is account data, and the id is enough
-        // to follow what happened.
-        log.info(`Recorded the signed-in address for account ${accountId}`);
-        this.onAccountsChanged?.();
-      })
-      .catch((err: unknown) => {
-        retry();
-        log.warn(`Could not read the signed-in address for account ${accountId}:`, err);
-      });
+      const target = this.accounts.find((a) => a.id === accountId);
+      if (!target || target.email === email) return;
+      target.email = email;
+      saveAccounts(this.accounts);
+      // The address itself stays out of the log: it is account data, and the id is enough
+      // to follow what happened.
+      log.info(`Recorded the signed-in address for account ${accountId}`);
+      this.onAccountsChanged?.();
+    });
   }
 
   public setAccountAuthRequired(accountId: string, needsAuth: boolean): void {
