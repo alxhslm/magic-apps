@@ -315,8 +315,7 @@ describe('browser-router', () => {
     await openExternalUrl('https://calendar.google.com/calendar/u/0/r/day/2026/11/5', {
       browser: 'chrome',
       customHome: tmpDir,
-      // No app registered for the scheme, so macOS would answer with the default browser.
-      resolveHandler: async () => 'com.apple.Safari',
+      isAppInstalled: async () => false,
       fallbackOpenExternal: vi.fn().mockResolvedValue(undefined),
       openCommandRunner: runner,
     });
