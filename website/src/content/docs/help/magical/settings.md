@@ -26,14 +26,18 @@ The General tab manages startup behaviour and default calendar file handling:
 
 Which browser opens links that leave the app.
 
-- **Only installed browsers are listed**, and the row macOS opens links with is marked `(default)`.
-- **Every link uses the chosen browser**, so the account's Chromium profile applies to it.
-- **Except the apps named in the link table**: Notion, Linear, Todoist, Figma, Slack, Asana, Loom,
-  Miro and Dropbox links open in their desktop app, because those apps own the link.
+- **By default it follows your Mac's default browser**, which is preselected and marked
+  `(default)`. Leaving that row alone keeps following the Mac if you change it later.
+- **Only installed browsers are listed.** Picking one pins the app to it, and every link then takes
+  the account's Chromium profile.
+- **Universal links are the exception.** Each app that owns its own links gets a row below, with
+  three choices:
+  - `Open in the app`, so a Notion or Slack link opens in that app.
+  - `Ask each time`, which shows a dialog naming both destinations. Its "don't ask again" box
+    writes this same row.
+  - `Use the browser`, so the link takes the account's profile like everything else.
 
-Below it, each app that owns links gets a row with three choices: `Open in the app`, `Ask each time`,
-or `Use the browser`. Only apps installed on this Mac are listed. `Ask each time` shows a dialog with
-a "don't ask again" box, which writes the same setting the row shows.
+  Only apps installed on this Mac are listed.
 
 ### Times and Dates
 
@@ -68,14 +72,14 @@ work rather than as you at home.
 
 The control sits on the account's row in **Accounts**, and reads the profile that will be used:
 
-- **A profile name**, such as `Alex`, means links open in that profile. Chrome, Brave and
+- **A profile name**, such as `Work`, means links open in that profile. Chrome, Brave and
   Edge can be told this; they read it when they start, so a profile that is not already open
   arrives in its own window.
 - **`None`**, which is what an account shows when its address matches no profile, means the link
   opens in whatever window the browser already has.
 - **Choosing a profile pins it.** Unticking it returns the account to matching.
 
-:::note[Chromium browsers only, for now]
+:::note[Chromium browsers only]
 Chrome, Brave and Edge keep profiles in the same place and accept the same flag, which is what
 makes this work. Safari has profiles but no supported way for another app to choose one, and
 Firefox differs again. With any other browser the profile menu is greyed out.

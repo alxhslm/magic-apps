@@ -41,8 +41,10 @@ tracking and protection wrappers up to three hops:
 macOS routes HTTP and HTTPS URLs to installed native applications that register domain associations
 via `apple-app-site-association` (Universal Links).
 
-When `shell.openExternal(unwrappedUrl)` passes a clean URL — which is what happens unless an
-account names a browser, see below — LaunchServices resolves it:
+This is what macOS does with a URL that is handed to it. The router does that only for the domains
+in the app table below, because applying an account's browser profile means starting the browser
+itself, which skips this resolution entirely. When such a URL is handed over, LaunchServices
+resolves it:
 
 1. **Installed application**: macOS hands the link directly to the native desktop application
    (such as Todoist for `app.todoist.com`, Notion for `notion.so`, or Linear for `linear.app`).
@@ -79,16 +81,19 @@ over with `open -b <bundleId> <url>`; every other link goes to the chosen browse
 profile. An app that refuses the URL falls back to the browser rather than leaving the link
 unopened.
 
-`openLinksInApps` decides what to do with a link the table names:
+`appLinkChoices` holds one answer per app, keyed by bundle id, and Settings draws a row for each app
+this Mac has installed:
 
-| Value   | Behaviour                                                                                                  |
-| :------ | :--------------------------------------------------------------------------------------------------------- |
-| `auto`  | open the app                                                                                               |
-| `ask`   | ask once per host, in a dialog with a "remember this" checkbox, and store the answer in `appLinkOverrides` |
-| `never` | ignore the table; the link takes the browser and the account's profile                                     |
+| Value   | Behaviour                                                                             |
+| :------ | :------------------------------------------------------------------------------------ |
+| `auto`  | open the app                                                                          |
+| `ask`   | show the choice each time, with a "don't ask again" box that writes `auto` or `never` |
+| `never` | the link takes the browser and the account's profile                                  |
 
-A remembered answer outranks the setting, so asking once is enough and `auto` can still be overridden
-for one domain.
+Per app rather than one switch for the table: wanting Notion in its app says nothing about wanting
+Figma in its app, and `ask` is a per-app answer too. The dialog's checkbox writes that same setting,
+so ticking it and reading Settings tell one story. Uninstalled apps are filtered out of the list,
+because a row for an absent app could only fall back to the browser.
 
 Adding an app is one object: a name, a bundle id, and the hosts it owns. A domain missing from the
 table is not broken, it opens in the browser with the right profile, which is where links went
