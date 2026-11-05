@@ -2,21 +2,38 @@ import Foundation
 
 /// Times and dates the user reads, on every native surface.
 ///
-/// The Mac's region and its 12/24-hour switch are separate settings: the switch writes
-/// `AppleICUForce24HourTime` and leaves the region alone, so an `en_US` Mac can run on a
-/// 24-hour clock. Foundation resolves that key into `Locale.current` once, at launch, and
-/// never refreshes it; a process started on a 24-hour Mac keeps a 24-hour locale after the
-/// switch is turned off. So the key is read here instead, and the formatters are rebuilt
-/// when it changes.
+/// The Mac's region and its 12/24-hour switch are separate settings, so either region can
+/// be on either clock. Foundation resolves both into `Locale.current` once, at launch, and
+/// never refreshes it: a process started on a 24-hour Mac keeps a 24-hour locale after the
+/// switch is turned off, and a region change never arrives. So the stored keys are read
+/// here instead, and the formatters are rebuilt when either one moves.
 ///
-/// The value decides rather than its presence: `1` is 24-hour, `0` is 12-hour, and no key
-/// means the region. A presence test pins the clock to 24-hour after the switch is turned
-/// off on a Mac that leaves a `0` behind, which is the bug this replaced.
+/// The region is `AppleLocale` (`en_GB`), which is what orders and punctuates a date.
+///
+/// There are two keys, not one. Turning 24-hour on writes `AppleICUForce24HourTime`;
+/// turning it off writes `AppleICUForce12HourTime`, so a Mac that prefers 12-hour on a
+/// 24-hour region has the first key absent and the second set. Both are read: 24-hour
+/// wins when set, then 12-hour, then the region.
 ///
 /// Fixed patterns such as `HH:mm` bypass all of this and pin one of the two clocks. They
 /// belong to sort keys and log timestamps, never to something on screen.
-enum TimeDisplay {
+public enum TimeDisplay {
     private static let force24HourKey = "AppleICUForce24HourTime"
+    private static let force12HourKey = "AppleICUForce12HourTime"
+    private static let localeKey = "AppleLocale"
+
+    /// The Mac's region, read live, falling back to the launch-time locale when the key is
+    /// absent. Foundation's own `Locale.current` is not consulted first because it carries
+    /// whatever the keys said when the process started.
+    static func systemLocale() -> Locale {
+        let stored = UserDefaults.standard
+            .string(forKey: localeKey)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if let stored, !stored.isEmpty {
+            return Locale(identifier: stored)
+        }
+        return Locale(identifier: Locale.current.identifier)
+    }
 
     /// Reads the switch's stored value. `nil` means never set, or a shape this build does
     /// not know, and the locale's own cycle applies.
@@ -35,9 +52,25 @@ enum TimeDisplay {
         return nil
     }
 
+    /// Resolves the two stored keys. `true` on the 24-hour key wins, then `true` on the
+    /// 12-hour key, and anything else falls through to the region.
+    static func forced24Hour(twentyFour: Any?, twelve: Any?) -> Bool? {
+        if forced24Hour(from: twentyFour) == true {
+            return true
+        }
+        if forced24Hour(from: twelve) == true {
+            return false
+        }
+        return nil
+    }
+
     /// The Mac's switch, read live.
     static var forced24Hour: Bool? {
-        forced24Hour(from: UserDefaults.standard.object(forKey: force24HourKey))
+        let defaults = UserDefaults.standard
+        return forced24Hour(
+            twentyFour: defaults.object(forKey: force24HourKey),
+            twelve: defaults.object(forKey: force12HourKey)
+        )
     }
 
     /// `base` with the forced cycle applied.
@@ -63,7 +96,7 @@ enum TimeDisplay {
     /// Time of day, following the Mac's clock style. Used for event times, the now
     /// indicator and the menu bar, so all three read the same.
     static func timeFormatter(
-        locale: Locale = .current,
+        locale: Locale = systemLocale(),
         timeZone: TimeZone = .current,
         forced24Hour: Bool? = nil
     ) -> DateFormatter {
@@ -78,7 +111,7 @@ enum TimeDisplay {
     /// The hour alone, for a day grid's gutter: `09` on a 24-hour clock, `9 AM` on a
     /// 12-hour one. A `timeStyle` formatter would add minutes the gutter has no room for.
     static func hourFormatter(
-        locale: Locale = .current,
+        locale: Locale = systemLocale(),
         timeZone: TimeZone = .current,
         forced24Hour: Bool? = nil
     ) -> DateFormatter {
@@ -96,7 +129,7 @@ enum TimeDisplay {
     /// and wrong for anything on screen.
     static func dateFormatter(
         template: String,
-        locale: Locale = .current,
+        locale: Locale = systemLocale(),
         timeZone: TimeZone = .current
     ) -> DateFormatter {
         let df = DateFormatter()
@@ -116,11 +149,11 @@ enum TimeDisplay {
 
     private static var cached: ClockFormatters?
 
-    /// Rebuilt only when the key or the locale changes, so a view body pays one defaults
-    /// lookup rather than a `DateFormatter` construction.
+    /// Rebuilt only when a key or the region changes, so a view body pays a defaults lookup
+    /// rather than a `DateFormatter` construction.
     private static func formatters() -> ClockFormatters {
         let forced = forced24Hour
-        let base = Locale.current
+        let base = systemLocale()
         let signature = "\(base.identifier)|\(forced.map { $0 ? "24" : "12" } ?? "auto")"
 
         if let cached, cached.signature == signature {
@@ -142,5 +175,37 @@ enum TimeDisplay {
 
     static var hour: DateFormatter {
         formatters().hour
+    }
+
+    // MARK: - Change signal
+
+    /// Posted when the stored clock has changed under a running process.
+    static let clockDidChangeNotification = Notification.Name("MagicalClockDidChange")
+
+    private static var watcher: Timer?
+
+    /// Checks the stored clock every few seconds and tells the models to redraw when it
+    /// moves. macOS posts no notification for the switch, so a timer is the only way a
+    /// window that is already open learns about the change; the helper calls this once at
+    /// launch. A widget is not watched here, because WidgetKit redraws it on its timeline.
+    public static func startWatching(interval: TimeInterval = 5) {
+        guard watcher == nil else { return }
+        let timer = Timer(timeInterval: interval, repeats: true) { _ in
+            _ = refreshIfNeeded()
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        watcher = timer
+    }
+
+    /// Rebuilds the cached formatters if the clock moved. Returns whether it did, and posts
+    /// `clockDidChangeNotification` so every observing model invalidates.
+    @discardableResult
+    static func refreshIfNeeded() -> Bool {
+        let before = cached?.signature
+        _ = formatters()
+        guard let before, cached?.signature != before else { return false }
+
+        NotificationCenter.default.post(name: clockDidChangeNotification, object: nil)
+        return true
     }
 }

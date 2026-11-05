@@ -4,42 +4,42 @@ Every time and date Magical draws follows the Mac's own clock and locale. Nothin
 preferred 12- or 24-hour clock, and nothing has a preferred date order: both come from macOS, and a
 change to either reaches a running app without a relaunch.
 
-The region and the 12/24-hour switch are separate macOS settings. The switch writes
-`AppleICUForce24HourTime` and leaves the region at `en_GB` or `en_US`, so either region can be on
-either clock, and reading one is not a substitute for reading the other.
+The region and the 12/24-hour switch are separate macOS settings. The region is `AppleLocale`
+(`en_GB`); the switch writes `AppleICUForce24HourTime` when 24-hour is on and
+`AppleICUForce12HourTime` when it is off, so either region can be on either clock.
 
 ## Where the setting is read
 
-`mac-clock.ts` reads `AppleICUForce24HourTime` in `app.whenReady()`, next to `setUiLocale`. It
-returns a definite `true` or `false`, or `undefined` when the user has never touched the switch: an
-absent key reads as an empty string, and reading it as `false` would pin a 24-hour region to a
-12-hour clock, which is the same bug in the other direction. `time-format.ts` then takes the forced
-value if there is one and otherwise the locale's own `hourCycle` from `Intl`.
+`mac-clock.ts` reads both clock keys in `app.whenReady()`, next to `setUiLocale`, and
+`readMacLocale()` reads `AppleLocale`. 24-hour wins when set, then 12-hour, then the locale's own
+`hourCycle` from `Intl`. A key set to `1` forces that clock and `0` forces nothing, so the value
+decides rather than its presence. Reading only the 24-hour key is not enough: turning 24-hour off
+writes the 12-hour key instead, so an `en_GB` Mac set to 12-hour has the 24-hour key absent and
+would otherwise fall back to a 24-hour region.
 
-The value decides, not its presence: `1` is 24-hour, `0` is 12-hour, and no key means the region.
-Presence is the wrong signal, because a Mac that leaves a `0` behind when the switch is turned off
-would stay on a 24-hour clock. The key is not honoured from the NSUserDefaults argument domain, so
-`-AppleICUForce24HourTime 1` on a launch changes Electron's reading but not Foundation's; it is
-useful for testing the read path, not for pretending to be the system setting.
+The keys are not honoured from the NSUserDefaults argument domain, so `-AppleICUForce24HourTime 1`
+on a launch changes Electron's reading but not Foundation's; it is useful for testing the read
+path, not for pretending to be the system setting.
 
-The Swift helper cannot lean on Foundation here. `Locale.current` folds the switch in once at launch
-and never refreshes, and a running process still asked for 24-hour after the key was deleted. So
-`TimeDisplay` reads the raw key on every access and rebuilds the locale from its identifier with the
-cycle forced. Rebuilding from the identifier also keeps the off state honest on a Mac that launched
-with the switch on: the inherited cycle does not survive into the fresh locale.
+The Swift helper cannot lean on Foundation here. `Locale.current` folds both the region and the
+switch in once at launch and never refreshes, so neither a region change nor a clock change ever
+arrives. `TimeDisplay` reads both keys and `AppleLocale` on every access and rebuilds the locale
+from the stored identifier with the cycle forced. Rebuilding from the identifier also keeps the off
+state honest on a Mac that launched with a different setting: the inherited cycle does not survive
+into the fresh locale.
 
 ## Following a change without a relaunch
 
-macOS posts no notification when the switch changes, so nothing can be observed. Both processes
-re-read instead:
+macOS posts no notification when either setting changes, so nothing can be observed. Both
+processes re-read instead:
 
-- **Electron** re-reads the key on a 30-second timer. The banner and the ICS dialog are built on
-  demand, so the next one after a change uses the new clock.
-- **The Swift helper** reads the key in `TimeDisplay` on each access and rebuilds its cached
-  formatters only when the value has changed. The menu bar picks that up on its next tick, the
-  popover on its next open, and a widget at its next timeline render.
-
-A popover already on screen keeps the old clock until it reopens, which is the one visible delay.
+- **Electron** re-reads both clock keys and the region on a 30-second timer. The banner and the ICS
+  dialog are built on demand, so the next one after a change uses the new clock or date order.
+- **The Swift helper** reads them in `TimeDisplay` on each access, and a five-second watcher in the
+  helper posts an internal change notification when the value moves. `TrayModel` and `SidebarModel`
+  observe it, so an already-drawn popover, sidebar or agenda redraws within five seconds, and a
+  region change reaches date labels the same way. The AppKit menu bar title follows on its own
+  30-second tick, and a widget at its next timeline render.
 
 ## Which formatter each surface uses
 

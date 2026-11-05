@@ -106,6 +106,17 @@ public final class SidebarModel: ObservableObject {
     public init(trayModel: TrayModel) {
         self.trayModel = trayModel
         recomputeWeekDays()
+        // The sidebar has no timer of its own, so an open window would keep the clock it
+        // was last drawn with until something else touched the model.
+        NotificationCenter.default.addObserver(
+            forName: TimeDisplay.clockDidChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.objectWillChange.send()
+            }
+        }
         trayModel.onCalendarFilterChanged = { [weak self] hidden in
             if let data = try? JSONSerialization.data(withJSONObject: hidden),
                let str = String(data: data, encoding: .utf8)

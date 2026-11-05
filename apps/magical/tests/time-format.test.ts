@@ -7,7 +7,7 @@ import {
   setClock,
   setClockForTests,
 } from '../src/time-format';
-import { parseForced24Hour, readMacForced24Hour } from '../src/mac-clock';
+import { parseForced24Hour, readMacForced24Hour, readMacLocale } from '../src/mac-clock';
 
 vi.mock('electron', () => ({
   systemPreferences: { getUserDefault: vi.fn() },
@@ -107,6 +107,14 @@ describe('readMacForced24Hour', () => {
     expect(readMacForced24Hour()).toBeUndefined();
   });
 
+  it('reads the 12-hour key macOS writes when 24-hour is turned off', () => {
+    vi.mocked(systemPreferences.getUserDefault).mockImplementation((key) =>
+      key === 'AppleICUForce12HourTime' ? '1' : '',
+    );
+
+    expect(readMacForced24Hour()).toBe(false);
+  });
+
   it('reads a key stored as an integer when the string read refuses it', () => {
     vi.mocked(systemPreferences.getUserDefault).mockImplementation((_key, type) => {
       if (type === 'string') throw new Error('wrong type');
@@ -114,5 +122,21 @@ describe('readMacForced24Hour', () => {
     });
 
     expect(readMacForced24Hour()).toBe(true);
+  });
+});
+
+describe('readMacLocale', () => {
+  it('turns AppleLocale into an Intl tag', () => {
+    vi.mocked(systemPreferences.getUserDefault).mockReturnValue('en_US');
+
+    expect(readMacLocale()).toBe('en-US');
+  });
+
+  it('drops keywords and treats an empty key as unknown', () => {
+    vi.mocked(systemPreferences.getUserDefault).mockReturnValue('en_GB@calendar=gregorian');
+    expect(readMacLocale()).toBe('en-GB');
+
+    vi.mocked(systemPreferences.getUserDefault).mockReturnValue('');
+    expect(readMacLocale()).toBeUndefined();
   });
 });

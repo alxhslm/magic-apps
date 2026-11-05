@@ -71,6 +71,15 @@ struct TimeDisplayTests {
         #expect(TimeDisplay.forced24Hour(from: "false") == false)
     }
 
+    @Test func eitherStoredKeyCanForceTheClock() {
+        #expect(TimeDisplay.forced24Hour(twentyFour: 1, twelve: nil) == true)
+        #expect(TimeDisplay.forced24Hour(twentyFour: nil, twelve: 1) == false)
+        #expect(TimeDisplay.forced24Hour(twentyFour: 1, twelve: 1) == true)
+        #expect(TimeDisplay.forced24Hour(twentyFour: 0, twelve: 1) == false)
+        #expect(TimeDisplay.forced24Hour(twentyFour: nil, twelve: 0) == nil)
+        #expect(TimeDisplay.forced24Hour(twentyFour: nil, twelve: nil) == nil)
+    }
+
     @Test func anAbsentOrUnknownSwitchSaysNothing() {
         #expect(TimeDisplay.forced24Hour(from: nil) == nil)
         #expect(TimeDisplay.forced24Hour(from: "") == nil)

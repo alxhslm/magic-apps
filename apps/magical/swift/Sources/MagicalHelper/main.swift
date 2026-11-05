@@ -53,6 +53,9 @@ MainActor.assumeIsolated {
     // A Focus already on when the helper came back posts no notification of its own, so the
     // file the App Intents extension last wrote is the only way to learn about it.
     FocusFilterController.shared.setup(transport: transport)
+    // macOS posts nothing when the clock or region changes, so a timer is what lets an
+    // already-drawn menu bar, popover or sidebar follow it.
+    TimeDisplay.startWatching()
 }
 
 transport.onMessage { request in

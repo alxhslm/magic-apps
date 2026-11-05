@@ -32,7 +32,7 @@ import { loadSettings, saveSetting, type MagicalSettings } from './settings-stor
 import { buildAppMenu } from './menu.js';
 import { setUiLocale, uiString } from './strings.js';
 import { setClock } from './time-format.js';
-import { readMacForced24Hour } from './mac-clock.js';
+import { readMacForced24Hour, readMacLocale } from './mac-clock.js';
 import {
   openSettingsWindow,
   pushAccountsToSettings,
@@ -1412,13 +1412,13 @@ function createWindow(
 app.whenReady().then(async () => {
   log.info('App ready');
   setUiLocale(app.getLocale());
-  // macOS keeps the 12/24-hour switch separate from the region, so neither the locale nor
-  // ICU's default carries it. Read it here and keep reading it: the switch posts no
-  // notification and ICU's own locale is resolved at launch, so this timer is what lets a
-  // banner built after a change use the new clock without a relaunch.
-  setClock(app.getLocale(), readMacForced24Hour());
+  // The region and the 12/24-hour switch both live in NSUserDefaults, and neither reaches
+  // a running process: ICU resolves its locale at launch and macOS posts no notification.
+  // Read both here and keep reading them, so a banner built after a change uses the new
+  // clock or date order without a relaunch.
+  setClock(readMacLocale() ?? app.getLocale(), readMacForced24Hour());
   const clockTimer = setInterval(
-    () => setClock(app.getLocale(), readMacForced24Hour()),
+    () => setClock(readMacLocale() ?? app.getLocale(), readMacForced24Hour()),
     CLOCK_REFRESH_MS,
   );
   app.on('before-quit', () => clearInterval(clockTimer));
