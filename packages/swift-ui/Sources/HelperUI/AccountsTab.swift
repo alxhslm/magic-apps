@@ -153,19 +153,22 @@ public struct AccountsTab<Model: AccountListModel>: View {
         model.browserProfiles[browser] ?? []
     }
 
-    /// The menu's own label: the profile this account's links open in, in one word where
-    /// the setting is one of the two rules rather than a named profile.
+    /// The menu's own label, naming the profile that will actually be used.
+    ///
+    /// It never says how the answer was reached. `Match email` asked the user to reason about
+    /// a rule and then guess at its outcome; naming the profile shows the outcome itself.
+    /// The menu offers `None` beside the profiles, so "the browser decides" is a choice the
+    /// user can see and make rather than a silent default.
     private func profileSummary(for id: String) -> String {
         guard supportsProfiles else { return "No profiles" }
-        let setting = value(of: id, "browserProfile") ?? "_auto"
-        if setting == "_auto" {
-            return "Match email"
+
+        let setting = effectiveProfile(for: id)
+        if setting == "_none" {
+            return "None"
         }
-        if setting == "_last" {
-            return "Last used"
-        }
-        let profile = profilesForBrowser(linkedBrowser).first { $0["directory"] == setting }
-        return profile?["name"] ?? setting
+
+        let chosen = profilesForBrowser(linkedBrowser).first { $0["directory"] == setting }
+        return chosen?["name"] ?? setting
     }
 
     /// The per-account half of link routing, on the row it belongs to.
