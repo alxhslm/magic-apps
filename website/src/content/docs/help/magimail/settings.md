@@ -29,7 +29,7 @@ Which browser opens links that leave the app.
 - **The Mac's default browser is preselected and marked `(default)`.** Picking a row pins that
   browser, so the app keeps using it if the Mac's default changes later.
 - **Only installed browsers are listed.** Picking one sends every link through that browser. If it
-  is a Chromium browser, links also open in the account's profile; see
+  is Chrome, Brave or Edge, links also open in the account's profile; see
   [Chromium profiles](#chromium-profiles).
 - **Universal links can open in their app instead.** Some links belong to a desktop app, and apps
   installed on your Mac appear below with three choices:
@@ -62,8 +62,8 @@ The Accounts tab manages your connected Google accounts:
 
 ### Chromium profiles
 
-If you use a Chromium browser such as Google Chrome, Brave or Edge, an account can send its links
-to a particular profile, so a work link opens as you at work.
+If you use Chrome, Brave or Edge, an account can send its links to a particular profile, so a work
+link opens as you at work.
 
 Each account names its profile on the **Accounts** tab. Its row shows the profile that will be
 used:
