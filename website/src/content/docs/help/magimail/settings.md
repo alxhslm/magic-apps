@@ -28,10 +28,11 @@ Which browser opens links that leave the app.
 
 - **By default it follows your Mac's default browser**, which is preselected and marked
   `(default)`. Leaving that row alone keeps following the Mac if you change it later.
-- **Only installed browsers are listed.** Picking one pins the app to it, and every link then takes
-  the account's Chromium profile.
-- **Universal links are the exception.** Each app that owns its own links gets a row below, with
-  three choices:
+- **Only installed browsers are listed.** Picking one sends every link through that browser. If it
+  is a Chromium browser, links also open in the account's profile; see
+  [Chromium profiles](#chromium-profiles).
+- **Universal links can open in their app instead.** Some links belong to a desktop app, and apps
+  installed on this Mac appear below with three choices:
   - `Open in the app`, so a Notion or Slack link opens in that app.
   - `Ask each time`, which shows a dialog naming both destinations. Its "don't ask again" box
     writes this same row.
@@ -63,17 +64,16 @@ The Accounts tab manages your connected Google accounts:
 
 ### Chromium profiles
 
-Each account chooses which browser profile its links open in, so a work link opens as you at
-work rather than as you at home.
+If you use a Chromium browser such as Google Chrome, Brave or Edge, an account can send its links
+to a particular profile, so a work link opens as you at work.
 
-The control sits on the account's row in **Accounts**, and reads the profile that will be used:
+Each account names its profile on the **Accounts** tab. Its row shows the profile that will be
+used:
 
-- **A profile name**, such as `Work`, means links open in that profile. Chrome, Brave and
-  Edge can be told this; they read it when they start, so a profile that is not already open
-  arrives in its own window.
-- **`None`**, which is what an account shows when its address matches no profile, means the link
-  opens in whatever window the browser already has.
-- **Choosing a profile pins it.** Unticking it returns the account to matching.
+- **The profile signed in as the account's address is selected automatically.** A profile name,
+  such as `Work`, means links open in that profile, and choosing a name pins the account to it.
+- **`None`** opens the link in whatever browser window is already there. An account also shows
+  `None` when its address matches no profile.
 
 :::note[Chromium browsers only]
 Chrome, Brave and Edge keep profiles in the same place and accept the same flag, which is what
