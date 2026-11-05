@@ -31,8 +31,9 @@ public struct LinksBrowserPicker: View {
                 Text("\(name) (default)").tag("system")
             }
 
-            ForEach(browsers.indices, id: \.self) { index in
-                let browser = browsers[index]
+            let offered = InstalledBrowsers.offered(browsers, keeping: selection)
+            ForEach(offered.indices, id: \.self) { index in
+                let browser = offered[index]
                 Text(label(for: browser)).tag(browser["id"] as? String ?? "")
             }
         }
