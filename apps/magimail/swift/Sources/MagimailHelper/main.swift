@@ -61,9 +61,6 @@ transport.onMessage { request in
             if let browsers = params["browsers"] as? [[String: Any]] {
                 SettingsModel.shared.browsers = browsers
             }
-            if let appLinks = params["appLinks"] as? [[String: String]] {
-                SettingsModel.shared.appLinks = appLinks
-            }
             if let defaultBrowser = params["defaultBrowser"] as? [String: Any] {
                 SettingsModel.shared.defaultBrowser = defaultBrowser
             }

@@ -57,7 +57,6 @@ import { openDetachedThreadWindow } from './compose.js';
 import { loadAccounts, saveAccounts, createNewAccount } from './account-store.js';
 import { withStoredUnreadCounts } from './mailbox/unread-count-store.js';
 import { loadSettings, saveSetting } from './settings-store.js';
-import { chooseAppForLink } from './app-links-choice.js';
 import { pressRefreshControl } from './thread-actions/sync-driver.js';
 import {
   type MailboxSource,
@@ -1868,8 +1867,6 @@ export class AccountsManager {
     const settings = loadSettings();
     return {
       browser: settings.openLinksIn,
-      appLinkChoices: settings.appLinkChoices,
-      askAboutAppLink: chooseAppForLink,
       account,
     };
   }

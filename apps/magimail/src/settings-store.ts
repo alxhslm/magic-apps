@@ -15,8 +15,6 @@ export interface AppSettings {
    * variable is the Chromium profile.
    */
   openLinksIn: string;
-  /** Per-app handling for links the table assigns to a desktop app. See `app-links.ts`. */
-  appLinkChoices: Record<string, 'auto' | 'ask' | 'never'>;
   launchAtLogin: boolean;
   dockBadgeMode: DockBadgeMode;
   showMenuBarTray: boolean;
@@ -110,7 +108,6 @@ const SETTINGS_FILENAME = 'settings.json';
 const DEFAULT_SETTINGS: AppSettings = {
   theme: 'system',
   openLinksIn: 'system',
-  appLinkChoices: {},
   launchAtLogin: false,
   dockBadgeMode: 'allUnread',
   showMenuBarTray: true,

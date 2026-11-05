@@ -83,20 +83,6 @@ public enum SettingsWindow {
 struct GeneralTab: View {
     @EnvironmentObject var model: SettingsModel
 
-    /// The apps in the table that this Mac has, which is what the list shows. A row for an app that
-    /// is absent could only ever fall back to the browser.
-    private var installedAppLinks: [[String: String]] {
-        model.appLinks.filter { InstalledBrowsers.isInstalled(bundleId: $0["bundleId"] ?? "") }
-    }
-
-    /// The choice for one app, read and written straight into the shared map.
-    private func appLinkChoice(for bundleId: String) -> Binding<String> {
-        Binding(
-            get: { model.appLinkChoices[bundleId] ?? "auto" },
-            set: { model.appLinkChoices[bundleId] = $0 }
-        )
-    }
-
     var body: some View {
         Form {
             Toggle("Launch Magimail at login", isOn: $model.launchAtLogin)
@@ -129,23 +115,6 @@ struct GeneralTab: View {
                 defaultBrowser: model.defaultBrowser
             )
             .help("Each account chooses its own Chromium profile in Accounts.")
-
-            // One picker per app: wanting Notion in its app says nothing about wanting Figma in
-            // its. This pane is a plain `Form`, so a `Section` or `LabeledContent` here would nest
-            // its own alignment inside the form's.
-            if !installedAppLinks.isEmpty {
-                Text("Universal links")
-                    .font(.headline)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                ForEach(installedAppLinks, id: \.self) { entry in
-                    Picker("\(entry["name"] ?? "") links:", selection: appLinkChoice(for: entry["bundleId"] ?? "")) {
-                        Text("Open in the app").tag("auto")
-                        Text("Ask each time").tag("ask")
-                        Text("Use the browser").tag("never")
-                    }
-                }
-            }
 
             Divider()
 

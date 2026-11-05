@@ -42,11 +42,6 @@ public final class SettingsModel: ObservableObject {
         didSet { emit("openLinksIn", openLinksIn) }
     }
 
-    /// What to do for each app in the link table, keyed by bundle id: `auto`, `ask` or `never`.
-    @Published public var appLinkChoices: [String: String] = [:] {
-        didSet { emit("appLinkChoices", appLinkChoices) }
-    }
-
     /// Electron accelerator for the system-wide quick compose chord, or "off".
     @Published public var quickComposeHotkey: String = "Alt+Command+C" {
         didSet { emit("quickComposeHotkey", quickComposeHotkey) }
@@ -130,8 +125,6 @@ public final class SettingsModel: ObservableObject {
     @Published public var browserProfiles: [String: [[String: String]]] = [:]
     /// The browsers the app can open links in, without `system`, as `{ id, name, isChromium }`.
     @Published public var browsers: [[String: Any]] = []
-    /// The apps that own their own links, as `{ name, bundleId }`, for the per-app choice below.
-    @Published public var appLinks: [[String: String]] = []
     /// The browser macOS opens `https` links with, as `{ id, name, bundleId, isChromium }`.
     @Published public var defaultBrowser: [String: Any] = [:]
 
@@ -211,9 +204,6 @@ public final class SettingsModel: ObservableObject {
         }
         if let v = dict["openLinksIn"] as? String {
             openLinksIn = v
-        }
-        if let v = dict["appLinkChoices"] as? [String: String] {
-            appLinkChoices = v
         }
         if let v = dict["quickComposeHotkey"] as? String {
             quickComposeHotkey = v

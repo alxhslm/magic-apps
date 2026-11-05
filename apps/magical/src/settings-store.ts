@@ -23,8 +23,6 @@ export interface MagicalSettings {
    * variable is the Chromium profile.
    */
   openLinksIn: string;
-  /** Per-app handling for links the table assigns to a desktop app. See `app-links.ts`. */
-  appLinkChoices: Record<string, 'auto' | 'ask' | 'never'>;
   transparentBackground: boolean;
   /** Hides Google's companion rail, the same thing Magimail's setting of this
    *  name hides in Gmail — both are `[role="complementary"]`. */
@@ -140,7 +138,6 @@ const DEFAULT_SETTINGS: MagicalSettings = {
   theme: 'system',
   launchAtLogin: false,
   openLinksIn: 'system',
-  appLinkChoices: {},
   transparentBackground: true,
   hideSidebar: false,
   hideTasksTab: false,

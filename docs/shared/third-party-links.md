@@ -1,27 +1,26 @@
-# Third-party desktop links
+# Third-party links
 
 Event bodies, Google Tasks and emails frequently contain links to external productivity tools,
 such as task managers (Todoist), issue trackers (Linear), notes (Notion), design tools (Figma)
 and team chat (Slack).
 
 Google wraps outbound links in tracking redirectors (`https://www.google.com/url?q=...`), and
-invitations or emails forwarded through Microsoft 365 carry Outlook Safelinks. These tracking
-redirectors break Apple Universal Links because macOS checks only the outer `google.com` or
-`safelinks.protection.outlook.com` domain.
+invitations or emails forwarded through Microsoft 365 carry Outlook Safelinks. Both hide the
+destination from anything that tries to recognise it.
 
-Both Magimail and Magical unwrap tracking redirectors via `@magimail/core` before dispatching
-external URLs to macOS.
+Both Magimail and Magical unwrap tracking redirectors via `@magimail/core` before routing a link.
 
 ```mermaid
 flowchart TD
   Trigger["External link click<br/>(email body, event description, task)"] --> Unwrap["unwrapRedirectors(url)<br/>(@magimail/core)"]
-  Unwrap --> Route["openExternalUrl(url, account)<br/>(@magimail/core)"]
-  Route --> Choice{"account.browser set<br/>and not system?"}
-  Choice -->|no| Universal["shell.openExternal(unwrappedUrl)<br/>macOS LaunchServices"]
-  Choice -->|yes| Direct["/usr/bin/open -b bundleId<br/>with --profile-directory"]
-  Universal --> Resolution{"Desktop client installed<br/>for target domain?"}
-  Resolution -->|Yes (Todoist, Notion, Linear, Figma, Slack)| App["Native Desktop Application<br/>(Apple Universal Links)"]
-  Resolution -->|No / unknown domain| Browser["System Default Web Browser"]
+  Unwrap --> Native{"Magical, and a Zoom,<br/>Teams or Todoist link?"}
+  Native -->|yes| App["Native app via custom scheme<br/>(browser when no client)"]
+  Native -->|no| Route["openExternalUrl(url, account)<br/>(@magimail/core)"]
+  Route --> Choice{"browser set<br/>and not system?"}
+  Choice -->|no| System["shell.openExternal<br/>default browser"]
+  Choice -->|yes| Direct["/usr/bin/open -b browser<br/>with --profile-directory"]
+  App --> Browser["Browser"]
+  System --> Browser
   Direct --> Browser
 ```
 
@@ -36,24 +35,22 @@ tracking and protection wrappers up to three hops:
   the `url` query parameter.
 - **Direct URLs**: URLs without tracking parameters or unrecognised hosts pass through untouched.
 
-## Desktop app dispatch via Apple Universal Links
+## Desktop apps
 
-macOS routes HTTP and HTTPS URLs to installed native applications that register domain associations
-via `apple-app-site-association` (Universal Links).
+There is no table of apps a host belongs to. A host table cannot tell whether the app claims a
+particular path, and `open -b <app> <url>` reports success when the app ignores the URL, so a
+wrong entry loses the link silently.
 
-This is what macOS does with a URL that is handed to it. The router does that only for the domains
-in the app table below, because applying an account's browser profile means starting the browser
-itself, which skips this resolution entirely. When such a URL is handed over, LaunchServices
-resolves it:
+Instead the default is the browser, and the desktop app is reached one of two ways:
 
-1. **Installed application**: macOS hands the link directly to the native desktop application
-   (such as Todoist for `app.todoist.com`, Notion for `app.notion.com`, or Linear for `linear.app`).
-   No browser tab or interstitial window opens.
-2. **Missing application or unassociated domain**: macOS routes the destination URL directly to
-   the user's default web browser without passing through Google's tracking redirect page.
+- **The site hands off.** Slack, Linear, Notion and Figma open their desktop app from their own
+  web page.
+- **We rewrite the scheme.** Magical rewrites the links that appear in calendars and have a
+  documented desktop scheme: Zoom and Teams meeting links, and Todoist tasks and projects
+  (`app.todoist.com/app/task/<id>` to `todoist://task?id=<id>`, and the same for projects). It asks
+  LaunchServices whether the scheme has a handler and falls back to the browser when it does not.
 
-Because Universal Links are maintained by macOS LaunchServices per installed application,
-supporting external tools requires no per-app custom schemes or individual user settings.
+Magimail has no app rewrites; every external link takes the browser route.
 
 ## Browser and Chromium profile
 
@@ -66,39 +63,8 @@ and the app a browser, for every link that leaves it.
 | `openLinksIn` (`settings.json`)    | General  | Which browser opens a link       |
 | `browserProfile` (`accounts.json`) | Accounts | Which Google session it opens in |
 
-### The one exception: apps we name
-
-Applying a profile means starting the browser ourselves, and that is what stops macOS handing a URL
-to the desktop app that claims its domain. The resolution happens inside `swcd` at open time and
-cannot be asked for in advance: `LSCopyDefaultApplicationURLForURL`, `LSCopyApplicationURLsForURL`,
-`NSWorkspace.urlForApplication(toOpen:)`, `app.getApplicationInfoForProtocol` and `/usr/bin/open`
-all answer with a browser for a domain that `shell.openExternal` then gives to its app, and
-`swcutil` knows but needs root.
-
-So the table in `packages/core/src/app-links.json` names the domains whose links belong to an app:
-Notion, Linear, Todoist, Figma, Slack, Dropbox. A link to one of them is handed
-over with `open -b <bundleId> <url>`; every other link goes to the chosen browser with the account's
-profile. An app that refuses the URL falls back to the browser rather than leaving the link
-unopened.
-
-`appLinkChoices` holds one answer per app, keyed by bundle id, and Settings draws a row for each app
-this Mac has installed:
-
-| Value   | Behaviour                                                                             |
-| :------ | :------------------------------------------------------------------------------------ |
-| `auto`  | open the app                                                                          |
-| `ask`   | show the choice each time, with a "don't ask again" box that writes `auto` or `never` |
-| `never` | the link takes the browser and the account's profile                                  |
-
-Per app rather than one switch for the table: wanting Notion in its app says nothing about wanting
-Figma in its app, and `ask` is a per-app answer too. The dialog's checkbox writes that same setting,
-so ticking it and reading Settings tell one story. Uninstalled apps are filtered out of the list,
-because a row for an absent app could only fall back to the browser.
-
-Adding an app is one object: a name, a bundle id, and the hosts it owns. A domain missing from the
-table is not broken, it opens in the browser with the right profile, which is where links went
-before the table existed. Google's own domains are absent on purpose: a Drive or Docs link has to
-keep the account's profile.
+Google's own domains are ordinary links: a Drive or Docs link opens in the browser and keeps the
+account's profile.
 
 ### Resolving a profile
 
@@ -127,5 +93,6 @@ the flag is dropped and a plain `-b` reuses that window. A failed launch falls b
   [`../magimail/overview.md`](../magimail/overview.md) unwrap redirectors and then call
   `openExternalUrl` with the account.
 - **Magical**: Outbound links in event descriptions and tasks pass through `openExternalUrl` in
-  `links.ts`. Magical also rewrites video conference links (Zoom and Microsoft Teams) to native
-  custom schemes; see [`../magical/conference-links.md`](../magical/conference-links.md).
+  `links.ts`. Magical also rewrites video conference links (Zoom and Microsoft Teams) and Todoist
+  tasks and projects to native custom schemes; see
+  [`../magical/conference-links.md`](../magical/conference-links.md).

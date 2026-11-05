@@ -299,56 +299,6 @@ describe('browser-router', () => {
     ]);
   });
 
-  it('openExternalUrl hands a listed app its own links', async () => {
-    const runner = vi.fn().mockResolvedValue(undefined);
-
-    await openExternalUrl('https://app.notion.com/p/page', {
-      browser: 'chrome',
-      account: { browserProfile: 'Profile 1' },
-      customHome: tmpDir,
-      fallbackOpenExternal: vi.fn().mockResolvedValue(undefined),
-      openCommandRunner: runner,
-    });
-
-    expect(runner).toHaveBeenCalledWith(['-b', 'notion.id', 'https://app.notion.com/p/page']);
-  });
-
-  it('openExternalUrl falls back to the browser when the app refuses the link', async () => {
-    const chromeDir = path.join(tmpDir, 'Library/Application Support/Google/Chrome');
-    fs.mkdirSync(chromeDir, { recursive: true });
-    fs.writeFileSync(
-      path.join(chromeDir, 'Local State'),
-      JSON.stringify({
-        profile: {
-          info_cache: { Default: { name: 'Personal', user_name: 'personal@gmail.com' } },
-        },
-        last_used: 'Default',
-      }),
-    );
-
-    const runner = vi
-      .fn()
-      .mockRejectedValueOnce(new Error('Unable to find application named notion.id'))
-      .mockResolvedValue(undefined);
-
-    await openExternalUrl('https://app.notion.com/p/page', {
-      browser: 'chrome',
-      account: { browserProfile: 'Default' },
-      customHome: tmpDir,
-      fallbackOpenExternal: vi.fn().mockResolvedValue(undefined),
-      openCommandRunner: runner,
-    });
-
-    expect(runner).toHaveBeenLastCalledWith([
-      '-b',
-      'com.google.Chrome',
-      '-n',
-      '--args',
-      '--profile-directory=Default',
-      'https://app.notion.com/p/page',
-    ]);
-  });
-
   it('openExternalUrl delegates system browser to fallback', async () => {
     const fallback = vi.fn().mockResolvedValue(undefined);
     const runner = vi.fn().mockResolvedValue(undefined);

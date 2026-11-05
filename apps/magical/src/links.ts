@@ -4,7 +4,6 @@ import { createLogger, redactUrl } from '@magimail/core/logger';
 import { INTERNAL_ORIGINS } from './constants.js';
 import { hasApplicationForUrl } from './native-handlers.js';
 import { loadSettings } from './settings-store.js';
-import { chooseAppForLink } from './app-links-choice.js';
 import type { CalendarAccount } from './accounts.js';
 
 export { unwrapRedirectors } from '@magimail/core';
@@ -67,6 +66,20 @@ export function toNativeMeetingUrl(url: string): string {
 }
 
 /**
+ * Rewrites a Todoist task or project link to its desktop scheme.
+ *
+ * Todoist's site does not hand off to the desktop app, and calendar events carry task links,
+ * so this is the one app Magical opens itself. The id is the same in both forms.
+ */
+export function toTodoistAppUrl(url: string): string {
+  const unwrapped = unwrapRedirectors(url);
+  const match = /^https?:\/\/(?:app\.)?todoist\.com\/app\/(task|project)\/([A-Za-z0-9]+)/.exec(
+    unwrapped,
+  );
+  return match ? `todoist://${match[1]}?id=${match[2]}` : unwrapped;
+}
+
+/**
  * Dispatches an external URL for an account.
  *
  * Shared click gate used by `window.open`, in-view navigation and the Join Call button.
@@ -81,6 +94,9 @@ export async function openExternalUrl(rawUrl: string, account?: CalendarAccount)
 
   if (!settings.alwaysJoinInBrowser) {
     target = toNativeMeetingUrl(target);
+  }
+  if (target === unwrappedUrl) {
+    target = toTodoistAppUrl(target);
   }
 
   if (target !== unwrappedUrl) {
@@ -100,8 +116,6 @@ export async function openExternalUrl(rawUrl: string, account?: CalendarAccount)
   try {
     await openBrowserUrl(unwrappedUrl, {
       browser: settings.openLinksIn,
-      appLinkChoices: settings.appLinkChoices,
-      askAboutAppLink: chooseAppForLink,
       account,
     });
   } catch (err) {

@@ -13,7 +13,6 @@ vi.mock('../src/settings-store.js', () => ({
   loadSettings: () => ({
     openLinksIn: 'chrome',
     openLinksInApps: 'auto',
-    appLinkOverrides: {},
   }),
   saveSetting: vi.fn(),
 }));

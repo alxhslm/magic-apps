@@ -31,12 +31,6 @@ Which browser opens links that leave the app.
 - **Only installed browsers are listed.** Picking one sends every link through that browser. If it
   is Chrome, Brave or Edge, links also open in the account's profile; see
   [Chromium profiles](#chromium-profiles).
-- **Universal links can open in their app instead.** Some links belong to a desktop app, and apps
-  installed on your Mac appear below with three choices:
-  - `Open in the app`, so a Notion or Slack link opens in that app.
-  - `Ask each time`, which shows a dialog naming both destinations. Its "don't ask again" box
-    writes this same row.
-  - `Use the browser`, so the link takes the account's profile like everything else.
 
 ### Global Quick Compose Shortcut
 

@@ -63,7 +63,7 @@ open "magical://search?q=Dentist"
 
 Event descriptions and Google Tasks frequently include links to external tools such as Todoist, Notion, Linear, Figma, or Slack.
 
-Magical strips Google's redirect prefix before routing a link. A link to a supported desktop app opens in that app when installed; every other link opens in the browser chosen in **Settings → General → Opening links**, in the Chromium profile for the account it came from. See [Settings Reference](/help/magical/settings/#chromium-profiles).
+Magical strips Google's redirect prefix before routing a link, then opens it in the browser chosen in **Settings → General → Opening links**, in the Chromium profile for the account it came from. Todoist task and project links open in the Todoist app when it is installed. See [Settings Reference](/help/magical/settings/#chromium-profiles).
 
 :::tip[Video conference calls]
 Meeting links for Zoom and Microsoft Teams also open in their native desktop apps when installed. If you prefer to join meetings in your browser, turn on **Always open calls in the browser** in **Settings → Notifications**. See [Settings Reference](/help/magical/settings/).

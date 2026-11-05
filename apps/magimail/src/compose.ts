@@ -1,11 +1,10 @@
 import { openExternalUrl, unwrapRedirectors } from '@magimail/core';
 import { loadAccounts } from './account-store.js';
-import { BrowserWindow, shell } from 'electron';
+import { BrowserWindow } from 'electron';
 import { GMAIL_COMPOSE_URL, DEFAULT_PARTITION } from './constants.js';
 import { createComposeWindowOptions, createThreadWindowOptions } from './window.js';
 import { getHideSidebarCss, injectGmailStyles } from './css.js';
 import { loadSettings } from './settings-store.js';
-import { chooseAppForLink } from './app-links-choice.js';
 
 const openComposeWindows = new Set<BrowserWindow>();
 
@@ -62,8 +61,6 @@ export function openDetachedComposeWindow(
     const settings = loadSettings();
     void openExternalUrl(unwrapRedirectors(url), {
       browser: settings.openLinksIn,
-      appLinkChoices: settings.appLinkChoices,
-      askAboutAppLink: chooseAppForLink,
       account: loadAccounts().find((a) => a.partition === partitionName),
     });
     return { action: 'deny' };
@@ -123,8 +120,6 @@ export function openDetachedThreadWindow(
     const settings = loadSettings();
     void openExternalUrl(unwrapRedirectors(url), {
       browser: settings.openLinksIn,
-      appLinkChoices: settings.appLinkChoices,
-      askAboutAppLink: chooseAppForLink,
       account: loadAccounts().find((a) => a.partition === partitionName),
     });
     return { action: 'deny' };
