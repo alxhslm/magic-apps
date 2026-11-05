@@ -22,12 +22,12 @@ The General tab manages startup behaviour and default calendar file handling:
   - **Importing by hand**: **File → Import Calendar File…** (<kbd>⇧⌘I</kbd>) reaches the same flow for a file you have already found.
   - **New event account**: Choose whether new events are added to your currently active calendar account or prompt you to pick an account every time.
 
-### Open links in
+### Opening links
 
 Which browser opens links that leave the app.
 
-- **By default it follows your Mac's default browser**, which is preselected and marked
-  `(default)`. Leaving that row alone keeps following the Mac if you change it later.
+- **The Mac's default browser is preselected and marked `(default)`.** Picking a row pins that
+  browser, so the app keeps using it if the Mac's default changes later.
 - **Only installed browsers are listed.** Picking one sends every link through that browser. If it
   is a Chromium browser, links also open in the account's profile; see
   [Chromium profiles](#chromium-profiles).

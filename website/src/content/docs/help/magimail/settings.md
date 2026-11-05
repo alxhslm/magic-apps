@@ -22,12 +22,12 @@ The General tab controls startup behaviour, default app registration, and messag
   - **Sending account choice**: Under **Compose account**, choose whether Magimail automatically drafts from your currently active account or prompts you with a quick account picker so you can select which email address to send from.
   - **System Settings**: You can also set this in macOS **System Settings → Desktop & Dock → Default web browser / Mail**.
 
-### Open links in
+### Opening links
 
 Which browser opens links that leave the app.
 
-- **By default it follows your Mac's default browser**, which is preselected and marked
-  `(default)`. Leaving that row alone keeps following the Mac if you change it later.
+- **The Mac's default browser is preselected and marked `(default)`.** Picking a row pins that
+  browser, so the app keeps using it if the Mac's default changes later.
 - **Only installed browsers are listed.** Picking one sends every link through that browser. If it
   is a Chromium browser, links also open in the account's profile; see
   [Chromium profiles](#chromium-profiles).
