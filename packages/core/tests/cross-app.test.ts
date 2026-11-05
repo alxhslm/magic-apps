@@ -23,6 +23,54 @@ describe('crossAppLink', () => {
     });
   });
 
+  it('turns a Gmail compose link into a prefilled compose link', () => {
+    expect(
+      crossAppLink(
+        'https://mail.google.com/mail/?view=cm&fs=1&to=alex%40corp.com&su=Hello&body=Body',
+      ),
+    ).toEqual({
+      scheme: 'magimail',
+      deepLink: 'magimail://compose?to=alex%40corp.com&su=Hello&body=Body',
+    });
+  });
+
+  it('turns a Gmail folder into the search that shows the same mail', () => {
+    expect(crossAppLink('https://mail.google.com/mail/u/0/#sent')).toEqual({
+      scheme: 'magimail',
+      deepLink: 'magimail://search?q=in%3Asent',
+    });
+    expect(crossAppLink('https://mail.google.com/mail/u/0/#label/Work')).toEqual({
+      scheme: 'magimail',
+      deepLink: 'magimail://search?q=label%3AWork',
+    });
+  });
+
+  it('turns an add-to-calendar link into a prefilled new event', () => {
+    expect(
+      crossAppLink(
+        'https://calendar.google.com/calendar/render?action=TEMPLATE&text=Standup&dates=20261105T090000Z/20261105T091500Z&location=Room',
+      ),
+    ).toEqual({
+      scheme: 'magical',
+      deepLink:
+        'magical://quick-add?action=TEMPLATE&text=Standup&dates=20261105T090000Z%2F20261105T091500Z&location=Room',
+    });
+  });
+
+  it('keeps a calendar search', () => {
+    expect(crossAppLink('https://calendar.google.com/calendar/u/0/r/search?q=standup')).toEqual({
+      scheme: 'magical',
+      deepLink: 'magical://search?q=standup',
+    });
+  });
+
+  it('opens a Google Tasks link in Magical', () => {
+    expect(crossAppLink('https://tasks.google.com/embed/')).toEqual({
+      scheme: 'magical',
+      deepLink: 'magical://tasks',
+    });
+  });
+
   it('sends a calendar day link to Magical, as midnight on that day', () => {
     expect(crossAppLink('https://calendar.google.com/calendar/u/0/r/day/2026/11/5')).toEqual({
       scheme: 'magical',

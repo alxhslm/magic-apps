@@ -45,8 +45,22 @@ export function crossAppLink(rawUrl: string): CrossAppLink | null {
   if (host === 'calendar.google.com') {
     return { scheme: 'magical', deepLink: calendarDeepLink(url) };
   }
+  if (host === 'tasks.google.com') {
+    return { scheme: 'magical', deepLink: 'magical://tasks' };
+  }
   return null;
 }
+
+/** Gmail's folder views, expressed as the search that shows the same mail. */
+const GMAIL_FOLDER_QUERIES: Record<string, string> = {
+  sent: 'in:sent',
+  drafts: 'in:drafts',
+  starred: 'is:starred',
+  spam: 'in:spam',
+  trash: 'in:trash',
+  all: 'in:anywhere',
+  imp: 'is:important',
+};
 
 /**
  * Gmail addresses its views in the fragment: `#inbox/<thread>`, `#search/<query>`, `#sent`.
@@ -55,6 +69,17 @@ export function crossAppLink(rawUrl: string): CrossAppLink | null {
  * nothing to do with our account ids, so it is dropped rather than misread as one.
  */
 function gmailDeepLink(url: URL): string {
+  // `?view=cm&to=…&su=…&body=…` is the compose link Gmail hands out.
+  if (url.searchParams.get('view') === 'cm') {
+    const fields = new URLSearchParams();
+    for (const key of ['to', 'cc', 'bcc', 'su', 'subject', 'body']) {
+      const value = url.searchParams.get(key);
+      if (value) fields.set(key, value);
+    }
+    const query = fields.toString();
+    return `magimail://compose${query ? `?${query}` : ''}`;
+  }
+
   const fragment = url.hash.replace(/^#/, '');
   const [view, ...rest] = fragment.split('/');
 
@@ -71,6 +96,16 @@ function gmailDeepLink(url: URL): string {
     return `magimail://thread/${encodeURIComponent(threadId)}`;
   }
 
+  const folder = GMAIL_FOLDER_QUERIES[view];
+  if (folder) {
+    return `magimail://search?q=${encodeURIComponent(folder)}`;
+  }
+
+  if ((view === 'label' || view === 'category') && rest.length > 0) {
+    const name = decodeURIComponent(rest.join('/'));
+    return `magimail://search?q=${encodeURIComponent(`${view}:${name}`)}`;
+  }
+
   return 'magimail://inbox';
 }
 
@@ -81,6 +116,22 @@ function gmailDeepLink(url: URL): string {
  * opens the day, which is a date, and midnight is the date without inventing a time.
  */
 function calendarDeepLink(url: URL): string {
+  // Google's add-to-calendar form. Keep the fields it understands and let Magical open its
+  // own event editor with them, rather than rebuilding an editor or dropping the event.
+  if (url.searchParams.get('action') === 'TEMPLATE') {
+    const fields = new URLSearchParams({ action: 'TEMPLATE' });
+    for (const key of ['text', 'dates', 'details', 'location', 'ctz', 'trp', 'crm']) {
+      const value = url.searchParams.get(key);
+      if (value) fields.set(key, value);
+    }
+    return `magical://quick-add?${fields.toString()}`;
+  }
+
+  const query = url.searchParams.get('q');
+  if (/\/search(?:\/|$)/.test(url.pathname)) {
+    return query ? `magical://search?q=${encodeURIComponent(query)}` : 'magical://search';
+  }
+
   const eid = url.searchParams.get('eid');
   if (eid) {
     return `magical://event?eid=${encodeURIComponent(eid)}&action=reveal`;

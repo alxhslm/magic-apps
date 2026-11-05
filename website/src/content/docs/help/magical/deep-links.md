@@ -7,13 +7,14 @@ Magical registers the native macOS `magical://` URL scheme, allowing you to trig
 
 ## Supported Actions & Parameters
 
-| URL Pattern           | Parameters                       | Description                                                                             |
-| :-------------------- | :------------------------------- | :-------------------------------------------------------------------------------------- |
-| `magical://open`      | _None_                           | Brings the main Magical calendar window to the front.                                   |
-| `magical://quick-add` | _None_                           | Opens the event creation modal (prompts for account if configured to 'Always ask').     |
-| `magical://date`      | `at`, `account`                  | Navigates the calendar to a specific date (e.g. `2026-11-01`).                          |
-| `magical://search`    | `q` or `query`, `account`        | Searches events and meetings across your schedules.                                     |
-| `magical://event`     | `eid`, `account`, `action`, `at` | Focuses an event or executes an RSVP action (`reveal`, `yes`, `no`, `maybe`, `delete`). |
+| URL Pattern           | Parameters                                        | Description                                                                             |
+| :-------------------- | :------------------------------------------------ | :-------------------------------------------------------------------------------------- |
+| `magical://open`      | _None_                                            | Brings the main Magical calendar window to the front.                                   |
+| `magical://quick-add` | `text`, `dates`, `details`, `location`, `account` | Opens the event creation modal, prefilled when event fields are present.                |
+| `magical://tasks`     | `account`                                         | Opens the full-screen Tasks view.                                                       |
+| `magical://date`      | `at`, `account`                                   | Navigates the calendar to a specific date (e.g. `2026-11-01`).                          |
+| `magical://search`    | `q` or `query`, `account`                         | Searches events and meetings across your schedules.                                     |
+| `magical://event`     | `eid`, `account`, `action`, `at`                  | Focuses an event or executes an RSVP action (`reveal`, `yes`, `no`, `maybe`, `delete`). |
 
 :::tip[Headless background RSVPs]
 When a meeting link carries an RSVP action (`action=yes`, `action=no` or `action=maybe`), Magical records your response in the background without raising the main window. It is the same answer a banner gives; [Meeting Alerts & Invitations](/help/magical/notifications/) covers what happens to the invitation afterwards.
@@ -25,6 +26,18 @@ When a meeting link carries an RSVP action (`action=yes`, `action=no` or `action
 
 ```sh
 open "magical://quick-add"
+```
+
+With event fields, the composer opens prefilled:
+
+```sh
+open "magical://quick-add?text=Standup&dates=20261105T090000Z/20261105T091500Z&location=Room"
+```
+
+### Open Google Tasks
+
+```sh
+open "magical://tasks"
 ```
 
 ### Jump to a Specific Date
