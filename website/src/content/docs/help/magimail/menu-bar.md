@@ -7,9 +7,13 @@ Magimail places a lightweight status icon in your macOS menu bar, allowing you t
 
 ## Menu bar status
 
-In **Settings → Appearance → Dock & Menu Bar**, **Show menu bar tray** turns the item on or off, and **Menu bar status** chooses what appears beside it: **Menu bar icon only**, **Unread status dots** or **Unread count**. The [Settings Reference](/help/magimail/settings/) describes the rest.
+In **Settings → Appearance → Dock & Menu Bar**, **Show menu bar tray** turns the item on or off, and **Menu bar status** shows the different options below. The [Settings Reference](/help/magimail/settings/) describes the rest.
 
-Each reading follows your account order. The examples use two accounts: Work in blue and Personal in green.
+- **Menu bar icon only**: just the glyph.
+- **Unread status dots**: one dot per account.
+- **Unread count**: one number per account.
+
+The examples use two accounts: Work in blue and Personal in green.
 
 <div class="menu-bar-readings">
   <div class="menu-bar-reading">
@@ -42,8 +46,6 @@ Each reading follows your account order. The examples use two accounts: Work in 
     <p class="menu-bar-reading__note">Each account keeps a cell; a quiet one shows a dimmed 0.</p>
   </div>
 </div>
-
-The item keeps its width as mail arrives or is read, so it never shifts the other menu bar items.
 
 ## Popover
 

@@ -57,12 +57,9 @@ changes. That matters most while someone is using the tray: marking a message re
 changes the count the title reports, and the item and the popover anchored to it must not move under
 the pointer.
 
-**Make the title's width depend on something stable**, such as the number of accounts or the display
-mode, rather than on the counts themselves. Magimail draws one mark per account, in account order,
-with a ring or a dimmed zero for the quiet ones; the count changes the mark, not the space.
-Magimail's three readings and their widths are in [`../magimail/menu-bar.md`](../magimail/menu-bar.md).
-Magical's countdown changes on its own, so it is padded to a measured constant width; see
-[`../magical/menu-bar.md`](../magical/menu-bar.md).
+**Make the title's width depend on something stable**, such as the account count or display mode, not
+on the counts. Magimail draws one mark per account, so the count changes the mark, not the space. Its
+three readings and widths are in [`../magimail/menu-bar.md`](../magimail/menu-bar.md).
 
 A title that cannot be made stable that way can be drawn into a field of a constant width, with
 whatever the reading leaves over appended as a transparent `NSTextAttachment` of the measured
