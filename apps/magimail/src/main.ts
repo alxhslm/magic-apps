@@ -558,6 +558,17 @@ function threadTriageFromLink(
 }
 
 /** Dispatches incoming mailto: or magimail:// protocol URLs to the appropriate handler. */
+/** Gmail's own mailbox fragments, as the deep-link host that names each one. */
+const MAILBOX_ROUTES: Record<string, string> = {
+  sent: '#sent',
+  drafts: '#drafts',
+  starred: '#starred',
+  spam: '#spam',
+  trash: '#trash',
+  all: '#all',
+  important: '#imp',
+};
+
 function dispatchProtocolUrl(url: string): void {
   // Composing needs the manager the window owns, so a window is built for a mailto: link.
   if (url.startsWith('mailto:')) {
@@ -606,9 +617,20 @@ function dispatchProtocolUrl(url: string): void {
     const parsed = new URL(url);
     const targetAccountId = parsed.searchParams.get('account') || undefined;
 
+    const mailbox = MAILBOX_ROUTES[parsed.hostname];
     if (parsed.hostname === 'inbox') {
       if (targetAccountId) {
         accountsManager.switchAccount(targetAccountId);
+      }
+    } else if (mailbox) {
+      accountsManager.openInAccount(targetAccountId, `https://mail.google.com/mail/u/0/${mailbox}`);
+    } else if (parsed.hostname === 'label' || parsed.hostname === 'category') {
+      const name = parsed.pathname.replace(/^\//, '');
+      if (name) {
+        accountsManager.openInAccount(
+          targetAccountId,
+          `https://mail.google.com/mail/u/0/#${parsed.hostname}/${name}`,
+        );
       }
     } else if (parsed.hostname === 'search') {
       const query = parsed.searchParams.get('q') || parsed.searchParams.get('query') || '';

@@ -51,15 +51,15 @@ export function crossAppLink(rawUrl: string): CrossAppLink | null {
   return null;
 }
 
-/** Gmail's folder views, expressed as the search that shows the same mail. */
-const GMAIL_FOLDER_QUERIES: Record<string, string> = {
-  sent: 'in:sent',
-  drafts: 'in:drafts',
-  starred: 'is:starred',
-  spam: 'in:spam',
-  trash: 'in:trash',
-  all: 'in:anywhere',
-  imp: 'is:important',
+/** Gmail's folder views, as the deep links Magimail answers. */
+const GMAIL_VIEW_ROUTES: Record<string, string> = {
+  sent: 'sent',
+  drafts: 'drafts',
+  starred: 'starred',
+  spam: 'spam',
+  trash: 'trash',
+  all: 'all',
+  imp: 'important',
 };
 
 /**
@@ -96,14 +96,13 @@ function gmailDeepLink(url: URL): string {
     return `magimail://thread/${encodeURIComponent(threadId)}`;
   }
 
-  const folder = GMAIL_FOLDER_QUERIES[view];
-  if (folder) {
-    return `magimail://search?q=${encodeURIComponent(folder)}`;
+  const route = GMAIL_VIEW_ROUTES[view];
+  if (route) {
+    return `magimail://${route}`;
   }
 
   if ((view === 'label' || view === 'category') && rest.length > 0) {
-    const name = decodeURIComponent(rest.join('/'));
-    return `magimail://search?q=${encodeURIComponent(`${view}:${name}`)}`;
+    return `magimail://${view}/${rest.join('/')}`;
   }
 
   return 'magimail://inbox';

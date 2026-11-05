@@ -34,14 +34,14 @@ describe('crossAppLink', () => {
     });
   });
 
-  it('turns a Gmail folder into the search that shows the same mail', () => {
+  it('turns a Gmail folder into its own route', () => {
     expect(crossAppLink('https://mail.google.com/mail/u/0/#sent')).toEqual({
       scheme: 'magimail',
-      deepLink: 'magimail://search?q=in%3Asent',
+      deepLink: 'magimail://sent',
     });
     expect(crossAppLink('https://mail.google.com/mail/u/0/#label/Work')).toEqual({
       scheme: 'magimail',
-      deepLink: 'magimail://search?q=label%3AWork',
+      deepLink: 'magimail://label/Work',
     });
   });
 
