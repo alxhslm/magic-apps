@@ -19,12 +19,8 @@ describe('appForUrl', () => {
       'com.todoist.mac.Todoist',
     );
     expect(appForUrl('https://www.figma.com/file/abc')?.bundleId).toBe('com.figma.Desktop');
-    expect(appForUrl('https://www.loom.com/share/abc')?.bundleId).toBe('com.loom.desktop');
     expect(appForUrl('https://www.dropbox.com/scl/fi/abc')?.bundleId).toBe(
       'com.getdropbox.dropbox',
-    );
-    expect(appForUrl('https://miro.com/app/board/abc')?.bundleId).toBe(
-      'com.electron.realtimeboard',
     );
   });
 

@@ -76,7 +76,7 @@ all answer with a browser for a domain that `shell.openExternal` then gives to i
 `swcutil` knows but needs root.
 
 So the table in `packages/core/src/app-links.json` names the domains whose links belong to an app:
-Notion, Linear, Todoist, Figma, Slack, Loom, Miro, Dropbox. A link to one of them is handed
+Notion, Linear, Todoist, Figma, Slack, Dropbox. A link to one of them is handed
 over with `open -b <bundleId> <url>`; every other link goes to the chosen browser with the account's
 profile. An app that refuses the URL falls back to the browser rather than leaving the link
 unopened.

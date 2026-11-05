@@ -27,16 +27,6 @@
       "hosts": ["slack.com"]
     },
     {
-      "name": "Loom",
-      "bundleId": "com.loom.desktop",
-      "hosts": ["www.loom.com"]
-    },
-    {
-      "name": "Miro",
-      "bundleId": "com.electron.realtimeboard",
-      "hosts": ["miro.com"]
-    },
-    {
       "name": "Dropbox",
       "bundleId": "com.getdropbox.dropbox",
       "hosts": ["www.dropbox.com"]
