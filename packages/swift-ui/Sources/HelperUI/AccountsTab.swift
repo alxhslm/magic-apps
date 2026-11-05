@@ -109,10 +109,10 @@ public struct AccountsTab<Model: AccountListModel>: View {
                                 .foregroundStyle(.secondary)
                             Picker("", selection: browserBinding(for: selectedId)) {
                                 Text(systemDefaultLabel).tag("system")
-                                Text("Google Chrome").tag("chrome")
-                                Text("Brave Browser").tag("brave")
-                                Text("Microsoft Edge").tag("edge")
-                                Text("Safari").tag("safari")
+                                Text(browserLabel("chrome", "Google Chrome")).tag("chrome")
+                                Text(browserLabel("brave", "Brave Browser")).tag("brave")
+                                Text(browserLabel("edge", "Microsoft Edge")).tag("edge")
+                                Text(browserLabel("safari", "Safari")).tag("safari")
                             }
                             .labelsHidden()
                             .frame(maxWidth: 180)
@@ -185,17 +185,29 @@ public struct AccountsTab<Model: AccountListModel>: View {
         if let explicit = value(of: id, "browser") {
             return explicit
         }
-        let resolved = model.defaultBrowser["id"] as? String ?? "system"
         // A browser outside our list is not offered, so the picker falls back to the
         // system row rather than sitting on a tag it does not contain.
-        return resolved == "other" ? "system" : resolved
+        return defaultBrowserId == "other" ? "system" : defaultBrowserId
     }
 
-    /// Names the browser that the system row resolves to, so choosing it is not a guess.
+    /// The id in `SUPPORTED_BROWSERS` that macOS opens `https` with, or `other`.
+    private var defaultBrowserId: String {
+        model.defaultBrowser["id"] as? String ?? "system"
+    }
+
+    /// Marks the row the account inherits, so the preselection is explicable rather than
+    /// looking like a choice someone else made on the user's behalf.
+    private func browserLabel(_ id: String, _ name: String) -> String {
+        id == defaultBrowserId ? "\(name) (default)" : name
+    }
+
+    /// Names the browser the system row resolves to, but only when it is one we do not
+    /// list: an offered browser is already marked `(default)` on its own row.
     private var systemDefaultLabel: String {
-        guard let name = model.defaultBrowser["name"] as? String, !name.isEmpty else {
-            return "System Default"
-        }
+        guard defaultBrowserId == "other",
+              let name = model.defaultBrowser["name"] as? String,
+              !name.isEmpty
+        else { return "System Default" }
         return "System Default (\(name))"
     }
 

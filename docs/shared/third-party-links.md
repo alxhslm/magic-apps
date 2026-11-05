@@ -79,10 +79,10 @@ Each step degrades rather than fails: no resolved profile launches the browser w
 URL to a browser we opened cannot leave it unopened.
 
 The settings tab avoids asking a question the answer is already known for. `getDefaultBrowser`
-reads the LaunchServices handler for `https` and the tab preselects it for any account that has
-not chosen, so the picker states which browser links actually reach and the profile row appears
-for the common case of a Chrome default. The stored value stays unset, so the account keeps
-following the system default when it changes. A default browser outside `SUPPORTED_BROWSERS`
+reads the LaunchServices handler for `https`, and the tab marks that row `(default)` and
+preselects it for any account that has not chosen. The picker therefore states which browser
+links actually reach, and the profile row appears for the common case of a Chrome default. The
+stored value stays unset, so the account keeps following the system default when it changes. A default browser outside `SUPPORTED_BROWSERS`
 (Firefox, Arc) is reported as `other`: the row falls back to the system entry and the profile
 picker stays hidden, since there is nothing to match it against.
 
