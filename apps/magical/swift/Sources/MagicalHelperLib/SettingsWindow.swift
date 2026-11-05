@@ -124,22 +124,20 @@ struct GeneralTab: View {
 
             // One row per app rather than one switch for all of them: wanting Notion in its app says
             // nothing about wanting Figma in its app, and "ask" is a per-app answer too.
-            // The standard form row: label on the left, control on the right, laid out by the
-            // system rather than by an HStack here. Only installed apps appear, because a row for
-            // an app that is absent could only fall back to the browser.
+            // One picker per app, shaped like the rows above it: this pane is a plain `Form`, so a
+            // `Section` or a `LabeledContent` here nests its own alignment inside the form's.
+            // Only installed apps appear, because a row for an absent app could only fall back to
+            // the browser.
             if !installedAppLinks.isEmpty {
-                Section("Universal links") {
-                    ForEach(installedAppLinks, id: \.self) { entry in
-                        LabeledContent(entry["name"] ?? "") {
-                            Picker("", selection: appLinkChoice(for: entry["bundleId"] ?? "")) {
-                                Text("Open in the app").tag("auto")
-                                Text("Ask each time").tag("ask")
-                                Text("Use the browser").tag("never")
-                            }
-                            .labelsHidden()
-                            .pickerStyle(.menu)
-                            .fixedSize()
-                        }
+                Text("Universal links")
+                    .font(.headline)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                ForEach(installedAppLinks, id: \.self) { entry in
+                    Picker("\(entry["name"] ?? "") links:", selection: appLinkChoice(for: entry["bundleId"] ?? "")) {
+                        Text("Open in the app").tag("auto")
+                        Text("Ask each time").tag("ask")
+                        Text("Use the browser").tag("never")
                     }
                 }
             }

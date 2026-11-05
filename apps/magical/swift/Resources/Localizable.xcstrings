@@ -85,10 +85,10 @@
     "Always open calls in the browser": {
       "extractionState": "manual"
     },
-    "An account's organization has blocked Google Calendar.": {
+    "An account you switch away from stays in memory for this long, then unloads to free around 300MB. Background events and alerts keep arriving either way, and returning to an unloaded account reopens it where you left off.": {
       "extractionState": "manual"
     },
-    "An account you switch away from stays in memory for this long, then unloads to free around 300MB. Background events and alerts keep arriving either way, and returning to an unloaded account reopens it where you left off.": {
+    "An account's organization has blocked Google Calendar.": {
       "extractionState": "manual"
     },
     "Appearance": {
@@ -104,6 +104,9 @@
       "extractionState": "manual"
     },
     "Are you sure you want to delete this task from Google Tasks?": {
+      "extractionState": "manual"
+    },
+    "Ask each time": {
       "extractionState": "manual"
     },
     "Assembles application and extension logs along with system environment info into a redacted archive for troubleshooting.": {
@@ -413,6 +416,12 @@
     "Open in Magical": {
       "extractionState": "manual"
     },
+    "Open in the app": {
+      "extractionState": "manual"
+    },
+    "Open links in:": {
+      "extractionState": "manual"
+    },
     "Other": {
       "extractionState": "manual"
     },
@@ -515,6 +524,9 @@
     "Transparent background": {
       "extractionState": "manual"
     },
+    "Universal links": {
+      "extractionState": "manual"
+    },
     "Unknown": {
       "extractionState": "manual"
     },
@@ -528,6 +540,9 @@
       "extractionState": "manual"
     },
     "Use active account": {
+      "extractionState": "manual"
+    },
+    "Use the browser": {
       "extractionState": "manual"
     },
     "Used for meetings that have no notification time of their own. A meeting that sets one in Google Calendar is alerted at that time instead.": {

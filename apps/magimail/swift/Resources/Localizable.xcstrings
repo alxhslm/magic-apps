@@ -81,10 +81,10 @@
     "Always ask": {
       "extractionState": "manual"
     },
-    "An account's organization has blocked Gmail.": {
+    "An account you switch away from stays in memory for this long, then unloads to free around 450MB. Unread counts and notifications keep arriving either way, and returning to an unloaded account reopens it where you left off.": {
       "extractionState": "manual"
     },
-    "An account you switch away from stays in memory for this long, then unloads to free around 450MB. Unread counts and notifications keep arriving either way, and returning to an unloaded account reopens it where you left off.": {
+    "An account's organization has blocked Gmail.": {
       "extractionState": "manual"
     },
     "Appearance": {
@@ -94,6 +94,9 @@
       "extractionState": "manual"
     },
     "Archive": {
+      "extractionState": "manual"
+    },
+    "Ask each time": {
       "extractionState": "manual"
     },
     "Assembles application and extension logs along with system environment info into a redacted archive for troubleshooting.": {
@@ -294,6 +297,12 @@
     "Open in Magimail": {
       "extractionState": "manual"
     },
+    "Open in the app": {
+      "extractionState": "manual"
+    },
+    "Open links in:": {
+      "extractionState": "manual"
+    },
     "Opens a compose window from any application. It always asks which account to send from when there is more than one, since no account is on screen to be the active one.": {
       "extractionState": "manual"
     },
@@ -404,6 +413,9 @@
     "Transparent background": {
       "extractionState": "manual"
     },
+    "Universal links": {
+      "extractionState": "manual"
+    },
     "Unknown": {
       "extractionState": "manual"
     },
@@ -420,6 +432,9 @@
       "extractionState": "manual"
     },
     "Use active account": {
+      "extractionState": "manual"
+    },
+    "Use the browser": {
       "extractionState": "manual"
     },
     "Waiting for network connection…": {
