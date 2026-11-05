@@ -1,9 +1,9 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { execFile } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
 import { promisify } from 'node:util';
-import { shell } from 'electron';
+import { app, shell } from 'electron';
 import { createLogger, redactUrl } from './logger.js';
 import type { AccountConfig } from './account.js';
 
@@ -37,6 +37,101 @@ export const CHROMIUM_DATA_PATHS: Record<string, string> = {
   brave: 'Library/Application Support/BraveSoftware/Brave-Browser/Local State',
   edge: 'Library/Application Support/Microsoft Edge/Local State',
 };
+
+/** Where macOS records which application claims each URL scheme. */
+const LAUNCH_SERVICES_PLIST =
+  'Library/Preferences/com.apple.LaunchServices/com.apple.launchservices.secure.plist';
+
+/** macOS treats `https` as handled by Safari until something claims it. */
+const UNCLAIMED_BUNDLE_ID = 'com.apple.Safari';
+
+export interface DefaultBrowser {
+  /** An id from `SUPPORTED_BROWSERS`, or `other` for a browser we cannot name. */
+  id: string;
+  /** The name macOS gives the application, e.g. `Firefox`. */
+  name: string;
+  bundleId: string;
+  /** Only the three browsers in `CHROMIUM_DATA_PATHS` offer profile selection. */
+  isChromium: boolean;
+}
+
+export interface DefaultBrowserOptions {
+  customHome?: string;
+  /** Returns the LaunchServices plist as JSON. Injectable for testing. */
+  readPlistJson?: (plistPath: string) => string;
+}
+
+/**
+ * Reports the browser macOS opens `https` links with.
+ *
+ * The settings tab preselects this so a user who has never touched the picker sees which
+ * browser links actually open in, and gets the profile picker when that browser is one of
+ * ours. Reading it here rather than in the helper keeps `SUPPORTED_BROWSERS` the only list
+ * mapping a bundle identifier to a browser id.
+ */
+export function getDefaultBrowser(options: DefaultBrowserOptions = {}): DefaultBrowser {
+  const bundleId = readDefaultBrowserBundleId(options);
+  const known = SUPPORTED_BROWSERS.find(
+    (b) => b.bundleId !== undefined && b.bundleId.toLowerCase() === bundleId.toLowerCase(),
+  );
+
+  if (known) {
+    return {
+      id: known.id,
+      name: known.name,
+      bundleId: known.bundleId ?? bundleId,
+      isChromium: known.isChromium === true,
+    };
+  }
+
+  // A browser outside the list (Firefox, Arc, a Chromium fork we do not read profiles for).
+  return {
+    id: 'other',
+    name: defaultHandlerName() ?? bundleId,
+    bundleId,
+    isChromium: false,
+  };
+}
+
+function readDefaultBrowserBundleId(options: DefaultBrowserOptions): string {
+  const read = options.readPlistJson ?? readLaunchServicesJson;
+  const home = options.customHome ?? os.homedir();
+
+  // An absent plist or an absent `https` entry is the ordinary state of a Mac that has
+  // never changed its default browser, not a fault worth a log line.
+  try {
+    const parsed = JSON.parse(read(path.join(home, LAUNCH_SERVICES_PLIST)));
+    const handlers: unknown = parsed?.LSHandlers;
+    if (!Array.isArray(handlers)) return UNCLAIMED_BUNDLE_ID;
+
+    // `All` is set when the browser was chosen for every role; `Viewer` when the user
+    // changed only what opens documents, which is the only row System Settings shows.
+    const forHttps = handlers.filter((h) => h && h.LSHandlerURLScheme === 'https');
+    const entry =
+      forHttps.find((h) => typeof h.LSHandlerRoleAll === 'string') ??
+      forHttps.find((h) => typeof h.LSHandlerRoleViewer === 'string');
+
+    const bundleId = entry?.LSHandlerRoleAll ?? entry?.LSHandlerRoleViewer;
+    return typeof bundleId === 'string' && bundleId ? bundleId : UNCLAIMED_BUNDLE_ID;
+  } catch {
+    return UNCLAIMED_BUNDLE_ID;
+  }
+}
+
+function readLaunchServicesJson(plistPath: string): string {
+  // The plist is binary, and `plutil` is how macOS converts one without a parser here.
+  return execFileSync('/usr/bin/plutil', ['-convert', 'json', '-o', '-', plistPath], {
+    encoding: 'utf-8',
+  });
+}
+
+function defaultHandlerName(): string | undefined {
+  try {
+    return app.getApplicationNameForProtocol('https://') || undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 /**
  * Reads all detected profiles for every supported Chromium browser.

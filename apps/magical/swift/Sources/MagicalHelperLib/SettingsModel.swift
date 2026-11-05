@@ -96,6 +96,8 @@ public final class SettingsModel: ObservableObject {
 
     @Published public var accounts: [[String: Any]] = []
     @Published public var browserProfiles: [String: [[String: String]]] = [:]
+    /// The browser macOS opens `https` links with, as `{ id, name, bundleId, isChromium }`.
+    @Published public var defaultBrowser: [String: Any] = [:]
 
     @Published public var calendars: [TrayCalendarItem] = []
 

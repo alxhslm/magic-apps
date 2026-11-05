@@ -73,6 +73,9 @@ transport.onMessage { request in
             if let browserProfiles = params["browserProfiles"] as? [String: [[String: String]]] {
                 SettingsModel.shared.browserProfiles = browserProfiles
             }
+            if let defaultBrowser = params["defaultBrowser"] as? [String: Any] {
+                SettingsModel.shared.defaultBrowser = defaultBrowser
+            }
             if let calendars = params["calendars"] as? [[String: Any]] {
                 SettingsModel.shared.calendars = calendars.map { TrayCalendarItem(from: $0) }
             }

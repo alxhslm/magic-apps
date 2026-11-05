@@ -8,8 +8,9 @@ import SwiftUI
 /// meeting alerts, calendars — but the account list is one problem. Both hold
 /// the main process's `{ id, name, color, needsAuth }` rows and both speak the
 /// same `account.add` / `account.update` / `account.remove` / `account.reorder` /
-/// `account.signIn` events, so this two-member protocol is all the editor needs
-/// to stay out of either app's model.
+/// `account.signIn` events, so this small protocol is all the editor needs to stay out
+/// of either app's model. The browser data comes from macOS and from the Chromium
+/// browsers' `Local State`, and reaches both models the same way.
 ///
 /// An app that grows a genuinely different account list can drop this and write
 /// its own `AccountsTab`; the window takes an opaque view per tab, so nothing
@@ -18,6 +19,8 @@ import SwiftUI
 public protocol AccountListModel: ObservableObject {
     var accounts: [[String: Any]] { get set }
     var browserProfiles: [String: [[String: String]]] { get set }
+    /// The browser macOS opens `https` links with, as `{ id, name, bundleId, isChromium }`.
+    var defaultBrowser: [String: Any] { get set }
     var transport: StdioTransport? { get }
 }
 
@@ -105,7 +108,7 @@ public struct AccountsTab<Model: AccountListModel>: View {
                                 .gridColumnAlignment(.trailing)
                                 .foregroundStyle(.secondary)
                             Picker("", selection: browserBinding(for: selectedId)) {
-                                Text("System Default").tag("system")
+                                Text(systemDefaultLabel).tag("system")
                                 Text("Google Chrome").tag("chrome")
                                 Text("Brave Browser").tag("brave")
                                 Text("Microsoft Edge").tag("edge")
@@ -172,8 +175,28 @@ public struct AccountsTab<Model: AccountListModel>: View {
         return b == "chrome" || b == "brave" || b == "edge"
     }
 
+    /// The account's own choice, and until it makes one, whatever macOS opens links with.
+    ///
+    /// Preselecting the system default means the picker states what actually happens, and
+    /// the profile row appears for the common case of a Chrome default on an account that
+    /// has never been configured. The stored value stays unset, so following the system
+    /// default keeps following it if the user changes it later.
     private func browser(for id: String) -> String {
-        value(of: id, "browser") ?? "system"
+        if let explicit = value(of: id, "browser") {
+            return explicit
+        }
+        let resolved = model.defaultBrowser["id"] as? String ?? "system"
+        // A browser outside our list is not offered, so the picker falls back to the
+        // system row rather than sitting on a tag it does not contain.
+        return resolved == "other" ? "system" : resolved
+    }
+
+    /// Names the browser that the system row resolves to, so choosing it is not a guess.
+    private var systemDefaultLabel: String {
+        guard let name = model.defaultBrowser["name"] as? String, !name.isEmpty else {
+            return "System Default"
+        }
+        return "System Default (\(name))"
     }
 
     private func profilesForBrowser(_ browser: String) -> [[String: String]] {
@@ -190,12 +213,14 @@ public struct AccountsTab<Model: AccountListModel>: View {
 
     private func browserBinding(for id: String) -> Binding<String> {
         Binding(
-            get: { value(of: id, "browser") ?? "system" },
+            get: { browser(for: id) },
             set: { newBrowser in
                 guard let name = value(of: id, "name"),
                       let color = value(of: id, "color")
                 else { return }
-                update(id: id, name: name, color: color, browser: newBrowser)
+                // A profile directory belongs to one browser, so it cannot carry across;
+                // matching the account email is the only sensible place to start again.
+                update(id: id, name: name, color: color, browser: newBrowser, browserProfile: "_auto")
             }
         )
     }
@@ -207,7 +232,16 @@ public struct AccountsTab<Model: AccountListModel>: View {
                 guard let name = value(of: id, "name"),
                       let color = value(of: id, "color")
                 else { return }
-                update(id: id, name: name, color: color, browserProfile: newProfile)
+                // A profile only reaches the browser when the account names one, since
+                // the `system` path hands the URL to macOS. Choosing a profile therefore
+                // commits the browser the picker is showing.
+                update(
+                    id: id,
+                    name: name,
+                    color: color,
+                    browser: browser(for: id),
+                    browserProfile: newProfile
+                )
             }
         )
     }

@@ -4,6 +4,9 @@ import path from 'node:path';
 import os from 'node:os';
 
 vi.mock('electron', () => ({
+  app: {
+    getApplicationNameForProtocol: vi.fn(() => 'Firefox'),
+  },
   shell: {
     openExternal: vi.fn(),
   },
@@ -13,6 +16,7 @@ import {
   getChromiumProfiles,
   resolveChromiumProfile,
   openExternalUrl,
+  getDefaultBrowser,
   SUPPORTED_BROWSERS,
 } from '../src/browser-router.js';
 
@@ -252,5 +256,84 @@ describe('browser-router', () => {
     });
 
     expect(fallback).toHaveBeenCalledWith('https://example.com');
+  });
+});
+
+describe('getDefaultBrowser', () => {
+  const plistWith = (...handlers: Record<string, unknown>[]): string =>
+    JSON.stringify({ LSHandlers: handlers });
+
+  it('maps a Chromium browser by its https handler bundle identifier', () => {
+    const browser = getDefaultBrowser({
+      readPlistJson: () =>
+        plistWith(
+          { LSHandlerURLScheme: 'mailto', LSHandlerRoleAll: 'com.apple.mail' },
+          { LSHandlerURLScheme: 'https', LSHandlerRoleAll: 'com.google.Chrome' },
+        ),
+    });
+
+    expect(browser).toMatchObject({ id: 'chrome', name: 'Google Chrome', isChromium: true });
+  });
+
+  it('reads LSHandlerRoleViewer, which is what the system settings row writes', () => {
+    const browser = getDefaultBrowser({
+      readPlistJson: () =>
+        plistWith({ LSHandlerURLScheme: 'https', LSHandlerRoleViewer: 'com.brave.Browser' }),
+    });
+
+    expect(browser).toMatchObject({ id: 'brave', isChromium: true });
+  });
+
+  it('prefers the role-all entry when both are recorded', () => {
+    const browser = getDefaultBrowser({
+      readPlistJson: () =>
+        plistWith({
+          LSHandlerURLScheme: 'https',
+          LSHandlerRoleAll: 'com.microsoft.edgemac',
+          LSHandlerRoleViewer: 'com.apple.Safari',
+        }),
+    });
+
+    expect(browser.id).toBe('edge');
+  });
+
+  it('falls back to Safari when no https handler is recorded', () => {
+    const browser = getDefaultBrowser({
+      readPlistJson: () =>
+        plistWith({ LSHandlerURLScheme: 'mailto', LSHandlerRoleAll: 'com.apple.mail' }),
+    });
+
+    expect(browser).toMatchObject({ id: 'safari', isChromium: false });
+  });
+
+  it('reports a browser outside the list as other, with no profile support', () => {
+    const browser = getDefaultBrowser({
+      readPlistJson: () =>
+        plistWith({ LSHandlerURLScheme: 'https', LSHandlerRoleAll: 'org.mozilla.firefox' }),
+    });
+
+    expect(browser).toMatchObject({
+      id: 'other',
+      bundleId: 'org.mozilla.firefox',
+      isChromium: false,
+    });
+  });
+
+  it('falls back to Safari when the plist cannot be read', () => {
+    const browser = getDefaultBrowser({
+      readPlistJson: () => {
+        throw new Error('plutil: file not found');
+      },
+    });
+
+    expect(browser.id).toBe('safari');
+  });
+
+  it('falls back to Safari on a plist with no LSHandlers array', () => {
+    const browser = getDefaultBrowser({
+      readPlistJson: () => JSON.stringify({}),
+    });
+
+    expect(browser.id).toBe('safari');
   });
 });

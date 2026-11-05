@@ -189,8 +189,8 @@ does nothing but forward the request: there is no HTML settings window to fall b
 helper binary is missing there is no settings window at all.
 
 The helper is restarted freely, so it holds no authority over what Settings shows. The main process
-pushes the settings file, the account list and the app version with the request, and the window draws
-from whatever that push last carried. Opening Settings from the helper's own menu therefore goes
+pushes the settings file, the account list, the Chromium profiles, the detected default browser and
+the app version with the request, and the window draws from whatever that push last carried. Opening Settings from the helper's own menu therefore goes
 through the main process rather than instantiating the window locally, which would show the built-in
 defaults on a fresh helper and miss an account added since.
 
@@ -200,8 +200,8 @@ Both helpers build that window on `HelperUI` (`packages/swift-ui`): the `NSWindo
 list of `SettingsTab` values, each carrying a pane id, label, SF Symbol and height — so the two
 windows cannot drift apart in their chrome. The panes themselves stay in the app, because they read
 the app's own `SettingsModel`; the account list editor is generic over an `AccountListModel` protocol
-(`accounts` plus a `transport`) both models satisfy, and an app that outgrows it can point its spec at
-its own view instead. The package carries no catalog of its own; the sentences it draws sit in each
+(`accounts`, `browserProfiles`, `defaultBrowser` and a `transport`) both models satisfy, and an app
+that outgrows it can point its spec at its own view instead. The package carries no catalog of its own; the sentences it draws sit in each
 app's catalog and resolve against the app bundle the helper runs inside — see
 [`ui-strings.md`](ui-strings.md).
 
