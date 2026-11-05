@@ -1,10 +1,10 @@
 {
-  "_comment": "Domains whose links belong in a desktop app rather than a browser window. Adding an app is one object: the bundle id macOS launches, and the hosts it owns. Hosts match themselves and any subdomain, so 'notion.so' covers 'www.notion.so'. Leave Google's own domains out: a Drive or Docs link has to keep the account's browser profile, which is the whole point of the profile setting.",
+  "_comment": "Domains whose links belong in a desktop app rather than a browser window. Adding an app is one object: the bundle id macOS launches, and the hosts it claims. Hosts match themselves and any subdomain, so 'notion.so' covers 'www.notion.so'. List the app's associated domains, not the vendor's whole domain: a host the app does not claim is handed over and silently ignored. Leave Google's own domains out: a Drive or Docs link has to keep the account's browser profile, which is the whole point of the profile setting.",
   "apps": [
     {
       "name": "Notion",
       "bundleId": "notion.id",
-      "hosts": ["notion.so", "notion.com"]
+      "hosts": ["www.notion.so", "app.notion.com"]
     },
     {
       "name": "Linear",
@@ -27,18 +27,13 @@
       "hosts": ["slack.com"]
     },
     {
-      "name": "Asana",
-      "bundleId": "com.asana.Asana",
-      "hosts": ["asana.com"]
-    },
-    {
       "name": "Loom",
       "bundleId": "com.loom.desktop",
       "hosts": ["loom.com"]
     },
     {
       "name": "Miro",
-      "bundleId": "com.electron.miro",
+      "bundleId": "com.electron.realtimeboard",
       "hosts": ["miro.com"]
     },
     {

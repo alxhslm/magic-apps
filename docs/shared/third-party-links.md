@@ -47,7 +47,7 @@ itself, which skips this resolution entirely. When such a URL is handed over, La
 resolves it:
 
 1. **Installed application**: macOS hands the link directly to the native desktop application
-   (such as Todoist for `app.todoist.com`, Notion for `notion.so`, or Linear for `linear.app`).
+   (such as Todoist for `app.todoist.com`, Notion for `app.notion.com`, or Linear for `linear.app`).
    No browser tab or interstitial window opens.
 2. **Missing application or unassociated domain**: macOS routes the destination URL directly to
    the user's default web browser without passing through Google's tracking redirect page.
@@ -76,7 +76,7 @@ all answer with a browser for a domain that `shell.openExternal` then gives to i
 `swcutil` knows but needs root.
 
 So the table in `packages/core/src/app-links.json` names the domains whose links belong to an app:
-Notion, Linear, Todoist, Figma, Slack, Asana, Loom, Miro, Dropbox. A link to one of them is handed
+Notion, Linear, Todoist, Figma, Slack, Loom, Miro, Dropbox. A link to one of them is handed
 over with `open -b <bundleId> <url>`; every other link goes to the chosen browser with the account's
 profile. An app that refuses the URL falls back to the browser rather than leaving the link
 unopened.

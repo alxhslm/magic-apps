@@ -12,6 +12,9 @@ describe('appForUrl', () => {
     expect(appForUrl('https://www.notion.so/page')?.bundleId).toBe('notion.id');
     expect(appForUrl('https://app.notion.com/p/page')?.bundleId).toBe('notion.id');
     expect(appForUrl('https://linear.app/acme/issue/ABC-1')?.bundleId).toBe('com.linear');
+    expect(appForUrl('https://miro.com/app/board/abc')?.bundleId).toBe(
+      'com.electron.realtimeboard',
+    );
   });
 
   it('leaves links the table does not name to the browser', () => {
@@ -19,6 +22,14 @@ describe('appForUrl', () => {
     expect(appForUrl('https://drive.google.com/file/d/abc')).toBeNull();
     expect(appForUrl('https://mail.google.com/mail/u/0/#inbox')).toBeNull();
     expect(appForUrl('https://example.com/')).toBeNull();
+  });
+
+  it('leaves a host the app does not claim to the browser', () => {
+    // Notion's app claims www.notion.so and app.notion.com. Mailgun tracking links and
+    // Notion Mail use other subdomains, which the app ignores when handed one.
+    expect(appForUrl('https://mg.mail.notion.so/c/abc')).toBeNull();
+    expect(appForUrl('https://mail.notion.so/')).toBeNull();
+    expect(appForUrl('https://www.notion.com/')).toBeNull();
   });
 
   it('does not match a lookalike host', () => {
