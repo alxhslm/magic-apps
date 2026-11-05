@@ -228,10 +228,6 @@ describe('Outbound Sharing & Authentic Print Logic', () => {
         'https://mail.google.com/mail/u/0/#inbox',
       );
 
-      // Reading the account's own address off the page is a separate call made when the
-      // account is switched to; what this asserts is that the thread check itself adds none.
-      (activeView?.webContents.executeJavaScript as unknown as Mock).mockClear();
-
       expect(await accountsManager.isThreadOpen()).toBe(false);
       expect(activeView?.webContents.executeJavaScript).not.toHaveBeenCalled();
     });
@@ -241,8 +237,6 @@ describe('Outbound Sharing & Authentic Print Logic', () => {
       (activeView?.webContents.getURL as unknown as Mock).mockReturnValue(
         'https://mail.google.com/mail/u/0/#inbox/1800000000000001',
       );
-
-      (activeView?.webContents.executeJavaScript as unknown as Mock).mockClear();
 
       expect(await accountsManager.isThreadOpen()).toBe(true);
       expect(activeView?.webContents.executeJavaScript).not.toHaveBeenCalled();
