@@ -96,9 +96,6 @@
     "Archive": {
       "extractionState": "manual"
     },
-    "Ask each time": {
-      "extractionState": "manual"
-    },
     "Assembles application and extension logs along with system environment info into a redacted archive for troubleshooting.": {
       "extractionState": "manual"
     },
@@ -297,9 +294,6 @@
     "Open in Magimail": {
       "extractionState": "manual"
     },
-    "Open in the app": {
-      "extractionState": "manual"
-    },
     "Open links in:": {
       "extractionState": "manual"
     },
@@ -413,9 +407,6 @@
     "Transparent background": {
       "extractionState": "manual"
     },
-    "Universal links": {
-      "extractionState": "manual"
-    },
     "Unknown": {
       "extractionState": "manual"
     },
@@ -432,9 +423,6 @@
       "extractionState": "manual"
     },
     "Use active account": {
-      "extractionState": "manual"
-    },
-    "Use the browser": {
       "extractionState": "manual"
     },
     "Waiting for network connection…": {

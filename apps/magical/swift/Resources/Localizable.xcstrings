@@ -106,9 +106,6 @@
     "Are you sure you want to delete this task from Google Tasks?": {
       "extractionState": "manual"
     },
-    "Ask each time": {
-      "extractionState": "manual"
-    },
     "Assembles application and extension logs along with system environment info into a redacted archive for troubleshooting.": {
       "extractionState": "manual"
     },
@@ -416,9 +413,6 @@
     "Open in Magical": {
       "extractionState": "manual"
     },
-    "Open in the app": {
-      "extractionState": "manual"
-    },
     "Open links in:": {
       "extractionState": "manual"
     },
@@ -524,9 +518,6 @@
     "Transparent background": {
       "extractionState": "manual"
     },
-    "Universal links": {
-      "extractionState": "manual"
-    },
     "Unknown": {
       "extractionState": "manual"
     },
@@ -540,9 +531,6 @@
       "extractionState": "manual"
     },
     "Use active account": {
-      "extractionState": "manual"
-    },
-    "Use the browser": {
       "extractionState": "manual"
     },
     "Used for meetings that have no notification time of their own. A meeting that sets one in Google Calendar is alerted at that time instead.": {

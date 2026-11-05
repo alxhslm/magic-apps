@@ -132,7 +132,7 @@ Under **Alerts by Calendar**, you can toggle alerts on or off for individual cal
 
 ### Joining Video Calls
 
-**Always open calls in the browser** sends a Google Meet, Zoom or Microsoft Teams link to your default browser instead of the desktop app.
+**Always open calls in the browser** sends a Google Meet, Zoom or Microsoft Teams link to your chosen browser and account profile instead of the desktop app.
 
 ### Focus Filters
 
