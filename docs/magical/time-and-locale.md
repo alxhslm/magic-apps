@@ -35,11 +35,14 @@ processes re-read instead:
 
 - **Electron** re-reads both clock keys and the region on a 30-second timer. The banner and the ICS
   dialog are built on demand, so the next one after a change uses the new clock or date order.
-- **The Swift helper** reads them in `TimeDisplay` on each access, and a five-second watcher in the
-  helper posts an internal change notification when the value moves. `TrayModel` and `SidebarModel`
-  observe it, so an already-drawn popover, sidebar or agenda redraws within five seconds, and a
-  region change reaches date labels the same way. The AppKit menu bar title follows on its own
-  30-second tick, and a widget at its next timeline render.
+- **The Swift surfaces** read them in `TimeDisplay` on each access, and a five-second watcher posts
+  an internal change notification when the value moves, which `TrayModel` and `SidebarModel`
+  observe. The watcher has to run in every process that draws one: the helper for the menu bar and
+  popover, and the native addon, where the sidebar's `NSHostingView` lives, for the sidebar. The
+  library's statics are per process, so the helper's notification never reaches the addon. With both
+  running, an already-drawn popover, sidebar or agenda redraws within five seconds, and a region
+  change reaches date labels the same way. The AppKit menu bar title follows on its own 30-second
+  tick, and a widget at its next timeline render.
 
 ## Which formatter each surface uses
 

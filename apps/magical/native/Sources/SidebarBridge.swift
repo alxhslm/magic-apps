@@ -38,6 +38,10 @@ public final class SidebarManager {
     } // 340
 
     public init() {
+        // The sidebar is hosted here, in the Electron main process, not in the Swift
+        // helper, so this process needs its own watcher: `TimeDisplay` statics are per
+        // process and the helper's notification never crosses over.
+        TimeDisplay.startWatching()
         SidebarModel.shared.onAction = { action, value in
             ActionBridge.emit(action, value)
         }
