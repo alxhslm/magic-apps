@@ -31,6 +31,7 @@ export const SUPPORTED_BROWSERS: BrowserOption[] = [
   { id: 'brave', name: 'Brave Browser', bundleId: 'com.brave.Browser', isChromium: true },
   { id: 'edge', name: 'Microsoft Edge', bundleId: 'com.microsoft.edgemac', isChromium: true },
   { id: 'safari', name: 'Safari', bundleId: 'com.apple.Safari', isChromium: false },
+  { id: 'firefox', name: 'Firefox', bundleId: 'org.mozilla.firefox', isChromium: false },
 ];
 
 /**
@@ -67,7 +68,7 @@ const UNCLAIMED_BUNDLE_ID = 'com.apple.Safari';
 export interface DefaultBrowser {
   /** An id from `SUPPORTED_BROWSERS`, or `other` for a browser we cannot name. */
   id: string;
-  /** The name macOS gives the application, e.g. `Firefox`. */
+  /** The name macOS gives the application, e.g. `Arc`. */
   name: string;
   bundleId: string;
   /** Only the three browsers in `CHROMIUM_DATA_PATHS` offer profile selection. */
@@ -115,7 +116,7 @@ function detectDefaultBrowser(options: DefaultBrowserOptions): DefaultBrowser {
     };
   }
 
-  // A browser outside the list (Firefox, Arc, a Chromium fork we do not read profiles for).
+  // A browser outside the list (Arc, Orion, a Chromium fork we do not read profiles for).
   return {
     id: 'other',
     name: defaultHandlerName() ?? bundleId,

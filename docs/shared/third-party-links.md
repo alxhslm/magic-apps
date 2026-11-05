@@ -104,7 +104,8 @@ keep the account's profile.
 
 Profiles come from each browser's `Local State` (`profile.info_cache`), the one file Chrome, Brave
 and Edge all write: directory name, display name, and the Google account signed in. An account's
-`browserProfile` is `_auto` (the default), `_none`, or a profile directory.
+`browserProfile` is `_auto` (the default), `_none`, or a profile directory. Firefox and Safari are
+offered as browsers alone, so links open in the window each already has.
 
 `_auto` means the profile signed in as the account's address, and nothing more: where no profile
 carries that address the answer is `null`, which leaves `--profile-directory` off the launch line

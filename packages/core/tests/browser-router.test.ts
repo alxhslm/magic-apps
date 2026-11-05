@@ -36,13 +36,14 @@ describe('browser-router', () => {
     fs.mkdirSync(tmpDir, { recursive: true });
   });
 
-  it('SUPPORTED_BROWSERS includes system, chrome, brave, edge, safari', () => {
+  it('SUPPORTED_BROWSERS includes system, chrome, brave, edge, safari and firefox', () => {
     const ids = SUPPORTED_BROWSERS.map((b) => b.id);
     expect(ids).toContain('system');
     expect(ids).toContain('chrome');
     expect(ids).toContain('brave');
     expect(ids).toContain('edge');
     expect(ids).toContain('safari');
+    expect(ids).toContain('firefox');
   });
 
   it('getChromiumProfiles returns empty array when file does not exist', () => {
@@ -379,6 +380,25 @@ describe('browser-router', () => {
     expect(fallback).not.toHaveBeenCalled();
   });
 
+  it('openExternalUrl launches Firefox with its bundle ID and no profile flag', async () => {
+    const fallback = vi.fn().mockResolvedValue(undefined);
+    const runner = vi.fn().mockResolvedValue(undefined);
+
+    await openExternalUrl('https://meet.google.com/abc-defg-hij', {
+      browser: 'firefox',
+      account: { browserProfile: '_auto', email: 'alex@corp.com' },
+      fallbackOpenExternal: fallback,
+      openCommandRunner: runner,
+    });
+
+    expect(runner).toHaveBeenCalledWith([
+      '-b',
+      'org.mozilla.firefox',
+      'https://meet.google.com/abc-defg-hij',
+    ]);
+    expect(fallback).not.toHaveBeenCalled();
+  });
+
   it('openExternalUrl launches Chromium with profile flag when profile is found', async () => {
     const chromeDir = path.join(tmpDir, 'Library/Application Support/Google/Chrome');
     fs.mkdirSync(chromeDir, { recursive: true });
@@ -515,15 +535,28 @@ describe('getDefaultBrowser', () => {
     expect(browser).toMatchObject({ id: 'safari', isChromium: false });
   });
 
-  it('reports a browser outside the list as other, with no profile support', () => {
+  it('maps Firefox by its bundle identifier, without profile support', () => {
     const browser = getDefaultBrowser({
       readPlistJson: () =>
         plistWith({ LSHandlerURLScheme: 'https', LSHandlerRoleAll: 'org.mozilla.firefox' }),
     });
 
     expect(browser).toMatchObject({
+      id: 'firefox',
+      name: 'Firefox',
+      isChromium: false,
+    });
+  });
+
+  it('reports a browser outside the list as other, with no profile support', () => {
+    const browser = getDefaultBrowser({
+      readPlistJson: () =>
+        plistWith({ LSHandlerURLScheme: 'https', LSHandlerRoleAll: 'company.thebrowser.Browser' }),
+    });
+
+    expect(browser).toMatchObject({
       id: 'other',
-      bundleId: 'org.mozilla.firefox',
+      bundleId: 'company.thebrowser.Browser',
       isChromium: false,
     });
   });
