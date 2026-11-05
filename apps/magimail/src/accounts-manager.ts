@@ -1829,21 +1829,28 @@ export class AccountsManager {
    * the same person. The page knows, so it is asked when it settles, and the answer is
    * written to `accounts.json` for the link router to match against.
    */
-  private captureAccountEmail(accountId: string, contents: WebContents): void {
+  private captureAccountEmail(accountId: string, contents: WebContents, attempt = 0): void {
     const account = this.accounts.find((a) => a.id === accountId);
-    if (!account || account.email || this.emailCaptured.has(accountId)) return;
+    if (!account || account.email || contents.isDestroyed()) return;
     if (!contents.getURL().startsWith('https://mail.google.com/mail/')) return;
 
-    // One attempt per load rather than per event: `did-stop-loading` fires for a page that
-    // has not painted the chip yet, and an account that is not signed in has no address to
-    // find. A failure leaves it to the next load.
+    // Not one attempt per load: the page settles before it has painted its chrome, so a
+    // missing chip means "not drawn yet" more often than "not signed in". A few short
+    // retries cover that, and the last one gives up until the next load.
     this.emailCaptured.add(accountId);
+    const retry = (): void => {
+      if (attempt >= 4) {
+        this.emailCaptured.delete(accountId);
+        return;
+      }
+      setTimeout(() => this.captureAccountEmail(accountId, contents, attempt + 1), 1500);
+    };
 
     void contents
       .executeJavaScript(ACCOUNT_EMAIL_SCRIPT, true)
       .then((value: unknown) => {
         if (!isAccountEmail(value)) {
-          this.emailCaptured.delete(accountId);
+          retry();
           return;
         }
         const target = this.accounts.find((a) => a.id === accountId);
@@ -1856,7 +1863,7 @@ export class AccountsManager {
         this.onAccountsChanged?.();
       })
       .catch((err: unknown) => {
-        this.emailCaptured.delete(accountId);
+        retry();
         log.warn(`Could not read the signed-in address for account ${accountId}:`, err);
       });
   }
