@@ -57,4 +57,4 @@ open "magimail://thread/18fa24b91ac051?action=archive"
 
 Emails frequently include links to external tools such as Todoist, Notion, Linear, Figma, GitHub, or Slack.
 
-Magimail strips Google's redirect prefix from outbound links so they open directly in their native macOS desktop apps when installed, or in your default browser when not.
+Magimail strips Google's redirect prefix before routing a link. A link to a supported desktop app opens in that app when installed; every other link opens in the browser chosen in **Settings → General → Opening links**, in the Chromium profile for the account it came from. See [Settings Reference](/help/magimail/settings/#chromium-profiles).
