@@ -107,7 +107,7 @@ struct GeneralTab: View {
                 browsers: model.browsers,
                 defaultBrowser: model.defaultBrowser
             )
-            .help("Applies to meeting links (Meet, Zoom, Teams, Webex). Other links, such as an attachment or an event location, open in your Mac\u{2019}s default browser. Each account chooses its own Chromium profile in Accounts.")
+            .help("Applies to links that leave the app. Apps named in the link table, such as Notion or Linear, open their own links. Each account chooses its own Chromium profile in Accounts.")
 
             Divider()
 

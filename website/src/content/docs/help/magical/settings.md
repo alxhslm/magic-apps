@@ -24,12 +24,12 @@ The General tab manages startup behaviour and default calendar file handling:
 
 ### Open links in
 
-Which browser opens meeting links: Google Meet, Zoom, Microsoft Teams, Webex and the other call
-services. Everything else is left to macOS, so a link to a site with its own desktop app (Notion,
-Linear, Todoist) still opens in that app.
+Which browser opens links that leave the app.
 
 - **Only installed browsers are listed**, and the row macOS opens links with is marked `(default)`.
-- **Other links follow your Mac's default browser**, whichever row is chosen here.
+- **Every link uses the chosen browser**, so the account's Chromium profile applies to it.
+- **Except the apps named in the link table**: Notion, Linear, Todoist, Figma, Slack, Asana, Loom,
+  Miro and Dropbox links open in their desktop app, because those apps own the link.
 
 ### Times and Dates
 
@@ -59,12 +59,12 @@ The Accounts tab manages your connected Google accounts and calendar access, whi
 
 ### Chromium profiles
 
-Each account chooses which browser profile its meeting links open in, so a work call joins as you
-at work rather than as you at home.
+Each account chooses which browser profile its links open in, so a work link opens as you at
+work rather than as you at home.
 
 The control sits on the account's row in **Accounts**, and reads the profile that will be used:
 
-- **A profile name**, such as `Alex`, means meeting links open in that profile. Chrome, Brave and
+- **A profile name**, such as `Alex`, means links open in that profile. Chrome, Brave and
   Edge can be told this; they read it when they start, so a profile that is not already open
   arrives in its own window.
 - **`None`**, which is what an account shows when its address matches no profile, means the link

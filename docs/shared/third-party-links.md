@@ -53,30 +53,36 @@ account names a browser, see below — LaunchServices resolves it:
 Because Universal Links are maintained by macOS LaunchServices per installed application,
 supporting external tools requires no per-app custom schemes or individual user settings.
 
-## Browser and Chromium profile for meetings
+## Browser and Chromium profile
 
 Two Google accounts signed in to the same Chromium browser share nothing, and a Meet link that
 lands in the wrong profile asks to be let in. An account can therefore name a Chromium profile,
-and the app a browser, for **meeting links only**: `isMeetingUrl` in `@magimail/core` matches the
-call hosts, and nothing else is routed this way.
+and the app a browser, for every link that leaves it.
 
 | Setting                            | Where    | Answers                          |
 | :--------------------------------- | :------- | :------------------------------- |
-| `openLinksIn` (`settings.json`)    | General  | Which browser opens a call       |
-| `browserProfile` (`accounts.json`) | Accounts | Which Google session it joins as |
+| `openLinksIn` (`settings.json`)    | General  | Which browser opens a link       |
+| `browserProfile` (`accounts.json`) | Accounts | Which Google session it opens in |
 
-### Why meetings only
+### The one exception: apps we name
 
-Applying a profile means starting the browser ourselves, and starting the browser is what stops
-macOS handing a URL to the desktop app that claims its domain. That resolution happens inside
-`swcd` at open time and cannot be asked for in advance: `LSCopyDefaultApplicationURLForURL`,
-`LSCopyApplicationURLsForURL`, `NSWorkspace.urlForApplication(toOpen:)`, `app.getApplicationInfoForProtocol`
-and `/usr/bin/open` all answer with a browser for a domain that `shell.openExternal` then gives to
-its app. `swcutil` would know, and requires root.
+Applying a profile means starting the browser ourselves, and that is what stops macOS handing a URL
+to the desktop app that claims its domain. The resolution happens inside `swcd` at open time and
+cannot be asked for in advance: `LSCopyDefaultApplicationURLForURL`, `LSCopyApplicationURLsForURL`,
+`NSWorkspace.urlForApplication(toOpen:)`, `app.getApplicationInfoForProtocol` and `/usr/bin/open`
+all answer with a browser for a domain that `shell.openExternal` then gives to its app, and
+`swcutil` knows but needs root.
 
-So the two cannot both apply to the same link. A meeting is where the wrong session costs
-something, so it gets the profile and gives up the hand-off. Every other link is handed to macOS,
-which keeps the claiming app and the Mac's default browser.
+So the table in `packages/core/src/app-links.json` names the domains whose links belong to an app:
+Notion, Linear, Todoist, Figma, Slack, Asana, Loom, Miro, Dropbox. A link to one of them is handed
+over with `open -b <bundleId> <url>`; every other link goes to the chosen browser with the account's
+profile. An app that refuses the URL falls back to the browser rather than leaving the link
+unopened.
+
+Adding an app is one object: a name, a bundle id, and the hosts it owns. A domain missing from the
+table is not broken, it opens in the browser with the right profile, which is where links went
+before the table existed. Google's own domains are absent on purpose: a Drive or Docs link has to
+keep the account's profile.
 
 ### Resolving a profile
 
@@ -86,17 +92,17 @@ and Edge all write: directory name, display name, and the Google account signed 
 
 `_auto` means the profile signed in as the account's address, and nothing more: where no profile
 carries that address the answer is `null`, which leaves `--profile-directory` off the launch line
-so the browser opens the call in whatever window it already has. `accounts.json` did not carry an
-address at all, so each app reads it from Google's account chip once the page settles
-(`ACCOUNT_EMAIL_SCRIPT` and `readAccountEmail` in `account-email.ts`), and treats the answer as
+so the browser uses whatever window it already has. `accounts.json` did not carry an address at
+all, so each app reads it from Google's account chip once the page settles
+(`ACCOUNT_EMAIL_SCRIPT` and `readAccountEmail` in `account-email.ts`) and treats the answer as
 input rather than fact before storing it.
 
 ### Launching
 
 `/usr/bin/open -b <bundleId> -n --args --profile-directory="<dir>" <url>`, because Chromium reads
-`--profile-directory` only when it is starting. When the resolved profile is already the open one,
-the flag is dropped and the plain `-b` launch reuses that window. A failed launch falls back to
-`shell.openExternal`, so a call cannot be left unopened.
+`--profile-directory` only when it is starting. When the resolved profile is already the open one
+the flag is dropped and a plain `-b` reuses that window. A failed launch falls back to
+`shell.openExternal`.
 
 ## App-specific integration
 

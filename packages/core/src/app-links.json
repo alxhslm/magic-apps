@@ -1,0 +1,50 @@
+{
+  "_comment": "Domains whose links belong in a desktop app rather than a browser window. Adding an app is one object: the bundle id macOS launches, and the hosts it owns. Hosts match themselves and any subdomain, so 'notion.so' covers 'www.notion.so'. Leave Google's own domains out: a Drive or Docs link has to keep the account's browser profile, which is the whole point of the profile setting.",
+  "apps": [
+    {
+      "name": "Notion",
+      "bundleId": "notion.id",
+      "hosts": ["notion.so", "notion.com"]
+    },
+    {
+      "name": "Linear",
+      "bundleId": "com.linear",
+      "hosts": ["linear.app"]
+    },
+    {
+      "name": "Todoist",
+      "bundleId": "com.todoist.mac.Todoist",
+      "hosts": ["todoist.com"]
+    },
+    {
+      "name": "Figma",
+      "bundleId": "com.figma.Desktop",
+      "hosts": ["figma.com"]
+    },
+    {
+      "name": "Slack",
+      "bundleId": "com.tinyspeck.slackmacgap",
+      "hosts": ["slack.com"]
+    },
+    {
+      "name": "Asana",
+      "bundleId": "com.asana.Asana",
+      "hosts": ["asana.com"]
+    },
+    {
+      "name": "Loom",
+      "bundleId": "com.loom.desktop",
+      "hosts": ["loom.com"]
+    },
+    {
+      "name": "Miro",
+      "bundleId": "com.electron.miro",
+      "hosts": ["miro.com"]
+    },
+    {
+      "name": "Dropbox",
+      "bundleId": "com.getdropbox.dropbox",
+      "hosts": ["dropbox.com"]
+    }
+  ]
+}

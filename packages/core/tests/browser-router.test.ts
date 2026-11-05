@@ -300,38 +300,54 @@ describe('browser-router', () => {
     ]);
   });
 
-  it('openExternalUrl hands anything that is not a meeting to macOS', async () => {
-    const chromeDir = path.join(tmpDir, 'Library/Application Support/Google/Chrome');
-    fs.mkdirSync(chromeDir, { recursive: true });
-
-    fs.writeFileSync(
-      path.join(chromeDir, 'Local State'),
-      JSON.stringify({
-        profile: {
-          info_cache: {
-            Default: { name: 'Personal', user_name: 'personal@gmail.com' },
-            'Profile 1': { name: 'Work', user_name: 'work@company.com' },
-          },
-          last_used: 'Default',
-        },
-      }),
-    );
-
-    const fallback = vi.fn().mockResolvedValue(undefined);
+  it('openExternalUrl hands a listed app its own links', async () => {
     const runner = vi.fn().mockResolvedValue(undefined);
 
     await openExternalUrl('https://app.notion.com/p/page', {
       browser: 'chrome',
-      account: { browserProfile: 'Profile 1', email: 'work@company.com' },
+      account: { browserProfile: 'Profile 1' },
       customHome: tmpDir,
-      fallbackOpenExternal: fallback,
+      fallbackOpenExternal: vi.fn().mockResolvedValue(undefined),
       openCommandRunner: runner,
     });
 
-    // The account names a profile that is not open, and it is still not used: a Notion link has
-    // to reach Notion, and only the hand-off resolves that.
-    expect(fallback).toHaveBeenCalledWith('https://app.notion.com/p/page');
-    expect(runner).not.toHaveBeenCalled();
+    expect(runner).toHaveBeenCalledWith(['-b', 'notion.id', 'https://app.notion.com/p/page']);
+  });
+
+  it('openExternalUrl falls back to the browser when the app refuses the link', async () => {
+    const chromeDir = path.join(tmpDir, 'Library/Application Support/Google/Chrome');
+    fs.mkdirSync(chromeDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(chromeDir, 'Local State'),
+      JSON.stringify({
+        profile: {
+          info_cache: { Default: { name: 'Personal', user_name: 'personal@gmail.com' } },
+        },
+        last_used: 'Default',
+      }),
+    );
+
+    const runner = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('Unable to find application named notion.id'))
+      .mockResolvedValue(undefined);
+
+    await openExternalUrl('https://app.notion.com/p/page', {
+      browser: 'chrome',
+      account: { browserProfile: 'Default' },
+      customHome: tmpDir,
+      fallbackOpenExternal: vi.fn().mockResolvedValue(undefined),
+      openCommandRunner: runner,
+    });
+
+    expect(runner).toHaveBeenLastCalledWith([
+      '-b',
+      'com.google.Chrome',
+      '-n',
+      '--args',
+      '--profile-directory=Default',
+      'https://app.notion.com/p/page',
+    ]);
   });
 
   it('openExternalUrl delegates system browser to fallback', async () => {

@@ -5,7 +5,7 @@ import { execFile, execFileSync } from 'node:child_process';
 import { promisify } from 'node:util';
 import { app, shell } from 'electron';
 import { createLogger, redactUrl } from './logger.js';
-import { isMeetingUrl } from './meeting-urls.js';
+import { appForUrl } from './app-links.js';
 import type { AccountConfig } from './account.js';
 
 const log = createLogger('BrowserRouter');
@@ -319,16 +319,6 @@ export async function openExternalUrl(
     return;
   }
 
-  // Everything that is not a meeting belongs to macOS. Handing it over is what lets a domain
-  // claimed by a desktop app open in that app, which no query API can tell us in advance, and it
-  // keeps the browser and session choice the Mac already has. The account's profile is applied to
-  // meetings only: they are the link where the wrong session costs something, and starting the
-  // browser ourselves is what gives up the hand-off.
-  if (!isMeetingUrl(url)) {
-    await fallback(url);
-    return;
-  }
-
   const browserId = options.browser ?? 'system';
   const browserDef = SUPPORTED_BROWSERS.find((b) => b.id === browserId);
 
@@ -343,6 +333,20 @@ export async function openExternalUrl(
   if (!browserDef || !browserDef.bundleId) {
     await fallback(url);
     return;
+  }
+
+  // A domain in the curated table belongs to a desktop app: `open -b` hands the URL to it. Every
+  // other link goes to the browser, which is what makes the account's profile apply, and the
+  // table exists because that hand-off cannot be discovered for itself.
+  const owningApp = appForUrl(url);
+  if (owningApp) {
+    try {
+      log.info(`Opening ${redactUrl(url)} in ${owningApp.name} (${owningApp.bundleId})`);
+      await runner(['-b', owningApp.bundleId, url]);
+      return;
+    } catch (err) {
+      log.warn(`${owningApp.name} did not accept ${redactUrl(url)}, opening in a browser:`, err);
+    }
   }
 
   try {
