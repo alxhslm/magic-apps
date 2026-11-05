@@ -162,6 +162,8 @@ export function getAllChromiumProfiles(customHome?: string): Record<string, Chro
 
 /** Match the account's own email address against the browser's profiles. */
 export const AUTO_PROFILE = '_auto';
+/** Never pass a profile: hand the URL over and let the browser use the window it has. */
+export const NO_PROFILE = '_none';
 interface ChromiumLocalState {
   profiles: ChromiumProfile[];
   lastUsed?: string;
@@ -252,6 +254,8 @@ export function resolveChromiumProfile(
   accountEmail?: string,
   customHome?: string,
 ): string | null {
+  if (profileSetting === NO_PROFILE) return null;
+
   const { profiles } = readChromiumLocalState(browserId, customHome);
   if (profiles.length === 0) return null;
 

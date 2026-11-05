@@ -77,9 +77,21 @@ Brave and Edge all write: directory name, display name, and the Google account s
 `profile.last_used` names the profile the browser is working in, which is the one its open
 window shows.
 
-An account's `browserProfile` is either `_auto` or a profile directory, and `_auto` is the
-default. The menu lists profiles and nothing else: **Match email** is not an entry to choose, it
-is what happens when nothing is chosen. Unticking the chosen profile returns the account to it.
+An account's `browserProfile` is `_auto` (the default), `_none`, or a profile directory. The menu
+lists **None** and the profiles; it never names the rule that chose. _Match email_ asked a user to
+reason about a rule and then guess its outcome, where a profile's name states the outcome. So the
+row reads `Alex` or `None`, and what it says is what happens:
+
+| Stored                             | Menu shows   | Launch                         |
+| :--------------------------------- | :----------- | :----------------------------- |
+| `_auto`, address matches a profile | that profile | `-n --profile-directory=<dir>` |
+| `_auto`, no match                  | `None`       | handed to the browser          |
+| `_none`                            | `None`       | handed to the browser          |
+| a directory                        | that profile | `-n --profile-directory=<dir>` |
+
+The cost of naming outcomes instead of rules is that the automatic row can change on its own when
+an account's address starts or stops matching a profile. `None` exists so that "let the browser
+decide" is something the user can say, rather than the state they end up in after unticking.
 
 `_auto` means the profile signed in as the account's address. Where no profile carries that
 address the resolver returns `null`, which leaves `--profile-directory` off the launch line;

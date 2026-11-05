@@ -186,6 +186,28 @@ describe('browser-router', () => {
     ]);
   });
 
+  it('resolveChromiumProfile leaves the profile alone when the account says None', () => {
+    const chromeDir = path.join(tmpDir, 'Library/Application Support/Google/Chrome');
+    fs.mkdirSync(chromeDir, { recursive: true });
+
+    fs.writeFileSync(
+      path.join(chromeDir, 'Local State'),
+      JSON.stringify({
+        profile: {
+          info_cache: {
+            Default: { name: 'Personal', user_name: 'personal@gmail.com' },
+            'Profile 1': { name: 'Work', user_name: 'work@company.com' },
+          },
+          last_used: 'Profile 1',
+        },
+      }),
+    );
+
+    // `None` outranks the email match: saying it explicitly means "not this account's
+    // business which profile is open", which the automatic answer must not override.
+    expect(resolveChromiumProfile('chrome', '_none', 'personal@gmail.com', tmpDir)).toBeNull();
+  });
+
   it('openExternalUrl hands the URL to the open window when the profile is the current one', async () => {
     const chromeDir = path.join(tmpDir, 'Library/Application Support/Google/Chrome');
     fs.mkdirSync(chromeDir, { recursive: true });

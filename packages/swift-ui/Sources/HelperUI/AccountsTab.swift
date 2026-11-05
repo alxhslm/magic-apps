@@ -175,6 +175,8 @@ public struct AccountsTab<Model: AccountListModel>: View {
     /// which is the whole reason a link needs to know which Google session it belongs to.
     private func profileMenu(for id: String) -> some View {
         Menu {
+            Toggle("None", isOn: profileToggle("_none", for: id))
+
             let profiles = profilesForBrowser(linkedBrowser)
             if !profiles.isEmpty {
                 Divider()
