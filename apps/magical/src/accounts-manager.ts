@@ -6,6 +6,7 @@ import {
   nativeTheme,
   session,
   webFrameMain,
+  type WebContents,
   type WebFrameMain,
 } from 'electron';
 import fs from 'node:fs';
@@ -18,6 +19,7 @@ import {
   SUSPEND_NEVER,
   viewIsAlive,
 } from '@magimail/core';
+import { ACCOUNT_EMAIL_SCRIPT, isAccountEmail } from '@magimail/core';
 import { createLogger, redactUrl } from '@magimail/core/logger';
 import {
   CALENDAR_BASE_URL,
@@ -107,6 +109,8 @@ function pruneOrphanPartitions(partitions: readonly string[]): void {
  */
 export class AccountsManager {
   private accounts: CalendarAccount[] = loadAccounts();
+  /** Accounts whose address has been asked of the page, so a reload does not ask again. */
+  private emailCaptured = new Set<string>();
   private activeAccountId: string = this.accounts[0]?.id ?? '';
   private readonly pool: RendererPool<CalendarAccount, WebContentsView>;
   /**
@@ -429,6 +433,11 @@ export class AccountsManager {
     view.webContents.on('did-navigate-in-page', (_event, url) => {
       this.updateViewMode(account.id, url);
       if (account.id === this.activeAccountId) this.onHistoryChanged?.();
+    });
+
+    // The calendar settles here after sign-in, which is when its account chip exists.
+    view.webContents.on('did-stop-loading', () => {
+      this.captureAccountEmail(account.id, view.webContents);
     });
 
     // Chromium's own error page names a net:: code, offers a reload that fails the same
@@ -1319,6 +1328,46 @@ export class AccountsManager {
 
   /** Fired when an account's calendar set grows, so a running poller can pick it up. */
   public onCalendarIdsChanged?: (accountId: string, calendarIds: string[]) => void;
+
+  /**
+   * Learns the address the account is signed in as, once, and keeps it.
+   *
+   * Nothing else in the app knows it: an account is a name, a colour and a partition, which
+   * is enough to show a calendar and not enough to answer which Chromium profile belongs to
+   * the same person. The page knows, so it is asked when it settles, and the answer is
+   * written to `accounts.json` for the link router to match against.
+   */
+  private captureAccountEmail(accountId: string, contents: WebContents): void {
+    const account = this.accounts.find((a) => a.id === accountId);
+    if (!account || account.email || this.emailCaptured.has(accountId)) return;
+    if (!contents.getURL().startsWith('https://calendar.google.com/')) return;
+
+    // One attempt per load rather than per event: `did-stop-loading` fires for a page that
+    // has not painted the chip yet, and an account that is not signed in has no address to
+    // find. A failure leaves it to the next load.
+    this.emailCaptured.add(accountId);
+
+    void contents
+      .executeJavaScript(ACCOUNT_EMAIL_SCRIPT, true)
+      .then((value: unknown) => {
+        if (!isAccountEmail(value)) {
+          this.emailCaptured.delete(accountId);
+          return;
+        }
+        const target = this.accounts.find((a) => a.id === accountId);
+        if (!target || target.email === value.trim()) return;
+        target.email = value.trim();
+        saveAccounts(this.accounts);
+        // The address itself stays out of the log: it is account data, and the id is enough
+        // to follow what happened.
+        log.info(`Recorded the signed-in address for account ${accountId}`);
+        this.onAccountsChanged?.();
+      })
+      .catch((err: unknown) => {
+        this.emailCaptured.delete(accountId);
+        log.warn(`Could not read the signed-in address for account ${accountId}:`, err);
+      });
+  }
 
   public updateAccount(
     accountId: string,

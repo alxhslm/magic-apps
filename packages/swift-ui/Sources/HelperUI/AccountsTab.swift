@@ -175,8 +175,6 @@ public struct AccountsTab<Model: AccountListModel>: View {
     /// which is the whole reason a link needs to know which Google session it belongs to.
     private func profileMenu(for id: String) -> some View {
         Menu {
-            Toggle("Match this account’s email", isOn: profileToggle("_auto", for: id))
-
             let profiles = profilesForBrowser(linkedBrowser)
             if !profiles.isEmpty {
                 Divider()
@@ -200,15 +198,23 @@ public struct AccountsTab<Model: AccountListModel>: View {
         )
     }
 
+    /// Profile rows behave as a radio group whose off position is "no choice".
+    ///
+    /// Unticking the chosen profile returns the account to the automatic answer rather than
+    /// leaving the menu with nothing that could express it.
     private func profileToggle(_ setting: String, for id: String) -> Binding<Bool> {
         Binding(
             get: { (value(of: id, "browserProfile") ?? "_auto") == setting },
             set: { isOn in
-                guard isOn,
-                      let name = value(of: id, "name"),
+                guard let name = value(of: id, "name"),
                       let color = value(of: id, "color")
                 else { return }
-                update(id: id, name: name, color: color, browserProfile: setting)
+                update(
+                    id: id,
+                    name: name,
+                    color: color,
+                    browserProfile: isOn ? setting : "_auto"
+                )
             }
         )
     }

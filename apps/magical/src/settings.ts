@@ -87,5 +87,7 @@ function accountPayload(accounts: AccountsManager, needsSignIn?: ReadonlySet<str
     name: a.name,
     color: a.color,
     needsAuth: needsSignIn?.has(a.id) ?? false,
+    // The profile menu names the profile this account would match, and cannot without it.
+    email: a.email ?? '',
   }));
 }

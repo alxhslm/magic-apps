@@ -121,12 +121,12 @@ describe('browser-router', () => {
     const matchPersonal = resolveChromiumProfile('chrome', undefined, 'PERSONAL@gmail.com', tmpDir);
     expect(matchPersonal).toBe('Default');
 
-    // Unknown email falls back to Default
+    // Nothing matches, so no profile is named and Chromium keeps the one it is in.
     const unknown = resolveChromiumProfile('chrome', '_auto', 'random@xyz.com', tmpDir);
-    expect(unknown).toBe('Default');
+    expect(unknown).toBeNull();
   });
 
-  it('resolveChromiumProfile falls back to the profile the browser used last', () => {
+  it('resolveChromiumProfile names no profile when the email matches none', () => {
     const chromeDir = path.join(tmpDir, 'Library/Application Support/Google/Chrome');
     fs.mkdirSync(chromeDir, { recursive: true });
 
@@ -143,27 +143,11 @@ describe('browser-router', () => {
       }),
     );
 
-    // No profile carries the account's address, so the one already open is the best guess.
-    expect(resolveChromiumProfile('chrome', '_auto', 'random@xyz.com', tmpDir)).toBe('Profile 1');
-    // A profile that does carry it still wins, which is what the email match is for.
+    // No profile carries the account's address, so the launch line stays free of
+    // `--profile-directory` and Chromium opens the link where it already is.
+    expect(resolveChromiumProfile('chrome', '_auto', 'random@xyz.com', tmpDir)).toBeNull();
+    // A profile that does carry it wins, which is what the email match is for.
     expect(resolveChromiumProfile('chrome', '_auto', 'personal@gmail.com', tmpDir)).toBe('Default');
-  });
-
-  it('resolveChromiumProfile ignores a last-used profile the browser no longer has', () => {
-    const chromeDir = path.join(tmpDir, 'Library/Application Support/Google/Chrome');
-    fs.mkdirSync(chromeDir, { recursive: true });
-
-    fs.writeFileSync(
-      path.join(chromeDir, 'Local State'),
-      JSON.stringify({
-        profile: {
-          info_cache: { Default: { name: 'Personal', user_name: 'personal@gmail.com' } },
-          last_used: 'Profile 7',
-        },
-      }),
-    );
-
-    expect(resolveChromiumProfile('chrome', '_auto', 'nobody@example.com', tmpDir)).toBe('Default');
   });
 
   it('openExternalUrl hands the URL to the open window when the profile is the current one', async () => {

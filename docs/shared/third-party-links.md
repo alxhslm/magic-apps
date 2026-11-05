@@ -77,12 +77,22 @@ Brave and Edge all write: directory name, display name, and the Google account s
 `profile.last_used` names the profile the browser is working in, which is the one its open
 window shows.
 
-An account's `browserProfile` is either `_auto` or a profile directory. `_auto` is the default
-and is what the row shows as **Match email**: the profile signed in as the account's email, then
-the one the browser used last, then `Default`. Email matching is what makes two accounts of one
-person work without being told; last-used rather than `Default` is the fallback because that is
-Chromium's own behaviour — the window already open — where `Default` can be a profile the user
-never touches.
+An account's `browserProfile` is either `_auto` or a profile directory, and `_auto` is the
+default. The menu lists profiles and nothing else: **Match email** is not an entry to choose, it
+is what happens when nothing is chosen. Unticking the chosen profile returns the account to it.
+
+`_auto` means the profile signed in as the account's address. Where no profile carries that
+address the resolver returns `null`, which leaves `--profile-directory` off the launch line;
+Chromium then does what it does with any URL and opens it in the profile it is already working
+in. Naming `Default` there instead would send the link to a profile the user may never touch, and
+would show as a second instance for no gain.
+
+That address is the piece `accounts.json` did not carry. An account is a name, a colour and a
+partition, which is enough to show a mailbox and not enough to know which Chromium profile belongs
+to the same person, so `captureAccountEmail` in each app reads it off Google's own account chip
+once the page settles — `Google Account: Name (someone@example.com)`, with the address in
+parentheses whatever the interface language is — and writes it to the account. It is read once per
+account and kept, and the log records the id rather than the address.
 
 Safari has no supported flag or URL scheme for profile targeting, so it is offered as a browser
 and nothing more.

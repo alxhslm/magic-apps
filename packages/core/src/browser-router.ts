@@ -240,10 +240,11 @@ export function getLastUsedProfile(browserId: string, customHome?: string): stri
  * Resolves the Chromium profile directory an account's links should open in.
  *
  * An explicit directory is used when the browser still has it. `_auto` and an unset setting
- * both mean "the profile signed in as the account", falling back to the one the browser used
- * last, then to `Default`. Last-used rather than `Default` is the fallback because Chromium
- * itself treats the profile it is working in as the default behaviour: sending an unmatched
- * account to a `Default` profile it never uses would open an empty-looking second window.
+ * both mean "the profile signed in as the account", and nothing more: where no profile
+ * carries that address the answer is `null`, which leaves `--profile-directory` off the
+ * launch line and lets Chromium do what it does with any URL, which is open it in the
+ * profile it is already working in. Naming `Default` there would send the link to a profile
+ * the user may never touch.
  */
 export function resolveChromiumProfile(
   browserId: string,
@@ -251,7 +252,7 @@ export function resolveChromiumProfile(
   accountEmail?: string,
   customHome?: string,
 ): string | null {
-  const { profiles, lastUsed } = readChromiumLocalState(browserId, customHome);
+  const { profiles } = readChromiumLocalState(browserId, customHome);
   if (profiles.length === 0) return null;
 
   if (profileSetting && profileSetting !== AUTO_PROFILE) {
@@ -265,12 +266,7 @@ export function resolveChromiumProfile(
     if (matched) return matched.directory;
   }
 
-  return (
-    profiles.find((p) => p.directory === lastUsed)?.directory ??
-    profiles.find((p) => p.directory === 'Default')?.directory ??
-    profiles[0]?.directory ??
-    null
-  );
+  return null;
 }
 
 export interface OpenExternalUrlOptions {

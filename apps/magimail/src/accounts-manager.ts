@@ -6,6 +6,7 @@ import {
   BrowserWindow,
   WebContentsView,
   webFrameMain,
+  type WebContents,
   type WebFrameMain,
   session,
   shell,
@@ -29,6 +30,8 @@ import {
   viewIsAlive,
   unwrapRedirectors,
   openExternalUrl,
+  ACCOUNT_EMAIL_SCRIPT,
+  isAccountEmail,
 } from '@magimail/core';
 import {
   GMAIL_LOGIN_URL,
@@ -271,6 +274,8 @@ export class AccountsManager {
   private mailActionTimer: ReturnType<typeof setInterval> | null = null;
   /** Tracks URLs that failed loading due to network/offline errors, so reconnect reloads them. */
   private failedOfflineUrls: Map<string, string> = new Map();
+  /** Accounts whose address has been asked of the page, so a reload does not ask again. */
+  private emailCaptured = new Set<string>();
   public onAccountsChanged?: () => void;
   public onGmailSignIn?: (accountId: string) => void;
   public onUnreadChanged?: (accounts: AccountConfig[], totalUnread: number) => void;
@@ -990,6 +995,7 @@ export class AccountsManager {
       if (account.id === this.activeAccountId) {
         this.syncCategoryBannerForActiveAccount();
       }
+      this.captureAccountEmail(account.id, view.webContents);
     });
 
     view.webContents.on('did-navigate-in-page', (_event, url) => {
@@ -1813,6 +1819,46 @@ export class AccountsManager {
     updateDockBadge(calculateAggregateBadge(focused), this.getFocusedArrivals());
     this.notifyToolbar();
     this.onUnreadChanged?.(focused, total);
+  }
+
+  /**
+   * Learns the address the account is signed in as, once, and keeps it.
+   *
+   * Nothing else in the app knows it: an account is a name, a colour and a partition, which
+   * is enough to show a mailbox and not enough to answer which Chromium profile belongs to
+   * the same person. The page knows, so it is asked when it settles, and the answer is
+   * written to `accounts.json` for the link router to match against.
+   */
+  private captureAccountEmail(accountId: string, contents: WebContents): void {
+    const account = this.accounts.find((a) => a.id === accountId);
+    if (!account || account.email || this.emailCaptured.has(accountId)) return;
+    if (!contents.getURL().startsWith('https://mail.google.com/mail/')) return;
+
+    // One attempt per load rather than per event: `did-stop-loading` fires for a page that
+    // has not painted the chip yet, and an account that is not signed in has no address to
+    // find. A failure leaves it to the next load.
+    this.emailCaptured.add(accountId);
+
+    void contents
+      .executeJavaScript(ACCOUNT_EMAIL_SCRIPT, true)
+      .then((value: unknown) => {
+        if (!isAccountEmail(value)) {
+          this.emailCaptured.delete(accountId);
+          return;
+        }
+        const target = this.accounts.find((a) => a.id === accountId);
+        if (!target || target.email === value.trim()) return;
+        target.email = value.trim();
+        saveAccounts(this.accounts);
+        // The address itself stays out of the log: it is account data, and the id is enough
+        // to follow what happened.
+        log.info(`Recorded the signed-in address for account ${accountId}`);
+        this.onAccountsChanged?.();
+      })
+      .catch((err: unknown) => {
+        this.emailCaptured.delete(accountId);
+        log.warn(`Could not read the signed-in address for account ${accountId}:`, err);
+      });
   }
 
   public setAccountAuthRequired(accountId: string, needsAuth: boolean): void {
