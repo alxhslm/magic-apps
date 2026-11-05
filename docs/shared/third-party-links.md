@@ -116,6 +116,25 @@ moves.
 Safari has no supported flag or URL scheme for profile targeting, so it is offered as a browser
 and nothing more.
 
+### The owning app comes first
+
+Before anything is launched, `openExternalUrl` asks LaunchServices which application would
+open the URL. The answer is the app that claims the domain when one does, and the Mac's default
+browser otherwise, so a reply that is not the default browser means a desktop app owns the link.
+That one is opened through `shell.openExternal`, whatever profile the account names: starting a
+browser by name is exactly what would take the link away from its app.
+
+```mermaid
+flowchart TD
+  Link["external URL"] --> Scheme{"http(s)?"}
+  Scheme -->|no| Shell["shell.openExternal"]
+  Scheme -->|yes| Owner{"who owns the URL?"}
+  Owner -->|"an app other than the default browser"| Shell
+  Owner -->|"the default browser"| Profile{"profile resolved, different from the open one?"}
+  Profile -->|yes| Launch["open -b … -n --args --profile-directory=…"]
+  Profile -->|no| Named["open -b …"]
+```
+
 ### Launching
 
 `openExternalUrl` launches the browser itself when it has a profile to apply:

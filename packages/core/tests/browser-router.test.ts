@@ -3,6 +3,15 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 
+vi.mock('node:child_process', () => ({
+  execFile: (
+    _file: string,
+    _args: string[],
+    callback: (err: unknown, result: { stdout: string; stderr: string }) => void,
+  ) => callback(null, { stdout: 'com.apple.Safari', stderr: '' }),
+  execFileSync: vi.fn(),
+}));
+
 vi.mock('electron', () => ({
   app: {
     getApplicationNameForProtocol: vi.fn(() => 'Firefox'),
@@ -254,7 +263,7 @@ describe('browser-router', () => {
     expect(runner).not.toHaveBeenCalled();
   });
 
-  it('openExternalUrl lets macOS route a link when the browser is already the default', async () => {
+  it('openExternalUrl reuses the open profile without starting a second instance', async () => {
     const chromeDir = path.join(tmpDir, 'Library/Application Support/Google/Chrome');
     fs.mkdirSync(chromeDir, { recursive: true });
 
@@ -271,19 +280,16 @@ describe('browser-router', () => {
     const fallback = vi.fn().mockResolvedValue(undefined);
     const runner = vi.fn().mockResolvedValue(undefined);
 
-    await openExternalUrl('https://app.notion.so/page', {
+    await openExternalUrl('https://example.com', {
       browser: 'chrome',
       account: { browserProfile: '_auto', email: 'personal@gmail.com' },
       customHome: tmpDir,
-      defaultBrowserId: 'chrome',
+      resolveHandler: async () => 'com.apple.Safari',
       fallbackOpenExternal: fallback,
       openCommandRunner: runner,
     });
 
-    // Chrome is what macOS would choose anyway, so routing it through LaunchServices keeps
-    // a domain owned by a desktop app opening in that app rather than in a browser window.
-    expect(fallback).toHaveBeenCalledWith('https://app.notion.so/page');
-    expect(runner).not.toHaveBeenCalled();
+    expect(runner).toHaveBeenCalledWith(['-b', 'com.google.Chrome', 'https://example.com']);
   });
 
   it('openExternalUrl delegates system browser to fallback', async () => {

@@ -31,7 +31,7 @@ Which browser opens links that leave Gmail, such as a link in an email that goes
 
 Applies to every link that leaves Magimail. Chromium browsers can also open each account in its own profile, which the next section covers.
 
-> **One side effect.** A link that has to be sent to a particular profile starts the browser directly, so a site with its own desktop app (Notion, Linear, Todoist) opens in the browser for that link. Links that do not need a profile go through macOS and still reach the app.
+> **One side effect.** A link is checked with macOS first: if a desktop app owns the address, that app opens it and no profile is involved. Only links no app claims are opened in the browser, and only those are started directly when a profile has to be chosen.
 
 ### Global Quick Compose Shortcut
 
