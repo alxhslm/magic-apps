@@ -53,6 +53,8 @@ export interface MagicalSettings {
    * not in the desktop client.
    */
   alwaysJoinInBrowser: boolean;
+  /** Open Todoist task and project links in the Todoist app, falling back to the browser. */
+  openTodoistLinksInApp: boolean;
   /** Whether the native companion sidebar in the main window is visible. */
   sidebarVisible: boolean;
   /** Last active calendar timeframe mode (day, week, month, etc.). */
@@ -146,6 +148,7 @@ const DEFAULT_SETTINGS: MagicalSettings = {
   meetingAlertsEnabled: true,
   meetingAlertLeadMinutes: 5,
   alwaysJoinInBrowser: false,
+  openTodoistLinksInApp: true,
   sidebarVisible: true,
   lastTimeframe: 'day',
   isCalendarCollapsed: false,

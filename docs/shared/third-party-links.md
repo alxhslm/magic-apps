@@ -49,6 +49,8 @@ Instead the default is the browser, and the desktop app is reached one of two wa
   documented desktop scheme: Zoom and Teams meeting links, and Todoist tasks and projects
   (`app.todoist.com/app/task/<id>` to `todoist://task?id=<id>`, and the same for projects). It asks
   LaunchServices whether the scheme has a handler and falls back to the browser when it does not.
+  `openTodoistLinksInApp` (General) turns the Todoist rewrite off, sending those links to the
+  browser and profile instead.
 
 Magimail has no app rewrites; every external link takes the browser route.
 

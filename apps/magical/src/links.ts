@@ -95,7 +95,7 @@ export async function openExternalUrl(rawUrl: string, account?: CalendarAccount)
   if (!settings.alwaysJoinInBrowser) {
     target = toNativeMeetingUrl(target);
   }
-  if (target === unwrappedUrl) {
+  if (target === unwrappedUrl && settings.openTodoistLinksInApp) {
     target = toTodoistAppUrl(target);
   }
 

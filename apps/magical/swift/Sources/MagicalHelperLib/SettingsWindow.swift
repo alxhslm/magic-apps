@@ -109,6 +109,9 @@ struct GeneralTab: View {
             )
             .help("Each account chooses its own Chromium profile in Accounts.")
 
+            Toggle("Open Todoist links in the Todoist app", isOn: $model.openTodoistLinksInApp)
+                .help("Off sends Todoist task and project links to the browser and account profile.")
+
             Divider()
 
             ForEach(model.handlerRows) { row in

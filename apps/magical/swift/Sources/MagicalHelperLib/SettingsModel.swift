@@ -56,6 +56,11 @@ public final class SettingsModel: ObservableObject {
         didSet { emit("alwaysJoinInBrowser", alwaysJoinInBrowser) }
     }
 
+    /// Open Todoist task and project links in the Todoist app, falling back to the browser.
+    @Published public var openTodoistLinksInApp: Bool = true {
+        didSet { emit("openTodoistLinksInApp", openTodoistLinksInApp) }
+    }
+
     @Published public var showMenuBarIcon: Bool = true {
         didSet { emit("showMenuBarIcon", showMenuBarIcon) }
     }
@@ -267,6 +272,9 @@ public final class SettingsModel: ObservableObject {
         }
         if let v = dict["alwaysJoinInBrowser"] as? Bool {
             alwaysJoinInBrowser = v
+        }
+        if let v = dict["openTodoistLinksInApp"] as? Bool {
+            openTodoistLinksInApp = v
         }
         if let v = dict["showMenuBarIcon"] as? Bool {
             showMenuBarIcon = v

@@ -11,9 +11,11 @@ vi.mock('../src/native-handlers.js', () => ({
 }));
 
 const alwaysJoinInBrowser = vi.fn(() => false);
+const openTodoistLinksInApp = vi.fn(() => true);
 vi.mock('../src/settings-store.js', () => ({
   loadSettings: () => ({
     alwaysJoinInBrowser: alwaysJoinInBrowser(),
+    openTodoistLinksInApp: openTodoistLinksInApp(),
   }),
 }));
 
@@ -141,6 +143,7 @@ describe('openExternalUrl', () => {
     hasApplicationForUrl.mockClear();
     hasApplicationForUrl.mockReturnValue(true);
     alwaysJoinInBrowser.mockReturnValue(false);
+    openTodoistLinksInApp.mockReturnValue(true);
   });
 
   it('unwraps a redirector and opens a Todoist task in the app', async () => {
@@ -180,6 +183,13 @@ describe('openExternalUrl', () => {
       'zoommtg://zoom.us/join?action=join&confno=1234567890',
     );
     expect(openExternal).toHaveBeenNthCalledWith(2, 'https://zoom.us/j/1234567890');
+  });
+
+  it('keeps Todoist links in the browser when the setting is off', async () => {
+    openTodoistLinksInApp.mockReturnValue(false);
+    await openExternalUrl('https://app.todoist.com/app/task/6c33mFGQvgx4Qmmc');
+    expect(hasApplicationForUrl).not.toHaveBeenCalled();
+    expect(openExternal).toHaveBeenCalledWith('https://app.todoist.com/app/task/6c33mFGQvgx4Qmmc');
   });
 
   it('keeps meeting link in browser when alwaysJoinInBrowser is true', async () => {

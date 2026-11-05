@@ -32,7 +32,8 @@ Which browser opens links that leave the app.
   is Chrome, Brave or Edge, links also open in the account's profile; see
   [Chromium profiles](#chromium-profiles).
 - **Todoist task and project links open in the Todoist app** when it is installed, and in the
-  browser otherwise.
+  browser otherwise. Turn off **Open Todoist links in the Todoist app** to keep them in the
+  browser and account profile.
 
 ### Times and Dates
 
