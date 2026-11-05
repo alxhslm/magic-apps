@@ -52,9 +52,9 @@ public final class SettingsModel: ObservableObject {
         didSet { emit("openLinksIn", openLinksIn) }
     }
 
-    /// Whether a link whose domain a desktop app owns opens there: always, after asking, or never.
-    @Published public var openLinksInApps: String = "auto" {
-        didSet { emit("openLinksInApps", openLinksInApps) }
+    /// What to do for each app in the link table, keyed by bundle id: `auto`, `ask` or `never`.
+    @Published public var appLinkChoices: [String: String] = [:] {
+        didSet { emit("appLinkChoices", appLinkChoices) }
     }
 
     @Published public var alwaysJoinInBrowser: Bool = false {
@@ -108,6 +108,8 @@ public final class SettingsModel: ObservableObject {
     @Published public var browserProfiles: [String: [[String: String]]] = [:]
     /// The browsers the app can open links in, without `system`, as `{ id, name, isChromium }`.
     @Published public var browsers: [[String: Any]] = []
+    /// The apps that own their own links, as `{ name, bundleId }`, for the per-app choice below.
+    @Published public var appLinks: [[String: String]] = []
     /// The browser macOS opens `https` links with, as `{ id, name, bundleId, isChromium }`.
     @Published public var defaultBrowser: [String: Any] = [:]
 
@@ -270,8 +272,8 @@ public final class SettingsModel: ObservableObject {
         if let v = dict["openLinksIn"] as? String {
             openLinksIn = v
         }
-        if let v = dict["openLinksInApps"] as? String {
-            openLinksInApps = v
+        if let v = dict["appLinkChoices"] as? [String: String] {
+            appLinkChoices = v
         }
         if let v = dict["alwaysJoinInBrowser"] as? Bool {
             alwaysJoinInBrowser = v

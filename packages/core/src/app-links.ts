@@ -72,42 +72,53 @@ export function readApps(): AppLink[] {
 }
 
 /**
- * What to do when a link belongs to a desktop app.
+ * What to do when a link belongs to a desktop app, chosen per app in Settings.
  *
- * `auto` opens the app, `ask` puts the choice in front of the user once per domain, and `never`
- * ignores the table so every link takes the browser and the account's profile.
+ * `auto` opens the app, `ask` shows the choice each time, and `never` sends the link to the browser
+ * with the account's profile.
  */
 export type AppLinkMode = 'auto' | 'ask' | 'never';
 
-/** A remembered answer, keyed by host, so `ask` only asks once. */
-export type AppLinkOverrides = Record<string, 'app' | 'browser'>;
+/** The user's answer for each app, keyed by bundle id. An absent key means `auto`. */
+export type AppLinkChoices = Record<string, AppLinkMode>;
 
 export interface AppLinkDecision {
   /** True when the link should go to the app rather than the browser. */
   useApp: boolean;
 }
 
+/** What the user answered when asked, and whether that answer should become the setting. */
+export interface AppLinkAnswer {
+  choice: 'app' | 'browser';
+  dontAskAgain: boolean;
+}
+
 /**
- * Whether this link belongs to its app, given the mode, any remembered answer, and the user.
+ * Whether this link belongs to its app, given that app's setting and, for `ask`, the user.
  *
- * Separate from routing so the decision can be tested without a browser, an app or a dialog.
+ * Separate from routing so the three modes and the asking path can be tested without a browser, a
+ * desktop app or a dialog.
  */
 export async function appLinkDecision(
   app: AppLink,
-  host: string,
   mode: AppLinkMode,
-  remember: AppLinkOverrides | undefined,
-  ask?: (app: AppLink, host: string) => Promise<{ choice: 'app' | 'browser'; remember: boolean }>,
+  ask?: (app: AppLink) => Promise<AppLinkAnswer>,
 ): Promise<AppLinkDecision> {
   if (mode === 'never') return { useApp: false };
-
-  const remembered = remember?.[host.toLowerCase()];
-  if (remembered) return { useApp: remembered === 'app' };
-
   if (mode === 'auto' || !ask) return { useApp: true };
 
-  const answer = await ask(app, host);
-  return { useApp: answer.choice === 'app' };
+  return { useApp: (await ask(app)).choice === 'app' };
+}
+
+/** The setting a remembered answer becomes: always in the app, or never again. */
+export function modeFromAnswer(answer: AppLinkAnswer): AppLinkMode {
+  return answer.choice === 'app' ? 'auto' : 'never';
+}
+
+/** The mode chosen for an app, defaulting to `auto`. */
+export function appLinkMode(app: AppLink, choices: AppLinkChoices | undefined): AppLinkMode {
+  const chosen = choices?.[app.bundleId];
+  return chosen === 'ask' || chosen === 'never' ? chosen : 'auto';
 }
 
 /** The host a remembered answer is keyed by: the address bar's, lowercased. */

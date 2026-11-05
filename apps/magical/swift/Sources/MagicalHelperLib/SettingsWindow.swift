@@ -87,6 +87,14 @@ public enum SettingsWindow {
 struct GeneralTab: View {
     @EnvironmentObject var model: SettingsModel
 
+    /// The choice for one app, read and written straight into the shared map.
+    private func appLinkChoice(for bundleId: String) -> Binding<String> {
+        Binding(
+            get: { model.appLinkChoices[bundleId] ?? "auto" },
+            set: { model.appLinkChoices[bundleId] = $0 }
+        )
+    }
+
     var body: some View {
         Form {
             Toggle("Launch Magical at login", isOn: $model.launchAtLogin)
@@ -109,12 +117,18 @@ struct GeneralTab: View {
             )
             .help("Each account chooses its own Chromium profile in Accounts.")
 
-            Picker("Links owned by an app:", selection: $model.openLinksInApps) {
-                Text("Always open in the app").tag("auto")
-                Text("Ask, and remember").tag("ask")
-                Text("Never, always use the browser").tag("never")
+            // One row per app rather than one switch for all of them: wanting Notion in its app says
+            // nothing about wanting Figma in its app, and "ask" is a per-app answer too.
+            // Only the apps this Mac has: a row for an app that is not installed could only ever
+            // fall back to the browser, and the list is shorter than the table because of it.
+            ForEach(model.appLinks.filter { InstalledBrowsers.isInstalled(bundleId: $0["bundleId"] ?? "") }, id: \.self) { entry in
+                let bundleId = entry["bundleId"] ?? ""
+                Picker("\(entry["name"] ?? "") links:", selection: appLinkChoice(for: bundleId)) {
+                    Text("Open in the app").tag("auto")
+                    Text("Ask each time").tag("ask")
+                    Text("Use the browser").tag("never")
+                }
             }
-            .help("Notion, Linear, Todoist, Figma, Slack and the other apps in the link table own their domains. Asking remembers the answer for that domain.")
 
             Divider()
 

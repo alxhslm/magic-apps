@@ -17,14 +17,12 @@ export interface AppSettings {
    */
   openLinksIn: string;
   /**
-   * What to do with a link whose domain a desktop app owns.
+   * What to do for each app in the link table, keyed by bundle id.
    *
-   * `auto` opens the app, `ask` asks once per domain and remembers the answer, `never` ignores the
-   * table so every link takes the account's browser profile.
+   * `auto` opens the app, `ask` shows the choice each time, `never` sends the link to the browser
+   * with the account's profile. An absent key means `auto`.
    */
-  openLinksInApps: 'auto' | 'ask' | 'never';
-  /** Answers given to `ask`, keyed by host. */
-  appLinkOverrides: Record<string, 'app' | 'browser'>;
+  appLinkChoices: Record<string, 'auto' | 'ask' | 'never'>;
   launchAtLogin: boolean;
   dockBadgeMode: DockBadgeMode;
   showMenuBarTray: boolean;
@@ -118,8 +116,7 @@ const SETTINGS_FILENAME = 'settings.json';
 const DEFAULT_SETTINGS: AppSettings = {
   theme: 'system',
   openLinksIn: 'system',
-  openLinksInApps: 'auto',
-  appLinkOverrides: {},
+  appLinkChoices: {},
   launchAtLogin: false,
   dockBadgeMode: 'allUnread',
   showMenuBarTray: true,

@@ -1,5 +1,11 @@
 import { describe, it, expect, vi } from 'vitest';
-import { appForUrl, appLinkDecision, readApps } from '../src/app-links.js';
+import {
+  appForUrl,
+  appLinkDecision,
+  appLinkMode,
+  modeFromAnswer,
+  readApps,
+} from '../src/app-links.js';
 
 describe('appForUrl', () => {
   it('names the app that owns a domain, including its subdomains', () => {
@@ -38,29 +44,37 @@ describe('appForUrl', () => {
 describe('appLinkDecision', () => {
   const notion = { name: 'Notion', bundleId: 'notion.id', hosts: ['notion.so'] };
 
-  it('opens the app when the setting says always', async () => {
-    expect((await appLinkDecision(notion, 'notion.so', 'auto', undefined)).useApp).toBe(true);
-  });
-
-  it('never opens the app when the setting says never', async () => {
-    expect((await appLinkDecision(notion, 'notion.so', 'never', undefined)).useApp).toBe(false);
-  });
-
-  it('asks when the setting says ask, and follows the answer', async () => {
-    const ask = async () => ({ choice: 'browser' as const, remember: false });
-    expect((await appLinkDecision(notion, 'notion.so', 'ask', undefined, ask)).useApp).toBe(false);
-  });
-
-  it('does not ask twice once the answer is remembered', async () => {
-    const ask = vi.fn();
-    const decision = await appLinkDecision(notion, 'notion.so', 'ask', { 'notion.so': 'app' }, ask);
-
+  it('opens the app when that app is set to always', async () => {
+    const decision = await appLinkDecision(notion, appLinkMode(notion, { 'notion.id': 'auto' }));
     expect(decision.useApp).toBe(true);
-    expect(ask).not.toHaveBeenCalled();
+    // An app with no answer recorded is automatic too.
+    expect((await appLinkDecision(notion, appLinkMode(notion, {}))).useApp).toBe(true);
   });
 
-  it('lets a remembered answer override the always setting', async () => {
-    const decision = await appLinkDecision(notion, 'notion.so', 'auto', { 'notion.so': 'browser' });
+  it('never opens the app when that app is set to never', async () => {
+    const decision = await appLinkDecision(notion, appLinkMode(notion, { 'notion.id': 'never' }));
     expect(decision.useApp).toBe(false);
+  });
+
+  it('asks when that app is set to ask, and follows the answer', async () => {
+    const ask = vi.fn().mockResolvedValue({ choice: 'browser', dontAskAgain: false });
+    const decision = await appLinkDecision(
+      notion,
+      appLinkMode(notion, { 'notion.id': 'ask' }),
+      ask,
+    );
+
+    expect(decision.useApp).toBe(false);
+    expect(ask).toHaveBeenCalledWith(notion);
+  });
+
+  it('turns a remembered answer into the setting it stands for', () => {
+    expect(modeFromAnswer({ choice: 'app', dontAskAgain: true })).toBe('auto');
+    expect(modeFromAnswer({ choice: 'browser', dontAskAgain: true })).toBe('never');
+  });
+
+  it('reads an unknown or malformed setting as automatic', () => {
+    expect(appLinkMode(notion, { 'notion.id': 'nonsense' as never })).toBe('auto');
+    expect(appLinkMode(notion, undefined)).toBe('auto');
   });
 });

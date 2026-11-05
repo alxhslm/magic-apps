@@ -103,8 +103,7 @@ export async function openExternalUrl(rawUrl: string, account?: CalendarAccount)
   try {
     await openBrowserUrl(unwrappedUrl, {
       browser: settings.openLinksIn,
-      appLinks: settings.openLinksInApps,
-      appLinkOverrides: settings.appLinkOverrides,
+      appLinkChoices: settings.appLinkChoices,
       askAboutAppLink: chooseAppForLink,
       account,
     });

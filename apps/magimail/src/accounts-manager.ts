@@ -1871,8 +1871,7 @@ export class AccountsManager {
     const settings = loadSettings();
     return {
       browser: settings.openLinksIn,
-      appLinks: settings.openLinksInApps,
-      appLinkOverrides: settings.appLinkOverrides,
+      appLinkChoices: settings.appLinkChoices,
       askAboutAppLink: chooseAppForLink,
       account,
     };

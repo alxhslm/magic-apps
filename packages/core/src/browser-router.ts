@@ -8,10 +8,10 @@ import { createLogger, redactUrl } from './logger.js';
 import {
   appForUrl,
   appLinkDecision,
-  hostOf,
+  appLinkMode,
   type AppLink,
-  type AppLinkMode,
-  type AppLinkOverrides,
+  type AppLinkAnswer,
+  type AppLinkChoices,
 } from './app-links.js';
 import type { AccountConfig } from './account.js';
 
@@ -295,15 +295,10 @@ export interface OpenExternalUrlOptions {
   fallbackOpenExternal?: (url: string) => Promise<void>;
   /** Custom home dir for profile reading (testing). */
   customHome?: string;
-  /** Whether a domain owned by a desktop app opens there, asks first, or always uses the browser. */
-  appLinks?: AppLinkMode;
-  /** Answers the user has already given, keyed by host. */
-  appLinkOverrides?: AppLinkOverrides;
-  /** Asks the user about a link the table says belongs to an app. */
-  askAboutAppLink?: (
-    app: AppLink,
-    host: string,
-  ) => Promise<{ choice: 'app' | 'browser'; remember: boolean }>;
+  /** What to do for each app in the table, keyed by bundle id. */
+  appLinkChoices?: AppLinkChoices;
+  /** Asks the user about a link whose app is set to `ask`. */
+  askAboutAppLink?: (app: AppLink) => Promise<AppLinkAnswer>;
   /**
    * The Mac's default browser id, when the caller already knows it. Injectable so a test does
    * not depend on which browser the machine running it has.
@@ -356,12 +351,9 @@ export async function openExternalUrl(
   // table exists because that hand-off cannot be discovered for itself.
   const owningApp = appForUrl(url);
   if (owningApp) {
-    const host = hostOf(url) ?? '';
     const { useApp } = await appLinkDecision(
       owningApp,
-      host,
-      options.appLinks ?? 'auto',
-      options.appLinkOverrides,
+      appLinkMode(owningApp, options.appLinkChoices),
       options.askAboutAppLink,
     );
 

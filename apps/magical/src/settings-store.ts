@@ -25,14 +25,12 @@ export interface MagicalSettings {
    */
   openLinksIn: string;
   /**
-   * What to do with a link whose domain a desktop app owns.
+   * What to do for each app in the link table, keyed by bundle id.
    *
-   * `auto` opens the app, `ask` asks once per domain and remembers the answer, `never` ignores the
-   * table so every link takes the account's browser profile.
+   * `auto` opens the app, `ask` shows the choice each time, `never` sends the link to the browser
+   * with the account's profile. An absent key means `auto`.
    */
-  openLinksInApps: 'auto' | 'ask' | 'never';
-  /** Answers given to `ask`, keyed by host. */
-  appLinkOverrides: Record<string, 'app' | 'browser'>;
+  appLinkChoices: Record<string, 'auto' | 'ask' | 'never'>;
   transparentBackground: boolean;
   /** Hides Google's companion rail, the same thing Magimail's setting of this
    *  name hides in Gmail — both are `[role="complementary"]`. */
@@ -148,8 +146,7 @@ const DEFAULT_SETTINGS: MagicalSettings = {
   theme: 'system',
   launchAtLogin: false,
   openLinksIn: 'system',
-  openLinksInApps: 'auto',
-  appLinkOverrides: {},
+  appLinkChoices: {},
   transparentBackground: true,
   hideSidebar: false,
   hideTasksTab: false,

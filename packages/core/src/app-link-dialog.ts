@@ -1,28 +1,23 @@
 import { dialog } from 'electron';
-import type { AppLink } from './app-links.js';
+import type { AppLink, AppLinkAnswer } from './app-links.js';
 
 /**
  * Asks which application should open a link whose domain a desktop app owns.
  *
- * Checked by default: without a remembered answer the same question appears every time the user
- * clicks a Notion link, which is worse than either extreme. The caller stores the answer, because
- * only it knows where settings live.
+ * The checkbox writes the same per-app setting that Settings shows, rather than a hidden remembered
+ * answer: ticking it and then looking at Settings tells the same story.
  */
-export async function askAboutAppLink(
-  app: AppLink,
-  host: string,
-  browserName: string,
-): Promise<{ choice: 'app' | 'browser'; remember: boolean }> {
+export async function askAboutAppLink(app: AppLink, browserName: string): Promise<AppLinkAnswer> {
   const { response, checkboxChecked } = await dialog.showMessageBox({
     type: 'question',
-    message: `Open this ${host} link in ${app.name}?`,
+    message: `Open this link in ${app.name}?`,
     detail: `Otherwise it opens in ${browserName}, with this account's profile.`,
     buttons: [`Open in ${app.name}`, `Open in ${browserName}`],
     defaultId: 0,
     cancelId: 1,
-    checkboxLabel: `Remember this for ${host}`,
-    checkboxChecked: true,
+    checkboxLabel: `Don't ask again for ${app.name}`,
+    checkboxChecked: false,
   });
 
-  return { choice: response === 0 ? 'app' : 'browser', remember: checkboxChecked };
+  return { choice: response === 0 ? 'app' : 'browser', dontAskAgain: checkboxChecked };
 }

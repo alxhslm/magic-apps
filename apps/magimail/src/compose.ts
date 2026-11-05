@@ -62,8 +62,7 @@ export function openDetachedComposeWindow(
     const settings = loadSettings();
     void openExternalUrl(unwrapRedirectors(url), {
       browser: settings.openLinksIn,
-      appLinks: settings.openLinksInApps,
-      appLinkOverrides: settings.appLinkOverrides,
+      appLinkChoices: settings.appLinkChoices,
       askAboutAppLink: chooseAppForLink,
       account: loadAccounts().find((a) => a.partition === partitionName),
     });
@@ -124,8 +123,7 @@ export function openDetachedThreadWindow(
     const settings = loadSettings();
     void openExternalUrl(unwrapRedirectors(url), {
       browser: settings.openLinksIn,
-      appLinks: settings.openLinksInApps,
-      appLinkOverrides: settings.appLinkOverrides,
+      appLinkChoices: settings.appLinkChoices,
       askAboutAppLink: chooseAppForLink,
       account: loadAccounts().find((a) => a.partition === partitionName),
     });
