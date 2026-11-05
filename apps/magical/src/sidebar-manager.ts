@@ -256,10 +256,12 @@ export class SidebarManager {
       }
 
       case 'sidebarJoinCall': {
-        // Through the service, so the call is opened the way every other Join is: native
-        // client where there is one, and the account's own browser profile otherwise.
-        if (value && /^https?:\/\//i.test(value)) {
-          void this.getCalendarService?.()?.joinCall(value);
+        // Through the service, so the call is opened the way every other Join is: native client
+        // where there is one, and the account's own browser profile otherwise. The view sends the
+        // account with the URL, since it knows which event the Join belongs to.
+        const [accountId, url] = splitJoinValue(value);
+        if (url && /^https?:\/\//i.test(url)) {
+          void this.getCalendarService?.()?.joinCall(url, accountId);
         }
         break;
       }
@@ -542,4 +544,12 @@ export class SidebarManager {
       log.warn('Could not update sidebar data:', err);
     }
   }
+}
+
+/** `accountId|url`, as the sidebar sends it. */
+function splitJoinValue(value: string | undefined): [string | undefined, string | undefined] {
+  if (!value) return [undefined, undefined];
+  const separator = value.indexOf('|');
+  if (separator === -1) return [undefined, value];
+  return [value.slice(0, separator), value.slice(separator + 1)];
 }

@@ -76,7 +76,7 @@ public struct TimedEventCluster: Identifiable, Equatable {
 public struct ClusterEventRowView: View {
     public let cluster: TimedEventCluster
     public let onSelectEvent: (TrayEvent) -> Void
-    public let onJoinCall: ((String) -> Void)?
+    public let onJoinCall: ((String, String) -> Void)?
     public let onRsvp: ((TrayEvent, String) -> Void)?
     public let onDeleteEvent: ((TrayEvent) -> Void)?
     public let onCompleteTask: ((TrayEvent, Bool) -> Void)?
@@ -84,7 +84,7 @@ public struct ClusterEventRowView: View {
     public init(
         cluster: TimedEventCluster,
         onSelectEvent: @escaping (TrayEvent) -> Void,
-        onJoinCall: ((String) -> Void)? = nil,
+        onJoinCall: ((String, String) -> Void)? = nil,
         onRsvp: ((TrayEvent, String) -> Void)? = nil,
         onDeleteEvent: ((TrayEvent) -> Void)? = nil,
         onCompleteTask: ((TrayEvent, Bool) -> Void)? = nil

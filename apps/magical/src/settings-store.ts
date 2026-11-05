@@ -245,9 +245,10 @@ export function loadSettings(): MagicalSettings {
     const stored = readSecretFile<unknown>(settingsPath());
     if (stored !== null) {
       const merged = mergeSettings(stored);
-      // `mergeSettings` cannot tell "never chose" from "chose the Mac's default", and the
-      // first should adopt that browser so an account's profile works without a second
-      // step. Anything we cannot launch with a profile stays `system`.
+      // A settings file written before this setting existed has no `openLinksIn`, and `mergeSettings`
+      // would give it the default `system`, which is indistinguishable from someone who chose to let
+      // macOS decide. A fresh install should follow the Mac's browser, so that is filled in here.
+      // Anything we cannot launch with a profile stays `system`.
       const storedChoice = (stored as Record<string, unknown>)?.openLinksIn;
       if (typeof storedChoice !== 'string') {
         merged.openLinksIn = defaultLinkBrowser();

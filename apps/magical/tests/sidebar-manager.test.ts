@@ -276,9 +276,13 @@ describe('SidebarManager', () => {
 
     // 3. Join call
     // Through the service, which owns the native-client check and the browser profile.
-    manager.handleSidebarAction('sidebarJoinCall', 'https://meet.google.com/xyz-uvw-rst');
+    manager.handleSidebarAction(
+      'sidebarJoinCall',
+      'acc_personal|https://meet.google.com/xyz-uvw-rst',
+    );
     expect(mockCalendarService.joinCall).toHaveBeenCalledWith(
       'https://meet.google.com/xyz-uvw-rst',
+      'acc_personal',
     );
 
     // 4. Delete event

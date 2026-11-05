@@ -33,6 +33,17 @@ export const SUPPORTED_BROWSERS: BrowserOption[] = [
   { id: 'safari', name: 'Safari', bundleId: 'com.apple.Safari', isChromium: false },
 ];
 
+/**
+ * How a browser id should be written in our own sentences.
+ *
+ * `system` is not a browser, so it reads as "your browser"; an id we do not know falls back to the
+ * id itself rather than to nothing, because a wrong name is more useful than a blank one.
+ */
+export function browserDisplayName(browserId: string): string {
+  if (!browserId || browserId === 'system') return 'your browser';
+  return SUPPORTED_BROWSERS.find((b) => b.id === browserId)?.name ?? browserId;
+}
+
 export interface ChromiumProfile {
   directory: string;
   name: string;

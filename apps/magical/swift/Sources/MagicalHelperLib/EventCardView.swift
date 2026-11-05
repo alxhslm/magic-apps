@@ -49,7 +49,7 @@ public struct EventCardView: View {
     public let date: Date?
     public let height: CGFloat
     public let onSelect: () -> Void
-    public let onJoinCall: ((String) -> Void)?
+    public let onJoinCall: ((String, String) -> Void)?
     public let onRsvp: ((String) -> Void)?
     public let onDelete: ((TrayEvent) -> Void)?
     public let onComplete: ((TrayEvent, Bool) -> Void)?
@@ -59,7 +59,7 @@ public struct EventCardView: View {
     public init(
         event: TrayEvent,
         onSelect: @escaping () -> Void,
-        onJoinCall: ((String) -> Void)? = nil,
+        onJoinCall: ((String, String) -> Void)? = nil,
         onRsvp: ((String) -> Void)? = nil,
         onDelete: ((TrayEvent) -> Void)? = nil,
         onComplete: ((TrayEvent, Bool) -> Void)? = nil,
@@ -258,7 +258,7 @@ public struct EventCardView: View {
             // under the pointer that summoned it. Opacity keeps it reachable by keyboard
             // and VoiceOver, neither of which can hover.
             if let url = event.conferenceUrl, let onJoinCall {
-                Button("Join") { onJoinCall(url) }
+                Button("Join") { onJoinCall(url, event.accountId) }
                     .modifier(TrayProminentButton())
                     .controlSize(.mini)
                     .font(.system(size: 10, weight: .semibold))

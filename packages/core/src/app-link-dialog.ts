@@ -21,3 +21,27 @@ export async function askAboutAppLink(app: AppLink, browserName: string): Promis
 
   return { choice: response === 0 ? 'app' : 'browser', dontAskAgain: checkboxChecked };
 }
+
+export interface ChooseAppOptions {
+  /** The browser's name, for the dialog's second button. */
+  browserName: string;
+  /** Called with the answer when the user asks not to be asked again. */
+  onRemember: (bundleId: string, mode: 'auto' | 'never') => void;
+}
+
+/**
+ * Asks, and writes the answer back if the user asked not to be asked again.
+ *
+ * Here rather than in each app: the dialog, the wording and the meaning of the answer are the same,
+ * and only where settings live differs, which the caller supplies.
+ */
+export async function chooseAppForLink(
+  app: AppLink,
+  options: ChooseAppOptions,
+): Promise<AppLinkAnswer> {
+  const answer = await askAboutAppLink(app, options.browserName);
+  if (answer.dontAskAgain) {
+    options.onRemember(app.bundleId, answer.choice === 'app' ? 'auto' : 'never');
+  }
+  return answer;
+}

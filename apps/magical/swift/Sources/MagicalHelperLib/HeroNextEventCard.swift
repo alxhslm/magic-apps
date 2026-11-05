@@ -11,7 +11,7 @@ public struct HeroNextEventCard: View {
     public let event: TrayEvent
     public let minutesUntil: Int
     public let calendarColor: Color
-    public let onJoinCall: (String) -> Void
+    public let onJoinCall: (String, String) -> Void
     public let onSelectEvent: (TrayEvent) -> Void
     public let onRsvp: ((String) -> Void)?
     public let onDeleteEvent: ((TrayEvent) -> Void)?
@@ -23,7 +23,7 @@ public struct HeroNextEventCard: View {
         event: TrayEvent,
         minutesUntil: Int,
         calendarColor: Color,
-        onJoinCall: @escaping (String) -> Void,
+        onJoinCall: @escaping (String, String) -> Void,
         onSelectEvent: @escaping (TrayEvent) -> Void,
         onRsvp: ((String) -> Void)? = nil,
         onDeleteEvent: ((TrayEvent) -> Void)? = nil,
@@ -104,7 +104,7 @@ public struct HeroNextEventCard: View {
                     // A verb, carrying `video.fill`. The service is named in the line above,
                     // where the agenda rows name theirs, so the button does not repeat it.
                     if let url = event.conferenceUrl, !url.isEmpty {
-                        Button(action: { onJoinCall(url) }) {
+                        Button(action: { onJoinCall(url, event.accountId) }) {
                             Label("Join", systemImage: "video.fill")
                         }
                         .modifier(TrayProminentButton())

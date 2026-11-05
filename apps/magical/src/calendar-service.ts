@@ -59,7 +59,7 @@ import {
   resolveCanonicalCalendarId,
   resolvePrimaryEmail,
 } from './calendars.js';
-import { openExternalUrl, withoutQuery } from './links.js';
+import { openExternalUrl } from './links.js';
 
 const log = createLogger('CalendarService');
 
@@ -2034,41 +2034,13 @@ export class CalendarService {
    * installed Zoom.
    */
   public async joinCall(conferenceUrl: string, accountId?: string): Promise<void> {
-    const accounts = loadAccounts();
-    const account =
-      accounts.find((a) => a.id === accountId) ??
-      this.accountForConferenceUrl(conferenceUrl, accounts);
-    await openExternalUrl(conferenceUrl, account);
-  }
-
-  /**
-   * Which account's event this conference URL belongs to.
-   *
-   * The tray, the sidebar and a notification all hand over a URL and nothing else, and the
-   * account is what decides the browser profile the call opens in: without it a meeting joins
-   * in whichever profile the browser happens to have in front. Asked of the cached events
-   * rather than threaded through six SwiftUI views and their callbacks. A URL that two
-   * accounts share resolves to the meeting that starts soonest, which is the one being joined.
-   */
-  private accountForConferenceUrl(
-    conferenceUrl: string,
-    accounts: CalendarAccount[],
-  ): CalendarAccount | undefined {
-    const wanted = withoutQuery(conferenceUrl);
-    let best: { account: CalendarAccount; start: number } | undefined;
-
-    for (const account of accounts) {
-      for (const event of this.cachedEvents.get(account.id) ?? []) {
-        if (!event.conferenceUrl || withoutQuery(event.conferenceUrl) !== wanted) continue;
-        const start = event.startTime.getTime();
-        if (!best || (Number.isFinite(start) && start < best.start)) {
-          best = { account, start: Number.isFinite(start) ? start : Number.MAX_SAFE_INTEGER };
-        }
-      }
+    const account = accountId ? loadAccounts().find((a) => a.id === accountId) : undefined;
+    if (!account) {
+      // Only a caller that has no account to give, which today is a notification action. The
+      // browser profile decides which session the call joins as, so the difference is worth a line.
+      log.warn(`Joining ${redactUrl(conferenceUrl)} without an account`);
     }
-
-    if (best) log.info(`Joining ${redactUrl(conferenceUrl)} as account ${best.account.id}`);
-    return best?.account;
+    await openExternalUrl(conferenceUrl, account);
   }
 
   /**
