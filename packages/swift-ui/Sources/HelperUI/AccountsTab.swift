@@ -200,13 +200,32 @@ public struct AccountsTab<Model: AccountListModel>: View {
         )
     }
 
+    /// Which row the menu shows as chosen.
+    ///
+    /// An unmatched automatic account ticks `None`, because that is what will happen: the
+    /// label and the tick have to agree, or the menu shows two different answers.
+    private func effectiveProfile(for id: String) -> String {
+        let setting = value(of: id, "browserProfile") ?? "_auto"
+        if setting != "_auto" {
+            return setting
+        }
+
+        guard let email = value(of: id, "email")?.lowercased(), !email.isEmpty,
+              let matched = profilesForBrowser(linkedBrowser).first(where: {
+                  $0["email"]?.lowercased() == email
+              })
+        else { return "_none" }
+
+        return matched["directory"] ?? "_none"
+    }
+
     /// Profile rows behave as a radio group whose off position is "no choice".
     ///
     /// Unticking the chosen profile returns the account to the automatic answer rather than
     /// leaving the menu with nothing that could express it.
     private func profileToggle(_ setting: String, for id: String) -> Binding<Bool> {
         Binding(
-            get: { (value(of: id, "browserProfile") ?? "_auto") == setting },
+            get: { effectiveProfile(for: id) == setting },
             set: { isOn in
                 guard let name = value(of: id, "name"),
                       let color = value(of: id, "color")
