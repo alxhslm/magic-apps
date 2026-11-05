@@ -1,6 +1,6 @@
 import { app } from 'electron';
 import { createLogger } from '@magimail/core/logger';
-import { readSecretFile, writeSecretFile } from '@magimail/core';
+import { getDefaultBrowser, readSecretFile, writeSecretFile } from '@magimail/core';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -16,6 +16,13 @@ export interface CalendarRef {
 export interface MagicalSettings {
   theme: 'system' | 'light' | 'dark';
   launchAtLogin: boolean;
+  /**
+   * Which browser opens event links and browser-joined calls. `system` hands the URL to macOS.
+   *
+   * One setting for the app: the browser is where someone works, while the per-account
+   * variable is the Chromium profile.
+   */
+  openLinksIn: string;
   transparentBackground: boolean;
   /** Hides Google's companion rail, the same thing Magimail's setting of this
    *  name hides in Gmail — both are `[role="complementary"]`. */
@@ -46,6 +53,8 @@ export interface MagicalSettings {
    * not in the desktop client.
    */
   alwaysJoinInBrowser: boolean;
+  /** Open Todoist task and project links in the Todoist app, falling back to the browser. */
+  openTodoistLinksInApp: boolean;
   /** Whether the native companion sidebar in the main window is visible. */
   sidebarVisible: boolean;
   /** Last active calendar timeframe mode (day, week, month, etc.). */
@@ -130,6 +139,7 @@ const SETTINGS_FILENAME = 'settings.json';
 const DEFAULT_SETTINGS: MagicalSettings = {
   theme: 'system',
   launchAtLogin: false,
+  openLinksIn: 'system',
   transparentBackground: true,
   hideSidebar: false,
   hideTasksTab: false,
@@ -138,6 +148,7 @@ const DEFAULT_SETTINGS: MagicalSettings = {
   meetingAlertsEnabled: true,
   meetingAlertLeadMinutes: 5,
   alwaysJoinInBrowser: false,
+  openTodoistLinksInApp: true,
   sidebarVisible: true,
   lastTimeframe: 'day',
   isCalendarCollapsed: false,
@@ -209,12 +220,34 @@ export function mergeSettings(stored: unknown): MagicalSettings {
   return merged;
 }
 
+/**
+ * The browser links open in before the user has chosen one.
+ *
+ * An install that never touched the setting adopts the Mac's default when we can launch
+ * that browser with a profile, so an account's profile works without a second step.
+ * Anything else stays `system`, which leaves the URL to macOS and keeps a domain owned by a
+ * desktop app opening there.
+ */
+function defaultLinkBrowser(): string {
+  const browser = getDefaultBrowser();
+  return browser.isChromium ? browser.id : 'system';
+}
+
 export function loadSettings(): MagicalSettings {
   if (cached) return { ...cached };
   try {
     const stored = readSecretFile<unknown>(settingsPath());
     if (stored !== null) {
-      cached = mergeSettings(stored);
+      const merged = mergeSettings(stored);
+      // A settings file written before this setting existed has no `openLinksIn`, and `mergeSettings`
+      // would give it the default `system`, which is indistinguishable from someone who chose to let
+      // macOS decide. A fresh install should follow the Mac's browser, so that is filled in here.
+      // Anything we cannot launch with a profile stays `system`.
+      const storedChoice = (stored as Record<string, unknown>)?.openLinksIn;
+      if (typeof storedChoice !== 'string') {
+        merged.openLinksIn = defaultLinkBrowser();
+      }
+      cached = merged;
       return { ...cached };
     }
   } catch (err) {
@@ -226,7 +259,7 @@ export function loadSettings(): MagicalSettings {
       err,
     );
   }
-  cached = { ...DEFAULT_SETTINGS };
+  cached = { ...DEFAULT_SETTINGS, openLinksIn: defaultLinkBrowser() };
   return { ...cached };
 }
 

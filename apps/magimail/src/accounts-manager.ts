@@ -6,9 +6,9 @@ import {
   BrowserWindow,
   WebContentsView,
   webFrameMain,
+  type WebContents,
   type WebFrameMain,
   session,
-  shell,
   dialog,
   clipboard,
 } from 'electron';
@@ -28,6 +28,10 @@ import {
   SUSPEND_NEVER,
   viewIsAlive,
   unwrapRedirectors,
+  openExternalUrl,
+  type OpenExternalUrlOptions,
+  ACCOUNT_EMAIL_SCRIPT,
+  readAccountEmail,
 } from '@magimail/core';
 import {
   GMAIL_LOGIN_URL,
@@ -270,6 +274,8 @@ export class AccountsManager {
   private mailActionTimer: ReturnType<typeof setInterval> | null = null;
   /** Tracks URLs that failed loading due to network/offline errors, so reconnect reloads them. */
   private failedOfflineUrls: Map<string, string> = new Map();
+  /** Accounts whose address has been asked of the page, so a reload does not ask again. */
+  private emailCaptured = new Set<string>();
   public onAccountsChanged?: () => void;
   public onGmailSignIn?: (accountId: string) => void;
   public onUnreadChanged?: (accounts: AccountConfig[], totalUnread: number) => void;
@@ -859,7 +865,9 @@ export class AccountsManager {
         ) {
           return { action: 'allow' };
         }
-        shell.openExternal(unwrapRedirectors(childUrl));
+        const target = unwrapRedirectors(childUrl);
+        const activeAcc = this.accounts.find((a) => a.id === this.activeAccountId);
+        void openExternalUrl(target, this.outboundLinkOptions(activeAcc));
         return { action: 'deny' };
       });
 
@@ -935,7 +943,7 @@ export class AccountsManager {
 
       const target = unwrapRedirectors(url);
       log.info(`Account ${account.id} opening in the browser:`, redactUrl(target));
-      shell.openExternal(target);
+      void openExternalUrl(target, this.outboundLinkOptions(account));
       return { action: 'deny' };
     });
 
@@ -951,7 +959,7 @@ export class AccountsManager {
         event.preventDefault();
         const target = unwrapRedirectors(url);
         log.info(`Account ${account.id} navigating out to the browser:`, redactUrl(target));
-        shell.openExternal(target);
+        void openExternalUrl(target, this.outboundLinkOptions(account));
       }
     });
 
@@ -987,6 +995,7 @@ export class AccountsManager {
       if (account.id === this.activeAccountId) {
         this.syncCategoryBannerForActiveAccount();
       }
+      this.captureAccountEmail(account.id, view.webContents);
     });
 
     view.webContents.on('did-navigate-in-page', (_event, url) => {
@@ -1810,6 +1819,56 @@ export class AccountsManager {
     updateDockBadge(calculateAggregateBadge(focused), this.getFocusedArrivals());
     this.notifyToolbar();
     this.onUnreadChanged?.(focused, total);
+  }
+
+  /**
+   * Learns and stores the address the account is signed in as.
+   *
+   * An account record holds a name, colour and partition, which cannot tell the link router
+   * which Chromium profile is the same person. The page can, so it is asked once it settles.
+   */
+  private captureAccountEmail(accountId: string, contents: WebContents): void {
+    const account = this.accounts.find((a) => a.id === accountId);
+    if (!account || account.email) return;
+    if (!contents.getURL().startsWith('https://mail.google.com/mail/')) return;
+    if (this.emailCaptured.has(accountId)) return;
+    this.emailCaptured.add(accountId);
+
+    void readAccountEmail({
+      read: () => contents.executeJavaScript(ACCOUNT_EMAIL_SCRIPT, true),
+      isAlive: () => !contents.isDestroyed(),
+    }).then((email) => {
+      if (!email) {
+        // A page that never showed one may be signed out, or may need a reload. Either way
+        // the next load is the next chance, so it is not remembered as a failure. Said out
+        // loud because the alternative is an account that silently never matches a profile.
+        log.info(`No signed-in address on the page for account ${accountId}`);
+        this.emailCaptured.delete(accountId);
+        return;
+      }
+      const target = this.accounts.find((a) => a.id === accountId);
+      if (!target || target.email === email) return;
+      target.email = email;
+      saveAccounts(this.accounts);
+      // The address itself stays out of the log: it is account data, and the id is enough
+      // to follow what happened.
+      log.info(`Recorded the signed-in address for account ${accountId}`);
+      this.onAccountsChanged?.();
+    });
+  }
+
+  /**
+   * How a link should leave this app, for one account.
+   *
+   * Reads settings each time rather than caching: the user can change any of it while the window is
+   * open, and a link clicked a second later should follow the new answer.
+   */
+  private outboundLinkOptions(account?: AccountConfig): OpenExternalUrlOptions {
+    const settings = loadSettings();
+    return {
+      browser: settings.openLinksIn,
+      account,
+    };
   }
 
   public setAccountAuthRequired(accountId: string, needsAuth: boolean): void {
@@ -2790,12 +2849,13 @@ export class AccountsManager {
 
   public updateAccountConfig(
     accountId: string,
-    updates: { name?: string; color?: string },
+    updates: { name?: string; color?: string; browserProfile?: string },
   ): boolean {
     const account = this.accounts.find((a) => a.id === accountId);
     if (!account) return false;
     if (updates.name !== undefined) account.name = updates.name;
     if (updates.color !== undefined) account.color = updates.color;
+    if (updates.browserProfile !== undefined) account.browserProfile = updates.browserProfile;
     saveAccounts(this.accounts);
     this.notifyToolbar();
     // A rename has to reach the Accounts menu as well as the toolbar.

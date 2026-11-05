@@ -11,6 +11,10 @@ public struct AccountRow: View {
     public let name: String
     public let color: String
     public let needsAuth: Bool
+    /// Where links from this account open. Trailing rather than inside the row's own
+    /// controls: the menu reads the browser list and profiles, which belong to the
+    /// caller, and a row that knew about browsers would have to be told about them twice.
+    public let linksMenu: AnyView?
     public let onCommit: (String, String) -> Void
     public let onSignIn: () -> Void
     public let onRemove: () -> Void
@@ -23,6 +27,7 @@ public struct AccountRow: View {
         name: String,
         color: String,
         needsAuth: Bool = false,
+        linksMenu: AnyView? = nil,
         onCommit: @escaping (String, String) -> Void,
         onSignIn: @escaping () -> Void = {},
         onRemove: @escaping () -> Void = {}
@@ -30,6 +35,7 @@ public struct AccountRow: View {
         self.name = name
         self.color = color
         self.needsAuth = needsAuth
+        self.linksMenu = linksMenu
         self.onCommit = onCommit
         self.onSignIn = onSignIn
         self.onRemove = onRemove
@@ -47,6 +53,10 @@ public struct AccountRow: View {
                 .textFieldStyle(.plain)
                 .focused($editing)
                 .onSubmit { commit() }
+
+            if let linksMenu {
+                linksMenu
+            }
 
             // Settings is where an account is added, so it is where the user comes back
             // to when one stops working. Without this the row offers nothing but a

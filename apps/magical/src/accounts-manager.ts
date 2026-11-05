@@ -6,6 +6,7 @@ import {
   nativeTheme,
   session,
   webFrameMain,
+  type WebContents,
   type WebFrameMain,
 } from 'electron';
 import fs from 'node:fs';
@@ -18,6 +19,7 @@ import {
   SUSPEND_NEVER,
   viewIsAlive,
 } from '@magimail/core';
+import { ACCOUNT_EMAIL_SCRIPT, readAccountEmail } from '@magimail/core';
 import { createLogger, redactUrl } from '@magimail/core/logger';
 import {
   CALENDAR_BASE_URL,
@@ -107,6 +109,8 @@ function pruneOrphanPartitions(partitions: readonly string[]): void {
  */
 export class AccountsManager {
   private accounts: CalendarAccount[] = loadAccounts();
+  /** Accounts whose address has been asked of the page, so a reload does not ask again. */
+  private emailCaptured = new Set<string>();
   private activeAccountId: string = this.accounts[0]?.id ?? '';
   private readonly pool: RendererPool<CalendarAccount, WebContentsView>;
   /**
@@ -431,6 +435,11 @@ export class AccountsManager {
       if (account.id === this.activeAccountId) this.onHistoryChanged?.();
     });
 
+    // The calendar settles here after sign-in, which is when its account chip exists.
+    view.webContents.on('did-stop-loading', () => {
+      this.captureAccountEmail(account.id, view.webContents);
+    });
+
     // Chromium's own error page names a net:: code, offers a reload that fails the same
     // way, and never mentions Magical. Replace it with a page that says what cannot be
     // reached and retries the URL that actually failed.
@@ -451,14 +460,14 @@ export class AccountsManager {
     view.webContents.setWindowOpenHandler(({ url }) => {
       if (isInternalUrl(url)) return { action: 'allow' };
       log.info('Opening external URL from window.open:', redactUrl(url));
-      void openExternalUrl(url);
+      void openExternalUrl(url, account);
       return { action: 'deny' };
     });
     view.webContents.on('will-navigate', (event, url) => {
       if (isInternalUrl(url)) return;
       event.preventDefault();
       log.info('Redirecting navigation to external browser:', redactUrl(url));
-      void openExternalUrl(url);
+      void openExternalUrl(url, account);
     });
 
     // The Tasks embed is a cross-origin document the top-frame stylesheet
@@ -1320,13 +1329,53 @@ export class AccountsManager {
   /** Fired when an account's calendar set grows, so a running poller can pick it up. */
   public onCalendarIdsChanged?: (accountId: string, calendarIds: string[]) => void;
 
-  public updateAccount(accountId: string, fields: { name?: string; color?: string }): void {
+  /**
+   * Learns and stores the address the account is signed in as.
+   *
+   * An account record holds a name, colour and partition, which cannot tell the link router
+   * which Chromium profile is the same person. The page can, so it is asked once it settles.
+   */
+  private captureAccountEmail(accountId: string, contents: WebContents): void {
+    const account = this.accounts.find((a) => a.id === accountId);
+    if (!account || account.email) return;
+    if (!contents.getURL().startsWith('https://calendar.google.com/')) return;
+    if (this.emailCaptured.has(accountId)) return;
+    this.emailCaptured.add(accountId);
+
+    void readAccountEmail({
+      read: () => contents.executeJavaScript(ACCOUNT_EMAIL_SCRIPT, true),
+      isAlive: () => !contents.isDestroyed(),
+    }).then((email) => {
+      if (!email) {
+        // A page that never showed one may be signed out, or may need a reload. Either way
+        // the next load is the next chance, so it is not remembered as a failure. Said out
+        // loud because the alternative is an account that silently never matches a profile.
+        log.info(`No signed-in address on the page for account ${accountId}`);
+        this.emailCaptured.delete(accountId);
+        return;
+      }
+      const target = this.accounts.find((a) => a.id === accountId);
+      if (!target || target.email === email) return;
+      target.email = email;
+      saveAccounts(this.accounts);
+      // The address itself stays out of the log: it is account data, and the id is enough
+      // to follow what happened.
+      log.info(`Recorded the signed-in address for account ${accountId}`);
+      this.onAccountsChanged?.();
+    });
+  }
+
+  public updateAccount(
+    accountId: string,
+    fields: { name?: string; color?: string; browserProfile?: string },
+  ): void {
     const account = this.accounts.find((a) => a.id === accountId);
     if (!account) return;
 
     const name = fields.name?.trim();
     if (name) account.name = name;
     if (fields.color) account.color = fields.color;
+    if (fields.browserProfile !== undefined) account.browserProfile = fields.browserProfile;
 
     saveAccounts(this.accounts);
     this.onAccountsChanged?.();

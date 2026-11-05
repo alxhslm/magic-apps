@@ -30,6 +30,7 @@ vi.mock('../src/settings-store', () => ({
     meetingAlertsEnabled: true,
     meetingAlertLeadMinutes: 5,
     alwaysJoinInBrowser: alwaysJoinInBrowser(),
+    openTodoistLinksInApp: true,
     dockBadgeMode: dockBadgeMode(),
     disabledAlertCalendarIds: disabledAlertCalendarIds(),
   }),
@@ -153,10 +154,10 @@ describe('openExternalUrl', () => {
     alwaysJoinInBrowser.mockReturnValue(false);
   });
 
-  it('unwraps redirector URLs before dispatching to external browser', async () => {
+  it('unwraps a redirector and opens the Todoist task in the app', async () => {
     const raw = 'https://www.google.com/url?q=https://app.todoist.com/app/task/1234567890&usd=1';
     await openExternalUrl(raw);
-    expect(openExternal).toHaveBeenCalledWith('https://app.todoist.com/app/task/1234567890');
+    expect(openExternal).toHaveBeenCalledWith('todoist://task?id=1234567890');
   });
 
   it('hands meeting links to desktop app when installed', async () => {
@@ -243,6 +244,12 @@ describe('joinCall', () => {
       .mockRejectedValueOnce(new Error('No application found to open URL'));
 
     await expect(makeService().joinCall('https://zoom.us/j/1234567890')).resolves.toBeUndefined();
+  });
+
+  it('routes web calls through openExternalUrl using the matching account', async () => {
+    const url = 'https://meet.google.com/abc-defg-hij';
+    await makeService().joinCall(url, 'account_work');
+    expect(openExternal).toHaveBeenCalledWith(url);
   });
 });
 

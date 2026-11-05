@@ -1,9 +1,10 @@
 import { shell } from 'electron';
-import { unwrapRedirectors } from '@magimail/core';
+import { unwrapRedirectors, openExternalUrl as openBrowserUrl } from '@magimail/core';
 import { createLogger, redactUrl } from '@magimail/core/logger';
 import { INTERNAL_ORIGINS } from './constants.js';
 import { hasApplicationForUrl } from './native-handlers.js';
 import { loadSettings } from './settings-store.js';
+import type { CalendarAccount } from './accounts.js';
 
 export { unwrapRedirectors } from '@magimail/core';
 
@@ -65,23 +66,37 @@ export function toNativeMeetingUrl(url: string): string {
 }
 
 /**
- * Dispatches an external URL to macOS.
+ * Rewrites a Todoist task or project link to its desktop scheme.
  *
- * Shared click gate used by `window.open`, in-view navigation, and the Join Call button.
- * Redirector wrappers (such as Google outbound tracking links or Outlook Safelinks) are
- * unwrapped before dispatch so macOS Universal Links can resolve desktop applications
- * (e.g. Todoist, Notion, Linear, Figma). Meeting URLs (Zoom, Teams) are rewritten to their
- * native custom schemes unless `alwaysJoinInBrowser` is enabled. If a custom meeting scheme
- * has no registered client or throws, it falls back to opening the unwrapped web URL in the
- * system default browser.
+ * Todoist's site does not hand off to the desktop app, and calendar events carry task links,
+ * so this is the one app Magical opens itself. The id is the same in both forms.
  */
-export async function openExternalUrl(rawUrl: string): Promise<void> {
+export function toTodoistAppUrl(url: string): string {
+  const unwrapped = unwrapRedirectors(url);
+  const match = /^https?:\/\/(?:app\.)?todoist\.com\/app\/(task|project)\/([A-Za-z0-9]+)/.exec(
+    unwrapped,
+  );
+  return match ? `todoist://${match[1]}?id=${match[2]}` : unwrapped;
+}
+
+/**
+ * Dispatches an external URL for an account.
+ *
+ * Shared click gate used by `window.open`, in-view navigation and the Join Call button.
+ * Redirector wrappers are unwrapped first, so the router sees the destination. Meeting URLs
+ * (Zoom, Teams) are rewritten to their native schemes unless `alwaysJoinInBrowser` is on, and
+ * fall back to the web URL when no client is installed.
+ */
+export async function openExternalUrl(rawUrl: string, account?: CalendarAccount): Promise<void> {
   const unwrappedUrl = unwrapRedirectors(rawUrl);
   const settings = loadSettings();
   let target = unwrappedUrl;
 
   if (!settings.alwaysJoinInBrowser) {
     target = toNativeMeetingUrl(target);
+  }
+  if (target === unwrappedUrl && settings.openTodoistLinksInApp) {
+    target = toTodoistAppUrl(target);
   }
 
   if (target !== unwrappedUrl) {
@@ -99,7 +114,10 @@ export async function openExternalUrl(rawUrl: string): Promise<void> {
   }
 
   try {
-    await shell.openExternal(unwrappedUrl);
+    await openBrowserUrl(unwrappedUrl, {
+      browser: settings.openLinksIn,
+      account,
+    });
   } catch (err) {
     log.error('Could not open external link:', redactUrl(unwrappedUrl), err);
   }

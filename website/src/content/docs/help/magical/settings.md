@@ -22,6 +22,19 @@ The General tab manages startup behaviour and default calendar file handling:
   - **Importing by hand**: **File → Import Calendar File…** (<kbd>⇧⌘I</kbd>) reaches the same flow for a file you have already found.
   - **New event account**: Choose whether new events are added to your currently active calendar account or prompt you to pick an account every time.
 
+### Opening links
+
+Which browser opens links that leave the app.
+
+- **The Mac's default browser is preselected and marked `(default)`.** Picking a row pins that
+  browser, so the app keeps using it if the Mac's default changes later.
+- **Only installed browsers are listed.** Picking one sends every link through that browser. If it
+  is Chrome, Brave or Edge, links also open in the account's profile; see
+  [Chromium profiles](#chromium-profiles).
+- **Todoist task and project links open in the Todoist app** when it is installed, and in the
+  browser otherwise. Turn off **Open Todoist links in the Todoist app** to keep them in the
+  browser and account profile.
+
 ### Times and Dates
 
 Magical's date and time formats follow your Mac.
@@ -47,6 +60,25 @@ The Accounts tab manages your connected Google accounts and calendar access, whi
   - Click **`–`** to delete an account.
 - **Reset Session…**:
   - Clears stored authentication cookies for an account and re-opens the Google login flow. Useful if a Google Workspace enterprise session expires.
+
+### Chromium profiles
+
+If you use Chrome, Brave or Edge, an account can send its links to a particular profile, so a work
+link opens as you at work.
+
+Each account names its profile on the **Accounts** tab. Its row shows the profile that will be
+used:
+
+- **The profile signed in as the account's address is selected automatically.** A profile name,
+  such as `Work`, means links open in that profile, and choosing a name pins the account to it.
+- **`None`** opens the link in whatever browser window is already there. An account also shows
+  `None` when its address matches no profile.
+
+:::note[Chromium browsers only]
+Chrome, Brave and Edge keep profiles in the same place and accept the same flag, which is what
+makes this work. Safari has profiles but no supported way for another app to choose one, and
+Firefox differs again. With any other browser the profile menu is greyed out.
+:::
 
 ---
 
@@ -101,7 +133,7 @@ Under **Alerts by Calendar**, you can toggle alerts on or off for individual cal
 
 ### Joining Video Calls
 
-**Always open calls in the browser** sends a Google Meet, Zoom or Microsoft Teams link to your default browser instead of the desktop app.
+**Always open calls in the browser** sends a Google Meet, Zoom or Microsoft Teams link to your chosen browser and account profile instead of the desktop app.
 
 ### Focus Filters
 

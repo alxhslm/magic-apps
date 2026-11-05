@@ -109,6 +109,15 @@ struct GeneralTab: View {
 
             Divider()
 
+            LinksBrowserPicker(
+                selection: $model.openLinksIn,
+                browsers: model.browsers,
+                defaultBrowser: model.defaultBrowser
+            )
+            .help("Each account chooses its own Chromium profile in Accounts.")
+
+            Divider()
+
             ForEach(model.handlerRows) { row in
                 DefaultHandlerRow(
                     item: DefaultHandlerRow.Item(

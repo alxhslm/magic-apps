@@ -37,6 +37,11 @@ public final class SettingsModel: ObservableObject {
         didSet { emit("composeAccountPicker", composeAccountPicker) }
     }
 
+    /// Browser id for links that leave the app, or `system` to let macOS choose.
+    @Published public var openLinksIn: String = "system" {
+        didSet { emit("openLinksIn", openLinksIn) }
+    }
+
     /// Electron accelerator for the system-wide quick compose chord, or "off".
     @Published public var quickComposeHotkey: String = "Alt+Command+C" {
         didSet { emit("quickComposeHotkey", quickComposeHotkey) }
@@ -117,6 +122,11 @@ public final class SettingsModel: ObservableObject {
     // MARK: - Accounts
 
     @Published public var accounts: [[String: Any]] = []
+    @Published public var browserProfiles: [String: [[String: String]]] = [:]
+    /// The browsers the app can open links in, without `system`, as `{ id, name, isChromium }`.
+    @Published public var browsers: [[String: Any]] = []
+    /// The browser macOS opens `https` links with, as `{ id, name, bundleId, isChromium }`.
+    @Published public var defaultBrowser: [String: Any] = [:]
 
     // MARK: - Default handlers
 
@@ -191,6 +201,9 @@ public final class SettingsModel: ObservableObject {
         }
         if let v = dict["composeAccountPicker"] as? String {
             composeAccountPicker = v
+        }
+        if let v = dict["openLinksIn"] as? String {
+            openLinksIn = v
         }
         if let v = dict["quickComposeHotkey"] as? String {
             quickComposeHotkey = v

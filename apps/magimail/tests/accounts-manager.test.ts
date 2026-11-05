@@ -45,6 +45,15 @@ vi.mock('@magimail/core', async () => {
     ...actual,
     configureGoogleSession: vi.fn(),
     injectGmailStyles: vi.fn().mockResolvedValue(undefined),
+    // Link routing adopts the Mac's default browser, and a test has no opinion about which
+    // one that is. Pinning it to a browser we cannot launch keeps external links on the
+    // shell.openExternal path these tests assert on, whatever the machine runs.
+    getDefaultBrowser: () => ({
+      id: 'other',
+      name: 'Firefox',
+      bundleId: 'org.mozilla.firefox',
+      isChromium: false,
+    }),
   };
 });
 
@@ -206,6 +215,13 @@ describe('AccountsManager', () => {
     const removed = accountsManager.removeAccount(added.id);
     expect(removed).toBe(true);
     expect(onChanged).toHaveBeenCalledTimes(3);
+  });
+
+  it('updates and persists the profile an account opens links in', () => {
+    const added = accountsManager.addAccount('Work', '#ef4444');
+    accountsManager.updateAccountConfig(added.id, { browserProfile: 'Profile 1' });
+    const updated = accountsManager.getAccounts().find((a) => a.id === added.id);
+    expect(updated?.browserProfile).toBe('Profile 1');
   });
 
   it("deletes a removed account's poller state itself", () => {

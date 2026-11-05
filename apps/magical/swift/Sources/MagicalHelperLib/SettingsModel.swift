@@ -47,8 +47,18 @@ public final class SettingsModel: ObservableObject {
         didSet { emit("disabledAlertCalendarIds", disabledAlertCalendarIds) }
     }
 
+    /// Browser id for links that leave the app, or `system` to let macOS choose.
+    @Published public var openLinksIn: String = "system" {
+        didSet { emit("openLinksIn", openLinksIn) }
+    }
+
     @Published public var alwaysJoinInBrowser: Bool = false {
         didSet { emit("alwaysJoinInBrowser", alwaysJoinInBrowser) }
+    }
+
+    /// Open Todoist task and project links in the Todoist app, falling back to the browser.
+    @Published public var openTodoistLinksInApp: Bool = true {
+        didSet { emit("openTodoistLinksInApp", openTodoistLinksInApp) }
     }
 
     @Published public var showMenuBarIcon: Bool = true {
@@ -95,6 +105,11 @@ public final class SettingsModel: ObservableObject {
     // MARK: - Accounts & Calendars
 
     @Published public var accounts: [[String: Any]] = []
+    @Published public var browserProfiles: [String: [[String: String]]] = [:]
+    /// The browsers the app can open links in, without `system`, as `{ id, name, isChromium }`.
+    @Published public var browsers: [[String: Any]] = []
+    /// The browser macOS opens `https` links with, as `{ id, name, bundleId, isChromium }`.
+    @Published public var defaultBrowser: [String: Any] = [:]
 
     @Published public var calendars: [TrayCalendarItem] = []
 
@@ -252,8 +267,14 @@ public final class SettingsModel: ObservableObject {
         if let v = dict["disabledAlertCalendarIds"] as? [String] {
             disabledAlertCalendarIds = v
         }
+        if let v = dict["openLinksIn"] as? String {
+            openLinksIn = v
+        }
         if let v = dict["alwaysJoinInBrowser"] as? Bool {
             alwaysJoinInBrowser = v
+        }
+        if let v = dict["openTodoistLinksInApp"] as? Bool {
+            openTodoistLinksInApp = v
         }
         if let v = dict["showMenuBarIcon"] as? Bool {
             showMenuBarIcon = v

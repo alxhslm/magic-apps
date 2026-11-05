@@ -1,6 +1,6 @@
 ---
 title: Deep Links & Automation
-description: Using the magimail:// URL scheme with Apple Shortcuts, Raycast, Alfred, and opening external links in native desktop apps.
+description: Using the magimail:// URL scheme with Apple Shortcuts, Raycast, Alfred, and where external links open.
 ---
 
 Magimail registers the native macOS `magimail://` URL scheme, allowing you to trigger navigation, compose drafts, search inboxes, and execute triage actions from Apple Shortcuts, Raycast, Alfred, Stream Deck buttons, terminal scripts, or custom web links.
@@ -53,8 +53,8 @@ open "magimail://thread/18fa24b91ac051?action=archive"
 - In **Raycast**, create a **Quicklink** with the URL `magimail://search?q={query}` to search Gmail directly from your command bar.
 - In **Alfred**, create a **Web Search** keyword configured to open `magimail://compose?to={query}`.
 
-## Opening Links in Desktop Apps
+## Opening Links
 
 Emails frequently include links to external tools such as Todoist, Notion, Linear, Figma, GitHub, or Slack.
 
-Magimail strips Google's redirect prefix from outbound links so they open directly in their native macOS desktop apps when installed, or in your default browser when not.
+Magimail strips Google's redirect prefix before routing a link, then opens it in the browser chosen in **Settings → General → Opening links**, in the Chromium profile for the account it came from. See [Settings Reference](/help/magimail/settings/#chromium-profiles).

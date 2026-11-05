@@ -5,7 +5,7 @@ public extension View {
     func eventContextMenu(
         event: TrayEvent,
         onSelect: @escaping () -> Void,
-        onJoinCall: ((String) -> Void)? = nil,
+        onJoinCall: ((String, String) -> Void)? = nil,
         onRsvp: ((String) -> Void)? = nil,
         onDelete: ((TrayEvent) -> Void)? = nil,
         onComplete: ((TrayEvent, Bool) -> Void)? = nil
@@ -33,7 +33,7 @@ public extension View {
 
             if let conferenceUrl = event.conferenceUrl, let onJoinCall {
                 Button {
-                    onJoinCall(conferenceUrl)
+                    onJoinCall(conferenceUrl, event.accountId)
                 } label: {
                     Label("Join Meeting", systemImage: "video")
                 }

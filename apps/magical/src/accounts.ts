@@ -56,6 +56,8 @@ export interface CalendarAccount {
    * the Tasks sync. Not a Magic Apps secret; see `docs/magical/google-tasks.md`.
    */
   apiKey?: string;
+  /** Chromium profile directory, or `_auto` to match by the account's email address. */
+  browserProfile?: string;
 }
 
 const ACCOUNTS_FILENAME = 'accounts.json';

@@ -33,6 +33,7 @@ import {
   viewIsAlive,
   WindowRebuilder,
   unwrapRedirectors,
+  openExternalUrl,
 } from '@magimail/core';
 import { DEFAULT_PARTITION, IPC_CHANNELS } from './constants.js';
 import {
@@ -1164,6 +1165,7 @@ if (!hasLock) {
         accountsManager?.updateAccountConfig(params.accountId as string, {
           name: params.name as string | undefined,
           color: params.color as string | undefined,
+          browserProfile: params.browserProfile as string | undefined,
         });
         const accounts = accountsManager?.getAccounts() || [];
         const total = accounts.reduce((sum, a) => sum + a.unreadCount, 0);
@@ -1382,10 +1384,6 @@ if (!hasLock) {
         return res;
       },
     );
-
-    ipcMain.handle('magimail:open-external', (_event, url: string) => {
-      shell.openExternal(unwrapRedirectors(url));
-    });
 
     ipcMain.handle(IPC_CHANNELS.FOCUS_FILTER_GET, () => {
       return accountsManager?.getFocusFilter() || null;

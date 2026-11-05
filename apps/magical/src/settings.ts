@@ -1,7 +1,16 @@
 import { app } from 'electron';
+import { getAllChromiumProfiles, getDefaultBrowser, SUPPORTED_BROWSERS } from '@magimail/core';
 import { createLogger } from '@magimail/core/logger';
 import { sendToHelper } from './swift-helper.js';
 import { loadSettings } from './settings-store.js';
+
+/** Every browser we can launch ourselves, which is not the same as one we have profiles for. */
+const CHOOSABLE_BROWSERS = SUPPORTED_BROWSERS.filter((b) => b.id !== 'system').map((b) => ({
+  id: b.id,
+  name: b.name,
+  bundleId: b.bundleId ?? '',
+  isChromium: b.isChromium === true,
+}));
 import { buildSerializedCalendars } from './calendars.js';
 import type { AccountsManager } from './accounts-manager.js';
 import type { NormalizedCalendarEvent } from './calendar-decoder.js';
@@ -26,6 +35,9 @@ export function openSettingsWindow(
     pane,
     settings: loadSettings(),
     accounts: accountPayload(accounts, needsSignIn),
+    browserProfiles: getAllChromiumProfiles(),
+    defaultBrowser: getDefaultBrowser(),
+    browsers: CHOOSABLE_BROWSERS,
     calendars,
     appVersion: app.getVersion(),
   });
@@ -41,6 +53,7 @@ export function pushAccountsToSettings(
   const { calendars } = buildSerializedCalendars(accounts.getAccounts(), events);
   sendToHelper('accounts.update', {
     accounts: accountPayload(accounts, needsSignIn),
+    browserProfiles: getAllChromiumProfiles(),
     calendars,
   });
 }
@@ -74,5 +87,7 @@ function accountPayload(accounts: AccountsManager, needsSignIn?: ReadonlySet<str
     name: a.name,
     color: a.color,
     needsAuth: needsSignIn?.has(a.id) ?? false,
+    // The profile menu names the profile this account would match, and cannot without it.
+    email: a.email ?? '',
   }));
 }
