@@ -81,10 +81,15 @@ URL to a browser we opened cannot leave it unopened.
 The settings tab avoids asking a question the answer is already known for. `getDefaultBrowser`
 reads the LaunchServices handler for `https`, and the tab marks that row `(default)` and
 preselects it for any account that has not chosen. The picker therefore states which browser
-links actually reach, and the profile row appears for the common case of a Chrome default. The
-stored value stays unset, so the account keeps following the system default when it changes. A default browser outside `SUPPORTED_BROWSERS`
-(Firefox, Arc) is reported as `other`: the row falls back to the system entry and the profile
-picker stays hidden, since there is nothing to match it against.
+links actually reach, and the profile row appears for the common case of a Chrome default.
+Nothing is written until the user changes something, so the account keeps following the Mac's
+default.
+
+A default browser outside `SUPPORTED_BROWSERS` (Firefox, Arc) is reported as `other` and gets a
+row of its own, named by macOS — `Firefox (default)` — which stores `system` and hides the
+profile picker, since there is nothing to match an account against. That row is not offered
+beside a browser the list already contains: it would name the same browser twice, and the
+difference between pinning a browser and following the Mac has nowhere to be said in a picker.
 
 ## App-specific integration
 

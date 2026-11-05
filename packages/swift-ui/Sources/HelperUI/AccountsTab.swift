@@ -108,7 +108,9 @@ public struct AccountsTab<Model: AccountListModel>: View {
                                 .gridColumnAlignment(.trailing)
                                 .foregroundStyle(.secondary)
                             Picker("", selection: browserBinding(for: selectedId)) {
-                                Text(systemDefaultLabel).tag("system")
+                                if showsUnlistedDefault {
+                                    Text(unlistedDefaultLabel).tag("system")
+                                }
                                 Text(browserLabel("chrome", "Google Chrome")).tag("chrome")
                                 Text(browserLabel("brave", "Brave Browser")).tag("brave")
                                 Text(browserLabel("edge", "Microsoft Edge")).tag("edge")
@@ -177,17 +179,18 @@ public struct AccountsTab<Model: AccountListModel>: View {
 
     /// The account's own choice, and until it makes one, whatever macOS opens links with.
     ///
-    /// Preselecting the system default means the picker states what actually happens, and
-    /// the profile row appears for the common case of a Chrome default on an account that
-    /// has never been configured. The stored value stays unset, so following the system
-    /// default keeps following it if the user changes it later.
+    /// Preselecting the Mac's default means the picker states what actually happens, and the
+    /// profile row appears for the common case of a Chrome default on an account that has
+    /// never been configured. Nothing is written until the user changes something, so such an
+    /// account keeps following the Mac's default.
     private func browser(for id: String) -> String {
-        if let explicit = value(of: id, "browser") {
+        // `system` is shown as the browser it stands for today: an account stored with it
+        // while the Mac's default was outside our list would otherwise sit on a tag the
+        // picker no longer contains.
+        if let explicit = value(of: id, "browser"), explicit != "system" {
             return explicit
         }
-        // A browser outside our list is not offered, so the picker falls back to the
-        // system row rather than sitting on a tag it does not contain.
-        return defaultBrowserId == "other" ? "system" : defaultBrowserId
+        return showsUnlistedDefault ? "system" : defaultBrowserId
     }
 
     /// The id in `SUPPORTED_BROWSERS` that macOS opens `https` with, or `other`.
@@ -201,14 +204,21 @@ public struct AccountsTab<Model: AccountListModel>: View {
         id == defaultBrowserId ? "\(name) (default)" : name
     }
 
-    /// Names the browser the system row resolves to, but only when it is one we do not
-    /// list: an offered browser is already marked `(default)` on its own row.
-    private var systemDefaultLabel: String {
-        guard defaultBrowserId == "other",
-              let name = model.defaultBrowser["name"] as? String,
-              !name.isEmpty
-        else { return "System Default" }
-        return "System Default (\(name))"
+    /// True when the Mac's default browser is one the list does not contain, which is the
+    /// only case that needs a row of its own. Beside Chrome's own row it listed the same
+    /// browser twice, and the choice between them rested on a distinction the window had no
+    /// space to explain: one pins the browser, the other follows the Mac.
+    private var showsUnlistedDefault: Bool {
+        defaultBrowserId == "other"
+    }
+
+    /// Names the browser the unlisted row stands for, since the list omits it. It carries
+    /// `(default)` like any other inherited row, so one rule covers the whole picker.
+    private var unlistedDefaultLabel: String {
+        guard let name = model.defaultBrowser["name"] as? String, !name.isEmpty else {
+            return "System Default"
+        }
+        return "\(name) (default)"
     }
 
     private func profilesForBrowser(_ browser: String) -> [[String: String]] {
