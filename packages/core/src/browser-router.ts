@@ -5,6 +5,7 @@ import { execFile, execFileSync } from 'node:child_process';
 import { promisify } from 'node:util';
 import { app, shell } from 'electron';
 import { createLogger, redactUrl } from './logger.js';
+import { APP_BUNDLE_IDS, crossAppLink } from './cross-app.js';
 import type { AccountConfig } from './account.js';
 
 const log = createLogger('BrowserRouter');
@@ -371,6 +372,20 @@ export async function openExternalUrl(
   // account names. Asked before anything is launched, because starting a browser by name is
   // exactly what skips this decision.
   const resolveHandler = options.resolveHandler ?? osHandlerFor;
+
+  // The other app's own web interface belongs in that app, which is already running and shows
+  // the same Google data. Checked before anything else, and only offered when the other app is
+  // actually installed: an uninstallable deep link would open a browser's error page.
+  const crossApp = crossAppLink(url);
+  if (crossApp) {
+    const owner = await resolveHandler(crossApp.deepLink).catch(() => null);
+    if (owner && owner.toLowerCase() === APP_BUNDLE_IDS[crossApp.scheme]) {
+      log.info(`Opening ${redactUrl(url)} in ${crossApp.scheme} (${crossApp.deepLink})`);
+      await fallback(crossApp.deepLink);
+      return;
+    }
+  }
+
   const handler = await resolveHandler(url).catch(() => null);
   const macDefaultBundleId = getDefaultBrowser().bundleId?.toLowerCase();
   if (handler && macDefaultBundleId && handler.toLowerCase() !== macDefaultBundleId) {
