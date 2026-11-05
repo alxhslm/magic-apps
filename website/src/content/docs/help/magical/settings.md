@@ -32,12 +32,12 @@ Which browser opens links that leave the app.
   is a Chromium browser, links also open in the account's profile; see
   [Chromium profiles](#chromium-profiles).
 - **Universal links can open in their app instead.** Some links belong to a desktop app, and apps
-  installed on this Mac appear below with three choices:
+  installed on your Mac appear below with three choices:
   - `Open in the app`, so a Notion or Slack link opens in that app.
   - `Ask each time`, which shows a dialog naming both destinations. Its "don't ask again" box
     writes this same row.
   - `Use the browser`, so the link takes the account's profile like everything else.
-- **Only apps installed on this Mac are listed**, so a row cannot offer a destination that is not
+- **Only apps installed on your Mac are listed**, so a row cannot offer a destination that is not
   there.
 
 ### Times and Dates
