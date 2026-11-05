@@ -2,13 +2,9 @@ import AppKit
 
 /// Which of the browsers the main process offers macOS actually has.
 ///
-/// The list of browsers we can launch lives in `SUPPORTED_BROWSERS` and is the same on every
-/// Mac; what differs is what is installed. Offering Brave and Edge to someone who has neither
-/// is not merely clutter: picking one fails at launch and the link quietly opens somewhere
-/// else, so the picker states which browsers it can actually act on.
-///
-/// Asked of LaunchServices rather than of a directory or Spotlight, because a browser counts
-/// as installed when macOS can launch it, wherever the user put it.
+/// Offering Brave or Edge to a Mac without it is worse than clutter: the launch fails and the
+/// link opens somewhere else. Asked of LaunchServices, because a browser counts as installed when
+/// macOS can launch it, wherever the user put it.
 public enum InstalledBrowsers {
     private static var cache: [String: Bool] = [:]
     private static let lock = NSLock()

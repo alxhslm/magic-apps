@@ -122,12 +122,9 @@ struct GeneralTab: View {
             )
             .help("Each account chooses its own Chromium profile in Accounts.")
 
-            // One row per app rather than one switch for all of them: wanting Notion in its app says
-            // nothing about wanting Figma in its app, and "ask" is a per-app answer too.
-            // One picker per app, shaped like the rows above it: this pane is a plain `Form`, so a
-            // `Section` or a `LabeledContent` here nests its own alignment inside the form's.
-            // Only installed apps appear, because a row for an absent app could only fall back to
-            // the browser.
+            // One picker per app: wanting Notion in its app says nothing about wanting Figma in
+            // its. This pane is a plain `Form`, so a `Section` or `LabeledContent` here would nest
+            // its own alignment inside the form's.
             if !installedAppLinks.isEmpty {
                 Text("Universal links")
                     .font(.headline)

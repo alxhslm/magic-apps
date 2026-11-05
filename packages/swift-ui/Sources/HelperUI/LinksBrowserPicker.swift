@@ -2,14 +2,12 @@ import SwiftUI
 
 /// Which browser leaves the app for the wider web.
 ///
-/// Shared because both apps ask the same question and because "which row is the Mac's
-/// default" has to be answered the same way wherever it is shown. The list arrives from the
-/// main process, so `SUPPORTED_BROWSERS` in `@magimail/core` stays the only place that knows
-/// which browsers we can launch ourselves.
+/// Shared by both apps so "which row is the Mac's default" is answered the same way. The list
+/// arrives from the main process, keeping `SUPPORTED_BROWSERS` the only place that knows what we
+/// can launch.
 ///
-/// The row macOS opens links with carries `(default)` rather than there being a separate
-/// "System Default" entry: both resolve to the same browser, and a picker that lists one
-/// browser twice asks the user to choose between two names for one thing.
+/// The Mac's browser carries `(default)` instead of a separate "System Default": both resolve to
+/// the same browser, and listing it twice would ask the user to choose between two names.
 public struct LinksBrowserPicker: View {
     @Binding private var selection: String
     private let browsers: [[String: Any]]
@@ -41,10 +39,9 @@ public struct LinksBrowserPicker: View {
 
     /// `system` displays as the browser it stands for today.
     ///
-    /// An account or an install that never chose keeps the value, so it follows the Mac
-    /// when the Mac's default changes; only picking a row pins a browser. The picker has no
-    /// row for `system` when that browser is one it lists, so displaying it unchanged would
-    /// leave the control blank.
+    /// An untouched value stays `system`, so it follows the Mac when the default changes; only
+    /// picking a row pins a browser. Without this the control would be blank, because the picker
+    /// has no `system` row when that browser is listed.
     private var resolved: Binding<String> {
         Binding(
             get: {

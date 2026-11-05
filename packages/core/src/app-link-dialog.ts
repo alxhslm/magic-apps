@@ -2,10 +2,8 @@ import { dialog } from 'electron';
 import type { AppLink, AppLinkAnswer } from './app-links.js';
 
 /**
- * Asks which application should open a link whose domain a desktop app owns.
- *
- * The checkbox writes the same per-app setting that Settings shows, rather than a hidden remembered
- * answer: ticking it and then looking at Settings tells the same story.
+ * Asks which application should open a link whose domain a desktop app owns. The checkbox writes
+ * the same per-app setting that Settings shows, not a hidden remembered answer.
  */
 export async function askAboutAppLink(app: AppLink, browserName: string): Promise<AppLinkAnswer> {
   const { response, checkboxChecked } = await dialog.showMessageBox({
@@ -30,10 +28,8 @@ export interface ChooseAppOptions {
 }
 
 /**
- * Asks, and writes the answer back if the user asked not to be asked again.
- *
- * Here rather than in each app: the dialog, the wording and the meaning of the answer are the same,
- * and only where settings live differs, which the caller supplies.
+ * Asks, and writes the answer back if the user asked not to be asked again. Here rather than in
+ * each app, because only where settings live differs.
  */
 export async function chooseAppForLink(
   app: AppLink,

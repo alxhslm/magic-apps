@@ -9,7 +9,6 @@ import {
   type WebContents,
   type WebFrameMain,
   session,
-  shell,
   dialog,
   clipboard,
 } from 'electron';
@@ -1824,12 +1823,10 @@ export class AccountsManager {
   }
 
   /**
-   * Learns the address the account is signed in as, once, and keeps it.
+   * Learns and stores the address the account is signed in as.
    *
-   * Nothing else in the app knows it: an account is a name, a colour and a partition, which
-   * is enough to show a mailbox and not enough to answer which Chromium profile belongs to
-   * the same person. The page knows, so it is asked when it settles, and the answer is
-   * written to `accounts.json` for the link router to match against.
+   * An account record holds a name, colour and partition, which cannot tell the link router
+   * which Chromium profile is the same person. The page can, so it is asked once it settles.
    */
   private captureAccountEmail(accountId: string, contents: WebContents): void {
     const account = this.accounts.find((a) => a.id === accountId);

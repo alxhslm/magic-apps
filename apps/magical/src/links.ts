@@ -67,15 +67,12 @@ export function toNativeMeetingUrl(url: string): string {
 }
 
 /**
- * Dispatches an external URL to macOS.
+ * Dispatches an external URL for an account.
  *
- * Shared click gate used by `window.open`, in-view navigation, and the Join Call button.
- * Redirector wrappers (such as Google outbound tracking links or Outlook Safelinks) are
- * unwrapped before dispatch so macOS Universal Links can resolve desktop applications
- * (e.g. Todoist, Notion, Linear, Figma). Meeting URLs (Zoom, Teams) are rewritten to their
- * native custom schemes unless `alwaysJoinInBrowser` is enabled. If a custom meeting scheme
- * has no registered client or throws, it falls back to opening the unwrapped web URL in the
- * system default browser.
+ * Shared click gate used by `window.open`, in-view navigation and the Join Call button.
+ * Redirector wrappers are unwrapped first, so the router sees the destination. Meeting URLs
+ * (Zoom, Teams) are rewritten to their native schemes unless `alwaysJoinInBrowser` is on, and
+ * fall back to the web URL when no client is installed.
  */
 export async function openExternalUrl(rawUrl: string, account?: CalendarAccount): Promise<void> {
   const unwrappedUrl = unwrapRedirectors(rawUrl);

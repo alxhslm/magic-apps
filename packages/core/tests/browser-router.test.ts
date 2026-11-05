@@ -238,13 +238,12 @@ describe('browser-router', () => {
       browser: 'chrome',
       account: { browserProfile: '_auto', email: 'personal@gmail.com' },
       customHome: tmpDir,
-      defaultBrowserId: 'safari',
       fallbackOpenExternal: fallback,
       openCommandRunner: runner,
     });
 
-    // `-n` would start a second browser for a profile that is already on screen, and the
-    // browser is not the Mac's default, so it is started by name without the flag.
+    // `-n` would start a second browser for a profile already on screen, so the automatic
+    // answer is handed over without the flag.
     expect(runner).toHaveBeenCalledWith([
       '-b',
       'com.google.Chrome',
@@ -288,7 +287,6 @@ describe('browser-router', () => {
       browser: 'chrome',
       account: { browserProfile: '_auto', email: 'personal@gmail.com' },
       customHome: tmpDir,
-      defaultBrowserId: 'safari',
       fallbackOpenExternal: fallback,
       openCommandRunner: runner,
     });
@@ -355,7 +353,6 @@ describe('browser-router', () => {
     const runner = vi.fn().mockResolvedValue(undefined);
 
     await openExternalUrl('https://meet.google.com/abc-defg-hij', {
-      account: { browser: 'system' },
       fallbackOpenExternal: fallback,
       openCommandRunner: runner,
     });

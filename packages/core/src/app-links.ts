@@ -16,14 +16,9 @@ export interface AppLink {
 /**
  * The app that owns this URL's host, or `null`.
  *
- * Deliberately a hand-written list rather than anything clever: macOS's own universal-link
- * resolution cannot be queried (every LaunchServices call answers with a browser, and the
- * registry that knows needs root), and applying an account's browser profile means starting the
- * browser ourselves, which skips that resolution. Naming an app here is how a link gets to it
- * while every other link keeps the account's profile.
- *
- * Google's own domains are absent on purpose: a Drive or Docs link has to open in the account's
- * profile, which is the point of the setting.
+ * A hand-written list, because macOS's universal-link registry cannot be queried and starting the
+ * browser ourselves to apply a profile skips it. Google's own domains are absent on purpose: a
+ * Drive or Docs link has to keep the account's profile.
  */
 export function appForUrl(rawUrl: string): AppLink | null {
   let host: string;
@@ -50,11 +45,8 @@ export function appForUrl(rawUrl: string): AppLink | null {
 }
 
 /**
- * The table, validated.
- *
- * It ships inside the app, so a malformed entry is a build mistake rather than user input. It is
- * dropped rather than thrown over, because the cost of an unreadable entry is a link that opens
- * in the browser, and the cost of throwing is a link that does not open at all.
+ * The table, validated. A malformed entry is dropped rather than thrown over: it ships with the
+ * app, and a link opening in the browser beats one that does not open.
  */
 export function readApps(): AppLink[] {
   const raw = (table as { apps?: unknown }).apps;
@@ -79,7 +71,7 @@ export function readApps(): AppLink[] {
  */
 export type AppLinkMode = 'auto' | 'ask' | 'never';
 
-/** The user's answer for each app, keyed by bundle id. An absent key means `auto`. */
+/** Per-app choice keyed by bundle id. An absent key means `auto`. */
 export type AppLinkChoices = Record<string, AppLinkMode>;
 
 export interface AppLinkDecision {
@@ -94,10 +86,8 @@ export interface AppLinkAnswer {
 }
 
 /**
- * Whether this link belongs to its app, given that app's setting and, for `ask`, the user.
- *
- * Separate from routing so the three modes and the asking path can be tested without a browser, a
- * desktop app or a dialog.
+ * Whether this link belongs to its app, given that app's setting and, for `ask`, the user. Kept
+ * separate from routing so it is testable without a browser, desktop app or dialog.
  */
 export async function appLinkDecision(
   app: AppLink,
@@ -119,13 +109,4 @@ export function modeFromAnswer(answer: AppLinkAnswer): AppLinkMode {
 export function appLinkMode(app: AppLink, choices: AppLinkChoices | undefined): AppLinkMode {
   const chosen = choices?.[app.bundleId];
   return chosen === 'ask' || chosen === 'never' ? chosen : 'auto';
-}
-
-/** The host a remembered answer is keyed by: the address bar's, lowercased. */
-export function hostOf(rawUrl: string): string | null {
-  try {
-    return new URL(rawUrl).hostname.toLowerCase() || null;
-  } catch {
-    return null;
-  }
 }

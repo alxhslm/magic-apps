@@ -17,19 +17,13 @@ export interface MagicalSettings {
   theme: 'system' | 'light' | 'dark';
   launchAtLogin: boolean;
   /**
-   * Which browser opens event links and browser-joined calls.
+   * Which browser opens event links and browser-joined calls. `system` hands the URL to macOS.
    *
-   * One setting for the app rather than one per account: it is where someone works, not
-   * who they are, and the per-account part that does vary is the Chromium profile. `system`
-   * hands the URL to macOS, which is what an install that never chose does.
+   * One setting for the app: the browser is where someone works, while the per-account
+   * variable is the Chromium profile.
    */
   openLinksIn: string;
-  /**
-   * What to do for each app in the link table, keyed by bundle id.
-   *
-   * `auto` opens the app, `ask` shows the choice each time, `never` sends the link to the browser
-   * with the account's profile. An absent key means `auto`.
-   */
+  /** Per-app handling for links the table assigns to a desktop app. See `app-links.ts`. */
   appLinkChoices: Record<string, 'auto' | 'ask' | 'never'>;
   transparentBackground: boolean;
   /** Hides Google's companion rail, the same thing Magimail's setting of this
