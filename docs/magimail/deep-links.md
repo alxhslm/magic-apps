@@ -10,13 +10,16 @@ account is restored. See
 
 ## Route taxonomy
 
-| Route                    | Parameters                         | Action performed                                           |
-| :----------------------- | :--------------------------------- | :--------------------------------------------------------- |
-| `magimail://inbox`       | `account`                          | Focuses main window and switches to account inbox.         |
-| `magimail://thread/<id>` | `account`, `action`                | Opens the thread, or triages it where `action` specifies.  |
-| `magimail://search`      | `q`, `query`, `account`            | Runs Gmail search query or focuses search in target view.  |
-| `magimail://compose`     | `account`, `to`, `su`, `body`      | Launches compose pop-out or triggers in-window compose.    |
-| `magimail://share`       | `files`, `text`, `url`, `to`, `su` | Opens compose window and synthesises file drop attachment. |
+| Route                        | Parameters                         | Action performed                                                           |
+| :--------------------------- | :--------------------------------- | :------------------------------------------------------------------------- |
+| `magimail://inbox`           | `account`                          | Focuses main window and switches to account inbox.                         |
+| `magimail://sent`            | `account`                          | Opens Sent. Also `drafts`, `starred`, `spam`, `trash`, `all`, `important`. |
+| `magimail://label/<name>`    | `account`                          | Opens a label; nested labels keep their slashes.                           |
+| `magimail://category/<name>` | `account`                          | Opens a category.                                                          |
+| `magimail://thread/<id>`     | `account`, `action`                | Opens the thread, or triages it where `action` specifies.                  |
+| `magimail://search`          | `q`, `query`, `account`            | Runs Gmail search query or focuses search in target view.                  |
+| `magimail://compose`         | `account`, `to`, `su`, `body`      | Launches compose pop-out or triggers in-window compose.                    |
+| `magimail://share`           | `files`, `text`, `url`, `to`, `su` | Opens compose window and synthesises file drop attachment.                 |
 
 ### Inbox (`magimail://inbox`)
 

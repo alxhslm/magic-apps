@@ -902,6 +902,19 @@ function dispatchProtocolUrl(rawUrl: string): void {
       handleSearch(query, targetAccountId);
       return;
     }
+
+    if (parsed.hostname === 'quick-add') {
+      const templateUrl = eventTemplateUrl(parsed);
+      if (templateUrl) {
+        void handleNewEvent(parsed.searchParams.get('account') || undefined, true, templateUrl);
+        return;
+      }
+    }
+
+    if (parsed.hostname === 'tasks') {
+      handleTasks(parsed.searchParams.get('account') || undefined);
+      return;
+    }
   } catch {
     // If URL parsing fails, let handleWidgetLink / calendarService attempt or log warning
   }
@@ -937,7 +950,11 @@ function handleWidgetLink(rawUrl: string): boolean {
   return false;
 }
 
-async function handleNewEvent(targetAccountId?: string, external = false): Promise<void> {
+async function handleNewEvent(
+  targetAccountId?: string,
+  external = false,
+  templateUrl?: string,
+): Promise<void> {
   // The menu bar and the widget have no window behind them, and the accounts come from one.
   if (!accounts) createWindow();
   const manager = accounts;
@@ -957,7 +974,43 @@ async function handleNewEvent(targetAccountId?: string, external = false): Promi
     applyMenu();
   }
 
+  if (templateUrl) {
+    manager.openInAccount(account.id, templateUrl);
+    return;
+  }
+
   await manager.triggerCalendarAction('createEvent', account.id);
+}
+
+/**
+ * Google's add-to-calendar form, rebuilt from the fields we pass through a deep link.
+ *
+ * Loading it in the account's view lets Google's own editor prefill the event, so the
+ * title, time, details and location survive without scripting the form.
+ */
+function eventTemplateUrl(link: URL): string | null {
+  if (!link.searchParams.get('text') && !link.searchParams.get('dates')) return null;
+
+  const fields = new URLSearchParams({ action: 'TEMPLATE' });
+  for (const key of ['text', 'dates', 'details', 'location', 'ctz', 'trp', 'crm']) {
+    const value = link.searchParams.get(key);
+    if (value) fields.set(key, value);
+  }
+  return `https://calendar.google.com/calendar/render?${fields.toString()}`;
+}
+
+/** Opens the full-screen Tasks route for an account, which is a Calendar route. */
+function handleTasks(targetAccountId?: string): void {
+  if (!accounts) createWindow();
+  const manager = accounts;
+  if (!manager) return;
+
+  const account = targetAccountId
+    ? manager.getAccounts().find((a) => a.id === targetAccountId)
+    : manager.getActiveAccount();
+  if (!account) return;
+
+  manager.openInAccount(account.id, 'https://calendar.google.com/calendar/u/0/r/tasks');
 }
 
 /**

@@ -299,6 +299,40 @@ describe('browser-router', () => {
     ]);
   });
 
+  it('opens a Gmail link in Magimail when it is installed', async () => {
+    const fallback = vi.fn().mockResolvedValue(undefined);
+    const runner = vi.fn().mockResolvedValue(undefined);
+
+    await openExternalUrl('https://mail.google.com/mail/u/0/#inbox', {
+      browser: 'safari',
+      isAppInstalled: async () => true,
+      fallbackOpenExternal: fallback,
+      openCommandRunner: runner,
+    });
+
+    expect(fallback).toHaveBeenCalledWith('magimail://inbox');
+    expect(runner).not.toHaveBeenCalled();
+  });
+
+  it('leaves a Gmail link to the browser when Magimail is not installed', async () => {
+    const fallback = vi.fn().mockResolvedValue(undefined);
+    const runner = vi.fn().mockResolvedValue(undefined);
+
+    await openExternalUrl('https://mail.google.com/mail/u/0/#inbox', {
+      browser: 'safari',
+      isAppInstalled: async () => false,
+      fallbackOpenExternal: fallback,
+      openCommandRunner: runner,
+    });
+
+    expect(fallback).not.toHaveBeenCalled();
+    expect(runner).toHaveBeenCalledWith([
+      '-b',
+      'com.apple.Safari',
+      'https://mail.google.com/mail/u/0/#inbox',
+    ]);
+  });
+
   it('openExternalUrl delegates system browser to fallback', async () => {
     const fallback = vi.fn().mockResolvedValue(undefined);
     const runner = vi.fn().mockResolvedValue(undefined);

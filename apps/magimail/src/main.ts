@@ -32,8 +32,6 @@ import {
   type WindowActionTarget,
   viewIsAlive,
   WindowRebuilder,
-  unwrapRedirectors,
-  openExternalUrl,
 } from '@magimail/core';
 import { DEFAULT_PARTITION, IPC_CHANNELS } from './constants.js';
 import {
@@ -505,7 +503,7 @@ async function composeFromMainWindow({ popout = false } = {}): Promise<void> {
  * button, or the menu bar popover with its filter on "All". Neither has an
  * account on screen, so both ask.
  */
-async function composeWithoutAccount(): Promise<void> {
+async function composeWithoutAccount(fields?: string): Promise<void> {
   if (!accountsManager) return;
   const picked = await pickAccount(
     accountsManager,
@@ -513,7 +511,7 @@ async function composeWithoutAccount(): Promise<void> {
     uiString('dialog.composeAccount.detail'),
   );
   if (!picked) return;
-  await accountsManager.triggerMailAction('compose');
+  await accountsManager.triggerComposePopout(fields);
 }
 
 /** Holds or releases the ⌥⌘C global shortcut to match the current setting. */
@@ -560,6 +558,17 @@ function threadTriageFromLink(
 }
 
 /** Dispatches incoming mailto: or magimail:// protocol URLs to the appropriate handler. */
+/** Gmail's own mailbox fragments, as the deep-link host that names each one. */
+const MAILBOX_ROUTES: Record<string, string> = {
+  sent: '#sent',
+  drafts: '#drafts',
+  starred: '#starred',
+  spam: '#spam',
+  trash: '#trash',
+  all: '#all',
+  important: '#imp',
+};
+
 function dispatchProtocolUrl(url: string): void {
   // Composing needs the manager the window owns, so a window is built for a mailto: link.
   if (url.startsWith('mailto:')) {
@@ -608,9 +617,20 @@ function dispatchProtocolUrl(url: string): void {
     const parsed = new URL(url);
     const targetAccountId = parsed.searchParams.get('account') || undefined;
 
+    const mailbox = MAILBOX_ROUTES[parsed.hostname];
     if (parsed.hostname === 'inbox') {
       if (targetAccountId) {
         accountsManager.switchAccount(targetAccountId);
+      }
+    } else if (mailbox) {
+      accountsManager.openInAccount(targetAccountId, `https://mail.google.com/mail/u/0/${mailbox}`);
+    } else if (parsed.hostname === 'label' || parsed.hostname === 'category') {
+      const name = parsed.pathname.replace(/^\//, '');
+      if (name) {
+        accountsManager.openInAccount(
+          targetAccountId,
+          `https://mail.google.com/mail/u/0/#${parsed.hostname}/${name}`,
+        );
       }
     } else if (parsed.hostname === 'search') {
       const query = parsed.searchParams.get('q') || parsed.searchParams.get('query') || '';
@@ -626,11 +646,12 @@ function dispatchProtocolUrl(url: string): void {
         accountsManager.focusSearchInActiveView();
       }
     } else if (parsed.hostname === 'compose') {
+      const fields = parsed.searchParams.toString();
       if (targetAccountId) {
         accountsManager.switchAccount(targetAccountId);
-        void accountsManager.triggerMailAction('compose', targetAccountId);
+        void accountsManager.triggerComposePopout(fields || undefined);
       } else {
-        void composeWithoutAccount();
+        void composeWithoutAccount(fields || undefined);
       }
     } else if (parsed.hostname === 'thread') {
       const threadId = parsed.pathname.replace(/^\//, '');

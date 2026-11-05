@@ -54,6 +54,33 @@ Instead the default is the browser, and the desktop app is reached one of two wa
 
 Magimail has no app rewrites; every external link takes the browser route.
 
+## The other app's own links
+
+A Gmail address in a calendar event and a Calendar address in an email belong in the app that
+already shows that data. `crossAppLink` in `@magimail/core` maps one app's web addresses to the
+other's deep link:
+
+| Link                                                   | Deep link                                    |
+| :----------------------------------------------------- | :------------------------------------------- |
+| `mail.google.com/mail/u/N/#inbox`                      | `magimail://inbox`                           |
+| `mail.google.com/mail/u/N/#inbox/<thread>`             | `magimail://thread/<thread>`                 |
+| `mail.google.com/mail/u/N/#search/<query>`             | `magimail://search?q=<query>`                |
+| `mail.google.com/mail/u/N/#sent`, `#label/…`           | `magimail://search?q=in:sent`, `label:…`     |
+| `mail.google.com/mail/?view=cm&to=…`                   | `magimail://compose?to=…`                    |
+| `calendar.google.com/…/day/2026/11/5`                  | `magical://date?at=2026-11-05T00:00:00.000Z` |
+| `calendar.google.com/…?eid=<eid>`                      | `magical://event?eid=<eid>&action=reveal`    |
+| `calendar.google.com/…/r/search?q=<query>`             | `magical://search?q=<query>`                 |
+| `calendar.google.com/calendar/render?action=TEMPLATE…` | `magical://quick-add?text=…&dates=…`         |
+| `tasks.google.com/…`                                   | `magical://tasks`                            |
+
+The `u/<n>` segment is the browser's sign-in order, not one of our account ids, so it is dropped
+and the receiving app opens its active account. The day path becomes midnight, because the
+calendar side either reveals an event, which is a moment, or opens a day, which is a date.
+
+`openExternalUrl` uses the deep link only when the other app is installed, asked by bundle id.
+`URLForApplicationToOpenURL` answers `nil` for a custom scheme even where the app is there, so
+the scheme question would make every deep link look unowned.
+
 ## Browser and Chromium profile
 
 Two Google accounts signed in to the same Chromium browser share nothing, and a Meet link that

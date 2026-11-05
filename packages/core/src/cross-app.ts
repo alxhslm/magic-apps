@@ -1,0 +1,174 @@
+/**
+ * Turns a link for one app's web interface into the other app's deep link.
+ *
+ * A calendar link in an email belongs in Magical, and a Gmail link in an event belongs in
+ * Magimail: both are already running, both show the same Google data, and the browser is the
+ * only place the link is guaranteed to be the wrong one. Nothing here guesses at which account
+ * a link belongs to; the app on the other side opens its active account, which is the account
+ * whose link you were looking at.
+ */
+
+export interface CrossAppLink {
+  /** The app that should open this, as a deep-link scheme. */
+  scheme: 'magimail' | 'magical';
+  /** The URL to hand to macOS, which routes it to that app. */
+  deepLink: string;
+}
+
+/** Bundle identifiers, so the caller can check the other app is installed before offering it. */
+export const APP_BUNDLE_IDS = {
+  magimail: 'com.alexhaslam.magimail',
+  magical: 'com.alexhaslam.magical',
+} as const;
+
+/**
+ * A Gmail or Google Calendar web address, as the deep link that opens it in our own app.
+ *
+ * Returns null for everything else, including the app's own internal navigation: a link that
+ * stays inside one app never reaches the router at all, and a link to something else is the
+ * browser's business.
+ */
+export function crossAppLink(rawUrl: string): CrossAppLink | null {
+  let url: URL;
+  try {
+    url = new URL(rawUrl);
+  } catch {
+    return null;
+  }
+
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') return null;
+
+  const host = url.hostname.toLowerCase();
+  if (host === 'mail.google.com' || host === 'gmail.com' || host === 'www.gmail.com') {
+    return { scheme: 'magimail', deepLink: gmailDeepLink(url) };
+  }
+  if (host === 'calendar.google.com') {
+    return { scheme: 'magical', deepLink: calendarDeepLink(url) };
+  }
+  if (
+    (host === 'www.google.com' || host === 'google.com') &&
+    url.pathname.startsWith('/calendar/')
+  ) {
+    return { scheme: 'magical', deepLink: calendarDeepLink(url) };
+  }
+  if (host === 'tasks.google.com') {
+    return { scheme: 'magical', deepLink: 'magical://tasks' };
+  }
+  return null;
+}
+
+/** Gmail's folder views, as the deep links Magimail answers. */
+const GMAIL_VIEW_ROUTES: Record<string, string> = {
+  sent: 'sent',
+  drafts: 'drafts',
+  starred: 'starred',
+  spam: 'spam',
+  trash: 'trash',
+  all: 'all',
+  imp: 'important',
+};
+
+/**
+ * Gmail addresses its views in the fragment: `#inbox/<thread>`, `#search/<query>`, `#sent`.
+ *
+ * The `u/<n>` segment is the account's position in the browser's own sign-in list, which has
+ * nothing to do with our account ids, so it is dropped rather than misread as one.
+ */
+function gmailDeepLink(url: URL): string {
+  // `?view=cm&to=…&su=…&body=…` is the compose link Gmail hands out.
+  if (url.searchParams.get('view') === 'cm') {
+    const fields = new URLSearchParams();
+    for (const key of ['to', 'cc', 'bcc', 'su', 'subject', 'body']) {
+      const value = url.searchParams.get(key);
+      if (value) fields.set(key, value);
+    }
+    const query = fields.toString();
+    return `magimail://compose${query ? `?${query}` : ''}`;
+  }
+
+  const fragment = url.hash.replace(/^#/, '');
+  const [view, ...rest] = fragment.split('/');
+
+  if (view === 'search') {
+    const query = rest.join('/');
+    return query
+      ? `magimail://search?q=${encodeURIComponent(decodeURIComponent(query))}`
+      : 'magimail://inbox';
+  }
+
+  // A thread can sit under any mailbox, and under a label after the label's own segments.
+  // `#all/FMfcgz…`, `#sent/FMfcgz…` and `#label/Work/FMfcgz…` all name one message.
+  const threadId = view === 'label' || view === 'category' ? rest[rest.length - 1] : rest[0];
+  if (threadId && isGmailThreadId(threadId)) {
+    return `magimail://thread/${encodeURIComponent(threadId)}`;
+  }
+
+  const route = GMAIL_VIEW_ROUTES[view];
+  if (route) {
+    return `magimail://${route}`;
+  }
+
+  if ((view === 'label' || view === 'category') && rest.length > 0) {
+    return `magimail://${view}/${rest.join('/')}`;
+  }
+
+  return 'magimail://inbox';
+}
+
+/**
+ * Calendar addresses carry the date in the path and the event in the `eid` parameter.
+ *
+ * `at` is midnight on the day shown: the other app reveals the event, which is a moment, or
+ * opens the day, which is a date, and midnight is the date without inventing a time.
+ */
+function calendarDeepLink(url: URL): string {
+  // Google's add-to-calendar form. Keep the fields it understands and let Magical open its
+  // own event editor with them, rather than rebuilding an editor or dropping the event.
+  if (url.searchParams.get('action') === 'TEMPLATE') {
+    const fields = new URLSearchParams({ action: 'TEMPLATE' });
+    for (const key of ['text', 'dates', 'details', 'location', 'ctz', 'trp', 'crm']) {
+      const value = url.searchParams.get(key);
+      if (value) fields.set(key, value);
+    }
+    return `magical://quick-add?${fields.toString()}`;
+  }
+
+  const query = url.searchParams.get('q');
+  if (/\/search(?:\/|$)/.test(url.pathname)) {
+    return query ? `magical://search?q=${encodeURIComponent(query)}` : 'magical://search';
+  }
+
+  if (/\/r\/tasks(?:\/|$)/.test(url.pathname)) {
+    return 'magical://tasks';
+  }
+
+  const eid = url.searchParams.get('eid');
+  if (eid) {
+    return `magical://event?eid=${encodeURIComponent(eid)}&action=reveal`;
+  }
+
+  const day = dayFromPath(url.pathname);
+  if (day) {
+    return `magical://date?at=${encodeURIComponent(`${day}T00:00:00.000Z`)}`;
+  }
+
+  return 'magical://open';
+}
+
+/** Gmail's opaque thread ids, plus the legacy hex form. */
+function isGmailThreadId(value: string): boolean {
+  return /^(?:FMfcgz|KtbxL)[A-Za-z0-9]+$/.test(value) || /^[0-9a-f]{16,}$/i.test(value);
+}
+
+/** `/calendar/u/0/r/day/2026/11/5` and its `week`, `month` and `year` siblings. */
+function dayFromPath(pathname: string): string | null {
+  const parts = pathname.split('/').filter(Boolean);
+  const yearIndex = parts.findIndex((part) => /^\d{4}$/.test(part));
+
+  if (yearIndex === -1 || parts.length < yearIndex + 3) return null;
+
+  const [year, month, day] = parts.slice(yearIndex, yearIndex + 3);
+  if (!/^\d{1,2}$/.test(month) || !/^\d{1,2}$/.test(day)) return null;
+
+  return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+}

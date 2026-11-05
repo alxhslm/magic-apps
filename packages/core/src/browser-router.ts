@@ -5,6 +5,7 @@ import { execFile, execFileSync } from 'node:child_process';
 import { promisify } from 'node:util';
 import { app, shell } from 'electron';
 import { createLogger, redactUrl } from './logger.js';
+import { APP_BUNDLE_IDS, crossAppLink } from './cross-app.js';
 import type { AccountConfig } from './account.js';
 
 const log = createLogger('BrowserRouter');
@@ -149,6 +150,35 @@ function readLaunchServicesJson(plistPath: string): string {
   });
 }
 
+/**
+ * Whether an application is installed, asked of LaunchServices by bundle id.
+ *
+ * Not by asking who handles the app's URL scheme: `URLForApplicationToOpenURL` answers `nil`
+ * for a custom scheme even where the app is installed, so the scheme question would leave every
+ * deep link looking unowned.
+ */
+const INSTALLED_SCRIPT = `function run(argv) {
+  ObjC.import('AppKit');
+  const app = $.NSWorkspace.sharedWorkspace.URLForApplicationWithBundleIdentifier(argv[0]);
+  return app ? app.path.js : '';
+}`;
+
+async function isAppInstalled(bundleId: string): Promise<boolean> {
+  try {
+    const { stdout } = await execFileAsync('/usr/bin/osascript', [
+      '-l',
+      'JavaScript',
+      '-e',
+      INSTALLED_SCRIPT,
+      bundleId,
+    ]);
+    return stdout.trim().length > 0;
+  } catch (err) {
+    log.warn(`Could not check whether ${bundleId} is installed:`, err);
+    return false;
+  }
+}
+
 function defaultHandlerName(): string | undefined {
   try {
     return app.getApplicationNameForProtocol('https://') || undefined;
@@ -288,6 +318,8 @@ export interface OpenExternalUrlOptions {
   fallbackOpenExternal?: (url: string) => Promise<void>;
   /** Custom home dir for profile reading (testing). */
   customHome?: string;
+  /** Whether another app is installed. Injectable so a test does not need it to be. */
+  isAppInstalled?: (bundleId: string) => Promise<boolean>;
 }
 
 /**
@@ -323,6 +355,17 @@ export async function openExternalUrl(
   // owned by a desktop app (Universal Links) out of the browser.
   if (!browserDef || !browserDef.bundleId) {
     await fallback(url);
+    return;
+  }
+
+  // The other app's own web interface belongs in that app, which already shows the same data.
+  // Only offered when that app is installed, because a deep link nobody handles leaves the
+  // user on an error page where a browser tab would have worked.
+  const crossApp = crossAppLink(url);
+  const appInstalled = options.isAppInstalled ?? isAppInstalled;
+  if (crossApp && (await appInstalled(APP_BUNDLE_IDS[crossApp.scheme]).catch(() => false))) {
+    log.info(`Opening ${redactUrl(url)} in ${crossApp.scheme} (${crossApp.deepLink})`);
+    await fallback(crossApp.deepLink);
     return;
   }
 

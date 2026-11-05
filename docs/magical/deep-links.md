@@ -10,13 +10,14 @@ account is restored. See
 
 ## Route taxonomy
 
-| Route                 | Parameters                       | Action performed                                             |
-| :-------------------- | :------------------------------- | :----------------------------------------------------------- |
-| `magical://event`     | `account`, `eid`, `at`, `action` | Reveals the event in the calendar or executes an action.     |
-| `magical://date`      | `account`, `at`                  | Opens Google Calendar on the specified date.                 |
-| `magical://search`    | `q`, `query`, `account`          | Runs calendar search query or focuses search in target view. |
-| `magical://quick-add` | _None_                           | Prompts the new event composer.                              |
-| `magical://open`      | _None_                           | Surfaces and focuses the main calendar window.               |
+| Route                 | Parameters                                        | Action performed                                                 |
+| :-------------------- | :------------------------------------------------ | :--------------------------------------------------------------- |
+| `magical://event`     | `account`, `eid`, `at`, `action`                  | Reveals the event in the calendar or executes an action.         |
+| `magical://date`      | `account`, `at`                                   | Opens Google Calendar on the specified date.                     |
+| `magical://search`    | `q`, `query`, `account`                           | Runs calendar search query or focuses search in target view.     |
+| `magical://quick-add` | `account`, `text`, `dates`, `details`, `location` | Opens the new event composer, prefilled when fields are present. |
+| `magical://tasks`     | `account`                                         | Opens the full-screen Tasks view.                                |
+| `magical://open`      | _None_                                            | Surfaces and focuses the main calendar window.                   |
 
 ### Event routing (`magical://event`)
 
@@ -71,11 +72,12 @@ magical://search?q=dentist&account=personal-account
 - If `q` is empty or omitted, Magical focuses the search input in the active view (or triggers the native
   search action).
 
-### Widget shortcuts (`magical://quick-add`, `magical://open`)
+### New events and tasks (`magical://quick-add`, `magical://tasks`)
 
-Emitted by WidgetKit widgets and the menu bar popover:
+Emitted by WidgetKit widgets, the menu bar popover and cross-app links:
 
-- **`magical://quick-add`**: Prompts the account picker (if multiple accounts) and opens event creation.
+- **`magical://quick-add`**: Opens event creation. With `text`, `dates`, `details`, `location` or `ctz`, it loads Google's add-to-calendar form in the account's view so the editor opens prefilled; without them it prompts the account picker if multiple accounts.
+- **`magical://tasks`**: Opens the full-screen Tasks route for the account.
 - **`magical://open`**: Raises and focuses the main window.
 
 ## Outbound links
