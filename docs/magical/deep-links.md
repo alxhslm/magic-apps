@@ -86,3 +86,8 @@ in the chosen browser and account profile. Meeting links (Zoom and Microsoft Tea
 and projects are rewritten to custom URL schemes; see
 [`conference-links.md`](conference-links.md) and
 [`../shared/third-party-links.md`](../shared/third-party-links.md).
+
+`toTodoistAppUrl` rewrites `app.todoist.com/app/task/<id>` to `todoist://task?id=<id>` and the
+project form the same way. `openTodoistLinksInApp` (General, **Open Todoist links in the Todoist
+app**) is on by default; off sends those links to the browser and account profile. A missing Todoist
+client falls back to the browser through `hasApplicationForUrl`, like a meeting link.
