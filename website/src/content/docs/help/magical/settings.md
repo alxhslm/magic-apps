@@ -31,6 +31,10 @@ Which browser opens links that leave the app.
 - **Except the apps named in the link table**: Notion, Linear, Todoist, Figma, Slack, Asana, Loom,
   Miro and Dropbox links open in their desktop app, because those apps own the link.
 
+**Links owned by an app** chooses what that exception does: `Always open in the app`, `Ask, and
+remember`, or `Never, always use the browser`. Asking shows a dialog naming both destinations and
+remembers the answer for that domain, so it asks once.
+
 ### Times and Dates
 
 Magical's date and time formats follow your Mac.

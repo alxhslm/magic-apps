@@ -42,6 +42,11 @@ public final class SettingsModel: ObservableObject {
         didSet { emit("openLinksIn", openLinksIn) }
     }
 
+    /// Whether a link whose domain a desktop app owns opens there: always, after asking, or never.
+    @Published public var openLinksInApps: String = "auto" {
+        didSet { emit("openLinksInApps", openLinksInApps) }
+    }
+
     /// Electron accelerator for the system-wide quick compose chord, or "off".
     @Published public var quickComposeHotkey: String = "Alt+Command+C" {
         didSet { emit("quickComposeHotkey", quickComposeHotkey) }
@@ -204,6 +209,9 @@ public final class SettingsModel: ObservableObject {
         }
         if let v = dict["openLinksIn"] as? String {
             openLinksIn = v
+        }
+        if let v = dict["openLinksInApps"] as? String {
+            openLinksInApps = v
         }
         if let v = dict["quickComposeHotkey"] as? String {
             quickComposeHotkey = v

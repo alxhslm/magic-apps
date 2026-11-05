@@ -30,6 +30,7 @@ import {
   viewIsAlive,
   unwrapRedirectors,
   openExternalUrl,
+  type OpenExternalUrlOptions,
   ACCOUNT_EMAIL_SCRIPT,
   readAccountEmail,
 } from '@magimail/core';
@@ -57,6 +58,7 @@ import { openDetachedThreadWindow } from './compose.js';
 import { loadAccounts, saveAccounts, createNewAccount } from './account-store.js';
 import { withStoredUnreadCounts } from './mailbox/unread-count-store.js';
 import { loadSettings, saveSetting } from './settings-store.js';
+import { chooseAppForLink } from './app-links-choice.js';
 import { pressRefreshControl } from './thread-actions/sync-driver.js';
 import {
   type MailboxSource,
@@ -867,7 +869,7 @@ export class AccountsManager {
         }
         const target = unwrapRedirectors(childUrl);
         const activeAcc = this.accounts.find((a) => a.id === this.activeAccountId);
-        void openExternalUrl(target, { browser: loadSettings().openLinksIn, account: activeAcc });
+        void openExternalUrl(target, this.outboundLinkOptions(activeAcc));
         return { action: 'deny' };
       });
 
@@ -943,7 +945,7 @@ export class AccountsManager {
 
       const target = unwrapRedirectors(url);
       log.info(`Account ${account.id} opening in the browser:`, redactUrl(target));
-      void openExternalUrl(target, { browser: loadSettings().openLinksIn, account });
+      void openExternalUrl(target, this.outboundLinkOptions(account));
       return { action: 'deny' };
     });
 
@@ -959,7 +961,7 @@ export class AccountsManager {
         event.preventDefault();
         const target = unwrapRedirectors(url);
         log.info(`Account ${account.id} navigating out to the browser:`, redactUrl(target));
-        void openExternalUrl(target, { browser: loadSettings().openLinksIn, account });
+        void openExternalUrl(target, this.outboundLinkOptions(account));
       }
     });
 
@@ -1857,6 +1859,23 @@ export class AccountsManager {
       log.info(`Recorded the signed-in address for account ${accountId}`);
       this.onAccountsChanged?.();
     });
+  }
+
+  /**
+   * How a link should leave this app, for one account.
+   *
+   * Reads settings each time rather than caching: the user can change any of it while the window is
+   * open, and a link clicked a second later should follow the new answer.
+   */
+  private outboundLinkOptions(account?: AccountConfig): OpenExternalUrlOptions {
+    const settings = loadSettings();
+    return {
+      browser: settings.openLinksIn,
+      appLinks: settings.openLinksInApps,
+      appLinkOverrides: settings.appLinkOverrides,
+      askAboutAppLink: chooseAppForLink,
+      account,
+    };
   }
 
   public setAccountAuthRequired(accountId: string, needsAuth: boolean): void {

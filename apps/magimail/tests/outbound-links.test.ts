@@ -10,7 +10,12 @@ vi.mock('@magimail/core', async (importOriginal) => {
 });
 
 vi.mock('../src/settings-store.js', () => ({
-  loadSettings: () => ({ openLinksIn: 'chrome' }),
+  loadSettings: () => ({
+    openLinksIn: 'chrome',
+    openLinksInApps: 'auto',
+    appLinkOverrides: {},
+  }),
+  saveSetting: vi.fn(),
 }));
 
 const accounts = [
@@ -70,9 +75,9 @@ describe('links clicked in a pop-out', () => {
     openDetachedComposeWindow('/preload.js', 'persist:one');
 
     expect(handlers.at(-1)!({ url: 'https://app.notion.com/p/page' })).toEqual({ action: 'deny' });
-    expect(openExternalUrl).toHaveBeenCalledWith('https://app.notion.com/p/page', {
-      browser: 'chrome',
-      account: accounts[0],
-    });
+    expect(openExternalUrl).toHaveBeenCalledWith(
+      'https://app.notion.com/p/page',
+      expect.objectContaining({ browser: 'chrome', account: accounts[0] }),
+    );
   });
 });

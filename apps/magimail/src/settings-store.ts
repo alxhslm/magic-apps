@@ -16,6 +16,15 @@ export interface AppSettings {
    * hands the URL to macOS, which is what an install that never chose does.
    */
   openLinksIn: string;
+  /**
+   * What to do with a link whose domain a desktop app owns.
+   *
+   * `auto` opens the app, `ask` asks once per domain and remembers the answer, `never` ignores the
+   * table so every link takes the account's browser profile.
+   */
+  openLinksInApps: 'auto' | 'ask' | 'never';
+  /** Answers given to `ask`, keyed by host. */
+  appLinkOverrides: Record<string, 'app' | 'browser'>;
   launchAtLogin: boolean;
   dockBadgeMode: DockBadgeMode;
   showMenuBarTray: boolean;
@@ -109,6 +118,8 @@ const SETTINGS_FILENAME = 'settings.json';
 const DEFAULT_SETTINGS: AppSettings = {
   theme: 'system',
   openLinksIn: 'system',
+  openLinksInApps: 'auto',
+  appLinkOverrides: {},
   launchAtLogin: false,
   dockBadgeMode: 'allUnread',
   showMenuBarTray: true,

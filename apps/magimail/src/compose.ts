@@ -5,6 +5,7 @@ import { GMAIL_COMPOSE_URL, DEFAULT_PARTITION } from './constants.js';
 import { createComposeWindowOptions, createThreadWindowOptions } from './window.js';
 import { getHideSidebarCss, injectGmailStyles } from './css.js';
 import { loadSettings } from './settings-store.js';
+import { chooseAppForLink } from './app-links-choice.js';
 
 const openComposeWindows = new Set<BrowserWindow>();
 
@@ -58,8 +59,12 @@ export function openDetachedComposeWindow(
     }
     // A pop-out belongs to one account, and its links belong wherever that account's links
     // go: the same browser, and the profile signed in as the same person.
+    const settings = loadSettings();
     void openExternalUrl(unwrapRedirectors(url), {
-      browser: loadSettings().openLinksIn,
+      browser: settings.openLinksIn,
+      appLinks: settings.openLinksInApps,
+      appLinkOverrides: settings.appLinkOverrides,
+      askAboutAppLink: chooseAppForLink,
       account: loadAccounts().find((a) => a.partition === partitionName),
     });
     return { action: 'deny' };
@@ -116,8 +121,12 @@ export function openDetachedThreadWindow(
     }
     // A pop-out belongs to one account, and its links belong wherever that account's links
     // go: the same browser, and the profile signed in as the same person.
+    const settings = loadSettings();
     void openExternalUrl(unwrapRedirectors(url), {
-      browser: loadSettings().openLinksIn,
+      browser: settings.openLinksIn,
+      appLinks: settings.openLinksInApps,
+      appLinkOverrides: settings.appLinkOverrides,
+      askAboutAppLink: chooseAppForLink,
       account: loadAccounts().find((a) => a.partition === partitionName),
     });
     return { action: 'deny' };

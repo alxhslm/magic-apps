@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { appForUrl, readApps } from '../src/app-links.js';
+import { describe, it, expect, vi } from 'vitest';
+import { appForUrl, appLinkDecision, readApps } from '../src/app-links.js';
 
 describe('appForUrl', () => {
   it('names the app that owns a domain, including its subdomains', () => {
@@ -32,5 +32,35 @@ describe('appForUrl', () => {
       expect(app.bundleId).toMatch(/^[A-Za-z0-9.-]+$/);
       expect(app.hosts.length).toBeGreaterThan(0);
     }
+  });
+});
+
+describe('appLinkDecision', () => {
+  const notion = { name: 'Notion', bundleId: 'notion.id', hosts: ['notion.so'] };
+
+  it('opens the app when the setting says always', async () => {
+    expect((await appLinkDecision(notion, 'notion.so', 'auto', undefined)).useApp).toBe(true);
+  });
+
+  it('never opens the app when the setting says never', async () => {
+    expect((await appLinkDecision(notion, 'notion.so', 'never', undefined)).useApp).toBe(false);
+  });
+
+  it('asks when the setting says ask, and follows the answer', async () => {
+    const ask = async () => ({ choice: 'browser' as const, remember: false });
+    expect((await appLinkDecision(notion, 'notion.so', 'ask', undefined, ask)).useApp).toBe(false);
+  });
+
+  it('does not ask twice once the answer is remembered', async () => {
+    const ask = vi.fn();
+    const decision = await appLinkDecision(notion, 'notion.so', 'ask', { 'notion.so': 'app' }, ask);
+
+    expect(decision.useApp).toBe(true);
+    expect(ask).not.toHaveBeenCalled();
+  });
+
+  it('lets a remembered answer override the always setting', async () => {
+    const decision = await appLinkDecision(notion, 'notion.so', 'auto', { 'notion.so': 'browser' });
+    expect(decision.useApp).toBe(false);
   });
 });

@@ -70,3 +70,51 @@ export function readApps(): AppLink[] {
   }
   return apps;
 }
+
+/**
+ * What to do when a link belongs to a desktop app.
+ *
+ * `auto` opens the app, `ask` puts the choice in front of the user once per domain, and `never`
+ * ignores the table so every link takes the browser and the account's profile.
+ */
+export type AppLinkMode = 'auto' | 'ask' | 'never';
+
+/** A remembered answer, keyed by host, so `ask` only asks once. */
+export type AppLinkOverrides = Record<string, 'app' | 'browser'>;
+
+export interface AppLinkDecision {
+  /** True when the link should go to the app rather than the browser. */
+  useApp: boolean;
+}
+
+/**
+ * Whether this link belongs to its app, given the mode, any remembered answer, and the user.
+ *
+ * Separate from routing so the decision can be tested without a browser, an app or a dialog.
+ */
+export async function appLinkDecision(
+  app: AppLink,
+  host: string,
+  mode: AppLinkMode,
+  remember: AppLinkOverrides | undefined,
+  ask?: (app: AppLink, host: string) => Promise<{ choice: 'app' | 'browser'; remember: boolean }>,
+): Promise<AppLinkDecision> {
+  if (mode === 'never') return { useApp: false };
+
+  const remembered = remember?.[host.toLowerCase()];
+  if (remembered) return { useApp: remembered === 'app' };
+
+  if (mode === 'auto' || !ask) return { useApp: true };
+
+  const answer = await ask(app, host);
+  return { useApp: answer.choice === 'app' };
+}
+
+/** The host a remembered answer is keyed by: the address bar's, lowercased. */
+export function hostOf(rawUrl: string): string | null {
+  try {
+    return new URL(rawUrl).hostname.toLowerCase() || null;
+  } catch {
+    return null;
+  }
+}

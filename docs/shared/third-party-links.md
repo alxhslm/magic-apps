@@ -79,6 +79,17 @@ over with `open -b <bundleId> <url>`; every other link goes to the chosen browse
 profile. An app that refuses the URL falls back to the browser rather than leaving the link
 unopened.
 
+`openLinksInApps` decides what to do with a link the table names:
+
+| Value   | Behaviour                                                                                                  |
+| :------ | :--------------------------------------------------------------------------------------------------------- |
+| `auto`  | open the app                                                                                               |
+| `ask`   | ask once per host, in a dialog with a "remember this" checkbox, and store the answer in `appLinkOverrides` |
+| `never` | ignore the table; the link takes the browser and the account's profile                                     |
+
+A remembered answer outranks the setting, so asking once is enough and `auto` can still be overridden
+for one domain.
+
 Adding an app is one object: a name, a bundle id, and the hosts it owns. A domain missing from the
 table is not broken, it opens in the browser with the right profile, which is where links went
 before the table existed. Google's own domains are absent on purpose: a Drive or Docs link has to

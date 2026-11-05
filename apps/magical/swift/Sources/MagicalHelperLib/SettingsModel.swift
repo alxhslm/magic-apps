@@ -52,6 +52,11 @@ public final class SettingsModel: ObservableObject {
         didSet { emit("openLinksIn", openLinksIn) }
     }
 
+    /// Whether a link whose domain a desktop app owns opens there: always, after asking, or never.
+    @Published public var openLinksInApps: String = "auto" {
+        didSet { emit("openLinksInApps", openLinksInApps) }
+    }
+
     @Published public var alwaysJoinInBrowser: Bool = false {
         didSet { emit("alwaysJoinInBrowser", alwaysJoinInBrowser) }
     }
@@ -264,6 +269,9 @@ public final class SettingsModel: ObservableObject {
         }
         if let v = dict["openLinksIn"] as? String {
             openLinksIn = v
+        }
+        if let v = dict["openLinksInApps"] as? String {
+            openLinksInApps = v
         }
         if let v = dict["alwaysJoinInBrowser"] as? Bool {
             alwaysJoinInBrowser = v

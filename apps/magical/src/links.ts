@@ -4,6 +4,7 @@ import { createLogger, redactUrl } from '@magimail/core/logger';
 import { INTERNAL_ORIGINS } from './constants.js';
 import { hasApplicationForUrl } from './native-handlers.js';
 import { loadSettings } from './settings-store.js';
+import { chooseAppForLink } from './app-links-choice.js';
 import type { CalendarAccount } from './accounts.js';
 
 export { unwrapRedirectors } from '@magimail/core';
@@ -100,7 +101,13 @@ export async function openExternalUrl(rawUrl: string, account?: CalendarAccount)
   }
 
   try {
-    await openBrowserUrl(unwrappedUrl, { browser: settings.openLinksIn, account });
+    await openBrowserUrl(unwrappedUrl, {
+      browser: settings.openLinksIn,
+      appLinks: settings.openLinksInApps,
+      appLinkOverrides: settings.appLinkOverrides,
+      askAboutAppLink: chooseAppForLink,
+      account,
+    });
   } catch (err) {
     log.error('Could not open external link:', redactUrl(unwrappedUrl), err);
   }

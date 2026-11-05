@@ -5,7 +5,14 @@ import { execFile, execFileSync } from 'node:child_process';
 import { promisify } from 'node:util';
 import { app, shell } from 'electron';
 import { createLogger, redactUrl } from './logger.js';
-import { appForUrl } from './app-links.js';
+import {
+  appForUrl,
+  appLinkDecision,
+  hostOf,
+  type AppLink,
+  type AppLinkMode,
+  type AppLinkOverrides,
+} from './app-links.js';
 import type { AccountConfig } from './account.js';
 
 const log = createLogger('BrowserRouter');
@@ -288,6 +295,15 @@ export interface OpenExternalUrlOptions {
   fallbackOpenExternal?: (url: string) => Promise<void>;
   /** Custom home dir for profile reading (testing). */
   customHome?: string;
+  /** Whether a domain owned by a desktop app opens there, asks first, or always uses the browser. */
+  appLinks?: AppLinkMode;
+  /** Answers the user has already given, keyed by host. */
+  appLinkOverrides?: AppLinkOverrides;
+  /** Asks the user about a link the table says belongs to an app. */
+  askAboutAppLink?: (
+    app: AppLink,
+    host: string,
+  ) => Promise<{ choice: 'app' | 'browser'; remember: boolean }>;
   /**
    * The Mac's default browser id, when the caller already knows it. Injectable so a test does
    * not depend on which browser the machine running it has.
@@ -340,12 +356,23 @@ export async function openExternalUrl(
   // table exists because that hand-off cannot be discovered for itself.
   const owningApp = appForUrl(url);
   if (owningApp) {
-    try {
-      log.info(`Opening ${redactUrl(url)} in ${owningApp.name} (${owningApp.bundleId})`);
-      await runner(['-b', owningApp.bundleId, url]);
-      return;
-    } catch (err) {
-      log.warn(`${owningApp.name} did not accept ${redactUrl(url)}, opening in a browser:`, err);
+    const host = hostOf(url) ?? '';
+    const { useApp } = await appLinkDecision(
+      owningApp,
+      host,
+      options.appLinks ?? 'auto',
+      options.appLinkOverrides,
+      options.askAboutAppLink,
+    );
+
+    if (useApp) {
+      try {
+        log.info(`Opening ${redactUrl(url)} in ${owningApp.name} (${owningApp.bundleId})`);
+        await runner(['-b', owningApp.bundleId, url]);
+        return;
+      } catch (err) {
+        log.warn(`${owningApp.name} did not accept ${redactUrl(url)}, opening in a browser:`, err);
+      }
     }
   }
 

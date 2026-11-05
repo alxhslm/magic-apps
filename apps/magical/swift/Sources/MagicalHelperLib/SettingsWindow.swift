@@ -107,7 +107,14 @@ struct GeneralTab: View {
                 browsers: model.browsers,
                 defaultBrowser: model.defaultBrowser
             )
-            .help("Applies to links that leave the app. Apps named in the link table, such as Notion or Linear, open their own links. Each account chooses its own Chromium profile in Accounts.")
+            .help("Each account chooses its own Chromium profile in Accounts.")
+
+            Picker("Links owned by an app:", selection: $model.openLinksInApps) {
+                Text("Always open in the app").tag("auto")
+                Text("Ask, and remember").tag("ask")
+                Text("Never, always use the browser").tag("never")
+            }
+            .help("Notion, Linear, Todoist, Figma, Slack and the other apps in the link table own their domains. Asking remembers the answer for that domain.")
 
             Divider()
 
