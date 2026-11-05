@@ -62,6 +62,15 @@ public struct TrayPopoverView: View {
             header
             Divider()
 
+            if let hero = model.activeVerificationCode {
+                HeroVerificationCodeCard(
+                    item: hero,
+                    accountColor: accountColor(for: hero.accountId),
+                    onSelectThread: onShowThread
+                )
+                Divider()
+            }
+
             if model.accounts.isEmpty {
                 Text("No accounts configured")
                     .font(.system(size: 12))
@@ -248,6 +257,13 @@ public struct TrayPopoverView: View {
         let configured = symbol.withSymbolConfiguration(config) ?? symbol
         configured.isTemplate = false
         return configured
+    }
+
+    private func accountColor(for accountId: String) -> Color {
+        if let hex = model.accounts.first(where: { $0.id == accountId })?.color {
+            return Color(hex: hex)
+        }
+        return .accentColor
     }
 
     /// The account a direct compose targets: whichever the filter has selected,
@@ -819,7 +835,16 @@ enum AccountDot {
 
     /// Non-template so AppKit draws the real colour rather than tinting it to
     /// match the control.
-    static func image(hex: String, filled: Bool) -> NSImage {
+    ///
+    /// The popover's dot is 9pt; the status item's is 6pt and wants a thinner
+    /// ring. Both are drawn from the same path so the two sizes cannot drift
+    /// into different shapes.
+    static func image(
+        hex: String,
+        filled: Bool,
+        diameter: CGFloat = 9,
+        ringStroke: CGFloat = 1.5
+    ) -> NSImage {
         let image = NSImage(
             size: NSSize(width: diameter, height: diameter),
             flipped: false

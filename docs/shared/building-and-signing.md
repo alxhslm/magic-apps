@@ -117,7 +117,11 @@ every extension, so the app and everything inside it carry one team. macOS valid
 against the host app's signature, so a team mismatch means the extension does not load, with no
 message from macOS.
 
-Each extension's `build.sh` also stamps the version from `apps/magimail/package.json` onto its
+`scripts/build-app.sh` resolves one build version and passes it to electron-builder as
+`extraMetadata.version`, which sets `app.getVersion()` and `CFBundleShortVersionString` without
+writing to the tracked `package.json`. A release supplies its target version through
+`MAGIC_BUILD_VERSION`; a local build gets `<package version>-dev+<short commit>`, for example
+`0.0.0-dev+a1b2c3d`. Each extension's `build.sh` reads the same variable and stamps it onto its
 `.appex` before signing, so no extension claims a version its host does not. The checked-in
 `Info.plist` values are only defaults.
 

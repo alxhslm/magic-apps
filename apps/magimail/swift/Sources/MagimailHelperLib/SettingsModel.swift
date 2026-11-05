@@ -57,16 +57,21 @@ public final class SettingsModel: ObservableObject {
         didSet { emit("showMenuBarTray", showMenuBarTray) }
     }
 
-    @Published public var menuBarShowCount: Bool = true {
-        didSet { emit("menuBarShowCount", menuBarShowCount) }
-    }
-
-    @Published public var menuBarShowDots: Bool = true {
-        didSet { emit("menuBarShowDots", menuBarShowDots) }
+    /// "nothing", "dots" or "numbers": what the status item draws per account.
+    @Published public var menuBarUnreadDisplay: String = "numbers" {
+        didSet { emit("menuBarUnreadDisplay", menuBarUnreadDisplay) }
     }
 
     @Published public var menuBarUnreadOnly: Bool = false {
         didSet { emit("menuBarUnreadOnly", menuBarUnreadOnly) }
+    }
+
+    @Published public var menuBarVerificationCodes: Bool = true {
+        didSet { emit("menuBarVerificationCodes", menuBarVerificationCodes) }
+    }
+
+    @Published public var verificationCodeDurationMinutes: Int = 15 {
+        didSet { emit("verificationCodeDurationMinutes", verificationCodeDurationMinutes) }
     }
 
     // MARK: - Appearance
@@ -197,14 +202,17 @@ public final class SettingsModel: ObservableObject {
         if let v = dict["showMenuBarTray"] as? Bool {
             showMenuBarTray = v
         }
-        if let v = dict["menuBarShowCount"] as? Bool {
-            menuBarShowCount = v
-        }
-        if let v = dict["menuBarShowDots"] as? Bool {
-            menuBarShowDots = v
+        if let v = dict["menuBarUnreadDisplay"] as? String {
+            menuBarUnreadDisplay = v
         }
         if let v = dict["menuBarUnreadOnly"] as? Bool {
             menuBarUnreadOnly = v
+        }
+        if let v = dict["menuBarVerificationCodes"] as? Bool {
+            menuBarVerificationCodes = v
+        }
+        if let v = dict["verificationCodeDurationMinutes"] as? Int {
+            verificationCodeDurationMinutes = v
         }
         if let v = dict["hidePromotionAds"] as? Bool {
             hidePromotionAds = v

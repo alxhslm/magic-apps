@@ -4,9 +4,41 @@ import HelperRPC
 @testable import MagimailHelperLib
 import Testing
 
-@Suite("Magimail MenuBarController Popover Request Tests")
+@Suite("Magimail MenuBarController Tests")
 @MainActor
 struct MenuBarControllerTests {
+    private func account(
+        _ name: String,
+        _ unreadCount: Int,
+        needsAuth: Bool = false
+    ) -> MenuBarAccount {
+        MenuBarAccount(
+            name: name,
+            color: "#0096ff",
+            unreadCount: unreadCount,
+            needsAuth: needsAuth
+        )
+    }
+
+    private func accounts(_ counts: [Int]) -> [MenuBarAccount] {
+        counts.enumerated().map { account("Account \($0.offset + 1)", $0.element) }
+    }
+
+    private func dotAttachmentCount(_ accounts: [MenuBarAccount]) -> Int {
+        let title = MenuBarTitle.attributed(display: .dots, accounts: accounts)
+        var count = 0
+        title.enumerateAttribute(
+            .attachment,
+            in: NSRange(location: 0, length: title.length)
+        ) { value, _, _ in
+            guard let attachment = value as? NSTextAttachment,
+                  attachment.image?.size.width == MenuBarTitle.dotDiameter
+            else { return }
+            count += 1
+        }
+        return count
+    }
+
     private func makeTestSetup() -> (controller: MenuBarController, getLastEvent: () -> RPCEvent?) {
         var lastEvent: RPCEvent?
         let transport = StdioTransport(outputWriter: { data in
@@ -152,5 +184,76 @@ struct MenuBarControllerTests {
         let initialStamp = controller.popoverClosedTimestamp
         controller.popoverDidClose(Notification(name: NSPopover.didCloseNotification))
         #expect(controller.popoverClosedTimestamp >= initialStamp)
+    }
+
+    @Test func widthIgnoresUnreadCountsForEveryReading() {
+        let quiet = accounts([0, 0])
+        let busy = accounts([3, 12])
+        for display in MenuBarUnreadDisplay.allCases {
+            #expect(
+                MenuBarTitle.width(display: display, accounts: quiet)
+                    == MenuBarTitle.width(display: display, accounts: busy)
+            )
+        }
+
+        let waiting = [account("Work", 3), account("Personal", 0)]
+        #expect(
+            MenuBarTitle.width(display: .dots, accounts: waiting)
+                == MenuBarTitle.width(
+                    display: .dots,
+                    accounts: [account("Work", 0), account("Personal", 9)]
+                )
+        )
+    }
+
+    @Test func widthFollowsTheSettingAndAccountCount() {
+        #expect(MenuBarTitle.width(display: .nothing, accounts: accounts([3, 4, 5])) == 0)
+        #expect(
+            MenuBarTitle.width(display: .dots, accounts: accounts([0, 0]))
+                > MenuBarTitle.width(display: .dots, accounts: accounts([0]))
+        )
+        #expect(
+            MenuBarTitle.width(display: .numbers, accounts: accounts([0, 0]))
+                > MenuBarTitle.width(display: .numbers, accounts: accounts([0]))
+        )
+        #expect(
+            MenuBarTitle.width(display: .numbers, accounts: accounts([0]))
+                != MenuBarTitle.width(display: .dots, accounts: accounts([0]))
+        )
+    }
+
+    @Test func numbersReserveTwoDigitsAndGrowOncePast99() {
+        #expect(
+            MenuBarTitle.width(display: .numbers, accounts: [account("Work", 9)])
+                == MenuBarTitle.width(display: .numbers, accounts: [account("Work", 99)])
+        )
+        #expect(
+            MenuBarTitle.width(display: .numbers, accounts: [account("Work", 100)])
+                > MenuBarTitle.width(display: .numbers, accounts: [account("Work", 99)])
+        )
+    }
+
+    @Test func dotCompositionCoversNoAccountsOneAndAuth() {
+        #expect(dotAttachmentCount([]) == 0)
+        #expect(dotAttachmentCount(accounts([0])) == 1)
+        #expect(dotAttachmentCount(accounts([3])) == 1)
+        #expect(dotAttachmentCount([account("Personal", 3, needsAuth: true)]) == 1)
+    }
+
+    @Test func accessibilityNamesWaitingAccountsAndSignIn() {
+        let quiet = MenuBarTitle.accessibilityDescription(accounts: accounts([0, 0]))
+        #expect(quiet.contains("no unread mail"))
+
+        let waiting = MenuBarTitle.accessibilityDescription(
+            accounts: [account("Work", 3), account("Personal", 0)]
+        )
+        #expect(waiting.contains("Work 3 unread"))
+        #expect(!waiting.contains("Personal"))
+
+        let auth = MenuBarTitle.accessibilityDescription(
+            accounts: [account("Personal", 3, needsAuth: true)]
+        )
+        #expect(auth.contains("Personal needs sign-in"))
+        #expect(!auth.contains("3 unread"))
     }
 }

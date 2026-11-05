@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Shared release machinery for the suite's apps.
 #
-# Both apps release the same way — derive a version, stamp it, build, notarise,
+# Both apps release the same way — derive a version, build with it, notarise,
 # upload, tag, publish — and differ only in their name, their update host and
 # their bucket. That difference is three variables, not two copies of this file,
 # so the per-app scripts set them and call release_main.
@@ -337,29 +337,12 @@ release_confirm() {
     fi
 }
 
-release_stamp_version() {
-    step "Stamping version $TARGET_VERSION onto $RELEASE_APP_ID"
-    node -e "
-const fs = require('fs');
-const path = '$APP_DIR/package.json';
-const pkg = JSON.parse(fs.readFileSync(path, 'utf8'));
-pkg.version = '$TARGET_VERSION';
-fs.writeFileSync(path, JSON.stringify(pkg, null, 2) + '\n');
-"
-    ok "apps/$RELEASE_APP_ID/package.json version -> $TARGET_VERSION"
-}
-
-release_rollback() {
-    warn "Rolling back version changes in the working tree..."
-    git checkout "$APP_DIR/package.json" 2>/dev/null || true
-}
-
 release_build() {
     if [ "$SKIP_BUILD" = "1" ]; then
         warn "Skipping build-app.sh as requested (--skip-build)"
     else
-        step "Building all native targets and packaging DMG + ZIP"
-        "$APP_DIR/scripts/build-app.sh" --dist
+        step "Building all native targets and packaging $RELEASE_APP_NAME $TARGET_VERSION"
+        MAGIC_BUILD_VERSION="$TARGET_VERSION" "$APP_DIR/scripts/build-app.sh" --dist
         ok "Build and packaging completed"
     fi
 
@@ -563,16 +546,11 @@ release_main() {
         release_create_tag
     fi
 
-    release_stamp_version
-    trap release_rollback ERR
-
     release_build
     release_notarise
-    trap - ERR
 
     release_upload
     release_github_release
     release_update_homebrew
-    git checkout "$APP_DIR/package.json" 2>/dev/null || true
     release_summary
 }

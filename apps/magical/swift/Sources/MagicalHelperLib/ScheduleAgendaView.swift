@@ -10,6 +10,7 @@ public struct ScheduleAgendaView: View {
     public let onDeleteEvent: ((TrayEvent) -> Void)?
     public let onCompleteTask: ((TrayEvent, Bool) -> Void)?
     public let onDayScrolledIntoView: ((Date) -> Void)?
+    public let onHoverDate: ((Date?) -> Void)?
     public let onScrolledNearEnd: ((Date) -> Void)?
 
     /// Whether a banner above is already explaining why the agenda is empty.
@@ -58,6 +59,7 @@ public struct ScheduleAgendaView: View {
         onDeleteEvent: ((TrayEvent) -> Void)? = nil,
         onCompleteTask: ((TrayEvent, Bool) -> Void)? = nil,
         onDayScrolledIntoView: ((Date) -> Void)? = nil,
+        onHoverDate: ((Date?) -> Void)? = nil,
         onScrolledNearEnd: ((Date) -> Void)? = nil,
         isExplainedElsewhere: Bool = false
     ) {
@@ -70,6 +72,7 @@ public struct ScheduleAgendaView: View {
         self.onDeleteEvent = onDeleteEvent
         self.onCompleteTask = onCompleteTask
         self.onDayScrolledIntoView = onDayScrolledIntoView
+        self.onHoverDate = onHoverDate
         self.onScrolledNearEnd = onScrolledNearEnd
         self.isExplainedElsewhere = isExplainedElsewhere
     }
@@ -148,6 +151,7 @@ public struct ScheduleAgendaView: View {
                 onDayScrolledIntoView?(item.date)
             }
         }
+        .onDisappear { onHoverDate?(nil) }
     }
 
     private func performInitialScroll(proxy: ScrollViewProxy) {
@@ -155,7 +159,11 @@ public struct ScheduleAgendaView: View {
         isSuppressingScrollTracking = true
         // Unanimated: the popover is arriving, and a list that scrolls itself as it appears
         // reads as the view still settling rather than as a deliberate move.
-        scroll(to: Date(), proxy: proxy, animated: false)
+        //
+        // The selected date, not today: month view now shows only the days in its grid, so
+        // today can be outside the feed entirely and a scroll to it would land at an end.
+        // The tray resets the selection to today as it is presented, so it still lands on now.
+        scroll(to: selectedDate, proxy: proxy, animated: false)
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.scrollSuppressionDelay) {
             hasInitialScrolled = true
             isSuppressingScrollTracking = false
@@ -238,6 +246,11 @@ public struct ScheduleAgendaView: View {
         case let .day(group):
             daySection(group)
                 .background(anchorDetector(for: group.id))
+                .onHover { hovering in
+                    // The grid highlights the day under the pointer, not only the day at
+                    // the top of the feed.
+                    onHoverDate?(hovering ? group.date : nil)
+                }
         case let .emptyPeriod(_, text, _):
             emptyPeriodSection(text: text)
         case let .monthHeader(_, title, _):
@@ -276,31 +289,45 @@ public struct ScheduleAgendaView: View {
                     }
                 }
 
-            // Right column: Stack of Apple HIG Event Cards
+            // Right column: Stack of Apple HIG Event Cards and All-Day Banners
             VStack(spacing: 6) {
-                let now = Date()
-                let isToday = Calendar.current.isDateInToday(group.date)
-                // Before the first thing that has not started. A meeting under way began
-                // before now, so it belongs above the rule; an all-day entry starts at
-                // midnight and stays at the top where it is read.
-                let nowIndex = group.events.firstIndex { $0.startTime > now } ?? group.events.count
+                let allDayEvents = group.events.filter(\.isAllDay)
+                let timedEvents = group.events.filter { !$0.isAllDay }
 
-                ForEach(Array(group.events.enumerated()), id: \.element.identity) { index, event in
-                    if isToday, index == nowIndex {
-                        nowRule(now)
-                    }
+                // Pinned all-day banners at the top of the day
+                ForEach(allDayEvents, id: \.identity) { event in
                     EventCardView(
                         event: event,
                         onSelect: { onSelectEvent(event) },
-                        onJoinCall: onJoinCall,
-                        onRsvp: { status in onRsvp(event, status) },
                         onDelete: onDeleteEvent,
-                        onComplete: onCompleteTask
+                        onComplete: onCompleteTask,
+                        style: .allDay
+                    )
+                }
+
+                let now = Date()
+                let isToday = Calendar.current.isDateInToday(group.date)
+                let eventClusters = TimedEventCluster.cluster(timedEvents: timedEvents)
+                // Before the first timed cluster that has not started. All-day banners are
+                // pinned above, so the now rule operates strictly among timed meetings.
+                let nowClusterIndex = eventClusters.firstIndex { $0.startTime > now } ?? eventClusters.count
+
+                ForEach(Array(eventClusters.enumerated()), id: \.element.id) { index, cluster in
+                    if isToday, index == nowClusterIndex {
+                        nowRule(now)
+                    }
+                    ClusterEventRowView(
+                        cluster: cluster,
+                        onSelectEvent: onSelectEvent,
+                        onJoinCall: onJoinCall,
+                        onRsvp: onRsvp,
+                        onDeleteEvent: onDeleteEvent,
+                        onCompleteTask: onCompleteTask
                     )
                 }
 
                 // The day is done; the rule sits under the last of it.
-                if isToday, nowIndex == group.events.count {
+                if isToday, nowClusterIndex == eventClusters.count, !timedEvents.isEmpty || !allDayEvents.isEmpty {
                     nowRule(now)
                 }
             }
@@ -343,12 +370,7 @@ public struct ScheduleAgendaView: View {
 
     // MARK: - Now rule
 
-    private static let nowFormatter: DateFormatter = {
-        let df = DateFormatter()
-        df.dateFormat = "HH:mm"
-        df.timeZone = .current
-        return df
-    }()
+    private static let nowFormatter = TimeDisplay.time
 
     /// Where the day has got to, drawn between what has finished and what has not started.
     ///

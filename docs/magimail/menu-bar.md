@@ -41,23 +41,56 @@ flowchart TD
 
 Helper and main process talk in newline-delimited JSON-RPC over `stdin` and `stdout`:
 
-| Event / Method       | Direction         | Payload                                                        | Action Performed                                                                         |
-| :------------------- | :---------------- | :------------------------------------------------------------- | :--------------------------------------------------------------------------------------- |
-| `tray.update`        | Electron → Helper | `{ accounts: Account[], threads: Thread[], totalUnread: int }` | Updates `TrayModel`, refreshes status item title/unread dot, updates popover view.       |
-| `tray.showThread`    | Helper → Electron | `{ threadId: string, accountId: string }`                      | Switches main window to target account partition and navigates directly to thread.       |
-| `tray.threadAction`  | Helper → Electron | `{ threadId: string, accountId: string, action: string }`      | Archives, trashes, marks read or marks unread that one thread, leaving the window alone. |
-| `tray.compose`       | Helper → Electron | `{ accountId?: string }`                                       | Opens compose window in specified account (or shows account picker if unspecified).      |
-| `tray.search`        | Helper → Electron | `{ query: string, accountId?: string }`                        | Switches to and wakes the named account, then loads the search in its Gmail view.        |
-| `tray.openPrefs`     | Helper (Internal) | None                                                           | Instantiates native `SettingsWindowController` directly in Swift.                        |
-| `tray.popoverOpened` | Helper → Electron | None                                                           | Asks every poller for a hint poll, rate-limited inside the poller.                       |
-| `tray.refresh`       | Helper → Electron | None                                                           | Polls every account now, then pushes `tray.messages` for each so the popover redraws.    |
+| Event / Method          | Direction         | Payload                                                            | Action Performed                                                                         |
+| :---------------------- | :---------------- | :----------------------------------------------------------------- | :--------------------------------------------------------------------------------------- |
+| `tray.update`           | Electron → Helper | `{ accounts: Account[], threads: Thread[], totalUnread: int }`     | Updates `TrayModel`, refreshes status item title/unread dot, updates popover view.       |
+| `tray.showThread`       | Helper → Electron | `{ threadId: string, accountId: string }`                          | Switches main window to target account partition and navigates directly to thread.       |
+| `tray.threadAction`     | Helper → Electron | `{ threadId: string, accountId: string, action: string }`          | Archives, trashes, marks read or marks unread that one thread, leaving the window alone. |
+| `tray.compose`          | Helper → Electron | `{ accountId?: string }`                                           | Opens compose window in specified account (or shows account picker if unspecified).      |
+| `tray.search`           | Helper → Electron | `{ query: string, accountId?: string }`                            | Switches to and wakes the named account, then loads the search in its Gmail view.        |
+| `tray.verificationCode` | Electron → Helper | `{ code: string, service?: string, subject: string, ... } \| null` | Sets or clears the active verification code shown in the popover's hero band.            |
+| `tray.openPrefs`        | Helper (Internal) | None                                                               | Instantiates native `SettingsWindowController` directly in Swift.                        |
+| `tray.popoverOpened`    | Helper → Electron | None                                                               | Asks every poller for a hint poll, rate-limited inside the poller.                       |
+| `tray.refresh`          | Helper → Electron | None                                                               | Polls every account now, then pushes `tray.messages` for each so the popover redraws.    |
 
 ## Status item mechanics
 
 The status item's ownership, the template-image glyph rule and the glyph grid are in
-[`../shared/menu-bar.md`](../shared/menu-bar.md). Magimail's own detail is that the unread count goes
-in the status item title as tabular numbers (e.g. `(3)`), so there is no custom badge bitmap; the
-glyph's state or the account dot says whether there is unread mail.
+[`../shared/menu-bar.md`](../shared/menu-bar.md). Magimail adds one mark per account to the title,
+chosen by the `menuBarUnreadDisplay` setting:
+
+| Reading                        | Per account                            | Two accounts | What changes when mail arrives    |
+| :----------------------------- | :------------------------------------- | -----------: | :-------------------------------- |
+| Menu bar icon only (`nothing`) | Nothing; the glyph alone               |          0pt | Nothing                           |
+| Unread status dots (`dots`)    | One 6pt dot, 1.5pt gap; 3pt from glyph |       16.5pt | The dot fills or rings            |
+| Unread count (`numbers`)       | A two-digit cell, 18.1pt               |         36pt | The digits change, never the cell |
+
+The rule is that the title's width is a function of the account count and the reading, never of the
+mail. Unread status dots draws one dot per account in account list order, filled when that account
+has unread and ringed when it does not, so a dot stays put and changes state rather than disappearing.
+Unread count draws one cell per account, in the account's colour; a quiet account shows `0` dimmed to
+about 35%, because the zero is what keeps that account's position visible. Both readings reserve their
+space whether or not there is mail, which is why marking a message read in the popover cannot move the
+glyph or the popover anchored to it. An account needing sign-in takes a ring or a dimmed zero rather
+than a filled mark, because its count cannot be trusted.
+
+Unread count reserves two digits. `9+` was two characters too, so an exact count costs nothing until
+it passes 99; that crossing grows the cell once by one digit width, about 7.6pt, rather than
+truncating the number. The 15pt jump at ten unread that the old dot-plus-count title had is gone.
+
+The dots and spacers are `NSTextAttachment`s and the words are coloured runs, so AppKit keeps the
+glyph a template image over a light desktop, a dark desktop and a fullscreen menu bar. The popover
+anchors to the status item button, which grows with the title, so the arrow follows the item while
+the item itself no longer moves. The glyph's accessibility description names the accounts waiting
+and their counts, or says that an account needs sign-in, because the title is built to be read at a
+glance rather than by VoiceOver.
+
+### Migrating the old two switches
+
+`menuBarUnreadDisplay` replaces `menuBarShowDots` and `menuBarShowCount`, whose four combinations
+included a total count that duplicated the Dock badge. On load, both true and count-only become
+`numbers`, dots-only becomes `dots`, and neither becomes `nothing`. The old keys are dropped rather
+than kept in sync, so an explicit `menuBarUnreadDisplay` wins over a stale boolean.
 
 ## Popover layout and sizing
 
@@ -101,6 +134,16 @@ The menu carries none of AppKit's recents tags, `NSSearchFieldRecentsMenuItemTag
 search field reads those tags to manage a recent-search list and rewrites the items carrying them;
 untagged items it passes through as written, which is why plain `NSMenuItem`s behave as an ordinary
 menu here.
+
+### Verification code hero band
+
+When an unread email received within the configured retention duration contains a one-time
+verification code, the popover draws a hero band directly below the header matching Magical's
+hero card. The band carries an accent pill in the account's colour, the sender or service name,
+elapsed time, the code in large monospaced text, and a prominent "Copy" button. Clicking "Copy"
+places the code on `NSPasteboard.general` and shows "Copied" for two seconds; clicking the band
+opens the thread in Magimail. Triaging the message or reaching the expiration duration removes
+the band immediately.
 
 ## Getting a newer list
 

@@ -11,6 +11,7 @@
 import { createLogger } from '@magimail/core/logger';
 import { colourForId } from './google-colours.js';
 import { unwrapRedirectors } from './links.js';
+import { canonicaliseCalendarId } from './calendars.js';
 
 export { unwrapRedirectors } from './links.js';
 
@@ -1002,7 +1003,7 @@ export function parsePrefetchEventRangeResponse(
   // colour.
   for (const calEntry of calendarsBlock) {
     if (!Array.isArray(calEntry) || typeof calEntry[0] !== 'string') continue;
-    const calId = calEntry[0];
+    const calId = canonicaliseCalendarId(calEntry[0]);
     const eventEntries = Array.isArray(calEntry[1]) ? calEntry[1] : [];
 
     let count = 0;

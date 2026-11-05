@@ -1,4 +1,5 @@
 import type { WebContentsView } from 'electron';
+import { viewIsAlive } from '@magimail/core';
 import { createLogger } from '@magimail/core/logger';
 import {
   AtomFeedPoller,
@@ -14,6 +15,7 @@ import { DomThreadActionDriver } from '../thread-actions/dom-driver.js';
 import { FallbackThreadActionDriver } from '../thread-actions/fallback-driver.js';
 import { pressRefreshControl, SyncThreadActionDriver } from '../thread-actions/sync-driver.js';
 import type { ThreadActionDriver } from '../thread-actions/types.js';
+import { extractVerificationCode } from '../verification-code.js';
 import type {
   MailboxChangeEvent,
   MailboxPollEvent,
@@ -21,6 +23,7 @@ import type {
   TrayMessageItem,
   TriageAction,
   UnreadBreakdown,
+  VerificationCodeItem,
 } from './types.js';
 import { UnreadLedger } from './unread-ledger.js';
 import { saveUnreadCounts } from './unread-count-store.js';
@@ -94,6 +97,8 @@ export class HybridFeedSource implements MailboxSource {
   /** One write of the stored counts at a time. */
   private countPersistTimer: ReturnType<typeof setTimeout> | null = null;
   private notificationSettings: Record<string, string> = {};
+  /** Ledger revision number at the time of the last emitted change event. */
+  private lastEmittedRevision: number | null = null;
 
   constructor(accountId: string, options: HybridFeedSourceOptions = {}) {
     this.accountId = accountId;
@@ -118,7 +123,7 @@ export class HybridFeedSource implements MailboxSource {
         this.options.wake ??
         (async (accId) => {
           const view = this.options.getView?.(accId);
-          if (!view || view.webContents.isDestroyed()) return undefined;
+          if (!viewIsAlive(view)) return undefined;
           return { view, release: () => {} };
         }),
       onActionHeld: this.options.onActionHeld,
@@ -155,7 +160,7 @@ export class HybridFeedSource implements MailboxSource {
 
   public async getRecentMessages(limit = 20): Promise<TrayMessageItem[]> {
     const view = this.options.getView?.(this.accountId);
-    if (view && !view.webContents.isDestroyed()) {
+    if (viewIsAlive(view)) {
       try {
         const snapshot = await readCachedInboxData(view.webContents, limit);
         if (snapshot) {
@@ -165,6 +170,7 @@ export class HybridFeedSource implements MailboxSource {
       } catch (err) {
         log.warn(`Failed to read cached inbox data for ${this.accountId}:`, err);
       }
+      this.emitIfStateChanged();
     }
 
     const items = this.ledger.getRecentMessages(limit);
@@ -174,7 +180,39 @@ export class HybridFeedSource implements MailboxSource {
     return this.poller.getLatestEntries().slice(0, limit).map(atomMessageToTrayMessageItem);
   }
 
+  public async getLatestVerificationCode(maxAgeMs?: number): Promise<VerificationCodeItem | null> {
+    const fromLedger = this.ledger.getLatestVerificationCode(this.accountId, maxAgeMs);
+    if (fromLedger) return fromLedger;
+    if (this.ledger.getBreakdown().hasState) return null;
+
+    const entries = this.poller.getLatestEntries();
+    const now = Date.now();
+    const limitAge = maxAgeMs ?? 15 * 60 * 1000;
+    for (const msg of entries) {
+      const time = msg.modified ? new Date(msg.modified).getTime() : now;
+      if (now - time > limitAge) continue;
+      const extracted = extractVerificationCode(msg.subject, msg.snippet, msg.from);
+      if (extracted) {
+        return {
+          code: extracted.code,
+          service: extracted.service,
+          subject: msg.subject || '',
+          from: msg.from || '',
+          messageId: msg.id,
+          threadId: msg.threadId,
+          accountId: this.accountId,
+          receivedAt: time,
+        };
+      }
+    }
+    return null;
+  }
+
   public async triageThread(threadId: string, action: TriageAction): Promise<boolean> {
+    // Triage leaves no other trace: the window does not move and a refusal rolls the
+    // ledger back without a word, so the line has to say it was asked for.
+    log.info(`Triage ${action} on ${this.accountId}: thread=${threadId}`);
+
     // 0ms latency: update ledger optimistically, but not yet confirmed.
     this.ledger.recordLocalTriage(threadId, threadId, action);
     this.ledger.markLocalTriageInFlight(threadId, threadId);
@@ -192,7 +230,12 @@ export class HybridFeedSource implements MailboxSource {
     }
 
     // The optimistic row must not outlive a failed action.
-    if (this.ledger.rollbackLocalTriage(threadId, threadId)) {
+    const rolledBack = this.ledger.rollbackLocalTriage(threadId, threadId);
+    log.warn(
+      `Triage ${action} on ${this.accountId} failed for thread=${threadId}; ` +
+        (rolledBack ? 'rolled back' : 'no pending row'),
+    );
+    if (rolledBack) {
       this.emitChange({
         addedMessageIds: [],
         removedMessageIds: [],
@@ -206,8 +249,7 @@ export class HybridFeedSource implements MailboxSource {
     await this.poller.pollNow();
 
     const view = this.options.getView?.(this.accountId);
-    if (view && !view.webContents.isDestroyed()) {
-      const before = this.ledger.getBreakdown().total;
+    if (viewIsAlive(view)) {
       try {
         const snapshot = await readCachedInboxData(view.webContents, CACHE_HINT_MAX_ROWS);
         if (snapshot?.messages) {
@@ -217,7 +259,7 @@ export class HybridFeedSource implements MailboxSource {
       } catch (err) {
         log.warn(`Cache refresh failed for ${this.accountId}:`, err);
       }
-      this.emitIfCountChanged(before);
+      this.emitIfStateChanged();
     }
   }
 
@@ -285,31 +327,31 @@ export class HybridFeedSource implements MailboxSource {
 
     if (this.hintReadInFlight) return;
     const view = this.options.getView?.(this.accountId);
-    if (!view || view.webContents.isDestroyed()) return;
+    if (!viewIsAlive(view)) return;
 
     this.hintReadInFlight = true;
     try {
       for (let attempt = 0; attempt < CACHE_REREAD_ATTEMPTS; attempt += 1) {
         if (attempt > 0) {
           await new Promise((resolve) => setTimeout(resolve, CACHE_REREAD_INTERVAL_MS));
-          if (view.webContents.isDestroyed()) return;
+          if (!viewIsAlive(view)) return;
         }
-        const before = this.ledger.getBreakdown().total;
         let moved = 0;
         try {
           const snapshot = await readCachedInboxData(view.webContents, CACHE_HINT_MAX_ROWS);
           if (snapshot?.messages) {
             this.reportCache(snapshot);
-            moved = this.ledger.reconcileWithCache(
+            const res = this.ledger.reconcileWithCache(
               snapshot.messages,
               Date.now(),
               snapshot.asOf,
-            ).moved;
+            );
+            moved = res.moved;
           }
         } catch {
           // Ignore cache failure; the poll already requested covers it.
         }
-        this.emitIfCountChanged(before);
+        this.emitIfStateChanged();
         if (moved > 0) return;
       }
     } finally {
@@ -334,10 +376,27 @@ export class HybridFeedSource implements MailboxSource {
     }
   }
 
-  private emitIfCountChanged(before: number): void {
-    if (this.ledger.getBreakdown().total === before) return;
-    this.emitChange({ addedMessageIds: [], removedMessageIds: [], countChanged: true });
+  public getRevision(): number {
+    return this.ledger.getRevision();
+  }
+
+  private emitIfStateChanged(delta?: {
+    addedMessageIds?: string[];
+    removedMessageIds?: string[];
+    countChanged?: boolean;
+  }): boolean {
+    const currentRevision = this.ledger.getRevision();
+    const hasState = this.ledger.getBreakdown().hasState;
+    if (this.lastEmittedRevision === currentRevision) return false;
+    if (this.lastEmittedRevision === null && !hasState) return false;
+
+    this.emitChange({
+      addedMessageIds: delta?.addedMessageIds ?? [],
+      removedMessageIds: delta?.removedMessageIds ?? [],
+      countChanged: delta?.countChanged ?? true,
+    });
     this.persistCountsSoon();
+    return true;
   }
 
   /**
@@ -369,7 +428,7 @@ export class HybridFeedSource implements MailboxSource {
 
   public async dispatchUniversalSyncNudge(): Promise<void> {
     const view = this.options.getView?.(this.accountId);
-    if (!view || view.webContents.isDestroyed()) return;
+    if (!viewIsAlive(view)) return;
     await pressRefreshControl(view.webContents);
   }
 
@@ -410,13 +469,23 @@ export class HybridFeedSource implements MailboxSource {
         result.sourceAsOf,
       );
 
-      if (delta.countChanged || delta.added.length > 0 || delta.removed.length > 0) {
-        await this.dispatchUniversalSyncNudge();
+      const breakdown = this.ledger.getBreakdown();
+      const needsInitialEmit = this.lastEmittedRevision === null && breakdown.hasState;
+      const revisionChanged =
+        this.lastEmittedRevision !== null && this.lastEmittedRevision !== this.ledger.getRevision();
+
+      if (
+        needsInitialEmit ||
+        revisionChanged ||
+        delta.added.length > 0 ||
+        delta.removed.length > 0
+      ) {
         this.emitChange({
           addedMessageIds: delta.added,
           removedMessageIds: delta.removed,
-          countChanged: delta.countChanged,
+          countChanged: delta.countChanged || needsInitialEmit,
         });
+        await this.dispatchUniversalSyncNudge();
       }
     }
 
@@ -436,6 +505,7 @@ export class HybridFeedSource implements MailboxSource {
     countChanged: boolean;
   }): void {
     const unread = this.ledger.getBreakdown();
+    this.lastEmittedRevision = this.ledger.getRevision();
     const event: MailboxChangeEvent = {
       accountId: this.accountId,
       unread,

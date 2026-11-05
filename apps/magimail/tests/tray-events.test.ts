@@ -7,7 +7,7 @@ vi.mock('../src/swift-helper.js', () => ({
 }));
 
 vi.mock('../src/settings-store.js', () => ({
-  loadSettings: vi.fn().mockReturnValue({ menuBarShowCount: true, menuBarShowDots: true }),
+  loadSettings: vi.fn().mockReturnValue({ menuBarUnreadDisplay: 'numbers' }),
 }));
 
 /**

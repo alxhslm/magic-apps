@@ -213,5 +213,6 @@
       "calendarId": "birthdays@birthdays.google.com"
     }
   ],
+  "hiddenCalendarsRevision": 1,
   "showCompletedTasks": true
 }

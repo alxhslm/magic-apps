@@ -12,6 +12,7 @@ When an incoming email arrives, the notification banner displays the sender, sub
 - **Archive**: Archives the message immediately from the notification banner.
 - **Mark Read**: Marks the email as read in your Gmail inbox.
 - **Delete**: Moves the message directly to Trash.
+- **Copy Code**: Appears automatically on verification emails (OTP codes) to copy the one-time code directly to your clipboard without switching apps.
 - **Click to Open**: Clicking the banner raises Magimail and navigates straight to that conversation.
 
 ![Magimail notification banner with Archive and Mark Read triage buttons](/assets/shot-notification.webp)
@@ -41,4 +42,4 @@ In **Settings → Appearance** (under **Dock & Menu Bar**), you can choose how t
 - **New messages only**: Displays an unread badge only for messages that arrived while you were away, decrementing as you read them (similar to iOS Mail).
 - **Off**: Keeps your Dock icon clean with no numeric badges.
 
-The same tab sets the menu bar counter and its colour dots; [Menu Bar & Popover](/help/magimail/menu-bar/) covers what they show. Every other setting on this page is described in the [Settings Reference](/help/magimail/settings/).
+The same tab sets whether the menu bar shows a dot, a number, or nothing for each account; [Menu Bar & Popover](/help/magimail/menu-bar/) covers what they show. Every other setting on this page is described in the [Settings Reference](/help/magimail/settings/).

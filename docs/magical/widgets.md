@@ -30,7 +30,9 @@ app it belongs to. The small family carries the name and no month; there is room
 ### Up next
 
 The tile itself is the hero. A countdown pill leads, then the event's title against its calendar's
-colour bar, the time, the conference service and a Join button.
+colour bar, the time, the conference service and a Join button. The time and the date follow the
+Mac's clock and locale, through the same `TimeDisplay` the popover uses; see
+[`time-and-locale.md`](time-and-locale.md).
 
 The countdown pill is one colour for its fill and its text: green while the meeting is running,
 secondary before it starts, because a meeting three hours out in the same green reads as something to
@@ -50,6 +52,9 @@ still fills the tile.
 ### Agenda
 
 The day number and its weekday sit in a left gutter, and the day's events stack beside it as cards.
+The gutter is 58pt, so it carries the short weekday from the Mac's locale (`WED`), because the full
+name wraps inside it.
+
 Medium holds two and picks up a `TOMORROW` eyebrow once today runs out; large runs to three days, with
 room on each card for the time and the conference service under the title.
 

@@ -19,8 +19,15 @@ import {
   viewIsAlive,
 } from '@magimail/core';
 import { createLogger, redactUrl } from '@magimail/core/logger';
-import { CALENDAR_BASE_URL, CALENDAR_LIST_CHANNEL, CALENDAR_LOGIN_URL } from './constants.js';
-import { layoutCalendarView } from './window-layout.js';
+import {
+  CALENDAR_BASE_URL,
+  CALENDAR_LIST_CHANNEL,
+  GCAL_GRID_SCROLL_CHANNEL,
+  GCAL_VIEW_MODE_CHANNEL,
+  CALENDAR_LOGIN_URL,
+  TITLEBAR_HEIGHT,
+} from './constants.js';
+import { layoutCalendarView, SIDEBAR_WIDTH } from './window-layout.js';
 import { uiString } from './strings.js';
 import { getCalendarCss, getCalendarSubframeCss } from './calendar-css.js';
 import { isInternalUrl, openExternalUrl, withoutQuery } from './links.js';
@@ -38,7 +45,12 @@ import {
   type RsvpResponse,
   type RsvpTiming,
 } from './calendar-actions/index.js';
-import { pathnameOf, viewModeForPath, type ViewMode } from './calendar-routes.js';
+import {
+  pathnameOf,
+  viewModeForPath,
+  parseCalendarRoute,
+  type ViewMode,
+} from './calendar-routes.js';
 
 export type { ViewMode };
 
@@ -145,6 +157,18 @@ export class AccountsManager {
   public onModeChanged?: (mode: ViewMode) => void;
   /** Fired when the active account's history moves, so the menu can follow it. */
   public onHistoryChanged?: () => void;
+  /** Fired when the active account's timeframe or anchor date moves, so the companion sidebar can follow it. */
+  public onTimeframeChanged?: (timeframe: string, dateStr?: string) => void;
+  /** Fired when the active account's 24-hour time grid scrolls, so the companion sidebar can follow in lockstep. */
+  public onGridScroll?: (
+    hour: number,
+    hourHeight: number,
+    gridTop: number,
+    gridHeight: number,
+    cardTop: number,
+  ) => void;
+  /** Fired when an account's web view posts a successful calendar or tasks sync mutation. */
+  public onSyncMutation?: (accountId: string) => void;
 
   /** RSVP, delete and task completion: the sync API first, the page as fallback. */
   private readonly actions: CalendarActionDriver;
@@ -505,6 +529,12 @@ export class AccountsManager {
 
   /** Tear down every account view that isn't needed right now. Used on quit. */
   public suspendAllAccounts(): void {
+    this.cancelContentAnimation();
+    if (this.windowAnimationTimer) {
+      clearTimeout(this.windowAnimationTimer);
+      this.windowAnimationTimer = null;
+      this.windowAnimationTarget = null;
+    }
     this.pool.suspendAllAccounts();
   }
 
@@ -597,9 +627,116 @@ export class AccountsManager {
       .catch((err) => log.error('Could not leave the Tasks route:', err));
   }
 
+  private windowAnimationTarget: { targetWidth: number; sidebarVisible: boolean } | null = null;
+  private windowAnimationTimer: NodeJS.Timeout | null = null;
+  private contentAnimationTimer: NodeJS.Timeout | null = null;
+
+  private cancelContentAnimation(): void {
+    if (this.contentAnimationTimer) {
+      clearInterval(this.contentAnimationTimer);
+      this.contentAnimationTimer = null;
+    }
+  }
+
+  /**
+   * Freezes Calendar bounds during Cocoa window expand/shrink animations so the
+   * WebContentsView stays rock-solid instead of thrashing through intermediate widths.
+   */
+  public beginWindowAnimation(targetWidth: number, sidebarVisible: boolean): void {
+    this.cancelContentAnimation();
+    this.windowAnimationTarget = { targetWidth, sidebarVisible };
+
+    if (this.windowAnimationTimer) {
+      clearTimeout(this.windowAnimationTimer);
+    }
+
+    if (!sidebarVisible) {
+      const [, height] = this.mainWindow.getContentSize();
+      const bounds = layoutCalendarView(targetWidth, height, { sidebarVisible: false });
+      for (const [, view] of this.pool.entries()) {
+        view.setBounds(bounds);
+      }
+    }
+
+    this.windowAnimationTimer = setTimeout(() => {
+      this.windowAnimationTarget = null;
+      this.windowAnimationTimer = null;
+      this.updateLayout();
+    }, 280);
+  }
+
+  /**
+   * Resizes Calendar views smoothly across an in-place sidebar transition.
+   *
+   * When the window is already wide or fullscreen, the Cocoa window frame does
+   * not expand or shrink. Instead, the native sidebar slides in or out over 250 ms.
+   * Interpolating the WebContentsView width over the same duration with the same
+   * cubic curve keeps Google Calendar resizing in lockstep with the sidebar.
+   */
+  public animateContentResize(sidebarVisible: boolean, durationMs: number = 250): void {
+    if (this.windowIsGone()) return;
+
+    this.cancelContentAnimation();
+    if (this.windowAnimationTimer) {
+      clearTimeout(this.windowAnimationTimer);
+      this.windowAnimationTimer = null;
+      this.windowAnimationTarget = null;
+    }
+
+    const [contentWidth, contentHeight] = this.mainWindow.getContentSize();
+    const availHeight = Math.max(0, contentHeight - TITLEBAR_HEIGHT);
+    const collapsedWidth = Math.max(0, contentWidth - SIDEBAR_WIDTH);
+    const expandedWidth = contentWidth;
+
+    const startWidth = sidebarVisible ? expandedWidth : collapsedWidth;
+    const endWidth = sidebarVisible ? collapsedWidth : expandedWidth;
+
+    const startTime = Date.now();
+    const duration = Math.max(1, durationMs);
+    const frameIntervalMs = 16;
+
+    this.contentAnimationTimer = setInterval(() => {
+      if (this.windowIsGone()) {
+        this.cancelContentAnimation();
+        return;
+      }
+
+      const elapsed = Date.now() - startTime;
+      const t = Math.min(1, Math.max(0, elapsed / duration));
+      const progress = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+      const currentWidth = Math.round(startWidth + (endWidth - startWidth) * progress);
+
+      const bounds = {
+        x: 0,
+        y: TITLEBAR_HEIGHT,
+        width: currentWidth,
+        height: availHeight,
+      };
+
+      for (const [, view] of this.pool.entries()) {
+        if (viewIsAlive(view)) {
+          view.setBounds(bounds);
+        }
+      }
+
+      if (t >= 1) {
+        this.cancelContentAnimation();
+        this.updateLayout();
+      }
+    }, frameIntervalMs);
+  }
+
   public updateLayout(): void {
+    if (this.windowIsGone()) return;
+    if (this.windowAnimationTarget) return;
+
+    this.cancelContentAnimation();
+
     const [width, height] = this.mainWindow.getContentSize();
-    const bounds = layoutCalendarView(width, height);
+    const settings = loadSettings();
+    const bounds = layoutCalendarView(width, height, {
+      sidebarVisible: settings.sidebarVisible,
+    });
     for (const [, view] of this.pool.entries()) {
       view.setBounds(bounds);
     }
@@ -670,7 +807,12 @@ export class AccountsManager {
     if (this.mainWindow.contentView.children.includes(view)) return () => {};
 
     const [width, height] = this.mainWindow.getContentSize();
-    view.setBounds(layoutCalendarView(width, height));
+    const settings = loadSettings();
+    view.setBounds(
+      layoutCalendarView(width, height, {
+        sidebarVisible: settings.sidebarVisible,
+      }),
+    );
     if (typeof view.setVisible === 'function') {
       view.setVisible(false);
     }
@@ -754,6 +896,15 @@ export class AccountsManager {
   }
 
   /**
+   * Navigates the active account view to a specific date.
+   */
+  public async navigateToDate(date: Date, mode?: string): Promise<boolean> {
+    const view = this.getActiveView();
+    if (!view || !viewIsAlive(view)) return false;
+    return this.dom.navigateToDate(view, date, mode);
+  }
+
+  /**
    * Shows one event in its own account's view, with its detail panel open.
    *
    * What a banner does when the user clicks its body.
@@ -797,6 +948,10 @@ export class AccountsManager {
    * background account is in changes nothing the user can see.
    */
   private updateViewMode(accountId: string, url: string): void {
+    const routeInfo = parseCalendarRoute(url);
+    if (routeInfo && accountId === this.activeAccountId) {
+      this.onTimeframeChanged?.(routeInfo.timeframe, routeInfo.dateStr);
+    }
     const next = viewModeForPath(pathnameOf(url));
     const previous = this.viewModes.get(accountId) ?? 'calendar';
     this.viewModes.set(accountId, next);
@@ -876,6 +1031,11 @@ export class AccountsManager {
     if (!activeView) return;
 
     this.updateLayout();
+
+    const currentUrl = activeView.webContents.getURL();
+    if (currentUrl) {
+      this.updateViewMode(accountId, currentUrl);
+    }
 
     // Load URL only after view is attached and has full window bounds. A
     // resumed account returns to where it was rather than to the default view.
@@ -975,7 +1135,9 @@ export class AccountsManager {
 
     // The same view's `sync.sync` traffic carries the sync state a direct write reuses;
     // see `calendar-sync-state.ts`.
-    const stopSyncState = observeSyncState(account.partition);
+    const stopSyncState = observeSyncState(account.partition, () => {
+      this.onSyncMutation?.(account.id);
+    });
 
     this.calendarObservers.set(account.id, () => {
       stopIds();
@@ -994,6 +1156,52 @@ export class AccountsManager {
    * response carrying the list -- later ones are deltas.
    */
   private receiveCalendarLists(): void {
+    ipcMain.on(
+      GCAL_VIEW_MODE_CHANNEL,
+      (event, payload: { timeframe?: string; dateStr?: string }) => {
+        const entry = [...this.pool.entries()].find(
+          ([, view]) => viewIsAlive(view) && view.webContents === event.sender,
+        );
+        if (!entry) return;
+        const [accountId] = entry;
+        if (accountId === this.activeAccountId && payload?.timeframe) {
+          log.info(
+            `Received GCAL_VIEW_MODE_CHANNEL: ${payload.timeframe} (date: ${payload.dateStr})`,
+          );
+          this.onTimeframeChanged?.(payload.timeframe, payload.dateStr);
+        }
+      },
+    );
+
+    ipcMain.on(
+      GCAL_GRID_SCROLL_CHANNEL,
+      (
+        event,
+        payload: {
+          hour?: number;
+          hourHeight?: number;
+          gridTop?: number;
+          gridHeight?: number;
+          cardTop?: number;
+        },
+      ) => {
+        const entry = [...this.pool.entries()].find(
+          ([, view]) => viewIsAlive(view) && view.webContents === event.sender,
+        );
+        if (!entry) return;
+        const [accountId] = entry;
+        if (accountId === this.activeAccountId && typeof payload?.hour === 'number') {
+          this.onGridScroll?.(
+            payload.hour,
+            payload.hourHeight ?? 48,
+            payload.gridTop ?? 148,
+            payload.gridHeight ?? 600,
+            payload.cardTop ?? 64,
+          );
+        }
+      },
+    );
+
     ipcMain.on(
       CALENDAR_LIST_CHANNEL,
       (
@@ -1214,7 +1422,12 @@ export class AccountsManager {
     // Laid out, though never shown: Google renders the pane against the viewport, and a
     // zero-sized one leaves the controls unrendered for the selectors to miss.
     const [width, height] = this.mainWindow.getContentSize();
-    worker.setBounds(layoutCalendarView(width, height));
+    const settings = loadSettings();
+    worker.setBounds(
+      layoutCalendarView(width, height, {
+        sidebarVisible: settings.sidebarVisible,
+      }),
+    );
 
     let outcome: IcsImportOutcome;
     try {

@@ -16,7 +16,7 @@ An invitation is outstanding while Google reports that you have not responded, w
 - **A finished meeting drops out.** Once the last occurrence has ended, the invitation leaves on the next sync.
 - **A calendar you are not a guest of is not an invitation.** An event on a shared calendar owes you no reply.
 
-Accepted, tentative and declined meetings never count.
+Accepted, tentative and declined meetings never count. The date beside each row follows your Mac's region and clock, like every other date in Magical; see the [Settings Reference](/help/magical/settings/#times-and-dates).
 
 ## Window Toolbar Item
 

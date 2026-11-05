@@ -12,6 +12,16 @@ public enum TrayThreadAction: String {
     case markUnread
 }
 
+/// What the status item draws for each account.
+///
+/// The three readings all draw one mark per account, which is what makes the
+/// item's width a function of the account count rather than of the mail.
+public enum MenuBarUnreadDisplay: String, CaseIterable {
+    case nothing
+    case dots
+    case numbers
+}
+
 /// Data model for the menu bar tray popover.
 @MainActor
 public final class TrayModel: ObservableObject {
@@ -24,9 +34,8 @@ public final class TrayModel: ObservableObject {
     /// Selected account filter. `nil` shows every account.
     @Published public var selectedAccountId: String?
 
-    // Settings that affect the status item title
-    @Published public var showCount: Bool = true
-    @Published public var showDots: Bool = true
+    /// Settings that affect the status item title
+    @Published public var unreadDisplay: MenuBarUnreadDisplay = .numbers
     /// Whether the popover draws only unread threads. A view filter, not a
     /// setting that changes what is fetched; `TrayModel` still holds the whole
     /// list so turning it off restores the read context without a round trip.
@@ -40,6 +49,21 @@ public final class TrayModel: ObservableObject {
     /// Separate from `isOffline` (the network is fine) and from the sign-in state (no
     /// credential the user can enter will lift an organisation policy).
     @Published public var isRestricted: Bool = false
+
+    /// Verification code extracted from a recent unread email.
+    @Published public var currentVerificationCode: TrayVerificationCode?
+    @Published public var menuBarVerificationCodes: Bool = true
+    @Published public var verificationCodeDurationMinutes: Int = 15
+
+    /// The verification code to show in the hero card if within its duration and enabled.
+    public var activeVerificationCode: TrayVerificationCode? {
+        guard menuBarVerificationCodes, let current = currentVerificationCode else { return nil }
+        let maxAge: TimeInterval = Double(verificationCodeDurationMinutes) * 60
+        if Date().timeIntervalSince(current.receivedAt) > maxAge {
+            return nil
+        }
+        return current
+    }
 
     /// Set while a forced poll is in flight, so the gear menu's Refresh item cannot be
     /// fired twice. Any state arriving from Electron clears it: the poll that answers a
@@ -171,6 +195,9 @@ public final class TrayModel: ObservableObject {
             // may serve the old copy for a moment yet.
             messages.remove(at: index)
             state = .removed
+            if currentVerificationCode?.messageId == messageId || currentVerificationCode?.threadId == messageId {
+                currentVerificationCode = nil
+            }
         }
         messagesByAccount[accountId] = messages
         localState[accountId, default: [:]][messageId] = LocalStateEntry(state: state, setAt: Date())
@@ -211,11 +238,10 @@ public final class TrayModel: ObservableObject {
         if let total = params["totalUnread"] as? Int {
             totalUnread = total
         }
-        if let sc = params["showCount"] as? Bool {
-            showCount = sc
-        }
-        if let sd = params["showDots"] as? Bool {
-            showDots = sd
+        if let display = params["unreadDisplay"] as? String,
+           let parsed = MenuBarUnreadDisplay(rawValue: display)
+        {
+            unreadDisplay = parsed
         }
         if let unreadOnly = params["showUnreadOnly"] as? Bool {
             showUnreadOnly = unreadOnly
@@ -226,6 +252,77 @@ public final class TrayModel: ObservableObject {
         if let restricted = params["isRestricted"] as? Bool {
             isRestricted = restricted
         }
+        if let vcDict = params["verificationCode"] as? [String: Any] {
+            updateVerificationCode(from: vcDict)
+        } else if params.keys.contains("verificationCode") {
+            updateVerificationCode(from: nil)
+        }
+        if let mbvc = params["menuBarVerificationCodes"] as? Bool {
+            menuBarVerificationCodes = mbvc
+        }
+        if let vcd = params["verificationCodeDurationMinutes"] as? Int {
+            verificationCodeDurationMinutes = vcd
+        }
+    }
+
+    public func updateVerificationCode(from dict: [String: Any]?) {
+        guard let dict,
+              let code = dict["code"] as? String, !code.isEmpty,
+              let messageId = dict["messageId"] as? String,
+              let threadId = dict["threadId"] as? String,
+              let accountId = dict["accountId"] as? String
+        else {
+            currentVerificationCode = nil
+            return
+        }
+
+        let service = dict["service"] as? String
+        let subject = dict["subject"] as? String ?? ""
+        let from = dict["from"] as? String ?? ""
+        let receivedAtMs = dict["receivedAt"] as? Double ?? (dict["receivedAt"] as? Int).map { Double($0) } ?? (Date().timeIntervalSince1970 * 1000)
+        let receivedAt = Date(timeIntervalSince1970: receivedAtMs / 1000)
+
+        currentVerificationCode = TrayVerificationCode(
+            code: code,
+            service: service,
+            subject: subject,
+            from: from,
+            messageId: messageId,
+            threadId: threadId,
+            accountId: accountId,
+            receivedAt: receivedAt
+        )
+    }
+}
+
+public struct TrayVerificationCode: Equatable, Sendable {
+    public let code: String
+    public let service: String?
+    public let subject: String
+    public let from: String
+    public let messageId: String
+    public let threadId: String
+    public let accountId: String
+    public let receivedAt: Date
+
+    public init(
+        code: String,
+        service: String?,
+        subject: String,
+        from: String,
+        messageId: String,
+        threadId: String,
+        accountId: String,
+        receivedAt: Date
+    ) {
+        self.code = code
+        self.service = service
+        self.subject = subject
+        self.from = from
+        self.messageId = messageId
+        self.threadId = threadId
+        self.accountId = accountId
+        self.receivedAt = receivedAt
     }
 }
 

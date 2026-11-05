@@ -49,8 +49,13 @@ as `CachedInboxSnapshot.asOf`.
 
 For a row the ledger already has, only a snapshot with a sync time can change its unread flag; a
 snapshot without one fills in metadata only. A thread the ledger has not seen is added with the
-cache's read state. A cache read runs when the popover pulls rows, on refresh, on a mailbox change
-hint, and when the window wakes.
+cache's read state. A cache read runs when the popover or widget pulls rows (`getRecentMessages`),
+on refresh, on a mailbox change hint, and when the window wakes. The ledger maintains a monotonic
+revision number, incremented whenever observable state changes (unread count, category breakdown,
+backlog state, or recent message turnover, read flags or snippets). If a cache read or poll advances
+the ledger revision, the source emits a change event and persists the counts. This ensures zero-sum
+turnover (e.g. an email marked read as another arrives) and category shifts emit immediately without
+relying only on total count changes.
 
 ### How they merge
 

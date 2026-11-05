@@ -4,6 +4,7 @@ import path from 'node:path';
 import { isDemoMode, newAccountId } from '@magimail/core';
 import { createLogger } from '@magimail/core/logger';
 import { appGroupContainerPath } from './native-widgets.js';
+import { canonicaliseCalendarId } from './calendars.js';
 
 const log = createLogger('Accounts');
 
@@ -115,12 +116,25 @@ function legacyAccountsPath(): string {
   return path.join(userData, ACCOUNTS_FILENAME);
 }
 
+function normaliseAccount(account: CalendarAccount): CalendarAccount {
+  return {
+    ...account,
+    calendars: account.calendars?.map((c) => ({
+      ...c,
+      id: canonicaliseCalendarId(c.id),
+    })),
+    calendarIds: account.calendarIds
+      ? [...new Set(account.calendarIds.map(canonicaliseCalendarId))]
+      : undefined,
+  };
+}
+
 /** Parses one accounts file, or null when it is absent, empty or unreadable. */
 function readAccountsFile(file: string): CalendarAccount[] | null {
   try {
     if (fs.existsSync(file)) {
       const data = JSON.parse(fs.readFileSync(file, 'utf8'));
-      if (Array.isArray(data) && data.length > 0) return data;
+      if (Array.isArray(data) && data.length > 0) return data.map(normaliseAccount);
     }
   } catch (err) {
     // The user's configured accounts are then replaced by a single default,

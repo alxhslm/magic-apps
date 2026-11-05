@@ -47,7 +47,8 @@ macOS version, build and architecture. It exists because "works on my machine" i
 those, and no reporter thinks to mention them. The macOS **build** is there because Apple ships more
 than one under a single version string, so two reporters both on "15.6.1" can be on different systems.
 It is read from `/System/Library/CoreServices/SystemVersion.plist`; nothing in Node or Electron
-exposes it, and `sw_vers` would mean spawning a process at launch.
+exposes it, and `sw_vers` would mean spawning a process at launch. A local build's version names its
+commit, such as `0.0.0-dev+a1b2c3d`, so a log does not have to guess which build produced it.
 
 A second line follows on `whenReady`: the resolved appearance, the theme source the user chose,
 whether high contrast is on, and the primary display's size and scale factor. Appearance and scale are
@@ -71,6 +72,9 @@ resolution is one of the few things that can cause it, so the record is what dat
 occurrence against the rest of the log. Those listeners are registered on ready, because `screen`
 throws before the app is ready and the module loads before then.
 
+`display-metrics-changed` fires hundreds of times while a display settles, so a burst logs its first
+event and its last, with a count and how long it spanned. A lone event keeps the single line.
+
 A `clean-exit` reason is logged at `info`. Ordinary teardown must not read as a crash, or the level
 stops meaning anything.
 
@@ -82,6 +86,15 @@ story for a volume that does not exist yet, and can be revisited after launch.
 A Swift helper exiting non-zero takes the menu bar item, the settings window and notifications with
 it, so it is an `error` with its exit code. A `SIGTERM` from the app's own `killHelper()` on quit is
 the normal path and is `info`.
+
+A request that misses its deadline logs `method timed out after Nms` at `error`. A first miss then
+logs `Keeping the helper after one missed deadline` at `warn` with the request id and how many
+other requests are still
+pending; the second consecutive miss logs the restart, including how many requests it resolves null.
+A reply after its own deadline logs at `warn` and a later reply that ends a miss run logs at `info`,
+so the log distinguishes a slow helper from a wedged one. A stdin failure logs the stream error, then
+the number of pending requests dropped; when it happens after `killHelper()` on the quit path there
+is nothing pending and only the stream line is written.
 
 ## Redaction
 

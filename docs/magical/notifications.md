@@ -208,6 +208,13 @@ A press travels back as an `alert.action` event carrying the alert's `key`, `acc
 `deepLink` and `conferenceUrl`. `onAlertAction` routes each one to the same method the tray RPC
 reaches; see [`actions.md`](actions.md).
 
+## Times in banner text
+
+An alert's start time and an invitation's date come from `formatTime` / `formatClock` in
+`time-format.ts`, so both follow the Mac's clock and locale like every other surface. The rule,
+where the setting is read and which formatter the rest of the app uses are in
+[`time-and-locale.md`](time-and-locale.md).
+
 ## Answering an invitation
 
 A banner's Yes, Maybe and No carry `rsvp:yes`, `rsvp:maybe` and `rsvp:no`. `onAlertAction` answers

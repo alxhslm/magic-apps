@@ -1,6 +1,10 @@
 import { colourForId } from './google-colours.js';
 import type { CalendarMeta } from './accounts.js';
-import { CALENDARS_WITH_NO_BLOCK, friendlyCalendarName } from './calendars.js';
+import {
+  CALENDARS_WITH_NO_BLOCK,
+  friendlyCalendarName,
+  canonicaliseCalendarId,
+} from './calendars.js';
 
 /**
  * calendar-list.ts
@@ -114,9 +118,11 @@ export function extractRawCalendarList(parsed: unknown): RawCalendar[] {
     const named = [calendar[14], colour[0], meta[0]].find(
       (candidate): candidate is string => typeof candidate === 'string' && candidate.length > 0,
     );
+    const rawId = calendar[0];
+    const canonicalId = canonicaliseCalendarId(rawId);
     calendars.push({
-      id: calendar[0],
-      name: named ?? calendar[0],
+      id: canonicalId,
+      name: named ?? friendlyCalendarName(canonicalId),
       colourIndex: Number.isFinite(index) ? index : null,
       colourValue: parseColourValue(colour[5]),
       colourKind: parseColourKind(colour[7]),

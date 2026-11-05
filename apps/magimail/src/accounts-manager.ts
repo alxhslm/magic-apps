@@ -59,6 +59,7 @@ import {
   type MailboxSource,
   type MailboxChangeEvent,
   type MailboxPollEvent,
+  type VerificationCodeItem,
   HybridFeedSource,
 } from './mailbox/index.js';
 import {
@@ -245,6 +246,18 @@ export class AccountsManager {
   private activeAccountId: string = this.accounts[0]?.id ?? '';
   /** The account a cold-launch link named, resolved in `initialize()`. */
   private requestedInitialAccountId?: string;
+  /**
+   * The account a thread open is keeping on screen until its route lands.
+   *
+   * A switch during the route detaches the view, and a detached view loses the
+   * hash assignment to Gmail's own navigation. The hold defers other switches
+   * instead of letting one land mid-route.
+   */
+  private routeHoldAccountId: string | null = null;
+  /** The last switch asked for while a route held another account active. */
+  private deferredSwitchAccountId: string | null = null;
+  /** Opens run one at a time, so a second cannot take the first one's hold. */
+  private openThreadQueue: Promise<void> = Promise.resolve();
   private readonly pool: RendererPool<AccountConfig, WebContentsView>;
   private mainWindow: BaseWindow;
   private preloadPath: string;
@@ -437,6 +450,16 @@ export class AccountsManager {
 
   public getMailboxSources(): Map<string, MailboxSource> {
     return this.mailboxSources;
+  }
+
+  public async getLatestVerificationCode(maxAgeMs?: number): Promise<VerificationCodeItem | null> {
+    const results = await Promise.all(
+      [...this.mailboxSources.values()].map((s) => s.getLatestVerificationCode(maxAgeMs)),
+    );
+    const valid = results.filter((r): r is VerificationCodeItem => r !== null);
+    if (valid.length === 0) return null;
+    valid.sort((a, b) => b.receivedAt - a.receivedAt);
+    return valid[0];
   }
 
   public setPollIntervals(acSeconds: number, batterySeconds: number): void {
@@ -1058,6 +1081,19 @@ export class AccountsManager {
   public switchAccount(accountId: string): void {
     const targetAccount = this.accounts.find((a) => a.id === accountId);
     if (!targetAccount) return;
+
+    if (this.routeHoldAccountId) {
+      if (accountId !== this.routeHoldAccountId) {
+        this.deferredSwitchAccountId = accountId;
+        log.info(
+          `Holding ${this.routeHoldAccountId} active until its thread open lands; ` +
+            `deferring switch to ${accountId}`,
+        );
+        return;
+      }
+      // Switching back to the held account cancels a switch that was waiting.
+      this.deferredSwitchAccountId = null;
+    }
 
     log.info(`Switching active account to ${accountId}`);
     this.activeAccountId = accountId;
@@ -2086,8 +2122,8 @@ export class AccountsManager {
         return await wc.executeJavaScript(`
           ${DOM_DRIVE_PREAMBLE}
           (async () => Boolean(await waitUntil(
-            () => resolveOrdered(['[role="main"]', '[gh="cm"]']) !== null || location.hash.length > 0,
-            { timeoutMs: ${remaining}, label: 'gmail-ready' },
+            () => resolveOrdered(['[role="main"]', '[gh="cm"]']) !== null,
+            { timeoutMs: ${remaining}, quietMs: 250, label: 'gmail-ready' },
           )))()
         `);
       } catch {
@@ -2213,26 +2249,16 @@ export class AccountsManager {
     // waking loads Gmail again, and leaving the user on a blank window until it
     // finishes is worse than showing the account it is about to switch to.
     if (action === 'open') {
-      this.mainWindow.show();
-      this.mainWindow.focus();
-
-      const woken = await this.wakeAccountForAction(accountId);
-      if (!woken) return false;
-      const { view, release } = woken;
-
-      this.switchAccount(accountId);
-      try {
-        if (await this.isShowingThread(view, messageId)) return true;
-        const routed = await this.routeToThread(view, messageId);
-        if (!routed) {
-          log.info(`Dropped open on ${accountId}: the view would not leave what it is showing`);
-          await this.restorePreviousRoute(view, messageId);
-          return false;
-        }
-        return true;
-      } finally {
-        release();
-      }
+      const startedAt = Date.now();
+      const opening = this.openThreadQueue.then(() =>
+        this.openThread(accountId, messageId, startedAt),
+      );
+      // The queue survives a rejected open; the caller still sees the rejection.
+      this.openThreadQueue = opening.then(
+        () => undefined,
+        () => undefined,
+      );
+      return opening;
     }
 
     // Triage does not wake the account: the mailbox source owns the action.
@@ -2241,6 +2267,69 @@ export class AccountsManager {
       return source.triageThread(messageId, action as TriageAction);
     }
     return false;
+  }
+
+  /**
+   * Open one thread, holding its account active until the route lands.
+   *
+   * A view that has loaded is not necessarily showing Gmail: it may still be
+   * navigating after a wake, and a hash assigned during that navigation is lost
+   * to Gmail's own route. `waitForGmail` waits for the app's chrome, not for the
+   * load event, so the hash lands on the page that will keep it.
+   */
+  private async openThread(
+    accountId: string,
+    messageId: string,
+    startedAt: number,
+  ): Promise<boolean> {
+    this.mainWindow.show();
+    this.mainWindow.focus();
+
+    this.routeHoldAccountId = accountId;
+    try {
+      const woken = await this.wakeAccountForAction(accountId);
+      if (!woken) return false;
+      const { view, release } = woken;
+
+      try {
+        this.switchAccount(accountId);
+
+        if (await this.isShowingThread(view, messageId)) {
+          log.info(
+            `Opened thread on ${accountId} in ${Date.now() - startedAt} ms (already on screen)`,
+          );
+          return true;
+        }
+
+        if (!(await this.waitForGmail(view))) {
+          log.info(`Dropped open on ${accountId}: Gmail was not showing when the route was due`);
+          return false;
+        }
+
+        const routed = await this.routeToThread(view, messageId);
+        if (!routed) {
+          log.info(`Dropped open on ${accountId}: the view would not leave what it is showing`);
+          await this.restorePreviousRoute(view, messageId);
+          return false;
+        }
+        log.info(`Opened thread on ${accountId} in ${Date.now() - startedAt} ms`);
+        return true;
+      } finally {
+        release();
+      }
+    } finally {
+      this.releaseRouteHold();
+    }
+  }
+
+  /** Lift the hold and apply whichever switch was waiting behind it. */
+  private releaseRouteHold(): void {
+    this.routeHoldAccountId = null;
+    const deferred = this.deferredSwitchAccountId;
+    this.deferredSwitchAccountId = null;
+    if (!deferred || deferred === this.activeAccountId) return;
+    if (!this.accounts.some((a) => a.id === deferred)) return;
+    this.switchAccount(deferred);
   }
 
   /**

@@ -8,6 +8,7 @@ import { collapseWorkingLocations } from './working-locations.js';
 import { CalendarPoller, classifyFailure, type SourceHealth } from './calendar-poller.js';
 import { TasksPoller } from './tasks-poller.js';
 import {
+  TasksRateLimitedError,
   TasksRefusedError,
   type TaskEntry,
   type TaskOccurrence,
@@ -45,7 +46,7 @@ import { uiString } from './strings.js';
 import {
   buildEventLink,
   decodeEid,
-  extractEid,
+  eventEid,
   parseEventLink,
   resolveToCalendarUrl,
   type EventLinkAction,
@@ -160,6 +161,16 @@ const BACKOFF_CAP_MS = 60 * 60 * 1000;
 
 /** Ignore a focus re-poll this soon after the last one, so window switching is free. */
 const FOCUS_POLL_MIN_GAP_MS = 60 * 1000;
+
+/**
+ * Write-settling delay after observing a sync mutation in Google Calendar web UI.
+ *
+ * Gives Google's backend time to commit and index the write before we fetch the range.
+ */
+const CHANGE_HINT_POLL_DELAY_MS = 600;
+
+/** Rate-limits rapid sync mutations (e.g. dragging, multi-deletes). */
+const CHANGE_HINT_COOLDOWN_MS = 2500;
 
 /** How often to retry an action held back while the user edits, and when to give up. */
 const HELD_RETRY_MS = 5_000;
@@ -441,6 +452,9 @@ export class CalendarService {
   /** Timestamp of the most-recently-started `pollAll` — used by `refreshIfStale`. */
   private lastPollStartedAt: number | null = null;
   private isPolling = false;
+  private hintTimer: ReturnType<typeof setTimeout> | null = null;
+  private lastHintPollAt = 0;
+  private needsFollowUpPoll = false;
   public onEventsUpdated?: (events: Map<string, NormalizedCalendarEvent[]>) => void;
 
   public getCachedEvents(): Map<string, NormalizedCalendarEvent[]> {
@@ -476,7 +490,7 @@ export class CalendarService {
     const event = calendarEvents.find((e) => e.id === eventId);
     if (!event) return false;
 
-    const eid = extractEid(event);
+    const eid = eventEid(event);
     if (!eid || !this.performDelete) {
       log.warn(
         `cannot delete event ${eventId} in background without eid/handler; opening in window`,
@@ -543,7 +557,7 @@ export class CalendarService {
       return false;
     }
 
-    const eid = extractEid(event);
+    const eid = eventEid(event);
     if (!eid || !this.performComplete) {
       log.warn(`cannot change task ${eventId} in background without eid/handler; opening it`);
       this.openDeepLink(buildEventLink(event, accountId));
@@ -726,6 +740,35 @@ export class CalendarService {
   public pollOnFocus(): void {
     if (Date.now() - this.lastPollAt < FOCUS_POLL_MIN_GAP_MS) return;
     this.pollNow();
+  }
+
+  /**
+   * Triggers an accelerated poll in response to user actions in the Google Calendar web UI
+   * (e.g. creating, updating, or deleting an event, or completing a task).
+   *
+   * Rate-limited with a write-settling delay so Google's backend has completed committing
+   * the mutation before we query for the updated event range.
+   */
+  public requestImmediatePoll(_accountId?: string): void {
+    if (this.isSuspended) return;
+
+    if (this.isPolling) {
+      this.needsFollowUpPoll = true;
+    }
+
+    if (this.hintTimer) return;
+
+    const sinceLastPoll = Date.now() - this.lastHintPollAt;
+    const delay =
+      sinceLastPoll >= CHANGE_HINT_COOLDOWN_MS
+        ? CHANGE_HINT_POLL_DELAY_MS
+        : Math.max(CHANGE_HINT_POLL_DELAY_MS, CHANGE_HINT_COOLDOWN_MS - sinceLastPoll);
+
+    this.hintTimer = setTimeout(() => {
+      this.hintTimer = null;
+      this.lastHintPollAt = Date.now();
+      void this.pollAll();
+    }, delay);
   }
 
   /**
@@ -1308,10 +1351,10 @@ export class CalendarService {
       // The cached state stands. It is the last thing Google actually said, and
       // guessing is worse than showing it.
       //
-      // A refusal has already been said once by the poller and is paused there, so it is
-      // not repeated here on every poll; a decode or network failure is worth a line
-      // each time it happens.
-      if (!(err instanceof TasksRefusedError)) {
+      // A refusal or a rate limit has already been said once by the poller and is paused
+      // there, so it is not repeated here on every poll; a decode or network failure is
+      // worth a line each time it happens.
+      if (!(err instanceof TasksRefusedError) && !(err instanceof TasksRateLimitedError)) {
         log.warn(`could not sync tasks completion for ${accountId}:`, err);
       }
       return;
@@ -1485,6 +1528,10 @@ export class CalendarService {
       this.scheduleNext();
     } finally {
       this.isPolling = false;
+      if (this.needsFollowUpPoll) {
+        this.needsFollowUpPoll = false;
+        setTimeout(() => void this.pollAll(), CHANGE_HINT_POLL_DELAY_MS);
+      }
     }
   }
 
@@ -1795,8 +1842,10 @@ export class CalendarService {
     // same event carries the organiser's, so the same event can arrive under two eids.
     // The event id is shared, so it is the fallback that finds the cached row either way.
     const linkedId = decodeEid(eid)?.eventId;
+    // Compared against the occurrence's own eid, not the one its web URL carries: for an
+    // expanded occurrence those differ, and the link names the occurrence.
     const cached = (this.cachedEvents.get(accountId) ?? []).find(
-      (e) => extractEid(e) === eid || (linkedId !== undefined && e.id === linkedId),
+      (e) => eventEid(e) === eid || (linkedId !== undefined && e.id === linkedId),
     );
 
     if (cached) {
@@ -1846,7 +1895,7 @@ export class CalendarService {
    */
   private async deliverRsvp(invite: PendingInvite, response: RsvpResponse): Promise<void> {
     const { key } = invite;
-    const eid = extractEid(invite.event);
+    const eid = eventEid(invite.event);
     const accountId = invite.sourceId.replace(/^google:/, '');
     if (!eid) {
       // Without an eid there is no way to address the chip, so fall back to showing the
@@ -2037,7 +2086,7 @@ export class CalendarService {
     const at =
       target.date ??
       (target.eid
-        ? (this.cachedEvents.get(account.id) ?? []).find((e) => extractEid(e) === target.eid)
+        ? (this.cachedEvents.get(account.id) ?? []).find((e) => eventEid(e) === target.eid)
             ?.startTime
         : undefined);
 

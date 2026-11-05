@@ -8,6 +8,7 @@ import {
 } from 'electron';
 import { TOOLBAR_HEIGHT } from './constants.js';
 import type { UiTranslator } from './ui-strings.js';
+import { viewIsAlive } from './window.js';
 
 /**
  * The catalogue keys the Find in Page view renders, so an app can assert they exist.
@@ -499,7 +500,7 @@ export class FindInPageController {
       this.currentTarget.removeListener('before-input-event', this.boundBeforeInput);
     }
     if (this.view) {
-      if (!this.view.webContents.isDestroyed()) {
+      if (viewIsAlive(this.view)) {
         this.view.webContents.close();
       }
       this.view = null;
@@ -558,7 +559,7 @@ export class FindInPageController {
   }
 
   private focusInput(): void {
-    if (this.view && !this.view.webContents.isDestroyed()) {
+    if (viewIsAlive(this.view)) {
       this.view.webContents.focus();
       this.view.webContents
         .executeJavaScript('window.__focusInput && window.__focusInput()')
@@ -616,7 +617,7 @@ export class FindInPageController {
   }
 
   private updateMatchDisplay(activeOrdinal: number, matches: number, queryEmpty: boolean): void {
-    if (this.view && !this.view.webContents.isDestroyed()) {
+    if (viewIsAlive(this.view)) {
       this.view.webContents
         .executeJavaScript(
           `window.__setMatches && window.__setMatches(${activeOrdinal}, ${matches}, ${queryEmpty})`,

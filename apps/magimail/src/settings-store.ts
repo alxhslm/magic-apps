@@ -11,9 +11,16 @@ export interface AppSettings {
   launchAtLogin: boolean;
   dockBadgeMode: DockBadgeMode;
   showMenuBarTray: boolean;
-  menuBarShowCount: boolean;
-  menuBarShowDots: boolean;
+  /**
+   * What each account contributes to the status item: nothing, one filled or
+   * ringed dot, or a two-digit cell. Never a total, because the Dock badge
+   * already carries that and the point of the menu bar is which inbox is
+   * waiting.
+   */
+  menuBarUnreadDisplay: MenuBarUnreadDisplay;
   menuBarUnreadOnly: boolean;
+  menuBarVerificationCodes: boolean;
+  verificationCodeDurationMinutes: number;
   hidePromotionAds: boolean;
   hideSidebar: boolean;
   transparentBackground: boolean;
@@ -79,6 +86,16 @@ export const DOCK_BADGE_MODES = ['allUnread', 'newArrivals', 'off'] as const;
 
 export type DockBadgeMode = (typeof DOCK_BADGE_MODES)[number];
 
+/**
+ * The three readings Magimail's status item can show.
+ *
+ * Every one draws one mark per account, so the item's width is a function of
+ * the account count and this setting, never of the unread counts themselves.
+ */
+export const MENU_BAR_UNREAD_DISPLAYS = ['nothing', 'dots', 'numbers'] as const;
+
+export type MenuBarUnreadDisplay = (typeof MENU_BAR_UNREAD_DISPLAYS)[number];
+
 const SETTINGS_FILENAME = 'settings.json';
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -86,9 +103,10 @@ const DEFAULT_SETTINGS: AppSettings = {
   launchAtLogin: false,
   dockBadgeMode: 'allUnread',
   showMenuBarTray: true,
-  menuBarShowCount: true,
-  menuBarShowDots: true,
+  menuBarUnreadDisplay: 'numbers',
   menuBarUnreadOnly: false,
+  menuBarVerificationCodes: true,
+  verificationCodeDurationMinutes: 15,
   hidePromotionAds: true,
   hideSidebar: false,
   transparentBackground: true,
@@ -141,12 +159,50 @@ function migrateDockBadge(data: Record<string, unknown>): Record<string, unknown
   return rest;
 }
 
+function isMenuBarUnreadDisplay(value: unknown): value is MenuBarUnreadDisplay {
+  return MENU_BAR_UNREAD_DISPLAYS.includes(value as MenuBarUnreadDisplay);
+}
+
+/**
+ * Carries the old pair of booleans across to one reading.
+ *
+ * `showDots` and `showCount` could express four states, including a total
+ * count that duplicated the Dock badge. Count-plus-dots and count-only both
+ * become `numbers`; dots-only becomes `dots`; neither becomes `nothing`.
+ * The old keys are dropped rather than kept in sync, for the same reason as
+ * `migrateDockBadge`.
+ */
+function migrateMenuBarUnreadDisplay(data: Record<string, unknown>): Record<string, unknown> {
+  const { menuBarShowCount, menuBarShowDots, ...rest } = data;
+  if (rest.menuBarUnreadDisplay === undefined) {
+    // A missing old key meant its default, which was true for both. Reading an
+    // absent key as false would turn a file holding only `showCount: false`
+    // into numbers, when that user had dots on.
+    const hadDots = menuBarShowDots !== false;
+    const hadCount = menuBarShowCount !== false;
+    if (!hadDots && !hadCount) {
+      rest.menuBarUnreadDisplay = 'nothing';
+    } else if (hadDots && !hadCount) {
+      rest.menuBarUnreadDisplay = 'dots';
+    } else {
+      rest.menuBarUnreadDisplay = 'numbers';
+    }
+  }
+  if (!isMenuBarUnreadDisplay(rest.menuBarUnreadDisplay)) {
+    rest.menuBarUnreadDisplay = 'numbers';
+  }
+  return rest;
+}
+
 export function loadSettings(): AppSettings {
   if (cachedSettings) return { ...cachedSettings };
   try {
     const stored = readSecretFile<Record<string, unknown>>(getSettingsPath());
     if (stored) {
-      cachedSettings = { ...DEFAULT_SETTINGS, ...migrateDockBadge(stored) } as AppSettings;
+      cachedSettings = {
+        ...DEFAULT_SETTINGS,
+        ...migrateMenuBarUnreadDisplay(migrateDockBadge(stored)),
+      } as AppSettings;
       return { ...cachedSettings };
     }
   } catch (err) {

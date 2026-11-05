@@ -781,8 +781,8 @@ describe('the invitations dropdown', () => {
 
       await service.answerRsvp('a', 'a-evt', 'yes');
 
-      // The chip is addressed by the eid out of the event's web URL. The popover sends an
-      // event id, which names nothing Google can click.
+      // The chip is addressed by the occurrence's eid, which for this event is the one its
+      // web URL carries. The popover sends an event id, which names nothing Google can click.
       expect(performRsvp.mock.lastCall?.[1]).toBe('ABC');
       expect(performRsvp.mock.lastCall?.[2]).toBe('yes');
       // The poller still reports it as unanswered, so the badge cannot have dropped
@@ -2848,6 +2848,158 @@ describe('task completion sync and persistence', () => {
     await (service as any).syncTasksCompletion('a', [task], WIDE_RANGE);
 
     expect(task.isCompleted).toBe(true);
+    service.stop();
+  });
+
+  describe('requestImmediatePoll', () => {
+    it('debounces rapid calls and triggers a poll', async () => {
+      vi.useFakeTimers();
+      const service = new CalendarService(
+        () => [account],
+        () => {},
+        async () => 'ok' as const,
+      );
+      const pollAllSpy = vi.spyOn(service as any, 'pollAll').mockResolvedValue(undefined);
+
+      service.requestImmediatePoll();
+      service.requestImmediatePoll();
+
+      expect(pollAllSpy).not.toHaveBeenCalled();
+
+      await vi.advanceTimersByTimeAsync(600);
+
+      expect(pollAllSpy).toHaveBeenCalledTimes(1);
+
+      vi.useRealTimers();
+      service.stop();
+    });
+
+    it('sets follow-up poll if a poll is already in flight', () => {
+      const service = new CalendarService(
+        () => [account],
+        () => {},
+        async () => 'ok' as const,
+      );
+      (service as any).isPolling = true;
+
+      service.requestImmediatePoll();
+
+      expect((service as any).needsFollowUpPoll).toBe(true);
+      service.stop();
+    });
+  });
+});
+
+describe('an occurrence expanded from a series schedule', () => {
+  const account = { id: 'acct', name: 'Work', partition: 'p', color: '#000' };
+  const series = 'series1';
+  const eidOf = (eventId: string) =>
+    Buffer.from(`${eventId} me@work.com`, 'utf8').toString('base64url');
+
+  /** The wire's spelling of one occurrence's slot: UTC, no separators. */
+  const slotOf = (start: Date) =>
+    start
+      .toISOString()
+      .replace(/[-:]/g, '')
+      .replace(/\.\d{3}Z$/, 'Z');
+
+  /**
+   * As `expandRecurringEvents` builds one: the occurrence's own slot in `id`, and the
+   * `webUrl` inherited from the series' newest materialised instance, which names a
+   * different occurrence.
+   */
+  const occurrence = (): NormalizedCalendarEvent => ({
+    id: `${series}_R20261104T230000`,
+    instanceId: `${series}_R20261104T230000`,
+    seriesId: series,
+    calendarIds: ['me@work.com'],
+    summary: 'Standup',
+    webUrl: `https://www.google.com/calendar/event?eid=${eidOf(`${series}_20261111T230000Z`)}`,
+    created: null,
+    updated: null,
+    startTime: inHours(24),
+    endTime: inHours(25),
+    isAllDay: false,
+    myResponseStatus: 0,
+    attendees: [],
+    reminders: 'unknown',
+  });
+
+  beforeEach(() => {
+    pollerEvents.clear();
+    updateDockBadge.mockClear();
+    updateToolbarInvites.mockClear();
+  });
+
+  async function polled(service: CalendarService, event: NormalizedCalendarEvent) {
+    pollerEvents.set(`google:${account.id}`, [event]);
+    service.setActiveAccount(account.id);
+    service.syncPollers();
+    service.pollNow();
+    await vi.waitFor(() => expect(service.getCachedEvents().get(account.id) ?? []).toHaveLength(1));
+  }
+
+  it('answers an invitation under its own eid rather than the one the url carries', async () => {
+    const performRsvp = vi.fn(async () => 'ok' as const);
+    const service = new CalendarService(
+      () => [account],
+      () => {},
+      performRsvp,
+    );
+    const event = occurrence();
+    await polled(service, event);
+
+    await service.answerRsvp(account.id, event.id, 'yes');
+
+    expect(performRsvp.mock.lastCall?.[1]).toBe(eidOf(`${series}_${slotOf(event.startTime)}`));
+    service.stop();
+  });
+
+  it('deletes it under its own eid rather than the one the url carries', async () => {
+    const performDelete = vi.fn(async () => 'ok' as const);
+    const service = new CalendarService(
+      () => [account],
+      () => {},
+      async () => 'ok' as const,
+      undefined,
+      undefined,
+      performDelete,
+    );
+    const event = occurrence();
+    await polled(service, event);
+
+    await service.deleteEvent(account.id, event.id);
+
+    expect(performDelete).toHaveBeenCalledWith(
+      account.id,
+      eidOf(`${series}_${slotOf(event.startTime)}`),
+      event.startTime,
+      false,
+    );
+    service.stop();
+  });
+
+  it('finds the cached occurrence when the link answering it arrives', async () => {
+    const performRsvp = vi.fn(async () => 'ok' as const);
+    const service = new CalendarService(
+      () => [account],
+      () => {},
+      performRsvp,
+      vi.fn(async () => 'revealed' as const),
+    );
+    const event = occurrence();
+    await polled(service, event);
+    await vi.waitFor(() => expect(updateDockBadge).toHaveBeenLastCalledWith(1));
+
+    // The action that answers it, on the link `buildEventLink` builds for the card.
+    service.openDeepLink(`${buildEventLink(event, account.id)}&action=yes`);
+
+    await vi.waitFor(() => expect(performRsvp).toHaveBeenCalled());
+    expect(performRsvp.mock.lastCall?.[1]).toBe(eidOf(`${series}_${slotOf(event.startTime)}`));
+    // The pile only empties when the cached row was found; an unmatched link drives the
+    // view instead and leaves the invitation outstanding.
+    await vi.waitFor(() => expect(updateDockBadge).toHaveBeenLastCalledWith(0));
+
     service.stop();
   });
 });

@@ -179,6 +179,7 @@ import {
   restoreTray,
   pushTrayMessages,
   handleTrayEvent,
+  updateVerificationCode,
   RECENT_TRAY_MESSAGES,
   type TrayMessageItem,
 } from './menubar-manager.js';
@@ -337,6 +338,7 @@ function handlePollResult(result: MailboxPollEvent): void {
   if (result.newMessages.length > 0) {
     dispatchNotifications(result.accountId, result.newMessages);
   }
+  void refreshVerificationCode();
 }
 
 /**
@@ -347,6 +349,17 @@ async function sendTrayMessages(accountId: string): Promise<void> {
   if (!source) return;
   const messages = await source.getRecentMessages(RECENT_TRAY_MESSAGES);
   pushTrayMessages(accountId, messages);
+}
+
+async function refreshVerificationCode(): Promise<void> {
+  const settings = loadSettings();
+  if (!settings.menuBarVerificationCodes) {
+    updateVerificationCode(null);
+    return;
+  }
+  const maxAgeMs = (settings.verificationCodeDurationMinutes || 15) * 60 * 1000;
+  const latest = await accountsManager?.getLatestVerificationCode(maxAgeMs);
+  updateVerificationCode(latest ?? null);
 }
 
 function updateApplicationMenu(preloadPath: string, isThreadSelected?: boolean): void {
@@ -759,6 +772,7 @@ function createMainWindow(
   accountsManager.onUnreadChanged = (accounts, total) => {
     updateTrayData(accounts, total, { isRestricted: restrictedAccounts.size > 0 });
     refreshWidgetCache(accounts, total);
+    void refreshVerificationCode();
   };
   const syncActiveAccountFocus = () => {
     const isWindowActive = Boolean(
@@ -1092,11 +1106,7 @@ if (!hasLock) {
           if (key === 'dockBadgeMode') {
             refreshDockBadge();
           }
-          if (
-            key === 'menuBarShowDots' ||
-            key === 'menuBarShowCount' ||
-            key === 'menuBarUnreadOnly'
-          ) {
+          if (key === 'menuBarUnreadDisplay' || key === 'menuBarUnreadOnly') {
             const accounts = accountsManager?.getFocusedAccounts() || [];
             const total = calculateAggregateUnread(accounts);
             updateTrayData(accounts, total);
@@ -1125,6 +1135,9 @@ if (!hasLock) {
             const updatedNotifications = loadSettings().notifications;
             accountsManager?.updateNotificationSettings(updatedNotifications);
             accountsManager?.requestImmediatePoll();
+          }
+          if (key === 'menuBarVerificationCodes' || key === 'verificationCodeDurationMinutes') {
+            void refreshVerificationCode();
           }
         }
       } else if (method === 'account.add') {
@@ -1201,9 +1214,13 @@ if (!hasLock) {
               for (const accountId of sources?.keys() ?? []) {
                 sendTrayMessages(accountId);
               }
+              void refreshVerificationCode();
             });
           },
-          sendMessages: (accountId) => sendTrayMessages(accountId),
+          sendMessages: (accountId) => {
+            void sendTrayMessages(accountId);
+            void refreshVerificationCode();
+          },
           openSettings: () => {
             // The settings pane is fed from the accounts, so a window is built for it when
             // there is none. In the background: opening Preferences does not ask to see the
@@ -1422,7 +1439,7 @@ if (!hasLock) {
       if (key === 'dockBadgeMode') {
         refreshDockBadge();
       }
-      if (key === 'menuBarShowDots' || key === 'menuBarShowCount' || key === 'menuBarUnreadOnly') {
+      if (key === 'menuBarUnreadDisplay' || key === 'menuBarUnreadOnly') {
         const accounts = accountsManager?.getAccounts() || [];
         const total = calculateAggregateUnread(accounts);
         updateTrayData(accounts, total);
@@ -1452,6 +1469,9 @@ if (!hasLock) {
         const updatedNotifications = loadSettings().notifications;
         accountsManager?.updateNotificationSettings(updatedNotifications);
         accountsManager?.requestImmediatePoll();
+      }
+      if (key === 'menuBarVerificationCodes' || key === 'verificationCodeDurationMinutes') {
+        void refreshVerificationCode();
       }
       return true;
     });
@@ -1506,6 +1526,9 @@ if (!hasLock) {
       );
     });
     setNotificationActionHandler(({ accountId, messageId, action }) => {
+      if (action === 'copyCode') {
+        return;
+      }
       const wanted = asThreadAction(action, TRIAGE_ACTIONS);
       if (!wanted) {
         log.warn(`Ignoring notification action this build does not offer: ${action}`);

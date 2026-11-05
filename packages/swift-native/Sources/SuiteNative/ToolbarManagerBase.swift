@@ -43,6 +43,16 @@ open class ToolbarManagerBase: NSObject, NSToolbarDelegate {
         mouseNavigation = MouseNavigationMonitor { [weak self] direction, source in
             self?.handleMouseNavigation(direction: direction, source: source)
         }
+        mouseNavigation?.shouldIgnore = { [weak self] event in
+            self?.shouldIgnoreMouseNavigation(event) ?? false
+        }
+    }
+
+    /// Whether a surface the app owns is under the pointer and wants this gesture for
+    /// itself. Overlaid native panes answer here so the window-wide monitor does not also
+    /// navigate the calendar period.
+    open func shouldIgnoreMouseNavigation(_: NSEvent) -> Bool {
+        false
     }
 
     /// Translates mouse and gesture navigation into bridge actions.

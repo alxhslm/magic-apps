@@ -18,6 +18,7 @@
 		A348749C598E41E7B8B51B78 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B27FE08A86EC49BDBFACC3AD /* SwiftUI.framework */; };
 		5D3C2BE183C94252B185D4A9 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C9DC677AFF254F82A949D456 /* WidgetKit.framework */; };
 		D14A62C11B8E4CAC93CDAB03 /* SecretFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = D08E66CB4DA84E49BCCDAB05 /* SecretFile.swift */; };
+		E2F1A7C3B9D84E6FA10C2401 /* TimeDisplay.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2F1A7C3B9D84E6FA10C2402 /* TimeDisplay.swift */; };
 		B1B2C3D4E5F60718293B0001 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = B1B2C3D4E5F60718293B0002 /* Localizable.xcstrings */; };
 /* End PBXBuildFile section */
 
@@ -33,6 +34,7 @@
 		C9DC677AFF254F82A949D456 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		9698A01925174F21956AE16E /* MagicalWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = MagicalWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		D08E66CB4DA84E49BCCDAB05 /* SecretFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SecretFile.swift; path = "../../swift/Sources/MagicalHelperLib/SecretFile.swift"; sourceTree = "<group>"; };
+		E2F1A7C3B9D84E6FA10C2402 /* TimeDisplay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = TimeDisplay.swift; path = "../../swift/Sources/MagicalHelperLib/TimeDisplay.swift"; sourceTree = "<group>"; };
 		B1B2C3D4E5F60718293B0002 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -71,6 +73,7 @@
 				F08E66CB4DA84E49BCCDE09F /* WidgetsLogger.swift */,
 				B08E66CB4DA84E49BCCDAB1A /* BrandArtwork.swift */,
 				D08E66CB4DA84E49BCCDAB05 /* SecretFile.swift */,
+				E2F1A7C3B9D84E6FA10C2402 /* TimeDisplay.swift */,
 			);
 			name = Sources;
 			path = Sources;
@@ -184,6 +187,7 @@
 				F146B62C1B8E4CAC93CAAA9E /* WidgetsLogger.swift in Sources */,
 				B14A62C11B8E4CAC93CAAB1A /* BrandArtwork.swift in Sources */,
 				D14A62C11B8E4CAC93CDAB03 /* SecretFile.swift in Sources */,
+				E2F1A7C3B9D84E6FA10C2401 /* TimeDisplay.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

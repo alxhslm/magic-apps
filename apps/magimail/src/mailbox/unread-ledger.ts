@@ -1,4 +1,5 @@
 import { createLogger } from '@magimail/core/logger';
+import { extractVerificationCode } from '../verification-code.js';
 import type {
   AtomMessage,
   NotificationCategory,
@@ -7,6 +8,7 @@ import type {
   TriagedRecord,
   UnreadBreakdown,
   UnreadLedgerItem,
+  VerificationCodeItem,
 } from './types.js';
 
 const log = createLogger('UnreadLedger');
@@ -105,9 +107,63 @@ export class UnreadLedger {
   /** Every id and thread id the last feed listed. */
   private lastFeedIds = new Set<string>();
   private notificationSettings: Record<string, string> = {};
+  /** Monotonic revision number incremented whenever observable ledger state mutates. */
+  private revision = 0;
+  /** Observable state signature at the time of the last revision bump. */
+  private lastSignature = '';
 
   constructor(initialSettings: Record<string, string> = {}) {
     this.notificationSettings = { ...initialSettings };
+  }
+
+  /**
+   * Current monotonic revision number of the ledger.
+   * Increments on every change to unread count, category distribution,
+   * recent message list (top 20), or local triage.
+   */
+  public getRevision(): number {
+    return this.revision;
+  }
+
+  /**
+   * Deterministic signature of the observable mailbox state:
+   * breakdown (total, category counts, arrivalsIncomplete, hasState) +
+   * top-20 recent messages (id, unread, category, timestamp, subject).
+   */
+  public getStateSignature(): string {
+    const breakdown = this.getBreakdown();
+    const catParts: string[] = [];
+    for (const [cat, count] of breakdown.byCategory.entries()) {
+      catParts.push(`${cat}:${count}`);
+    }
+    const recent = this.getRecentMessages(20);
+    const recentParts: string[] = [];
+    for (const msg of recent) {
+      const modStr =
+        msg.modified instanceof Date
+          ? msg.modified.getTime()
+          : typeof msg.modified === 'string'
+            ? msg.modified
+            : '';
+      recentParts.push(
+        `${msg.id}:${msg.unread ? 1 : 0}:${msg.category || ''}:${modStr}:${msg.subject || ''}`,
+      );
+    }
+    return `${breakdown.total};${catParts.join(',')};${breakdown.arrivalsIncomplete ? 1 : 0};${breakdown.hasState ? 1 : 0};${recentParts.join('|')}`;
+  }
+
+  /**
+   * Evaluates the current state signature against the last known signature.
+   * If any observable state has mutated, increments the monotonic revision.
+   */
+  public checkAndBumpRevision(): boolean {
+    const sig = this.getStateSignature();
+    if (sig !== this.lastSignature) {
+      this.lastSignature = sig;
+      this.revision += 1;
+      return true;
+    }
+    return false;
   }
 
   /**
@@ -173,6 +229,7 @@ export class UnreadLedger {
       if (targetId && targetId !== id && targetId !== threadId) {
         this.recentlyMarkedUnread.set(targetId, markRecord);
       }
+      this.checkAndBumpRevision();
       return;
     }
 
@@ -203,6 +260,7 @@ export class UnreadLedger {
     if (targetId && targetId !== id && targetId !== threadId) {
       this.recentlyTriaged.set(targetId, record);
     }
+    this.checkAndBumpRevision();
   }
 
   /**
@@ -216,6 +274,7 @@ export class UnreadLedger {
     if (mark) mark.acceptedAt = acceptedAt;
     const row = this.findRecent(id, threadId);
     if (row?.item.localIntent) row.item.localIntentAt = acceptedAt;
+    this.checkAndBumpRevision();
   }
 
   /** Clears the confirmation time until the driver answers. */
@@ -264,6 +323,9 @@ export class UnreadLedger {
       changed = true;
     }
 
+    if (changed) {
+      this.checkAndBumpRevision();
+    }
     return changed;
   }
 
@@ -395,6 +457,7 @@ export class UnreadLedger {
     this.pruneRecent();
 
     const newCount = this.getBreakdown().total;
+    this.checkAndBumpRevision();
     return {
       added,
       removed,
@@ -414,7 +477,7 @@ export class UnreadLedger {
     snapshotMessages: TrayMessageItem[],
     now: number = Date.now(),
     cacheAsOf?: number,
-  ): { enriched: string[]; moved: number } {
+  ): { enriched: string[]; moved: number; changed: boolean } {
     const enriched: string[] = [];
     const snapshotKeys = new Set<string>();
     let oldestSnapshotTs: number | undefined;
@@ -614,7 +677,8 @@ export class UnreadLedger {
 
     this.pruneAbsentFromCache(snapshotKeys, oldestSnapshotTs);
     this.pruneRecent();
-    return { enriched, moved: rowsMoved };
+    const changed = this.checkAndBumpRevision();
+    return { enriched, moved: rowsMoved, changed };
   }
 
   /**
@@ -694,7 +758,9 @@ export class UnreadLedger {
     }
 
     const arrivalsIncomplete =
-      this.lastFullCount !== null && (this.lastFullCount > 20 || this.lastFullCount > unreadCount);
+      !this.lastFeedComplete &&
+      this.lastFullCount !== null &&
+      (this.lastFullCount > 20 || this.lastFullCount > unreadCount);
 
     return {
       total: Math.max(0, total),
@@ -728,8 +794,44 @@ export class UnreadLedger {
       }));
   }
 
+  /**
+   * Returns the latest one-time verification code extracted from an unread,
+   * un-triaged email within maxAgeMs.
+   */
+  public getLatestVerificationCode(
+    accountId: string,
+    maxAgeMs = 15 * 60 * 1000,
+    now = Date.now(),
+  ): VerificationCodeItem | null {
+    const candidates = [...this.recent.values()]
+      .filter((item) => item.localIntent !== 'removed')
+      .sort((a, b) => (b.timestampMs ?? b.observedAt) - (a.timestampMs ?? a.observedAt));
+
+    for (const item of candidates) {
+      const time = item.timestampMs ?? item.observedAt;
+      if (now - time > maxAgeMs) {
+        continue;
+      }
+      const extracted = extractVerificationCode(item.subject, item.snippet, item.from);
+      if (extracted) {
+        return {
+          code: extracted.code,
+          service: extracted.service,
+          subject: item.subject ?? '',
+          from: item.from ?? '',
+          messageId: item.id,
+          threadId: item.threadId,
+          accountId,
+          receivedAt: time,
+        };
+      }
+    }
+    return null;
+  }
+
   public updateNotificationSettings(settings: Record<string, string>): void {
     this.notificationSettings = { ...settings };
+    this.checkAndBumpRevision();
   }
 
   /** Unread rows only, for callers that track the unread set rather than the list. */
