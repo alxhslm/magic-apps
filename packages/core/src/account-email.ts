@@ -41,7 +41,9 @@ export interface ReadAccountEmailOptions {
    *
    * A settled document is not a painted one: Google's chrome arrives after
    * `did-stop-loading`, so the chip is often missing on the first look and present a moment
-   * later. Four over six seconds covers a slow first paint without leaving a timer behind.
+   * later. Ten over fifteen seconds covers a slow first paint, an account that was suspended
+   * mid-load and a page that only gets its account chip after its own first request comes
+   * back, without leaving a timer behind for longer than that.
    */
   attempts?: number;
   delayMs?: number;
@@ -57,7 +59,7 @@ export interface ReadAccountEmailOptions {
  * address; this only knows how to find it.
  */
 export async function readAccountEmail(options: ReadAccountEmailOptions): Promise<string | null> {
-  const attempts = options.attempts ?? 4;
+  const attempts = options.attempts ?? 10;
   const delayMs = options.delayMs ?? 1500;
   const sleep = options.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
 

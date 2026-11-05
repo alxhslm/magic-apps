@@ -980,6 +980,10 @@ export class AccountsManager {
       if (!url.startsWith('data:')) {
         this.failedOfflineUrls.delete(account.id);
       }
+      if (url.startsWith('https://mail.google.com/mail/')) {
+        // Signing in changes the document, and the address only appears on the new one.
+        this.emailCaptured.delete(account.id);
+      }
       if (url.startsWith('https://mail.google.com/mail/') && !this.signInDetected.has(account.id)) {
         this.signInDetected.add(account.id);
         this.setAccountAuthRequired(account.id, false);
@@ -1115,6 +1119,11 @@ export class AccountsManager {
     if (activeView) {
       const firstLoad = this.pool.firstLoadUrl(accountId, GMAIL_LOGIN_URL);
       if (firstLoad) activeView.webContents.loadURL(firstLoad);
+      // A view that was already loaded before the account's address was known — everything
+      // shown before this ran, and every view restored from a previous launch — never fires
+      // another `did-stop-loading`, so being brought on screen is its chance to be asked.
+      this.emailCaptured.delete(accountId);
+      this.captureAccountEmail(accountId, activeView.webContents);
     }
 
     this.notifyToolbar();
