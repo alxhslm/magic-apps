@@ -176,7 +176,6 @@ public struct AccountsTab<Model: AccountListModel>: View {
     private func profileMenu(for id: String) -> some View {
         Menu {
             Toggle("Match this account’s email", isOn: profileToggle("_auto", for: id))
-            Toggle("Last used profile", isOn: profileToggle("_last", for: id))
 
             let profiles = profilesForBrowser(linkedBrowser)
             if !profiles.isEmpty {

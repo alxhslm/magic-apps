@@ -162,9 +162,6 @@ export function getAllChromiumProfiles(customHome?: string): Record<string, Chro
 
 /** Match the account's own email address against the browser's profiles. */
 export const AUTO_PROFILE = '_auto';
-/** Whatever profile the browser used last, which is the one the user is working in. */
-export const LAST_USED_PROFILE = '_last';
-
 interface ChromiumLocalState {
   profiles: ChromiumProfile[];
   lastUsed?: string;
@@ -242,11 +239,11 @@ export function getLastUsedProfile(browserId: string, customHome?: string): stri
 /**
  * Resolves the Chromium profile directory an account's links should open in.
  *
- * An explicit directory is used when the browser still has it. `_auto` and an unset
- * setting both mean the same thing: the profile signed in as the account, then the one the
- * browser used last, then `Default`. `_last` skips the email match. The last-used profile
- * is the fallback rather than `Default` because a user who has one browser profile that is
- * not called `Default` is offered the browser's own guess instead of a fresh empty one.
+ * An explicit directory is used when the browser still has it. `_auto` and an unset setting
+ * both mean "the profile signed in as the account", falling back to the one the browser used
+ * last, then to `Default`. Last-used rather than `Default` is the fallback because Chromium
+ * itself treats the profile it is working in as the default behaviour: sending an unmatched
+ * account to a `Default` profile it never uses would open an empty-looking second window.
  */
 export function resolveChromiumProfile(
   browserId: string,
@@ -257,12 +254,12 @@ export function resolveChromiumProfile(
   const { profiles, lastUsed } = readChromiumLocalState(browserId, customHome);
   if (profiles.length === 0) return null;
 
-  if (profileSetting && profileSetting !== AUTO_PROFILE && profileSetting !== LAST_USED_PROFILE) {
+  if (profileSetting && profileSetting !== AUTO_PROFILE) {
     const found = profiles.find((p) => p.directory === profileSetting);
     return found ? found.directory : null;
   }
 
-  if (profileSetting !== LAST_USED_PROFILE && accountEmail) {
+  if (accountEmail) {
     const normalizedEmail = accountEmail.trim().toLowerCase();
     const matched = profiles.find((p) => p.email?.trim().toLowerCase() === normalizedEmail);
     if (matched) return matched.directory;

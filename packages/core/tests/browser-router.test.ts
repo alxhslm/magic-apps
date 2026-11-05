@@ -145,10 +145,8 @@ describe('browser-router', () => {
 
     // No profile carries the account's address, so the one already open is the best guess.
     expect(resolveChromiumProfile('chrome', '_auto', 'random@xyz.com', tmpDir)).toBe('Profile 1');
-    // An explicit `_last` asks for that row rather than deriving it from the email.
-    expect(resolveChromiumProfile('chrome', '_last', 'personal@gmail.com', tmpDir)).toBe(
-      'Profile 1',
-    );
+    // A profile that does carry it still wins, which is what the email match is for.
+    expect(resolveChromiumProfile('chrome', '_auto', 'personal@gmail.com', tmpDir)).toBe('Default');
   });
 
   it('resolveChromiumProfile ignores a last-used profile the browser no longer has', () => {
@@ -165,7 +163,7 @@ describe('browser-router', () => {
       }),
     );
 
-    expect(resolveChromiumProfile('chrome', '_last', undefined, tmpDir)).toBe('Default');
+    expect(resolveChromiumProfile('chrome', '_auto', 'nobody@example.com', tmpDir)).toBe('Default');
   });
 
   it('openExternalUrl hands the URL to the open window when the profile is the current one', async () => {

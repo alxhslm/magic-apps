@@ -77,14 +77,12 @@ Brave and Edge all write: directory name, display name, and the Google account s
 `profile.last_used` names the profile the browser is working in, which is the one its open
 window shows.
 
-An account's `browserProfile` is one of three things, in the order the menu offers them:
-
-- `_auto`, the default: the profile signed in as the account's email, then `last_used`, then
-  `Default`. Email matching is what makes two accounts of the same person Just Work; the
-  last-used fallback is what stops an unmatched account from being sent to an empty-looking
-  `Default` profile when the user has one profile with another name.
-- `_last`: the profile the browser used last, regardless of the account's address.
-- A profile directory: that profile, where the browser still has it.
+An account's `browserProfile` is either `_auto` or a profile directory. `_auto` is the default
+and is what the row shows as **Match email**: the profile signed in as the account's email, then
+the one the browser used last, then `Default`. Email matching is what makes two accounts of one
+person work without being told; last-used rather than `Default` is the fallback because that is
+Chromium's own behaviour — the window already open — where `Default` can be a profile the user
+never touches.
 
 Safari has no supported flag or URL scheme for profile targeting, so it is offered as a browser
 and nothing more.
