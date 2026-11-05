@@ -414,19 +414,7 @@ public final class TrayModel: ObservableObject {
         events.contains { $0.isTask }
     }
 
-    public init() {
-        // A clock or region change cannot be observed from macOS, so the helper's watcher
-        // posts this instead. Without it the popover keeps the clock it last drew.
-        NotificationCenter.default.addObserver(
-            forName: TimeDisplay.clockDidChangeNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            MainActor.assumeIsolated {
-                self?.objectWillChange.send()
-            }
-        }
-    }
+    public init() {}
 
     public func update(from params: [String: Any]) {
         isRefreshing = false

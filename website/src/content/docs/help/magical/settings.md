@@ -29,7 +29,7 @@ Magical has no clock or date format of its own: every time and date it shows fol
 - **12- or 24-hour clock**: the **24-Hour Time** switch in **System Settings → General → Date & Time**. On, a meeting reads `14:35`; off, `2:35 pm`.
 - **Date order and language**: **System Settings → General → Language & Region**. A British Mac reads `18 Oct`, an American one `Oct 18`.
 
-A change to either reaches the menu bar, popover, sidebar, banners and widgets without restarting Magical.
+Relaunch Magical after changing either, so the menu bar, popover, sidebar, banners and widgets all pick it up together.
 
 ---
 

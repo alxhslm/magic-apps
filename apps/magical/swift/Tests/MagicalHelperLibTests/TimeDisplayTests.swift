@@ -44,53 +44,6 @@ struct TimeDisplayTests {
         #expect(!afternoon.contains("13"))
     }
 
-    @Test func theForcedCycleOverridesTheLocale() {
-        let twentyFour = TimeDisplay.timeFormatter(
-            locale: Locale(identifier: "en_US"),
-            timeZone: london,
-            forced24Hour: true
-        )
-        #expect(twentyFour.string(from: date(hour: 13)) == "13:05")
-
-        let twelve = TimeDisplay.timeFormatter(
-            locale: Locale(identifier: "en_GB"),
-            timeZone: london,
-            forced24Hour: false
-        )
-        #expect(twelve.string(from: date(hour: 13)).lowercased().contains("pm"))
-    }
-
-    @Test func theStoredSwitchValueDecides() {
-        #expect(TimeDisplay.forced24Hour(from: true) == true)
-        #expect(TimeDisplay.forced24Hour(from: false) == false)
-        #expect(TimeDisplay.forced24Hour(from: 1) == true)
-        #expect(TimeDisplay.forced24Hour(from: 0) == false)
-        #expect(TimeDisplay.forced24Hour(from: "1") == true)
-        #expect(TimeDisplay.forced24Hour(from: "0") == false)
-        #expect(TimeDisplay.forced24Hour(from: "true") == true)
-        #expect(TimeDisplay.forced24Hour(from: "false") == false)
-    }
-
-    @Test func eitherStoredKeyCanForceTheClock() {
-        #expect(TimeDisplay.forced24Hour(twentyFour: 1, twelve: nil) == true)
-        #expect(TimeDisplay.forced24Hour(twentyFour: nil, twelve: 1) == false)
-        #expect(TimeDisplay.forced24Hour(twentyFour: 1, twelve: 1) == true)
-        #expect(TimeDisplay.forced24Hour(twentyFour: 0, twelve: 1) == false)
-        #expect(TimeDisplay.forced24Hour(twentyFour: nil, twelve: 0) == nil)
-        #expect(TimeDisplay.forced24Hour(twentyFour: nil, twelve: nil) == nil)
-    }
-
-    @Test func anAbsentOrUnknownSwitchSaysNothing() {
-        #expect(TimeDisplay.forced24Hour(from: nil) == nil)
-        #expect(TimeDisplay.forced24Hour(from: "") == nil)
-        #expect(TimeDisplay.forced24Hour(from: [:]) == nil)
-    }
-
-    @Test func withNothingForcedTheRegionAnswers() {
-        #expect(!TimeDisplay.uses24Hour(in: TimeDisplay.displayLocale(Locale(identifier: "en_US"))))
-        #expect(TimeDisplay.uses24Hour(in: TimeDisplay.displayLocale(Locale(identifier: "en_GB"))))
-    }
-
     @Test func dateLabelsFollowTheLocaleOrderAndPunctuation() {
         let label = { (locale: String, template: String) in
             TimeDisplay.dateFormatter(

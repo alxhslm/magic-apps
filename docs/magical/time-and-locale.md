@@ -1,48 +1,36 @@
 # Times, dates and the Mac's locale
 
 Every time and date Magical draws follows the Mac's own clock and locale. Nothing in the app has a
-preferred 12- or 24-hour clock, and nothing has a preferred date order: both come from macOS, and a
-change to either reaches a running app without a relaunch.
+preferred 12- or 24-hour clock, and nothing has a preferred date order: both come from macOS.
 
 The region and the 12/24-hour switch are separate macOS settings. The region is `AppleLocale`
 (`en_GB`); the switch writes `AppleICUForce24HourTime` when 24-hour is on and
 `AppleICUForce12HourTime` when it is off, so either region can be on either clock.
 
+A change to either takes effect when Magical is relaunched. Nothing polls, and no surface updates
+ahead of another, so the menu bar, popover, sidebar and widgets cannot disagree about the clock or
+the date order part-way through a session.
+
 ## Where the setting is read
 
-`mac-clock.ts` reads both clock keys in `app.whenReady()`, next to `setUiLocale`, and
-`readMacLocale()` reads `AppleLocale`. 24-hour wins when set, then 12-hour, then the locale's own
-`hourCycle` from `Intl`. A key set to `1` forces that clock and `0` forces nothing, so the value
-decides rather than its presence. Reading only the 24-hour key is not enough: turning 24-hour off
-writes the 12-hour key instead, so an `en_GB` Mac set to 12-hour has the 24-hour key absent and
-would otherwise fall back to a 24-hour region.
+The Swift surfaces use Foundation's `Locale.current`, which already carries both settings.
+`TimeDisplay` builds a `timeStyle = .short` formatter from it, asks the `j` template whether the
+clock is 24-hour, and derives date labels from templates. There is nothing to read from defaults,
+and the only fixed patterns are the keys and log stamps below.
+
+The Electron main process cannot use the same source: ICU's default locale is not the Mac's, and
+`toLocaleTimeString(undefined, …)` therefore ignores both settings. `mac-clock.ts` reads them once
+in `app.whenReady()`, next to `setUiLocale`. `readMacLocale()` reads `AppleLocale`, and the clock
+comes from two keys: `AppleICUForce24HourTime` when 24-hour is on and `AppleICUForce12HourTime` when
+it is off. 24-hour wins when set, then 12-hour, then the locale's own `hourCycle` from `Intl`.
+
+Reading only the 24-hour key is not enough: turning 24-hour off writes the 12-hour key instead, so
+an `en_GB` Mac set to 12-hour has the 24-hour key absent and would otherwise fall back to a 24-hour
+region. A key set to `1` forces that clock and `0` forces nothing.
 
 The keys are not honoured from the NSUserDefaults argument domain, so `-AppleICUForce24HourTime 1`
 on a launch changes Electron's reading but not Foundation's; it is useful for testing the read
 path, not for pretending to be the system setting.
-
-The Swift helper cannot lean on Foundation here. `Locale.current` folds both the region and the
-switch in once at launch and never refreshes, so neither a region change nor a clock change ever
-arrives. `TimeDisplay` reads both keys and `AppleLocale` on every access and rebuilds the locale
-from the stored identifier with the cycle forced. Rebuilding from the identifier also keeps the off
-state honest on a Mac that launched with a different setting: the inherited cycle does not survive
-into the fresh locale.
-
-## Following a change without a relaunch
-
-macOS posts no notification when either setting changes, so nothing can be observed. Both
-processes re-read instead:
-
-- **Electron** re-reads both clock keys and the region on a 30-second timer. The banner and the ICS
-  dialog are built on demand, so the next one after a change uses the new clock or date order.
-- **The Swift surfaces** read them in `TimeDisplay` on each access, and a five-second watcher posts
-  an internal change notification when the value moves, which `TrayModel` and `SidebarModel`
-  observe. The watcher has to run in every process that draws one: the helper for the menu bar and
-  popover, and the native addon, where the sidebar's `NSHostingView` lives, for the sidebar. The
-  library's statics are per process, so the helper's notification never reaches the addon. With both
-  running, an already-drawn popover, sidebar or agenda redraws within five seconds, and a region
-  change reaches date labels the same way. The AppKit menu bar title follows on its own 30-second
-  tick, and a widget at its next timeline render.
 
 ## Which formatter each surface uses
 
@@ -89,7 +77,7 @@ must not change a key or an ordering:
 The zone is the Mac's too: every native surface renders in `.current`, and Electron's process-local
 zone is the Mac's, so a UTC offset change moves what every one of them shows at the same instant.
 
-The companion sidebar is the one exception, because Google Calendar renders it and uses the Google
-account's own timezone and locale. Magical does not rewrite that: pushing the Mac zone in with
-`?ctz=` would leave Google believing it is in one zone while drawing another, and events created in
-the sidebar would land in the wrong one.
+Google Calendar's own web view is the exception: Google renders it and uses the Google account's
+timezone and locale. Magical does not rewrite that. Pushing the Mac zone in with `?ctz=` would
+leave Google believing it is in one zone while drawing another, and events created there would land
+in the wrong one.
