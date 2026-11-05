@@ -149,17 +149,27 @@ public enum TimeDisplay {
 
     private static var cached: ClockFormatters?
 
+    /// Everything a formatter reads, taken from the stored values rather than the cache.
+    ///
+    /// The watcher must not use `cached` to detect a change: any view that redraws first
+    /// (a hover, a page switch) rebuilds the cache and would otherwise hide the change
+    /// from the watcher, leaving the rest of the window on the old clock.
+    private static func currentSignature() -> String {
+        let forced = forced24Hour
+        return "\(systemLocale().identifier)|\(forced.map { $0 ? "24" : "12" } ?? "auto")"
+    }
+
     /// Rebuilt only when a key or the region changes, so a view body pays a defaults lookup
     /// rather than a `DateFormatter` construction.
     private static func formatters() -> ClockFormatters {
-        let forced = forced24Hour
-        let base = systemLocale()
-        let signature = "\(base.identifier)|\(forced.map { $0 ? "24" : "12" } ?? "auto")"
+        let signature = currentSignature()
 
         if let cached, cached.signature == signature {
             return cached
         }
 
+        let forced = forced24Hour
+        let base = systemLocale()
         let built = ClockFormatters(
             signature: signature,
             time: timeFormatter(locale: base, forced24Hour: forced),
@@ -184,12 +194,18 @@ public enum TimeDisplay {
 
     private static var watcher: Timer?
 
+    /// What the watcher last saw, kept apart from the formatter cache so a view redrawing
+    /// first cannot consume the change before the watcher notices it.
+    private static var watchedSignature: String?
+
     /// Checks the stored clock every few seconds and tells the models to redraw when it
     /// moves. macOS posts no notification for the switch, so a timer is the only way a
     /// window that is already open learns about the change; the helper calls this once at
     /// launch. A widget is not watched here, because WidgetKit redraws it on its timeline.
     public static func startWatching(interval: TimeInterval = 5) {
         guard watcher == nil else { return }
+
+        watchedSignature = currentSignature()
         let timer = Timer(timeInterval: interval, repeats: true) { _ in
             _ = refreshIfNeeded()
         }
@@ -201,10 +217,15 @@ public enum TimeDisplay {
     /// `clockDidChangeNotification` so every observing model invalidates.
     @discardableResult
     static func refreshIfNeeded() -> Bool {
-        let before = cached?.signature
-        _ = formatters()
-        guard let before, cached?.signature != before else { return false }
+        let signature = currentSignature()
+        guard let previous = watchedSignature else {
+            watchedSignature = signature
+            return false
+        }
+        guard signature != previous else { return false }
 
+        watchedSignature = signature
+        _ = formatters()
         NotificationCenter.default.post(name: clockDidChangeNotification, object: nil)
         return true
     }
