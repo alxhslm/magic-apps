@@ -16,6 +16,17 @@ describe('crossAppLink', () => {
     });
   });
 
+  it('keeps a thread that sits outside the inbox', () => {
+    expect(crossAppLink('https://mail.google.com/mail/u/0/#all/FMfcgzQXKq')).toEqual({
+      scheme: 'magimail',
+      deepLink: 'magimail://thread/FMfcgzQXKq',
+    });
+    expect(crossAppLink('https://mail.google.com/mail/u/0/#label/Work/FMfcgzQXKq')).toEqual({
+      scheme: 'magimail',
+      deepLink: 'magimail://thread/FMfcgzQXKq',
+    });
+  });
+
   it('keeps the query a Gmail search link names, encoded once', () => {
     expect(crossAppLink('https://mail.google.com/mail/u/2/#search/from%3Aboss')).toEqual({
       scheme: 'magimail',
@@ -54,6 +65,25 @@ describe('crossAppLink', () => {
       scheme: 'magical',
       deepLink:
         'magical://quick-add?action=TEMPLATE&text=Standup&dates=20261105T090000Z%2F20261105T091500Z&location=Room',
+    });
+  });
+
+  it("maps Google's own add-to-calendar host", () => {
+    expect(
+      crossAppLink(
+        'https://www.google.com/calendar/render?action=TEMPLATE&text=Standup&dates=20261105T090000Z/20261105T091500Z',
+      ),
+    ).toEqual({
+      scheme: 'magical',
+      deepLink:
+        'magical://quick-add?action=TEMPLATE&text=Standup&dates=20261105T090000Z%2F20261105T091500Z',
+    });
+  });
+
+  it('opens the Tasks route on the Calendar host', () => {
+    expect(crossAppLink('https://calendar.google.com/calendar/u/0/r/tasks')).toEqual({
+      scheme: 'magical',
+      deepLink: 'magical://tasks',
     });
   });
 

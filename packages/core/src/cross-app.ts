@@ -45,6 +45,12 @@ export function crossAppLink(rawUrl: string): CrossAppLink | null {
   if (host === 'calendar.google.com') {
     return { scheme: 'magical', deepLink: calendarDeepLink(url) };
   }
+  if (
+    (host === 'www.google.com' || host === 'google.com') &&
+    url.pathname.startsWith('/calendar/')
+  ) {
+    return { scheme: 'magical', deepLink: calendarDeepLink(url) };
+  }
   if (host === 'tasks.google.com') {
     return { scheme: 'magical', deepLink: 'magical://tasks' };
   }
@@ -90,9 +96,10 @@ function gmailDeepLink(url: URL): string {
       : 'magimail://inbox';
   }
 
-  // `#inbox/FMfcgz…` is one message, and the app's thread route is the same thing.
-  const threadId = rest[0];
-  if (threadId && view === 'inbox') {
+  // A thread can sit under any mailbox, and under a label after the label's own segments.
+  // `#all/FMfcgz…`, `#sent/FMfcgz…` and `#label/Work/FMfcgz…` all name one message.
+  const threadId = view === 'label' || view === 'category' ? rest[rest.length - 1] : rest[0];
+  if (threadId && isGmailThreadId(threadId)) {
     return `magimail://thread/${encodeURIComponent(threadId)}`;
   }
 
@@ -131,6 +138,10 @@ function calendarDeepLink(url: URL): string {
     return query ? `magical://search?q=${encodeURIComponent(query)}` : 'magical://search';
   }
 
+  if (/\/r\/tasks(?:\/|$)/.test(url.pathname)) {
+    return 'magical://tasks';
+  }
+
   const eid = url.searchParams.get('eid');
   if (eid) {
     return `magical://event?eid=${encodeURIComponent(eid)}&action=reveal`;
@@ -142,6 +153,11 @@ function calendarDeepLink(url: URL): string {
   }
 
   return 'magical://open';
+}
+
+/** Gmail's opaque thread ids, plus the legacy hex form. */
+function isGmailThreadId(value: string): boolean {
+  return /^(?:FMfcgz|KtbxL)[A-Za-z0-9]+$/.test(value) || /^[0-9a-f]{16,}$/i.test(value);
 }
 
 /** `/calendar/u/0/r/day/2026/11/5` and its `week`, `month` and `year` siblings. */
