@@ -22,6 +22,18 @@ The General tab controls startup behaviour, default app registration, and messag
   - **Sending account choice**: Under **Compose account**, choose whether Magimail automatically drafts from your currently active account or prompts you with a quick account picker so you can select which email address to send from.
   - **System Settings**: You can also set this in macOS **System Settings → Desktop & Dock → Default web browser / Mail**.
 
+### Open links in
+
+Which browser opens links that leave Gmail, such as a link in an email that goes somewhere other than Gmail:
+
+- **Only installed browsers are listed.** The list comes from macOS, so a browser you do not have is not offered; picking one would fail at launch and quietly open somewhere else.
+- **The row macOS opens links with is marked `(default)`.** Leaving the setting alone follows the Mac's default browser, and keeps following it if you change it later.
+- **Safari and other non-Chromium browsers** are supported here, but they cannot be told which profile to use. See [Chromium profiles](#chromium-profiles) below.
+
+One setting covers the whole app, because the browser is where you work rather than who you are. Which session a link lands in is per account, and is set on the account itself.
+
+> **One side effect.** Choosing Chrome, Brave or Edge means Magimail starts that browser itself, so a link to a site that has its own desktop app (Notion, Linear, Todoist) opens in the browser instead of the app. With `Safari (default)` left in place, macOS hands those links to the app as before.
+
 ### Global Quick Compose Shortcut
 
 - **Quick compose hotkey**: Sets a system-wide keyboard shortcut that opens a compose window from any app, even in full-screen. See [Quick Compose](/help/magimail/quick-compose/):
@@ -43,6 +55,20 @@ The Accounts tab manages your connected Google accounts:
   - Click **`–`** to delete the selected account.
 - **Reset Session…**:
   - If a Google Workspace session expires or triggers an authentication error, click **Reset Session…** to clear the account's authentication cookies and log back in without losing other accounts.
+
+### Chromium profiles
+
+Each account can choose which browser profile its links open in, so a work link opens as you at work rather than as you at home.
+
+The control sits on the account's row in **Accounts**, and reads the profile that will be used:
+
+- **A profile name**, such as `Alex`, means links open in that profile. Chrome, Brave and Edge can be told this; they read it when they start, so a profile that is not already open arrives in its own window.
+- **`None`**, which is what an account shows by default when its address matches no profile, means the link goes to the browser and opens in whatever window is already there.
+- **Choosing a profile pins it**, even if the Mac's default browser changes later. Unticking it returns the account to matching.
+
+If the address you are signed in as is also signed in to a Chromium profile, the row names that profile without you choosing anything. The address is read from the signed-in Google page, so an account that matches no profile reads `None` rather than guessing at one.
+
+**Chromium browsers only, for now.** Chrome, Brave and Edge all keep profiles in the same place and accept the same command line flag, which is what makes this work. Safari keeps profiles too but offers no supported way for another app to choose one, and Firefox and others differ again. When the chosen browser is not one of the three, the profile menu is greyed out: that is why, not a missing feature on your side.
 
 ---
 

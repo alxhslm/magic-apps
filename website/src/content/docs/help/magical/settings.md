@@ -22,6 +22,18 @@ The General tab manages startup behaviour and default calendar file handling:
   - **Importing by hand**: **File → Import Calendar File…** (<kbd>⇧⌘I</kbd>) reaches the same flow for a file you have already found.
   - **New event account**: Choose whether new events are added to your currently active calendar account or prompt you to pick an account every time.
 
+### Open links in
+
+Which browser opens links that leave Google Calendar, such as an event location, an attachment or a link in an event description:
+
+- **Only installed browsers are listed.** The list comes from macOS, so a browser you do not have is not offered; picking one would fail at launch and quietly open somewhere else.
+- **The row macOS opens links with is marked `(default)`.** Leaving the setting alone follows the Mac's default browser, and keeps following it if you change it later.
+- **Safari and other non-Chromium browsers** are supported here, but they cannot be told which profile to use. See [Chromium profiles](#chromium-profiles) below.
+
+One setting covers the whole app, because the browser is where you work rather than who you are. Which session a link lands in is per account, and is set on the account itself.
+
+> **One side effect.** Choosing Chrome, Brave or Edge means Magical starts that browser itself, so a link to a site that has its own desktop app (Notion, Linear, Todoist) opens in the browser instead of the app. With `Safari (default)` left in place, macOS hands those links to the app as before.
+
 ### Times and Dates
 
 Magical's date and time formats follow your Mac.
@@ -47,6 +59,20 @@ The Accounts tab manages your connected Google accounts and calendar access, whi
   - Click **`–`** to delete an account.
 - **Reset Session…**:
   - Clears stored authentication cookies for an account and re-opens the Google login flow. Useful if a Google Workspace enterprise session expires.
+
+### Chromium profiles
+
+Each account can choose which browser profile its links open in, so a work link opens as you at work rather than as you at home.
+
+The control sits on the account's row in **Accounts**, and reads the profile that will be used:
+
+- **A profile name**, such as `Alex`, means links open in that profile. Chrome, Brave and Edge can be told this; they read it when they start, so a profile that is not already open arrives in its own window.
+- **`None`**, which is what an account shows by default when its address matches no profile, means the link goes to the browser and opens in whatever window is already there.
+- **Choosing a profile pins it**, even if the Mac's default browser changes later. Unticking it returns the account to matching.
+
+If the address you are signed in as is also signed in to a Chromium profile, the row names that profile without you choosing anything. The address is read from the signed-in Google page, so an account that matches no profile reads `None` rather than guessing at one.
+
+**Chromium browsers only, for now.** Chrome, Brave and Edge all keep profiles in the same place and accept the same command line flag, which is what makes this work. Safari keeps profiles too but offers no supported way for another app to choose one, and Firefox and others differ again. When the chosen browser is not one of the three, the profile menu is greyed out: that is why, not a missing feature on your side.
 
 ---
 
