@@ -116,30 +116,6 @@ moves.
 Safari has no supported flag or URL scheme for profile targeting, so it is offered as a browser
 and nothing more.
 
-### The other app's own links
-
-A Gmail address in a calendar event and a Calendar address in an email both belong in the app that
-already shows that data. `crossAppLink` in `@magimail/core` maps one app's web addresses to the
-other's deep link:
-
-| Link                                       | Deep link                                    |
-| :----------------------------------------- | :------------------------------------------- |
-| `mail.google.com/mail/u/N/#inbox`          | `magimail://inbox`                           |
-| `mail.google.com/mail/u/N/#inbox/<thread>` | `magimail://thread/<thread>`                 |
-| `mail.google.com/mail/u/N/#search/<query>` | `magimail://search?q=<query>`                |
-| `calendar.google.com/…/day/2026/11/5`      | `magical://date?at=2026-11-05T00:00:00.000Z` |
-| `calendar.google.com/…?eid=<eid>`          | `magical://event?eid=<eid>&action=reveal`    |
-
-Two constraints shape that table. The `u/<n>` segment is Gmail's view of the browser's sign-in
-order, not one of our account ids, so it is dropped and the receiving app opens its active
-account. And the day path becomes midnight, because the calendar side either reveals an event,
-which is a moment, or opens a day, which is a date.
-
-The deep link is only used when the other app is installed, because an uninstalled app leaves the
-user on an error page where a browser tab would have worked. Installed is asked by bundle id:
-`URLForApplicationToOpenURL` answers `nil` for a custom scheme even where the app is there, so the
-scheme question would make every deep link look unowned.
-
 ### The owning app comes first
 
 Before anything is launched, `openExternalUrl` asks LaunchServices which application would

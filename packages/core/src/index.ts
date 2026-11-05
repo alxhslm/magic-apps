@@ -7,7 +7,6 @@ export * from './unread.js';
 export * from './account.js';
 export * from './browser-router.js';
 export * from './account-email.js';
-export * from './cross-app.js';
 export * from './theme.js';
 export * from './login-item.js';
 export * from './swift-helper.js';
