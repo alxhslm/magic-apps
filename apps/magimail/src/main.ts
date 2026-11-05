@@ -33,6 +33,7 @@ import {
   viewIsAlive,
   WindowRebuilder,
   unwrapRedirectors,
+  openExternalUrl,
 } from '@magimail/core';
 import { DEFAULT_PARTITION, IPC_CHANNELS } from './constants.js';
 import {
@@ -1385,7 +1386,12 @@ if (!hasLock) {
     );
 
     ipcMain.handle('magimail:open-external', (_event, url: string) => {
-      shell.openExternal(unwrapRedirectors(url));
+      // Raised from a renderer, which knows the URL but not which account raised it; the
+      // active account is the one on screen and therefore the one whose profile applies.
+      void openExternalUrl(unwrapRedirectors(url), {
+        browser: loadSettings().openLinksIn,
+        account: accountsManager?.getActiveAccount(),
+      });
     });
 
     ipcMain.handle(IPC_CHANNELS.FOCUS_FILTER_GET, () => {

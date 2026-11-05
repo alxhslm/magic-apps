@@ -1,4 +1,4 @@
-import { BaseWindow, shell } from 'electron';
+import { BaseWindow } from 'electron';
 import { createLogger } from '@magimail/core/logger';
 import { loadAddon } from './native-addon.js';
 import { loadSettings, saveSetting, type CalendarRef } from './settings-store.js';
@@ -256,8 +256,10 @@ export class SidebarManager {
       }
 
       case 'sidebarJoinCall': {
+        // Through the service, so the call is opened the way every other Join is: native
+        // client where there is one, and the account's own browser profile otherwise.
         if (value && /^https?:\/\//i.test(value)) {
-          void shell.openExternal(value);
+          void this.getCalendarService?.()?.joinCall(value);
         }
         break;
       }
