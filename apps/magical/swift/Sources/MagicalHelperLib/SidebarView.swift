@@ -577,10 +577,7 @@ public struct DayCompanionHeaderView: View {
     private let dayScrubberHeight: CGFloat = 56.0
 
     private var monthYearTitle: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMMM yyyy"
-        formatter.timeZone = .current
-        return formatter.string(from: model.selectedDate)
+        TimeDisplay.dateFormatter(template: "yMMMM").string(from: model.selectedDate)
     }
 
     private var isToday: Bool {
@@ -602,10 +599,7 @@ public struct DayCompanionHeaderView: View {
     }
 
     private var fullDateText: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "d MMMM yyyy"
-        formatter.timeZone = .current
-        return formatter.string(from: model.selectedDate)
+        TimeDisplay.dateFormatter(template: "yMMMMd").string(from: model.selectedDate)
     }
 
     private var selectedDayDots: [Color] {
@@ -1057,8 +1051,6 @@ public struct SidebarRootView: View {
     }
 
     private func monthTitle(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMMM yyyy"
-        return formatter.string(from: date)
+        TimeDisplay.dateFormatter(template: "yMMMM").string(from: date)
     }
 }

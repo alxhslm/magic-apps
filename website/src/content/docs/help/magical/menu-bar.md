@@ -14,6 +14,8 @@ In **Settings → Appearance**, which the [Settings Reference](/help/magical/set
 - **Day and month**: Displays the short date (e.g. `Oct 18`).
 - **Icon only**: Shows a clean calendar glyph.
 
+The date in the menu bar follows your Mac's region, so **Day and month** reads `18 Oct` or `Oct 18`, and every time in the popover follows its 12- or 24-hour setting. See the [Settings Reference](/help/magical/settings/#times-and-dates).
+
 With **Next event** selected, **Colour by account** tints the countdown with the accent colour of the account hosting the meeting.
 
 ---

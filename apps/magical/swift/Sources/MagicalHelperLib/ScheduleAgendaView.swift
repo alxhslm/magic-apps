@@ -370,12 +370,7 @@ public struct ScheduleAgendaView: View {
 
     // MARK: - Now rule
 
-    private static let nowFormatter: DateFormatter = {
-        let df = DateFormatter()
-        df.dateFormat = "HH:mm"
-        df.timeZone = .current
-        return df
-    }()
+    private static let nowFormatter = TimeDisplay.time
 
     /// Where the day has got to, drawn between what has finished and what has not started.
     ///

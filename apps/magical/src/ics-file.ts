@@ -13,6 +13,7 @@
  * Google, which is the only opinion on validity that matters.
  */
 import { uiString } from './strings.js';
+import { formatClock } from './time-format.js';
 
 export interface IcsSummary {
   /** `VEVENT` blocks in the file. Zero means nothing recognisable was found. */
@@ -132,7 +133,7 @@ export function describeIcs(summary: IcsSummary, fileName: string): string {
   const title = summary.title ?? fileName;
   if (!summary.startsAt) return uiString('dialog.ics.describe.titled', { title });
 
-  const when = summary.startsAt.toLocaleString(undefined, {
+  const when = formatClock(summary.startsAt, {
     weekday: 'long',
     day: 'numeric',
     month: 'long',

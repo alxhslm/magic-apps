@@ -186,7 +186,10 @@ selection as the user scrolls. During feed updates or programmatic jumps, scroll
 (`onDayScrolledIntoView`) are suppressed so background refreshes do not drag `displayedMonthDate` away
 from the month currently in view.
 
-Each card carries the event's times, title, calendar and location. Completed tasks follow
+Each card carries the event's times, title, calendar and location. Every time and date here, in the
+hero and on the now rule, follows the Mac's clock and locale through `TimeDisplay`; the rule, the
+formatters and the zone are in
+[`time-and-locale.md`](time-and-locale.md). Completed tasks follow
 `showCompletedTasks`: switching it off removes them from `filteredEvents` and `nextEvent` with them.
 Clicking a card reveals the event, and the secondary-click actions, RSVPs and task controls are in
 [`actions.md`](actions.md); revealing an event is

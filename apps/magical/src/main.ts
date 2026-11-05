@@ -31,6 +31,8 @@ import { AccountsManager, calendarPreloadPath } from './accounts-manager.js';
 import { loadSettings, saveSetting, type MagicalSettings } from './settings-store.js';
 import { buildAppMenu } from './menu.js';
 import { setUiLocale, uiString } from './strings.js';
+import { setClock } from './time-format.js';
+import { readMacForced24Hour, readMacLocale } from './mac-clock.js';
 import {
   openSettingsWindow,
   pushAccountsToSettings,
@@ -1404,6 +1406,9 @@ function createWindow(
 app.whenReady().then(async () => {
   log.info('App ready');
   setUiLocale(app.getLocale());
+  // The region and the 12/24-hour switch both live in NSUserDefaults, which ICU resolves
+  // once at launch. Read them here, so a relaunch applies a change.
+  setClock(readMacLocale() ?? app.getLocale(), readMacForced24Hour());
   app.setAboutPanelOptions({
     applicationName: 'Magical',
     applicationVersion: app.getVersion(),

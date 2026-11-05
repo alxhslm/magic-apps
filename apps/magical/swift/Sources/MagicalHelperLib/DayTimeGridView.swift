@@ -195,19 +195,12 @@ public struct DayTimeGridView: View {
         var comp = DateComponents()
         comp.hour = hour
         let d = calendar.date(from: comp) ?? Date()
-        let df = DateFormatter()
-        df.dateFormat = "ha"
-        return df.string(from: d)
+        return TimeDisplay.hour.string(from: d)
     }
 
     // MARK: - Now Indicator
 
-    private static let nowFormatter: DateFormatter = {
-        let df = DateFormatter()
-        df.dateFormat = "HH:mm"
-        df.timeZone = .current
-        return df
-    }()
+    private static let nowFormatter = TimeDisplay.time
 
     private func nowIndicator(width: CGFloat) -> some View {
         let now = Date()

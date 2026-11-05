@@ -23,6 +23,7 @@ Google Calendar instead of Gmail.
 | [`calendar-wire-format.md`](calendar-wire-format.md) | The raw payload, the decoder and the measured indices                           |
 | [`google-tasks.md`](google-tasks.md)                 | The Tasks poller, its wire protocol and completion state                        |
 | [`notifications.md`](notifications.md)               | Meeting alerts, invitation watching and banners                                 |
+| [`time-and-locale.md`](time-and-locale.md)           | 12/24-hour clock, date order, following a change and fixed keys                 |
 | [`menu-bar.md`](menu-bar.md)                         | Status item title, search field, mini-month grid, hero band and agenda          |
 | [`sidebar.md`](sidebar.md)                           | Native companion sidebar: layout, animated folding, and adaptive view modes     |
 | [`conference-links.md`](conference-links.md)         | Resolving a meeting URL, native schemes and the join controls                   |
