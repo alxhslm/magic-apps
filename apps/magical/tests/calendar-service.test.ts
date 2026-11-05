@@ -30,6 +30,7 @@ vi.mock('../src/settings-store', () => ({
     meetingAlertsEnabled: true,
     meetingAlertLeadMinutes: 5,
     alwaysJoinInBrowser: alwaysJoinInBrowser(),
+    openTodoistLinksInApp: true,
     dockBadgeMode: dockBadgeMode(),
     disabledAlertCalendarIds: disabledAlertCalendarIds(),
   }),
