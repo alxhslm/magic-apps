@@ -1385,15 +1385,6 @@ if (!hasLock) {
       },
     );
 
-    ipcMain.handle('magimail:open-external', (_event, url: string) => {
-      // Raised from a renderer, which knows the URL but not which account raised it; the
-      // active account is the one on screen and therefore the one whose profile applies.
-      void openExternalUrl(unwrapRedirectors(url), {
-        browser: loadSettings().openLinksIn,
-        account: accountsManager?.getActiveAccount(),
-      });
-    });
-
     ipcMain.handle(IPC_CHANNELS.FOCUS_FILTER_GET, () => {
       return accountsManager?.getFocusFilter() || null;
     });
