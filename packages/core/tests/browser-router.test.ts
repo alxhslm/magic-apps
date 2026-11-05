@@ -150,6 +150,42 @@ describe('browser-router', () => {
     expect(resolveChromiumProfile('chrome', '_auto', 'personal@gmail.com', tmpDir)).toBe('Default');
   });
 
+  it('openExternalUrl honours a chosen profile even when it is already the open one', async () => {
+    const chromeDir = path.join(tmpDir, 'Library/Application Support/Google/Chrome');
+    fs.mkdirSync(chromeDir, { recursive: true });
+
+    fs.writeFileSync(
+      path.join(chromeDir, 'Local State'),
+      JSON.stringify({
+        profile: {
+          info_cache: { Default: { name: 'Personal', user_name: 'personal@gmail.com' } },
+          last_used: 'Default',
+        },
+      }),
+    );
+
+    const runner = vi.fn().mockResolvedValue(undefined);
+
+    await openExternalUrl('https://example.com', {
+      browser: 'chrome',
+      account: { browserProfile: 'Default' },
+      customHome: tmpDir,
+      fallbackOpenExternal: vi.fn().mockResolvedValue(undefined),
+      openCommandRunner: runner,
+    });
+
+    // The other account's link may have moved `last_used`; this account asked for this
+    // profile, so it gets it rather than whatever window happens to be in front.
+    expect(runner).toHaveBeenCalledWith([
+      '-b',
+      'com.google.Chrome',
+      '-n',
+      '--args',
+      '--profile-directory=Default',
+      'https://example.com',
+    ]);
+  });
+
   it('openExternalUrl hands the URL to the open window when the profile is the current one', async () => {
     const chromeDir = path.join(tmpDir, 'Library/Application Support/Google/Chrome');
     fs.mkdirSync(chromeDir, { recursive: true });

@@ -335,10 +335,16 @@ export async function openExternalUrl(
         options.customHome,
       );
 
-      // Chromium reads --profile-directory only when it is starting, so a second profile
-      // costs a second instance. Where the resolved profile is the one already open there
-      // is nothing to gain from that, and a plain hand-off reuses the running window.
-      if (profileDir && profileDir !== lastUsed) {
+      // Chromium reads --profile-directory only when it is starting, so naming a profile
+      // costs a second instance. Where the automatic answer is the profile already open
+      // there is nothing to gain from that, and a plain hand-off reuses the running window.
+      //
+      // An account that names a profile always gets it. "The profile already open" is
+      // whichever one we launched last, so treating that as a match let one account's link
+      // pull the next account's link into its window.
+      const wanted = options.account?.browserProfile;
+      const isChosen = Boolean(wanted && wanted !== AUTO_PROFILE);
+      if (profileDir && (isChosen || profileDir !== lastUsed)) {
         log.info(`Opening ${redactUrl(url)} in ${browserDef.name} (profile: ${profileDir})`);
         await runner([
           '-b',
