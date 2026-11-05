@@ -29,7 +29,7 @@ Which browser opens links that leave Google Calendar, such as an event location,
 - **Only installed browsers are listed**, and the row macOS opens links with is marked `(default)`. Leaving that row alone follows the Mac's default, including if you change it later.
 - **Safari, Firefox and other non-Chromium browsers** work here, but cannot be told which profile to use. See [Chromium profiles](#chromium-profiles).
 
-One setting covers the whole app, because the browser is where you work rather than who you are. Which session a link lands in is per account, and is set on the account itself.
+Applies to every link that leaves Magical. Chromium browsers can also open each account in its own profile, which the next section covers.
 
 > **One side effect.** A link that has to be sent to a particular profile starts the browser directly, so a site with its own desktop app (Notion, Linear, Todoist) opens in the browser for that link. Links that do not need a profile go through macOS and still reach the app.
 
