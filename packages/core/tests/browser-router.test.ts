@@ -284,7 +284,7 @@ describe('browser-router', () => {
       browser: 'chrome',
       account: { browserProfile: '_auto', email: 'personal@gmail.com' },
       customHome: tmpDir,
-      resolveHandler: async () => 'com.apple.Safari',
+      defaultBrowserId: 'safari',
       fallbackOpenExternal: fallback,
       openCommandRunner: runner,
     });

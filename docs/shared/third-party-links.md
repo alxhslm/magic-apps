@@ -116,26 +116,20 @@ moves.
 Safari has no supported flag or URL scheme for profile targeting, so it is offered as a browser
 and nothing more.
 
-### The owning app comes first
+### Who owns the link
 
-Before anything is launched, `openExternalUrl` asks LaunchServices which application would
-open the URL. The answer is the app that claims the domain when one does, and the Mac's default
-browser otherwise, so a reply that is not the default browser means a desktop app owns the link.
-That one is opened through `shell.openExternal`, whatever profile the account names: starting a
-browser by name is exactly what would take the link away from its app.
+A link to a domain claimed by a desktop app opens in that app, and the resolution happens inside
+macOS when the URL is handed over by `shell.openExternal`. It cannot be asked for in advance:
+`URLForApplicationToOpenURL`, `app.getApplicationInfoForProtocol` and a plain `/usr/bin/open` all
+answer with the default browser even where a universal link would open an app, so the only thing
+that knows is the hand-off itself. Starting a browser by name skips it entirely.
 
-```mermaid
-flowchart TD
-  Link["external URL"] --> Scheme{"http(s)?"}
-  Scheme -->|no| Shell["shell.openExternal"]
-  Scheme -->|yes| Owner{"who owns the URL?"}
-  Owner -->|"an app other than the default browser"| Shell
-  Owner -->|"the default browser"| Profile{"profile resolved, different from the open one?"}
-  Profile -->|yes| Launch["open -b … -n --args --profile-directory=…"]
-  Profile -->|no| Named["open -b …"]
-```
+That is why the router hands the URL to macOS whenever it does not need to start a browser:
+`open -b <bundleId>` and `open -b <bundleId> -n --args --profile-directory=…` both bypass the
+resolution, so they are used only where the browser choice or the profile makes a hand-off
+impossible.
 
-### Launching
+### Launching### Launching
 
 `openExternalUrl` launches the browser itself when it has a profile to apply:
 `/usr/bin/open -b <bundleId> -n --args --profile-directory="<dir>" <url>`. Chromium reads

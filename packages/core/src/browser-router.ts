@@ -141,39 +141,6 @@ function readLaunchServicesJson(plistPath: string): string {
   });
 }
 
-/**
- * Which application macOS would use for a URL.
- *
- * LaunchServices answers with the app that claims the domain (a universal link) when there is
- * one, and with the default browser otherwise. JXA rather than a plist or a directory scan:
- * it is the same registry `open` consults, it needs no accessibility permission, and it says
- * nothing about the user's files.
- */
-const HANDLER_SCRIPT = `function run(argv) {
-  ObjC.import('AppKit');
-  const url = $.NSURL.URLWithString(argv[0]);
-  if (!url) return '';
-  const app = $.NSWorkspace.sharedWorkspace.URLForApplicationToOpenURL(url);
-  return app && app.bundleIdentifier ? app.bundleIdentifier.js : '';
-}`;
-
-async function osHandlerFor(url: string): Promise<string | null> {
-  try {
-    const { stdout } = await execFileAsync('/usr/bin/osascript', [
-      '-l',
-      'JavaScript',
-      '-e',
-      HANDLER_SCRIPT,
-      url,
-    ]);
-    const bundleId = stdout.trim();
-    return bundleId ? bundleId : null;
-  } catch (err) {
-    log.warn(`Could not ask which app handles ${redactUrl(url)}:`, err);
-    return null;
-  }
-}
-
 function defaultHandlerName(): string | undefined {
   try {
     return app.getApplicationNameForProtocol('https://') || undefined;
@@ -321,10 +288,10 @@ export interface OpenExternalUrlOptions {
   /** Custom home dir for profile reading (testing). */
   customHome?: string;
   /**
-   * Which application macOS would use for a URL, asked before we launch anything ourselves.
-   * Injectable so a test does not need LaunchServices.
+   * The Mac's default browser id, when the caller already knows it. Injectable so a test does
+   * not depend on which browser the machine running it has.
    */
-  resolveHandler?: (url: string) => Promise<string | null>;
+  defaultBrowserId?: string;
 }
 
 /**
@@ -367,18 +334,6 @@ export async function openExternalUrl(
     return;
   }
 
-  // A URL that another application claims belongs to that application, whatever profile the
-  // account names. Asked before anything is launched, because starting a browser by name is
-  // exactly what skips this decision.
-  const resolveHandler = options.resolveHandler ?? osHandlerFor;
-  const handler = await resolveHandler(url).catch(() => null);
-  const macDefaultBundleId = getDefaultBrowser().bundleId?.toLowerCase();
-  if (handler && macDefaultBundleId && handler.toLowerCase() !== macDefaultBundleId) {
-    log.info(`Opening ${redactUrl(url)} in the app that claims it (${handler})`);
-    await fallback(url);
-    return;
-  }
-
   try {
     if (browserDef.isChromium) {
       const lastUsed = getLastUsedProfile(browserId, options.customHome);
@@ -412,6 +367,16 @@ export async function openExternalUrl(
           `--profile-directory=${profileDir}`,
           url,
         ]);
+        return;
+      }
+
+      // Asked of macOS when the browser is already the Mac's default: LaunchServices sends
+      // the URL to the same browser either way, and a link whose domain is claimed by a
+      // desktop app reaches that app when the default browser is one that hands it over.
+      const macDefault = options.defaultBrowserId ?? getDefaultBrowser().id;
+      if (browserId === macDefault) {
+        log.info(`Opening ${redactUrl(url)} in ${browserDef.name} (current profile, via macOS)`);
+        await fallback(url);
         return;
       }
 
