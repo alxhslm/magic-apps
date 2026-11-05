@@ -37,8 +37,6 @@ Which browser opens links that leave the app.
   - `Ask each time`, which shows a dialog naming both destinations. Its "don't ask again" box
     writes this same row.
   - `Use the browser`, so the link takes the account's profile like everything else.
-- **Only apps installed on your Mac are listed**, so a row cannot offer a destination that is not
-  there.
 
 ### Times and Dates
 
