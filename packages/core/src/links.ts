@@ -30,3 +30,22 @@ export function unwrapRedirectors(rawUrl: string): string {
   }
   return url;
 }
+
+/**
+ * Rewrites a recognised video conference web URL to its native desktop scheme.
+ *
+ * Zoom and Teams support custom schemes that join the meeting in the native client
+ * directly. Google Meet has no native client and Webex is kept in the browser.
+ */
+export function toNativeMeetingUrl(url: string): string {
+  const unwrapped = unwrapRedirectors(url);
+  const zoom = /^https?:\/\/[^/]*zoom\.us\/[jw]\/(\d+)/.exec(unwrapped);
+  if (zoom) {
+    const pwd = /[?&]pwd=([^&]+)/.exec(unwrapped)?.[1];
+    return `zoommtg://zoom.us/join?action=join&confno=${zoom[1]}${pwd ? `&pwd=${pwd}` : ''}`;
+  }
+  if (/^https?:\/\/teams\.(microsoft|live)\.com\//.test(unwrapped)) {
+    return unwrapped.replace(/^https?:\/\//, 'msteams://');
+  }
+  return unwrapped;
+}

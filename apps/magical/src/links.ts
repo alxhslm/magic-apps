@@ -1,12 +1,16 @@
 import { shell } from 'electron';
-import { unwrapRedirectors, openExternalUrl as openBrowserUrl } from '@magimail/core';
+import {
+  unwrapRedirectors,
+  toNativeMeetingUrl,
+  openExternalUrl as openBrowserUrl,
+} from '@magimail/core';
 import { createLogger, redactUrl } from '@magimail/core/logger';
 import { INTERNAL_ORIGINS } from './constants.js';
 import { hasApplicationForUrl } from './native-handlers.js';
 import { loadSettings } from './settings-store.js';
 import type { CalendarAccount } from './accounts.js';
 
-export { unwrapRedirectors } from '@magimail/core';
+export { unwrapRedirectors, toNativeMeetingUrl } from '@magimail/core';
 
 const log = createLogger('Links');
 
@@ -44,25 +48,6 @@ export function withoutQuery(rawUrl: string): string {
   } catch {
     return rawUrl;
   }
-}
-
-/**
- * Rewrites a recognised video conference web URL to its native desktop scheme.
- *
- * Zoom and Teams support custom schemes that join the meeting in the native client
- * directly. Google Meet has no native client and Webex is kept in the browser.
- */
-export function toNativeMeetingUrl(url: string): string {
-  const unwrapped = unwrapRedirectors(url);
-  const zoom = /^https?:\/\/[^/]*zoom\.us\/[jw]\/(\d+)/.exec(unwrapped);
-  if (zoom) {
-    const pwd = /[?&]pwd=([^&]+)/.exec(unwrapped)?.[1];
-    return `zoommtg://zoom.us/join?action=join&confno=${zoom[1]}${pwd ? `&pwd=${pwd}` : ''}`;
-  }
-  if (/^https?:\/\/teams\.(microsoft|live)\.com\//.test(unwrapped)) {
-    return unwrapped.replace(/^https?:\/\//, 'msteams://');
-  }
-  return unwrapped;
 }
 
 /**
