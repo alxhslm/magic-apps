@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   DEFAULT_ACCOUNTS,
   calculateAggregateUnread,
+  findAccountByIdOrEmail,
   newAccountId,
   updateAccountUnread,
   updateAccountAuth,
@@ -61,5 +62,32 @@ describe('Multi-Account Utilities', () => {
 
     const cleared = updateAccountAuth(updated, 'acc_2', false);
     expect(cleared.find((a) => a.id === 'acc_2')?.needsAuth).toBe(false);
+  });
+
+  it('resolves accounts by id or case-insensitive email', () => {
+    const accounts: AccountConfig[] = [
+      {
+        id: 'acc_1',
+        name: 'Personal',
+        partition: 'p1',
+        color: '#a855f7',
+        unreadCount: 0,
+        email: 'alex.personal@gmail.com',
+      },
+      {
+        id: 'acc_2',
+        name: 'Work',
+        partition: 'p2',
+        color: '#3b82f6',
+        unreadCount: 0,
+        email: 'alex@corp.com',
+      },
+    ];
+
+    expect(findAccountByIdOrEmail(accounts, 'acc_1')?.name).toBe('Personal');
+    expect(findAccountByIdOrEmail(accounts, 'alex@corp.com')?.id).toBe('acc_2');
+    expect(findAccountByIdOrEmail(accounts, 'ALEX.PERSONAL@GMAIL.COM')?.id).toBe('acc_1');
+    expect(findAccountByIdOrEmail(accounts, 'unknown@example.com')).toBeUndefined();
+    expect(findAccountByIdOrEmail(accounts, undefined)).toBeUndefined();
   });
 });

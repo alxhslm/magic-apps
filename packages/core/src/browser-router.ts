@@ -357,8 +357,20 @@ export async function openExternalUrl(
   const crossApp = crossAppLink(url);
   const appInstalled = options.isAppInstalled ?? isAppInstalled;
   if (crossApp && (await appInstalled(APP_BUNDLE_IDS[crossApp.scheme]).catch(() => false))) {
-    log.info(`Opening ${redactUrl(url)} in ${crossApp.scheme} (${crossApp.deepLink})`);
-    await fallback(crossApp.deepLink);
+    let targetLink = crossApp.deepLink;
+    if (options.account?.email) {
+      try {
+        const parsed = new URL(targetLink);
+        if (!parsed.searchParams.has('account')) {
+          parsed.searchParams.set('account', options.account.email);
+          targetLink = parsed.toString();
+        }
+      } catch {
+        // Leave targetLink untouched if URL parsing fails
+      }
+    }
+    log.info(`Opening ${redactUrl(url)} in ${crossApp.scheme} (${targetLink})`);
+    await fallback(targetLink);
     return;
   }
 

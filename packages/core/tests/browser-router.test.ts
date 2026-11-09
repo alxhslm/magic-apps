@@ -329,6 +329,21 @@ describe('browser-router', () => {
     expect(runner).not.toHaveBeenCalled();
   });
 
+  it('forwards the originating account email in cross-app deep links', async () => {
+    const fallback = vi.fn().mockResolvedValue(undefined);
+    const runner = vi.fn().mockResolvedValue(undefined);
+
+    await openExternalUrl('https://mail.google.com/mail/u/0/#inbox', {
+      account: { email: 'alex@corp.com' },
+      isAppInstalled: async () => true,
+      fallbackOpenExternal: fallback,
+      openCommandRunner: runner,
+    });
+
+    expect(fallback).toHaveBeenCalledWith('magimail://inbox?account=alex%40corp.com');
+    expect(runner).not.toHaveBeenCalled();
+  });
+
   it('leaves a Gmail link to the browser when Magimail is not installed', async () => {
     const fallback = vi.fn().mockResolvedValue(undefined);
     const runner = vi.fn().mockResolvedValue(undefined);
