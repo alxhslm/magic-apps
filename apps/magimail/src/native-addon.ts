@@ -21,6 +21,7 @@ export interface MagimailNativeAddon extends NativeToolbarAddon {
   appGroupIdentifier(): string | null;
   /** Base64 of the 32-byte local cache key, created on first use. Null when unsigned. */
   localCacheKey(): string | null;
+  hasApplicationForUrl?: (url: string) => boolean;
 }
 
 export type NativeAddon = MagimailNativeAddon;

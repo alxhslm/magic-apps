@@ -655,6 +655,28 @@ static Napi::Value LocalCacheKey(const Napi::CallbackInfo& info) {
   return result;
 }
 
+// JS: hasApplicationForUrl(url: string) -> boolean
+//
+// Answered here in Objective-C++ rather than through the Swift dylib: AppKit is already
+// linked into the addon, and a LaunchServices lookup needs nothing the dylib holds.
+static Napi::Value HasApplicationForUrl(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+
+  if (info.Length() < 1 || !info[0].IsString()) {
+    Napi::TypeError::New(env, "Expected (url: string)").ThrowAsJavaScriptException();
+    return env.Undefined();
+  }
+
+  std::string urlString = info[0].As<Napi::String>().Utf8Value();
+  // LaunchServices logs a CoreFoundation warning for a URL carrying no scheme, so a string
+  // that is not a URL is answered here rather than passed on.
+  NSURL* url = [NSURL URLWithString:[NSString stringWithUTF8String:urlString.c_str()]];
+  if (!url || !url.scheme) return Napi::Boolean::New(env, false);
+
+  NSURL* application = [[NSWorkspace sharedWorkspace] URLForApplicationToOpenURL:url];
+  return Napi::Boolean::New(env, application != nil);
+}
+
 // Module registration
 static Napi::Object InitModule(Napi::Env env, Napi::Object exports) {
   exports.Set("init", Napi::Function::New(env, Init));
@@ -671,6 +693,7 @@ static Napi::Object InitModule(Napi::Env env, Napi::Object exports) {
   exports.Set("localCacheKey", Napi::Function::New(env, LocalCacheKey));
   exports.Set("showSharingPicker", Napi::Function::New(env, ShowSharingPicker));
   exports.Set("reloadWidgets", Napi::Function::New(env, ReloadWidgets));
+  exports.Set("hasApplicationForUrl", Napi::Function::New(env, HasApplicationForUrl));
   return exports;
 }
 
