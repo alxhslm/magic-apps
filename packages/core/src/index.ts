@@ -27,3 +27,4 @@ export * from './app-removal.js';
 export * from './diagnostics.js';
 export * from './retry-scheduler.js';
 export * from './links.js';
+export * from './native-handlers.js';

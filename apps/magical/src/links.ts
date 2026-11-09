@@ -1,4 +1,3 @@
-import { shell } from 'electron';
 import {
   unwrapRedirectors,
   toNativeMeetingUrl,
@@ -73,37 +72,25 @@ export function toTodoistAppUrl(url: string): string {
  * fall back to the web URL when no client is installed.
  */
 export async function openExternalUrl(rawUrl: string, account?: CalendarAccount): Promise<void> {
-  const unwrappedUrl = unwrapRedirectors(rawUrl);
   const settings = loadSettings();
-  let target = unwrappedUrl;
-
-  if (!settings.alwaysJoinInBrowser) {
-    target = toNativeMeetingUrl(target);
-  }
-  if (target === unwrappedUrl && settings.openTodoistLinksInApp) {
-    target = toTodoistAppUrl(target);
-  }
-
-  if (target !== unwrappedUrl) {
-    const scheme = target.split(':')[0];
-    if (hasApplicationForUrl(target)) {
-      try {
-        await shell.openExternal(target);
-        return;
-      } catch (err) {
-        log.warn(`${scheme}: refused the request, opening in the browser:`, err);
-      }
-    } else {
-      log.info(`No application for ${scheme}:, opening in the browser`);
-    }
-  }
 
   try {
-    await openBrowserUrl(unwrappedUrl, {
+    await openBrowserUrl(rawUrl, {
       browser: settings.openLinksIn,
       account,
+      hasApplicationForUrl,
+      rewriteUrl: (url) => {
+        let target = url;
+        if (!settings.alwaysJoinInBrowser) {
+          target = toNativeMeetingUrl(target);
+        }
+        if (target === url && settings.openTodoistLinksInApp) {
+          target = toTodoistAppUrl(target);
+        }
+        return target;
+      },
     });
   } catch (err) {
-    log.error('Could not open external link:', redactUrl(unwrappedUrl), err);
+    log.error('Could not open external link:', redactUrl(rawUrl), err);
   }
 }

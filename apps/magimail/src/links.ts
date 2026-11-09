@@ -1,8 +1,5 @@
-import { shell } from 'electron';
 import {
-  unwrapRedirectors,
-  toNativeMeetingUrl,
-  openExternalUrl as openBrowserUrl,
+  openExternalUrl as coreOpenExternalUrl,
   type AccountConfig,
   type OpenExternalUrlOptions,
 } from '@magimail/core';
@@ -26,7 +23,6 @@ export async function openExternalUrl(
   rawUrl: string,
   accountOrOptions?: AccountConfig | OpenExternalUrlOptions,
 ): Promise<void> {
-  const unwrappedUrl = unwrapRedirectors(rawUrl);
   const settings = loadSettings();
 
   const account =
@@ -37,28 +33,13 @@ export async function openExternalUrl(
       ? accountOrOptions.browser
       : settings.openLinksIn;
 
-  const target = toNativeMeetingUrl(unwrappedUrl);
-
-  if (target !== unwrappedUrl) {
-    const scheme = target.split(':')[0];
-    if (hasApplicationForUrl(target)) {
-      try {
-        await shell.openExternal(target);
-        return;
-      } catch (err) {
-        log.warn(`${scheme}: refused the request, opening in the browser:`, err);
-      }
-    } else {
-      log.info(`No application for ${scheme}:, opening in the browser`);
-    }
-  }
-
   try {
-    await openBrowserUrl(unwrappedUrl, {
+    await coreOpenExternalUrl(rawUrl, {
       browser,
       account,
+      hasApplicationForUrl,
     });
   } catch (err) {
-    log.error('Could not open external link:', redactUrl(unwrappedUrl), err);
+    log.error('Could not open external link:', redactUrl(rawUrl), err);
   }
 }

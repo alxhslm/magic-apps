@@ -76,6 +76,7 @@ export interface NativeToolbarAddon {
   updateLabels?(json: string): void;
   runCustomization(): void;
   setItemEnabled(itemId: string, enabled: boolean): void;
+  hasApplicationForUrl?(url: string): boolean;
 }
 
 export function findFirstCandidate(candidates: string[]): string {
