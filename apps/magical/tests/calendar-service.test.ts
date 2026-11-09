@@ -657,6 +657,50 @@ describe('forgetting a removed account', () => {
 
     service.stop();
   });
+
+  it('prunes unconfigured accounts from event cache and alert state on startup before re-arming', () => {
+    const start = inHours(24);
+    const eventsFile = path.join(stateDir, 'event-cache.json');
+    const alertsFile = path.join(stateDir, 'alert-state.json');
+    fs.mkdirSync(stateDir, { recursive: true });
+    fs.writeFileSync(
+      eventsFile,
+      JSON.stringify({
+        events: {
+          a: [persisted('a1', start)],
+          orphaned: [persisted('o1', start)],
+        },
+      }),
+    );
+    fs.writeFileSync(
+      alertsFile,
+      JSON.stringify({
+        notified: ['google:a|invite|a1', 'google:orphaned|invite|o1', 'google:orphaned|o1@123|5'],
+        activeArrivals: ['google:a|invite|a1', 'google:orphaned|invite|o1'],
+      }),
+    );
+
+    // Only account `a` is configured now; `orphaned` was removed while shut down or crashed.
+    const service = new CalendarService(
+      () => [account],
+      () => {},
+      async () => 'ok' as const,
+    );
+
+    // Cached events in memory must not include the orphaned account immediately on load.
+    expect(service.getCachedEvents().has('orphaned')).toBe(false);
+    expect(service.getCachedEvents().get('a')).toHaveLength(1);
+
+    // Files on disk must have been pruned of the unconfigured account.
+    const events = readSecretFile<{ events: Record<string, unknown[]> }>(eventsFile);
+    expect(Object.keys(events?.events ?? {})).toEqual(['a']);
+
+    const alerts = readSecretFile<{ notified: string[]; activeArrivals: string[] }>(alertsFile);
+    expect(alerts?.notified).toEqual(['google:a|invite|a1']);
+    expect(alerts?.activeArrivals).toEqual(['google:a|invite|a1']);
+
+    service.stop();
+  });
 });
 
 describe('the invitations dropdown', () => {
