@@ -39,7 +39,9 @@ flowchart TD
     Supervisor -->|Focus & Navigate| Electron
 ```
 
-Helper and main process talk in newline-delimited JSON-RPC over `stdin` and `stdout`:
+Helper and main process talk in newline-delimited JSON-RPC over `stdin` and `stdout`. `tray.update`
+and `tray.verificationCode` are deduplicated in `menubar-manager.ts` so consecutive identical payloads
+are dropped rather than re-sent on unchanged polls:
 
 | Event / Method          | Direction         | Payload                                                            | Action Performed                                                                         |
 | :---------------------- | :---------------- | :----------------------------------------------------------------- | :--------------------------------------------------------------------------------------- |
