@@ -115,6 +115,12 @@ describe('crossAppLink', () => {
       scheme: 'magical',
       deepLink: 'magical://event?eid=Y3Jhd2ZvcmQ&action=reveal',
     });
+    expect(
+      crossAppLink('https://calendar.google.com/calendar/u/0/r/eventedit/Y3Jhd2ZvcmQ'),
+    ).toEqual({
+      scheme: 'magical',
+      deepLink: 'magical://event?eid=Y3Jhd2ZvcmQ&action=reveal',
+    });
   });
 
   it('opens the calendar when the link names nothing more specific', () => {

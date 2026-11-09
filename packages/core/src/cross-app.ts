@@ -147,6 +147,11 @@ function calendarDeepLink(url: URL): string {
     return `magical://event?eid=${encodeURIComponent(eid)}&action=reveal`;
   }
 
+  const eventEditMatch = /\/eventedit\/([^/?#]+)/.exec(url.pathname);
+  if (eventEditMatch) {
+    return `magical://event?eid=${encodeURIComponent(eventEditMatch[1])}&action=reveal`;
+  }
+
   const day = dayFromPath(url.pathname);
   if (day) {
     return `magical://date?at=${encodeURIComponent(`${day}T00:00:00.000Z`)}`;
