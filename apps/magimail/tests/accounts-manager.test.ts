@@ -6,6 +6,7 @@ import { DOM_DRIVE_PREAMBLE } from '@magimail/core';
 import {
   AccountsManager,
   asThreadAction,
+  pruneOrphanAtomState,
   THREAD_ACTIONS,
   TRIAGE_ACTIONS,
 } from '../src/accounts-manager.js';
@@ -236,6 +237,37 @@ describe('AccountsManager', () => {
     // Left in `atom-state/`, it is a record of seen messages for a mailbox nobody has,
     // and the call sites in main.ts are not the only way an account can go.
     expect(fs.existsSync(stateFile)).toBe(false);
+  });
+
+  it('sweeps orphaned atom-state files on startup alongside pruneOrphanPartitions', () => {
+    const keepFile = path.join(TEST_USER_DATA, 'atom-state', 'account_personal.json');
+    const orphanFile = path.join(TEST_USER_DATA, 'atom-state', 'account_orphaned_999.json');
+    fs.mkdirSync(path.dirname(keepFile), { recursive: true });
+    fs.writeFileSync(keepFile, JSON.stringify({ seenIds: ['msg-keep'] }));
+    fs.writeFileSync(orphanFile, JSON.stringify({ seenIds: ['msg-orphan'] }));
+
+    const manager = new AccountsManager(mockWin, '/path/to/preload.js');
+    manager.initialize();
+
+    expect(fs.existsSync(keepFile)).toBe(true);
+    expect(fs.existsSync(orphanFile)).toBe(false);
+  });
+
+  it('prunes orphaned atom-state files via pruneOrphanAtomState', () => {
+    const stateDir = path.join(TEST_USER_DATA, 'atom-state');
+    const keepFile = path.join(stateDir, 'acc-configured.json');
+    const orphanFile = path.join(stateDir, 'acc-orphaned.json');
+    const nonJsonFile = path.join(stateDir, 'not-a-state-file.txt');
+    fs.mkdirSync(stateDir, { recursive: true });
+    fs.writeFileSync(keepFile, JSON.stringify({ seenIds: ['1'] }));
+    fs.writeFileSync(orphanFile, JSON.stringify({ seenIds: ['2'] }));
+    fs.writeFileSync(nonJsonFile, 'ignored');
+
+    pruneOrphanAtomState(['acc-configured']);
+
+    expect(fs.existsSync(keepFile)).toBe(true);
+    expect(fs.existsSync(orphanFile)).toBe(false);
+    expect(fs.existsSync(nonJsonFile)).toBe(true);
   });
 
   it('drops a removed account from the Focus Filter it was named by', () => {

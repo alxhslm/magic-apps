@@ -160,4 +160,5 @@ the Dock badge stop leaning on an id nothing can reach. `focus-filter.json` is l
 Intents extension owns that file, and an account id it names that no longer exists is ignored there.
 The partition directory itself stays until the next launch's `pruneOrphanPartitions` sweep, rather
 than the removal, because Chromium may still hold the files open. The fixed `magimail_personal` and
-`magimail_work` partitions are exempt from both.
+`magimail_work` partitions are exempt from both. Startup also sweeps `atom-state/` via `pruneOrphanAtomState`,
+deleting any seen-message records left behind by an interrupted removal or a crash for accounts no longer configured.
