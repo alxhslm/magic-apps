@@ -55,7 +55,7 @@ import { uiString } from './strings.js';
 import { updateDockBadge, type ArrivalBadgeState } from './dock.js';
 import { openDetachedThreadWindow } from './compose.js';
 import { loadAccounts, saveAccounts, createNewAccount } from './account-store.js';
-import { withStoredUnreadCounts } from './mailbox/unread-count-store.js';
+import { withStoredUnreadCounts, deleteStoredUnreadCounts } from './mailbox/unread-count-store.js';
 import { loadSettings, saveSetting } from './settings-store.js';
 import { pressRefreshControl } from './thread-actions/sync-driver.js';
 import {
@@ -2852,6 +2852,7 @@ export class AccountsManager {
 
     this.accounts.splice(index, 1);
     saveAccounts(this.accounts);
+    deleteStoredUnreadCounts(accountId);
     this.arrivalsByAccount.delete(accountId);
     this.arrivalsIncompleteByAccount.delete(accountId);
     // Everything else keyed by the account goes with it. None of it is wiped by the

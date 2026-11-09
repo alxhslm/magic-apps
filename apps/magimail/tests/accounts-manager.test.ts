@@ -10,6 +10,11 @@ import {
   THREAD_ACTIONS,
   TRIAGE_ACTIONS,
 } from '../src/accounts-manager.js';
+import {
+  loadUnreadCounts,
+  saveUnreadCounts,
+  withStoredUnreadCounts,
+} from '../src/mailbox/unread-count-store.js';
 import type { NotificationCategory } from '../src/constants.js';
 import type { ThreadActionDriver } from '../src/thread-actions/index.js';
 
@@ -268,6 +273,23 @@ describe('AccountsManager', () => {
     expect(fs.existsSync(keepFile)).toBe(true);
     expect(fs.existsSync(orphanFile)).toBe(false);
     expect(fs.existsSync(nonJsonFile)).toBe(true);
+  });
+
+  it('prunes unconfigured accounts from unread-counts.json on removal and startup', () => {
+    const added = accountsManager.addAccount('Work', '#ef4444');
+    saveUnreadCounts(added.id, { total: 10, badge: 3 });
+    saveUnreadCounts('orphaned_acc_123', { total: 5, badge: 1 });
+
+    expect(loadUnreadCounts()[added.id]).toEqual({ total: 10, badge: 3 });
+    expect(loadUnreadCounts()['orphaned_acc_123']).toEqual({ total: 5, badge: 1 });
+
+    // Inline removal deletes the stored counts for the removed account
+    accountsManager.removeAccount(added.id);
+    expect(loadUnreadCounts()[added.id]).toBeUndefined();
+
+    // Startup sweeps remaining unconfigured accounts from unread-counts.json
+    withStoredUnreadCounts(accountsManager.getAccounts());
+    expect(loadUnreadCounts()['orphaned_acc_123']).toBeUndefined();
   });
 
   it('drops a removed account from the Focus Filter it was named by', () => {

@@ -56,16 +56,47 @@ export function saveUnreadCounts(accountId: string, counts: StoredUnreadCounts):
   }
 }
 
+export function deleteStoredUnreadCounts(accountId: string): void {
+  try {
+    const all = loadUnreadCounts();
+    if (accountId in all) {
+      delete all[accountId];
+      writeSecretFile(countsPath(), all);
+    }
+  } catch (err) {
+    log.warn('Could not update stored unread counts for removed account:', err);
+  }
+}
+
 /**
  * The accounts, with the counts from the last launch applied.
  *
  * Startup draws the tray from the account list before anything is polled, so
  * without this every launch begins at zero until the first cache read answers.
+ * Sweeps any orphaned keys for accounts no longer configured.
  */
 export function withStoredUnreadCounts(accounts: AccountConfig[]): AccountConfig[] {
   const stored = loadUnreadCounts();
+  const live = new Set(accounts.map((a) => a.id));
+  let changed = false;
+  const cleaned: Record<string, StoredUnreadCounts> = {};
+  for (const [id, counts] of Object.entries(stored)) {
+    if (live.has(id)) {
+      cleaned[id] = counts;
+    } else {
+      changed = true;
+    }
+  }
+  if (changed) {
+    try {
+      writeSecretFile(countsPath(), cleaned);
+      log.info('Pruned unconfigured accounts from unread counts');
+    } catch {
+      // Best-effort
+    }
+  }
   return accounts.map((account) => {
-    const counts = stored[account.id];
+    const counts = cleaned[account.id];
     if (!counts) return account;
     return { ...account, unreadCount: counts.total, badgeUnreadCount: counts.badge };
   });
