@@ -78,6 +78,10 @@ Event descriptions and Google Tasks frequently include links to external tools s
 
 Magical strips Google's redirect prefix before routing a link, then opens it in the browser chosen in **Settings → General → Opening links**, in the Chromium profile for the account it came from. Todoist task and project links open in the Todoist app when it is installed; turn off **Open Todoist links in the Todoist app** to keep them in the browser. See [Settings Reference](/help/magical/settings/#opening-links).
 
+:::tip[Gmail links open in Magimail]
+When [Magimail](/help/magimail/getting-started/) is installed, Gmail links (inbox, threads, compose drafts, search, and mailbox folders) clicked inside Magical automatically open in Magimail rather than in a web browser tab.
+:::
+
 :::tip[Video conference calls]
 Meeting links for Zoom and Microsoft Teams also open in their native desktop apps when installed. If you prefer to join meetings in your browser, turn on **Always open calls in the browser** in **Settings → Notifications**. See [Settings Reference](/help/magical/settings/).
 :::
