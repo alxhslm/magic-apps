@@ -1,4 +1,4 @@
-import { openExternalUrl, unwrapRedirectors } from '@magimail/core';
+import { openExternalUrl, unwrapRedirectors } from './links.js';
 import { loadAccounts } from './account-store.js';
 import { BrowserWindow } from 'electron';
 import { GMAIL_COMPOSE_URL, DEFAULT_PARTITION } from './constants.js';

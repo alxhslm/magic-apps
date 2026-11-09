@@ -32,8 +32,6 @@ import {
   type WindowActionTarget,
   viewIsAlive,
   WindowRebuilder,
-  unwrapRedirectors,
-  openExternalUrl,
 } from '@magimail/core';
 import { DEFAULT_PARTITION, IPC_CHANNELS } from './constants.js';
 import {

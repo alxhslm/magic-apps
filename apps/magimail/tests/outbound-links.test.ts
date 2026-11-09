@@ -35,7 +35,17 @@ interface Handler {
   (details: { url: string }): { action: string };
 }
 const handlers: Handler[] = [];
+const shellOpenExternal = vi.fn();
+const hasApplicationForUrl = vi.fn((_url: string) => true);
+
+vi.mock('../src/native-handlers.js', () => ({
+  hasApplicationForUrl: (url: string) => hasApplicationForUrl(url),
+}));
+
 vi.mock('electron', () => ({
+  shell: {
+    openExternal: (url: string) => shellOpenExternal(url),
+  },
   BrowserWindow: class {
     webContents = {
       setWindowOpenHandler: (handler: Handler) => handlers.push(handler),
@@ -56,6 +66,9 @@ describe('links clicked in a pop-out', () => {
   beforeEach(() => {
     handlers.length = 0;
     openExternalUrl.mockClear();
+    shellOpenExternal.mockClear();
+    hasApplicationForUrl.mockClear();
+    hasApplicationForUrl.mockReturnValue(true);
   });
 
   it('keeps Gmail and sign-in links inside the pop-out', () => {
@@ -68,14 +81,48 @@ describe('links clicked in a pop-out', () => {
       expect(handlers.at(-1)!({ url })).toEqual({ action: 'allow' });
     }
     expect(openExternalUrl).not.toHaveBeenCalled();
+    expect(shellOpenExternal).not.toHaveBeenCalled();
   });
 
-  it('routes everything else as the account that owns the pop-out', () => {
+  it('routes regular links as the account that owns the pop-out', async () => {
     openDetachedComposeWindow('/preload.js', 'persist:one');
 
     expect(handlers.at(-1)!({ url: 'https://app.notion.com/p/page' })).toEqual({ action: 'deny' });
+    await new Promise((resolve) => setTimeout(resolve, 0));
     expect(openExternalUrl).toHaveBeenCalledWith(
       'https://app.notion.com/p/page',
+      expect.objectContaining({ browser: 'chrome', account: accounts[0] }),
+    );
+    expect(shellOpenExternal).not.toHaveBeenCalled();
+  });
+
+  it('routes Zoom meeting links to the native desktop client when installed', async () => {
+    openDetachedComposeWindow('/preload.js', 'persist:one');
+
+    expect(handlers.at(-1)!({ url: 'https://zoom.us/j/1234567890?pwd=secret' })).toEqual({
+      action: 'deny',
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(hasApplicationForUrl).toHaveBeenCalledWith(
+      'zoommtg://zoom.us/join?action=join&confno=1234567890&pwd=secret',
+    );
+    expect(shellOpenExternal).toHaveBeenCalledWith(
+      'zoommtg://zoom.us/join?action=join&confno=1234567890&pwd=secret',
+    );
+    expect(openExternalUrl).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the browser when the meeting client is not installed', async () => {
+    hasApplicationForUrl.mockReturnValue(false);
+    openDetachedComposeWindow('/preload.js', 'persist:one');
+
+    expect(handlers.at(-1)!({ url: 'https://zoom.us/j/1234567890?pwd=secret' })).toEqual({
+      action: 'deny',
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(shellOpenExternal).not.toHaveBeenCalled();
+    expect(openExternalUrl).toHaveBeenCalledWith(
+      'https://zoom.us/j/1234567890?pwd=secret',
       expect.objectContaining({ browser: 'chrome', account: accounts[0] }),
     );
   });
