@@ -18,6 +18,7 @@ import {
   RendererPool,
   SUSPEND_NEVER,
   viewIsAlive,
+  findAccountByIdOrEmail,
 } from '@magimail/core';
 import { ACCOUNT_EMAIL_SCRIPT, readAccountEmail } from '@magimail/core';
 import { createLogger, redactUrl } from '@magimail/core/logger';
@@ -982,7 +983,8 @@ export class AccountsManager {
    * their calendar.
    */
   public openInAccount(accountId: string | undefined, url: string): void {
-    const target = accountId || this.activeAccountId;
+    const targetAccount = findAccountByIdOrEmail(this.accounts, accountId);
+    const target = targetAccount ? targetAccount.id : this.activeAccountId;
     this.switchAccount(target);
 
     const view = this.pool.view(target);
@@ -1005,7 +1007,7 @@ export class AccountsManager {
    */
   private resolveInitialAccountId(requestedFromLink?: string): { id: string; source: string } {
     if (requestedFromLink) {
-      const linked = this.accounts.find((a) => a.id === requestedFromLink);
+      const linked = findAccountByIdOrEmail(this.accounts, requestedFromLink);
       if (linked) return { id: linked.id, source: 'launch link' };
       log.warn(
         `Cold launch named account ${requestedFromLink}, which is not configured; falling back`,
@@ -1031,12 +1033,13 @@ export class AccountsManager {
   }
 
   public switchAccount(accountId: string): void {
-    const targetAccount = this.accounts.find((a) => a.id === accountId);
+    const targetAccount = findAccountByIdOrEmail(this.accounts, accountId);
     if (!targetAccount) return;
+    const resolvedAccountId = targetAccount.id;
 
-    log.info(`Switching active account to ${accountId}`);
-    this.activeAccountId = accountId;
-    const activeView = this.pool.attachOnly(accountId);
+    log.info(`Switching active account to ${resolvedAccountId}`);
+    this.activeAccountId = resolvedAccountId;
+    const activeView = this.pool.attachOnly(resolvedAccountId);
     if (!activeView) return;
 
     this.updateLayout();

@@ -25,6 +25,7 @@ import {
   type WindowActionTarget,
   viewIsAlive,
   WindowRebuilder,
+  findAccountByIdOrEmail,
 } from '@magimail/core';
 import { localCacheKey } from './native-addon.js';
 import { AccountsManager, calendarPreloadPath } from './accounts-manager.js';
@@ -961,7 +962,7 @@ async function handleNewEvent(
   if (!manager) return;
 
   const account = targetAccountId
-    ? manager.getAccounts().find((a) => a.id === targetAccountId)
+    ? findAccountByIdOrEmail(manager.getAccounts(), targetAccountId)
     : await chooseEventAccount(manager, {
         parentWindow: mainWindow,
         fromMainWindow: !external,
@@ -1006,7 +1007,7 @@ function handleTasks(targetAccountId?: string): void {
   if (!manager) return;
 
   const account = targetAccountId
-    ? manager.getAccounts().find((a) => a.id === targetAccountId)
+    ? findAccountByIdOrEmail(manager.getAccounts(), targetAccountId)
     : manager.getActiveAccount();
   if (!account) return;
 
@@ -1029,7 +1030,7 @@ async function handleNewTask(targetAccountId?: string): Promise<void> {
   if (!manager) return;
 
   const account = targetAccountId
-    ? manager.getAccounts().find((a) => a.id === targetAccountId)
+    ? findAccountByIdOrEmail(manager.getAccounts(), targetAccountId)
     : manager.getActiveAccount();
   if (!account) return;
 
