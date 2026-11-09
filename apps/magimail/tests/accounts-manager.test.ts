@@ -1231,6 +1231,25 @@ describe('action diagnostics', () => {
     });
   });
 
+  it('switches and opens accounts using an email address', async () => {
+    const work = manager.addAccount('Work', '#3b82f6');
+    work.email = 'work@corp.com';
+
+    expect(manager.getActiveAccountId()).toBe('account_personal');
+
+    manager.switchAccount('WORK@CORP.COM');
+    expect(manager.getActiveAccountId()).toBe(work.id);
+
+    const wc = manager.getActiveWebContentsView()!.webContents;
+    const load = wc.loadURL as unknown as Mock;
+    load.mockClear();
+
+    manager.openInAccount('work@corp.com', 'https://mail.google.com/mail/u/0/#sent');
+    await vi.waitFor(() => {
+      expect(load).toHaveBeenCalledWith('https://mail.google.com/mail/u/0/#sent');
+    });
+  });
+
   it('re-suspends the account on screen when an action wakes it while the window is hidden', async () => {
     vi.useFakeTimers();
     try {

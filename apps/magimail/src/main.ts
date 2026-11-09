@@ -17,6 +17,7 @@ import {
   prereleaseBuildExpiredMessage,
   calculateAggregateBadge,
   calculateAggregateUnread,
+  findAccountByIdOrEmail,
   configureSecretFiles,
   createMainWindowOptions,
   configureGoogleSession,
@@ -709,7 +710,11 @@ async function routeThreadAction(
   threadId: string,
   action: TriageAction,
 ): Promise<ThreadActionOutcome> {
-  const source = accountsManager?.getMailboxSource(accountId);
+  const targetAccount = accountsManager
+    ? findAccountByIdOrEmail(accountsManager.getAccounts(), accountId)
+    : undefined;
+  const resolvedAccountId = targetAccount ? targetAccount.id : accountId;
+  const source = accountsManager?.getMailboxSource(resolvedAccountId);
   if (source) {
     const ok = await source.triageThread(threadId, action);
     return ok ? 'ok' : 'failed';
