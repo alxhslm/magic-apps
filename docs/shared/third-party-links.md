@@ -16,7 +16,9 @@ flowchart TD
   Unwrap --> Native{"Magical, and a Zoom,<br/>Teams or Todoist link?"}
   Native -->|yes| App["Native app via custom scheme<br/>(browser when no client)"]
   Native -->|no| Route["openExternalUrl(url, account)<br/>(@magimail/core)"]
-  Route --> Choice{"browser set<br/>and not system?"}
+  Route --> Cross{"Sister app installed,<br/>and a link to it?"}
+  Cross -->|yes| Sister["Sister app via custom scheme<br/>(magimail:// or magical://)"]
+  Cross -->|no| Choice{"browser set<br/>and not system?"}
   Choice -->|no| System["shell.openExternal<br/>default browser"]
   Choice -->|yes| Direct["/usr/bin/open -b browser<br/>with --profile-directory"]
   App --> Browser["Browser"]

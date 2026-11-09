@@ -351,13 +351,6 @@ export async function openExternalUrl(
       await execFileAsync('/usr/bin/open', args);
     });
 
-  // Anything we cannot launch ourselves goes to macOS, which is also what keeps a domain
-  // owned by a desktop app (Universal Links) out of the browser.
-  if (!browserDef || !browserDef.bundleId) {
-    await fallback(url);
-    return;
-  }
-
   // The other app's own web interface belongs in that app, which already shows the same data.
   // Only offered when that app is installed, because a deep link nobody handles leaves the
   // user on an error page where a browser tab would have worked.
@@ -366,6 +359,13 @@ export async function openExternalUrl(
   if (crossApp && (await appInstalled(APP_BUNDLE_IDS[crossApp.scheme]).catch(() => false))) {
     log.info(`Opening ${redactUrl(url)} in ${crossApp.scheme} (${crossApp.deepLink})`);
     await fallback(crossApp.deepLink);
+    return;
+  }
+
+  // Anything we cannot launch ourselves goes to macOS, which is also what keeps a domain
+  // owned by a desktop app (Universal Links) out of the browser.
+  if (!browserDef || !browserDef.bundleId) {
+    await fallback(url);
     return;
   }
 
