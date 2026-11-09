@@ -18,6 +18,10 @@ Magimail registers the native macOS `magimail://` URL scheme, allowing you to tr
 | `magimail://search`          | `q` or `query`, `account`                  | Runs a search query directly in Gmail.                                                          |
 | `magimail://thread/<id>`     | `account`, `action`                        | Opens the thread, or executes an action (`open`, `archive`, `trash`, `markRead`, `markUnread`). |
 
+:::tip[Targeting accounts by id or email]
+The `account` parameter accepts either an internal account identifier (such as `account=work`) or the account's email address (such as `account=alex@company.com`). If omitted or if no account matches, Magimail targets the currently active account.
+:::
+
 :::tip[Headless background triage]
 When a deep link includes a triage action such as `action=archive`, `action=trash` or `action=markRead`, Magimail applies the change in the background without opening the main window or taking focus from the app you are in.
 :::

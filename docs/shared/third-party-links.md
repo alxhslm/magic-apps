@@ -75,9 +75,11 @@ other's deep link:
 | `calendar.google.com/calendar/render?action=TEMPLATE…` | `magical://quick-add?text=…&dates=…`         |
 | `tasks.google.com/…`                                   | `magical://tasks`                            |
 
-The `u/<n>` segment is the browser's sign-in order, not one of our account ids, so it is dropped
-and the receiving app opens its active account. The day path becomes midnight, because the
-calendar side either reveals an event, which is a moment, or opens a day, which is a date.
+The `u/<n>` segment is the browser's sign-in order, not one of our account ids, so it is dropped.
+When the originating account's email is known, `openExternalUrl` passes `account=<email>` in the
+deep link. Both apps resolve `account` by internal id or verified email, activating the matching
+account or falling back to the active account when none matches. The day path becomes midnight,
+because the calendar side either reveals an event, which is a moment, or opens a day, which is a date.
 
 `openExternalUrl` uses the deep link only when the other app is installed, asked by bundle id.
 `URLForApplicationToOpenURL` answers `nil` for a custom scheme even where the app is there, so

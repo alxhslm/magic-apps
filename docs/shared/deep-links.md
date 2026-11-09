@@ -44,9 +44,10 @@ sequenceDiagram
 ### Cold-launch account selection
 
 The launch picks the account before the account manager builds its first view. Both apps read the
-`?account=...` the launch URL names and pass it in as the initial account; a launch without one restores the
-last active account from `lastActiveAccountId` in `settings.json`, written on window close and on quit. An id
-that no longer names an account falls through to the first account.
+`?account=...` the launch URL names (accepting either the internal account id or the account's verified
+email address) and pass it in as the initial account; a launch without one restores the last active account
+from `lastActiveAccountId` in `settings.json`, written on window close and on quit. An id or email that
+no longer names an account falls through to the first account.
 
 ## Focus and triage semantics
 
