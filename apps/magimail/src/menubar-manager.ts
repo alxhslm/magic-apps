@@ -22,11 +22,15 @@ let cachedTrayData: {
   isOffline: false,
   isRestricted: false,
 };
+let lastTrayUpdatePayloadJson: string | null = null;
+let lastVerificationCodePayloadJson: string | null = null;
 const retryScheduler = new RetryScheduler({ maxRetries: 1, delayMs: 1000 });
 
 export function createTray(): void {
   if (trayCreated) return;
   trayCreated = true;
+  lastTrayUpdatePayloadJson = null;
+  lastVerificationCodePayloadJson = null;
   retryScheduler.reset();
 
   if (isHelperRunning()) {
@@ -50,7 +54,7 @@ function sendTrayUpdate(
   retryScheduler.cancel();
 
   const settings = loadSettings();
-  const promise = sendToHelper('tray.update', {
+  const payload = {
     accounts: accounts.map((a) => ({
       id: a.id,
       name: a.name,
@@ -63,10 +67,21 @@ function sendTrayUpdate(
     unreadDisplay: settings.menuBarUnreadDisplay,
     isOffline: options?.isOffline ?? cachedTrayData.isOffline ?? false,
     isRestricted: options?.isRestricted ?? cachedTrayData.isRestricted ?? false,
-  });
+  };
+
+  const payloadJson = JSON.stringify(payload);
+  if (!isRetry && payloadJson === lastTrayUpdatePayloadJson) {
+    return;
+  }
+  lastTrayUpdatePayloadJson = payloadJson;
+
+  const promise = sendToHelper('tray.update', payload);
 
   void Promise.resolve(promise).then((result) => {
     if (result === null) {
+      if (lastTrayUpdatePayloadJson === payloadJson) {
+        lastTrayUpdatePayloadJson = null;
+      }
       retryScheduler.schedule(() => {
         if (trayCreated) {
           sendTrayUpdate(
@@ -103,21 +118,31 @@ export function updateTrayData(
 export function updateVerificationCode(code: VerificationCodeItem | null): void {
   cachedVerificationCode = code;
   if (trayCreated && isHelperRunning()) {
-    sendToHelper(
-      'tray.verificationCode',
-      code
-        ? {
-            code: code.code,
-            service: code.service,
-            subject: code.subject,
-            from: code.from,
-            messageId: code.messageId,
-            threadId: code.threadId,
-            accountId: code.accountId,
-            receivedAt: code.receivedAt,
-          }
-        : {},
-    );
+    const payload = code
+      ? {
+          code: code.code,
+          service: code.service,
+          subject: code.subject,
+          from: code.from,
+          messageId: code.messageId,
+          threadId: code.threadId,
+          accountId: code.accountId,
+          receivedAt: code.receivedAt,
+        }
+      : {};
+
+    const payloadJson = JSON.stringify(payload);
+    if (payloadJson === lastVerificationCodePayloadJson) {
+      return;
+    }
+    lastVerificationCodePayloadJson = payloadJson;
+
+    const promise = sendToHelper('tray.verificationCode', payload);
+    void Promise.resolve(promise).then((result) => {
+      if (result === null && lastVerificationCodePayloadJson === payloadJson) {
+        lastVerificationCodePayloadJson = null;
+      }
+    });
   }
 }
 
@@ -131,6 +156,8 @@ export function updateVerificationCode(code: VerificationCodeItem | null): void 
  */
 export function restoreTray(): void {
   if (!trayCreated || !isHelperRunning()) return;
+  lastTrayUpdatePayloadJson = null;
+  lastVerificationCodePayloadJson = null;
   retryScheduler.reset();
 
   sendToHelper('tray.create');
@@ -162,6 +189,8 @@ export function isTrayCreated(): boolean {
 export function destroyTray(): void {
   if (!trayCreated) return;
   trayCreated = false;
+  lastTrayUpdatePayloadJson = null;
+  lastVerificationCodePayloadJson = null;
   retryScheduler.reset();
 
   if (isHelperRunning()) {
