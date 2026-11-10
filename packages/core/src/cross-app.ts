@@ -112,7 +112,11 @@ function gmailDeepLink(url: URL): string {
     return `magimail://${view}/${rest.join('/')}`;
   }
 
-  return 'magimail://inbox';
+  if (!fragment || fragment === 'inbox' || view === 'inbox') {
+    return 'magimail://inbox';
+  }
+
+  return `magimail://navigate?url=${encodeURIComponent(url.toString())}`;
 }
 
 /**
@@ -157,7 +161,15 @@ function calendarDeepLink(url: URL): string {
     return `magical://date?at=${encodeURIComponent(`${day}T00:00:00.000Z`)}`;
   }
 
-  return 'magical://open';
+  const path = url.pathname.replace(/\/+$/, '');
+  const isRootCalendarPath =
+    !path || /^\/calendar(?:\/u\/\d+)?(?:\/r)?$/.test(path) || path === '/calendar/render';
+
+  if (isRootCalendarPath && url.searchParams.size === 0) {
+    return 'magical://open';
+  }
+
+  return `magical://navigate?url=${encodeURIComponent(url.toString())}`;
 }
 
 /** Gmail's opaque thread ids, plus the legacy hex form. */

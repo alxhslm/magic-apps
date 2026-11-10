@@ -130,6 +130,31 @@ describe('crossAppLink', () => {
     });
   });
 
+  it('navigates to unmapped Google Calendar routes', () => {
+    expect(crossAppLink('https://calendar.google.com/calendar/u/0/r/settings')).toEqual({
+      scheme: 'magical',
+      deepLink:
+        'magical://navigate?url=https%3A%2F%2Fcalendar.google.com%2Fcalendar%2Fu%2F0%2Fr%2Fsettings',
+    });
+    expect(
+      crossAppLink(
+        'https://calendar.google.com/calendar/u/0/r?cid=team%40group.calendar.google.com',
+      ),
+    ).toEqual({
+      scheme: 'magical',
+      deepLink:
+        'magical://navigate?url=https%3A%2F%2Fcalendar.google.com%2Fcalendar%2Fu%2F0%2Fr%3Fcid%3Dteam%2540group.calendar.google.com',
+    });
+  });
+
+  it('navigates to unmapped Gmail routes', () => {
+    expect(crossAppLink('https://mail.google.com/mail/u/0/#settings/labels')).toEqual({
+      scheme: 'magimail',
+      deepLink:
+        'magimail://navigate?url=https%3A%2F%2Fmail.google.com%2Fmail%2Fu%2F0%2F%23settings%2Flabels',
+    });
+  });
+
   it('leaves every other link alone', () => {
     expect(crossAppLink('https://app.notion.com/p/page')).toBeNull();
     expect(crossAppLink('https://mail.google.com.evil.test/mail/u/0/#inbox')).toBeNull();
