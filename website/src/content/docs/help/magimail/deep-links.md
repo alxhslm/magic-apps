@@ -57,4 +57,8 @@ open "magimail://thread/18fa24b91ac051?action=archive"
 
 Emails frequently include links to external tools such as Todoist, Notion, Linear, Figma, GitHub, or Slack.
 
-Magimail strips Google's redirect prefix before routing a link, then opens it in the browser chosen in **Settings → General → Opening links**, in the Chromium profile for the account it came from. See [Settings Reference](/help/magimail/settings/#chromium-profiles).
+Magimail strips redirect and tracking wrappers before routing a link, then opens it in the browser chosen in **Settings → General → Opening links**, in the Chromium profile for the account it came from. See [Settings Reference](/help/magimail/settings/#chromium-profiles).
+
+:::tip[Video conference calls]
+Meeting links for Zoom and Microsoft Teams open in their native desktop apps when installed. If you prefer to join meetings in your browser, turn on **Always open calls in the browser** in **Settings → General**. See [Settings Reference](/help/magimail/settings/).
+:::
