@@ -49,7 +49,7 @@ import { setUiLocale, uiString } from './strings.js';
 import { AccountsManager, asThreadAction, TRIAGE_ACTIONS } from './accounts-manager.js';
 import { updateDockBadge, refreshDockBadge } from './dock.js';
 import { localCacheKey } from './native-addon.js';
-import { accountIdFromLink } from './protocol-links.js';
+import { accountIdFromLink, isAllowedGmailNavigationUrl } from './protocol-links.js';
 import { type ThreadActionOutcome, type TriageAction } from './thread-actions/index.js';
 
 // Replaced by tsup at build time with the Unix milliseconds the bundle was
@@ -619,9 +619,14 @@ function dispatchProtocolUrl(url: string): void {
     const targetAccountId = parsed.searchParams.get('account') || undefined;
 
     const mailbox = MAILBOX_ROUTES[parsed.hostname];
-    if (parsed.hostname === 'inbox') {
+    if (parsed.hostname === 'inbox' || parsed.hostname === 'open') {
       if (targetAccountId) {
         accountsManager.switchAccount(targetAccountId);
+      }
+    } else if (parsed.hostname === 'navigate') {
+      const targetUrl = parsed.searchParams.get('url');
+      if (targetUrl && isAllowedGmailNavigationUrl(targetUrl)) {
+        accountsManager.openInAccount(targetAccountId, targetUrl);
       }
     } else if (mailbox) {
       accountsManager.openInAccount(targetAccountId, `https://mail.google.com/mail/u/0/${mailbox}`);
