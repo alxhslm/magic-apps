@@ -71,5 +71,8 @@ security checks.
 
 External links clicked in email bodies, detached thread views, and compose popouts are intercepted by
 `setWindowOpenHandler` and `will-navigate` in `accounts-manager.ts` and `compose.ts`. Magimail unwraps
-Google tracking redirectors via `@magimail/core` and opens the result in the chosen browser and
-account profile. See [`../shared/third-party-links.md`](../shared/third-party-links.md).
+Google tracking redirectors via `@magimail/core`, rewrites Zoom and Microsoft Teams meeting links to
+native desktop schemes (`toNativeMeetingUrl`), and checks LaunchServices via `hasApplicationForUrl`.
+When the client is installed it opens in the desktop app directly; otherwise it opens in the chosen
+browser and account profile without the system's "no application is set" dialog. See
+[`../shared/third-party-links.md`](../shared/third-party-links.md).

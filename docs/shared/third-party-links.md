@@ -13,7 +13,7 @@ Both Magimail and Magical unwrap tracking redirectors via `@magimail/core` befor
 ```mermaid
 flowchart TD
   Trigger["External link click<br/>(email body, event description, task)"] --> Unwrap["unwrapRedirectors(url)<br/>(@magimail/core)"]
-  Unwrap --> Native{"Magical, and a Zoom,<br/>Teams or Todoist link?"}
+  Unwrap --> Native{"Zoom or Teams link,<br/>or Todoist in Magical?"}
   Native -->|yes| App["Native app via custom scheme<br/>(browser when no client)"]
   Native -->|no| Route["openExternalUrl(url, account)<br/>(@magimail/core)"]
   Route --> Choice{"browser set<br/>and not system?"}
@@ -33,7 +33,10 @@ tracking and protection wrappers up to three hops:
   destination URL from the `q` or `url` query parameter.
 - **Outlook Safelinks**: URLs matching `safelinks.protection.outlook.com` extract the target URL from
   the `url` query parameter.
-- **Direct URLs**: URLs without tracking parameters or unrecognised hosts pass through untouched.
+- **Tracking & email analytics redirectors**: Extracts destination URLs from common redirect
+  parameters (`url`, `q`, `dest`, `destination`, `target`, `redirect`, `link`, etc.) while protecting
+  OAuth/SSO authorization flows.
+- **Direct URLs**: URLs without tracking parameters pass through untouched.
 
 ## Desktop apps
 
@@ -45,14 +48,14 @@ Instead the default is the browser, and the desktop app is reached one of two wa
 
 - **The site hands off.** Slack, Linear, Notion and Figma open their desktop app from their own
   web page.
-- **We rewrite the scheme.** Magical rewrites the links that appear in calendars and have a
-  documented desktop scheme: Zoom and Teams meeting links, and Todoist tasks and projects
-  (`app.todoist.com/app/task/<id>` to `todoist://task?id=<id>`, and the same for projects). It asks
-  LaunchServices whether the scheme has a handler and falls back to the browser when it does not.
-  `openTodoistLinksInApp` (General) turns the Todoist rewrite off, sending those links to the
-  browser and profile instead.
-
-Magimail has no app rewrites; every external link takes the browser route.
+- **We rewrite the scheme.** Both apps rewrite meeting links that appear in messages or
+  calendar events and have a documented desktop scheme: Zoom (`zoommtg://`) and Microsoft
+  Teams (`msteams://`), via `toNativeMeetingUrl` in `@magimail/core`. Magical also rewrites
+  Todoist tasks and projects (`app.todoist.com/app/task/<id>` to `todoist://task?id=<id>`,
+  and the same for projects). Each app asks LaunchServices via its native addon
+  (`hasApplicationForUrl`) whether the scheme has a registered handler and falls back to
+  the browser when it does not. In Magical, `openTodoistLinksInApp` (General) turns the Todoist
+  rewrite off and `alwaysJoinInBrowser` keeps meeting links in the browser.
 
 ## Browser and Chromium profile
 
@@ -92,8 +95,10 @@ the flag is dropped and a plain `-b` reuses that window. A failed launch falls b
 ## App-specific integration
 
 - **Magimail**: Outbound links in `setWindowOpenHandler` and `will-navigate` in
-  [`../magimail/overview.md`](../magimail/overview.md) unwrap redirectors and then call
-  `openExternalUrl` with the account.
+  [`../magimail/overview.md`](../magimail/overview.md) unwrap redirectors and pass through
+  `openExternalUrl` in `links.ts`. Zoom and Microsoft Teams meeting links are rewritten to native
+  schemes and launched directly if the client is installed, falling back to the browser and
+  account profile without the system dialog.
 - **Magical**: Outbound links in event descriptions and tasks pass through `openExternalUrl` in
   `links.ts`. Magical also rewrites video conference links (Zoom and Microsoft Teams) and Todoist
   tasks and projects to native custom schemes; see

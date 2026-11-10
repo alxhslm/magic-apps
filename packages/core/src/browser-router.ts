@@ -5,6 +5,7 @@ import { execFile, execFileSync } from 'node:child_process';
 import { promisify } from 'node:util';
 import { app, shell } from 'electron';
 import { createLogger, redactUrl } from './logger.js';
+import { unwrapRedirectors, toNativeMeetingUrl } from './links.js';
 import type { AccountConfig } from './account.js';
 
 const log = createLogger('BrowserRouter');
@@ -288,6 +289,16 @@ export interface OpenExternalUrlOptions {
   fallbackOpenExternal?: (url: string) => Promise<void>;
   /** Custom home dir for profile reading (testing). */
   customHome?: string;
+  /**
+   * LaunchServices check for native custom schemes (Zoom, Teams, etc.).
+   * If provided and the URL is rewritten to a native scheme, checks whether
+   * an app is installed before attempting to launch it via shell.openExternal.
+   */
+  hasApplicationForUrl?: (url: string) => boolean;
+  /**
+   * Optional custom URL rewrite hook before opening (defaults to toNativeMeetingUrl).
+   */
+  rewriteUrl?: (url: string) => string;
 }
 
 /**
@@ -304,9 +315,33 @@ export async function openExternalUrl(
       await shell.openExternal(u);
     });
 
+  const unwrappedUrl = unwrapRedirectors(url);
+
+  if (options.hasApplicationForUrl) {
+    const target = options.rewriteUrl
+      ? options.rewriteUrl(unwrappedUrl)
+      : toNativeMeetingUrl(unwrappedUrl);
+
+    if (target !== unwrappedUrl) {
+      const scheme = target.split(':')[0];
+      if (options.hasApplicationForUrl(target)) {
+        try {
+          await fallback(target);
+          return;
+        } catch (err) {
+          log.warn(`${scheme}: refused the request, opening in the browser:`, err);
+        }
+      } else {
+        log.info(`No application for ${scheme}:, opening in the browser`);
+      }
+    }
+  }
+
+  const destinationUrl = unwrappedUrl;
+
   // Non-web schemes (e.g. mailto:, x-apple.systempreferences:) go to system default directly
-  if (!url.startsWith('http://') && !url.startsWith('https://')) {
-    await fallback(url);
+  if (!destinationUrl.startsWith('http://') && !destinationUrl.startsWith('https://')) {
+    await fallback(destinationUrl);
     return;
   }
 
@@ -322,7 +357,7 @@ export async function openExternalUrl(
   // Anything we cannot launch ourselves goes to macOS, which is also what keeps a domain
   // owned by a desktop app (Universal Links) out of the browser.
   if (!browserDef || !browserDef.bundleId) {
-    await fallback(url);
+    await fallback(destinationUrl);
     return;
   }
 
@@ -346,28 +381,30 @@ export async function openExternalUrl(
       const wanted = options.account?.browserProfile;
       const isChosen = Boolean(wanted && wanted !== AUTO_PROFILE);
       if (profileDir && (isChosen || profileDir !== lastUsed)) {
-        log.info(`Opening ${redactUrl(url)} in ${browserDef.name} (profile: ${profileDir})`);
+        log.info(
+          `Opening ${redactUrl(destinationUrl)} in ${browserDef.name} (profile: ${profileDir})`,
+        );
         await runner([
           '-b',
           browserDef.bundleId,
           '-n',
           '--args',
           `--profile-directory=${profileDir}`,
-          url,
+          destinationUrl,
         ]);
         return;
       }
 
-      log.info(`Opening ${redactUrl(url)} in ${browserDef.name} (current profile)`);
-      await runner(['-b', browserDef.bundleId, url]);
+      log.info(`Opening ${redactUrl(destinationUrl)} in ${browserDef.name} (current profile)`);
+      await runner(['-b', browserDef.bundleId, destinationUrl]);
       return;
     }
 
     // Non-Chromium browser (e.g. Safari)
-    log.info(`Opening ${redactUrl(url)} in ${browserDef.name}`);
-    await runner(['-b', browserDef.bundleId, url]);
+    log.info(`Opening ${redactUrl(destinationUrl)} in ${browserDef.name}`);
+    await runner(['-b', browserDef.bundleId, destinationUrl]);
   } catch (err) {
     log.warn(`Failed to open in ${browserDef.name}, falling back to system default:`, err);
-    await fallback(url);
+    await fallback(destinationUrl);
   }
 }
