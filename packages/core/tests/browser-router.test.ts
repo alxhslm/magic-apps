@@ -363,6 +363,86 @@ describe('browser-router', () => {
     ]);
   });
 
+  it('openExternalUrl launches native meeting app when hasApplicationForUrl returns true', async () => {
+    const fallback = vi.fn().mockResolvedValue(undefined);
+    const runner = vi.fn().mockResolvedValue(undefined);
+    const hasApplicationForUrl = vi.fn().mockReturnValue(true);
+
+    await openExternalUrl('https://zoom.us/j/12345?pwd=secret', {
+      browser: 'chrome',
+      fallbackOpenExternal: fallback,
+      openCommandRunner: runner,
+      hasApplicationForUrl,
+    });
+
+    expect(hasApplicationForUrl).toHaveBeenCalledWith(
+      'zoommtg://zoom.us/join?action=join&confno=12345&pwd=secret',
+    );
+    expect(fallback).toHaveBeenCalledWith(
+      'zoommtg://zoom.us/join?action=join&confno=12345&pwd=secret',
+    );
+    expect(runner).not.toHaveBeenCalled();
+  });
+
+  it('openExternalUrl falls back to browser when hasApplicationForUrl returns false', async () => {
+    const fallback = vi.fn().mockResolvedValue(undefined);
+    const runner = vi.fn().mockResolvedValue(undefined);
+    const hasApplicationForUrl = vi.fn().mockReturnValue(false);
+
+    await openExternalUrl('https://zoom.us/j/12345?pwd=secret', {
+      browser: 'safari',
+      fallbackOpenExternal: fallback,
+      openCommandRunner: runner,
+      hasApplicationForUrl,
+    });
+
+    expect(hasApplicationForUrl).toHaveBeenCalled();
+    expect(runner).toHaveBeenCalledWith([
+      '-b',
+      'com.apple.Safari',
+      'https://zoom.us/j/12345?pwd=secret',
+    ]);
+  });
+
+  it('openExternalUrl falls back to browser when native app launch throws', async () => {
+    const fallback = vi.fn().mockRejectedValueOnce(new Error('App refused'));
+    const runner = vi.fn().mockResolvedValue(undefined);
+    const hasApplicationForUrl = vi.fn().mockReturnValue(true);
+
+    await openExternalUrl('https://teams.microsoft.com/l/meetup-join/19%3ameeting_xyz', {
+      browser: 'safari',
+      fallbackOpenExternal: fallback,
+      openCommandRunner: runner,
+      hasApplicationForUrl,
+    });
+
+    expect(fallback).toHaveBeenCalledWith(
+      'msteams://teams.microsoft.com/l/meetup-join/19%3ameeting_xyz',
+    );
+    expect(runner).toHaveBeenCalledWith([
+      '-b',
+      'com.apple.Safari',
+      'https://teams.microsoft.com/l/meetup-join/19%3ameeting_xyz',
+    ]);
+  });
+
+  it('openExternalUrl respects custom rewriteUrl hook', async () => {
+    const fallback = vi.fn().mockResolvedValue(undefined);
+    const runner = vi.fn().mockResolvedValue(undefined);
+    const hasApplicationForUrl = vi.fn().mockReturnValue(true);
+
+    await openExternalUrl('https://example.com/custom', {
+      browser: 'chrome',
+      fallbackOpenExternal: fallback,
+      openCommandRunner: runner,
+      hasApplicationForUrl,
+      rewriteUrl: (url) => url.replace('https://example.com/', 'customapp://'),
+    });
+
+    expect(hasApplicationForUrl).toHaveBeenCalledWith('customapp://custom');
+    expect(fallback).toHaveBeenCalledWith('customapp://custom');
+    expect(runner).not.toHaveBeenCalled();
+  });
   it('openExternalUrl delegates system browser to fallback', async () => {
     const fallback = vi.fn().mockResolvedValue(undefined);
     const runner = vi.fn().mockResolvedValue(undefined);

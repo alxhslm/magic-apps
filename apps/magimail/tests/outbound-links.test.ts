@@ -1,13 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const openExternalUrl = vi.fn();
-vi.mock('@magimail/core', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@magimail/core')>();
-  return {
-    ...actual,
-    openExternalUrl: (...args: unknown[]) => openExternalUrl(...args),
-  };
-});
+vi.mock('../src/links.js', () => ({
+  openExternalUrl: (...args: unknown[]) => openExternalUrl(...args),
+  unwrapRedirectors: (u: string) => u,
+}));
 
 vi.mock('../src/settings-store.js', () => ({
   loadSettings: () => ({
@@ -35,6 +32,7 @@ interface Handler {
   (details: { url: string }): { action: string };
 }
 const handlers: Handler[] = [];
+
 vi.mock('electron', () => ({
   BrowserWindow: class {
     webContents = {
@@ -70,7 +68,7 @@ describe('links clicked in a pop-out', () => {
     expect(openExternalUrl).not.toHaveBeenCalled();
   });
 
-  it('routes everything else as the account that owns the pop-out', () => {
+  it('routes regular links as the account that owns the pop-out', () => {
     openDetachedComposeWindow('/preload.js', 'persist:one');
 
     expect(handlers.at(-1)!({ url: 'https://app.notion.com/p/page' })).toEqual({ action: 'deny' });

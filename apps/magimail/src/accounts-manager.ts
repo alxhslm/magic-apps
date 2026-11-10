@@ -29,11 +29,11 @@ import {
   SUSPEND_NEVER,
   viewIsAlive,
   unwrapRedirectors,
-  openExternalUrl,
   type OpenExternalUrlOptions,
   ACCOUNT_EMAIL_SCRIPT,
   readAccountEmail,
 } from '@magimail/core';
+import { openExternalUrl } from './links.js';
 import {
   GMAIL_LOGIN_URL,
   type DomUnreadReport,

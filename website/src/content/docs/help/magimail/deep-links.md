@@ -71,8 +71,12 @@ open "magimail://label/Work/Projects?account=work"
 
 Emails frequently include links to external tools such as Todoist, Notion, Linear, Figma, GitHub, or Slack.
 
-Magimail strips Google's redirect prefix before routing a link, then opens it in the browser chosen in **Settings → General → Opening links**, in the Chromium profile for the account it came from. See [Settings Reference](/help/magimail/settings/#chromium-profiles).
+Magimail strips redirect and tracking wrappers before routing a link, then opens it in the browser chosen in **Settings → General → Opening links**, in the Chromium profile for the account it came from. See [Settings Reference](/help/magimail/settings/#chromium-profiles).
 
 :::tip[Calendar and task links open in Magical]
 When [Magical](/help/magical/getting-started/) is installed, Google Calendar links (dates, events, search, and new event templates) and Google Tasks links clicked inside Magimail automatically open in Magical rather than in a web browser tab.
+:::
+
+:::tip[Video conference calls]
+Meeting links for Zoom and Microsoft Teams open in their native desktop apps when installed. If you prefer to join meetings in your browser, turn on **Always open calls in the browser** in **Settings → General**. See [Settings Reference](/help/magimail/settings/).
 :::
