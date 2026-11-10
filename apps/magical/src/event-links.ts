@@ -27,7 +27,7 @@ export type EventLinkAction = 'reveal' | 'yes' | 'no' | 'maybe' | 'delete';
 const EVENT_LINK_ACTIONS: ReadonlySet<string> = new Set(['reveal', 'yes', 'no', 'maybe', 'delete']);
 
 export interface EventLinkTarget {
-  accountId: string;
+  accountId?: string;
   /** What to do with the event; opening it is what a link means by default. */
   action: EventLinkAction;
   /** Google's opaque event id, base64url of `<eventId> <calendarId>`. */
@@ -186,8 +186,7 @@ export function parseEventLink(rawUrl: string): EventLinkTarget | null {
 
   // `magical://event?...` parses with "event" as the host, not the pathname.
   const kind = url.hostname || url.pathname.replace(/^\/+/, '');
-  const accountId = url.searchParams.get('account');
-  if (!accountId) return null;
+  const accountId = url.searchParams.get('account') || undefined;
 
   // An unknown action is refused rather than quietly treated as "open it". A link
   // asking for something this build cannot do should do nothing, not something else.
@@ -264,7 +263,7 @@ export function resolveToCalendarUrl(target: EventLinkTarget, accountIndex = 0):
 export function isAllowedCalendarNavigationUrl(rawUrl: string): boolean {
   try {
     const parsed = new URL(rawUrl);
-    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return false;
+    if (parsed.protocol !== 'https:') return false;
     const host = parsed.hostname.toLowerCase();
     return (
       host === 'calendar.google.com' ||

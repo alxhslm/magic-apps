@@ -649,7 +649,7 @@ export class CalendarService {
       completed: boolean,
     ) => Promise<'ok' | 'busy' | 'failed'>,
     /** Ensures a window for a link before its account is looked up. Optional for tests. */
-    private ensureWindowForLink?: (accountId: string) => void,
+    private ensureWindowForLink?: (accountId?: string) => void,
   ) {
     const persisted = this.loadState();
     this.notified = persisted.notified;

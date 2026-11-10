@@ -73,6 +73,14 @@ describe('buildEventLink', () => {
       action: 'reveal',
       eid: 'ABC',
     });
+    expect(parseEventLink('magical://event?eid=ABC')).toEqual({
+      action: 'reveal',
+      eid: 'ABC',
+    });
+    expect(parseEventLink('magical://date?at=2026-11-01')).toEqual({
+      action: 'reveal',
+      date: new Date('2026-11-01T00:00:00.000Z'),
+    });
   });
 
   it('falls back to a date link so a banner never carries a dead link', () => {
@@ -171,7 +179,8 @@ describe('buildEventLink for an occurrence expanded from a series', () => {
 describe('parseEventLink', () => {
   it('rejects links that are not ours or are incomplete', () => {
     expect(parseEventLink('https://example.com')).toBeNull();
-    expect(parseEventLink('magical://event?eid=abc')).toBeNull();
+    expect(parseEventLink('magical://event')).toBeNull();
+    expect(parseEventLink('magical://date')).toBeNull();
     expect(parseEventLink('magical://event?account=a')).toBeNull();
     expect(parseEventLink('magical://unknown?account=a')).toBeNull();
     expect(parseEventLink('magical://date?account=a&at=nonsense')).toBeNull();
@@ -261,7 +270,10 @@ describe('isAllowedCalendarNavigationUrl', () => {
     ).toBe(true);
   });
 
-  it('rejects external and non-calendar URLs', () => {
+  it('rejects external and non-calendar URLs, and plaintext http', () => {
+    expect(
+      isAllowedCalendarNavigationUrl('http://calendar.google.com/calendar/u/0/r/settings'),
+    ).toBe(false);
     expect(isAllowedCalendarNavigationUrl('https://mail.google.com/mail/u/0/#inbox')).toBe(false);
     expect(isAllowedCalendarNavigationUrl('https://google.com/search?q=calendar')).toBe(false);
     expect(isAllowedCalendarNavigationUrl('https://evil.com/calendar.google.com')).toBe(false);

@@ -640,7 +640,7 @@ const directActions = new SyncCalendarActionDriver({
  * Reveal and navigate raise it themselves. An answering or deleting link does not, because it runs
  * through the drivers a banner uses.
  */
-function ensureWindowForLink(accountId: string): void {
+function ensureWindowForLink(accountId?: string): void {
   openWindowForAction(windowActionTarget, accountId, { show: false });
 }
 
@@ -910,10 +910,12 @@ function dispatchProtocolUrl(rawUrl: string): void {
 
     if (parsed.hostname === 'quick-add') {
       const templateUrl = eventTemplateUrl(parsed);
-      if (templateUrl) {
-        void handleNewEvent(parsed.searchParams.get('account') || undefined, true, templateUrl);
-        return;
-      }
+      void handleNewEvent(
+        parsed.searchParams.get('account') || undefined,
+        true,
+        templateUrl ?? undefined,
+      );
+      return;
     }
 
     if (parsed.hostname === 'tasks') {
@@ -979,12 +981,14 @@ async function handleNewEvent(
   const manager = accounts;
   if (!manager) return;
 
-  const account = targetAccountId
-    ? findAccountByIdOrEmail(manager.getAccounts(), targetAccountId)
-    : await chooseEventAccount(manager, {
-        parentWindow: mainWindow,
-        fromMainWindow: !external,
-      });
+  const account =
+    (targetAccountId
+      ? findAccountByIdOrEmail(manager.getAccounts(), targetAccountId)
+      : undefined) ??
+    (await chooseEventAccount(manager, {
+      parentWindow: mainWindow,
+      fromMainWindow: !external,
+    }));
   if (!account) return;
 
   if (account.id !== manager.getActiveAccountId()) {
@@ -1024,9 +1028,10 @@ function handleTasks(targetAccountId?: string): void {
   const manager = accounts;
   if (!manager) return;
 
-  const account = targetAccountId
-    ? findAccountByIdOrEmail(manager.getAccounts(), targetAccountId)
-    : manager.getActiveAccount();
+  const account =
+    (targetAccountId
+      ? findAccountByIdOrEmail(manager.getAccounts(), targetAccountId)
+      : undefined) ?? manager.getActiveAccount();
   if (!account) return;
 
   if (mainWindow) {
@@ -1044,9 +1049,10 @@ function handleOpen(targetAccountId?: string): void {
   const manager = accounts;
   if (!manager) return;
 
-  const account = targetAccountId
-    ? findAccountByIdOrEmail(manager.getAccounts(), targetAccountId)
-    : manager.getActiveAccount();
+  const account =
+    (targetAccountId
+      ? findAccountByIdOrEmail(manager.getAccounts(), targetAccountId)
+      : undefined) ?? manager.getActiveAccount();
   if (account && account.id !== manager.getActiveAccountId()) {
     manager.switchAccount(account.id);
     pushToolbarAccounts();
@@ -1066,9 +1072,10 @@ function handleNavigate(targetUrl: string, targetAccountId?: string): void {
   const manager = accounts;
   if (!manager) return;
 
-  const account = targetAccountId
-    ? findAccountByIdOrEmail(manager.getAccounts(), targetAccountId)
-    : manager.getActiveAccount();
+  const account =
+    (targetAccountId
+      ? findAccountByIdOrEmail(manager.getAccounts(), targetAccountId)
+      : undefined) ?? manager.getActiveAccount();
   if (!account) return;
 
   if (mainWindow) {
@@ -1234,8 +1241,11 @@ function handleSearch(query?: string, accountId?: string): void {
   const manager = accounts;
   if (!manager) return;
 
-  if (accountId && accountId !== manager.getActiveAccountId()) {
-    manager.switchAccount(accountId);
+  if (accountId) {
+    const target = findAccountByIdOrEmail(manager.getAccounts(), accountId);
+    if (target && target.id !== manager.getActiveAccountId()) {
+      manager.switchAccount(target.id);
+    }
   }
 
   if (mainWindow) {
