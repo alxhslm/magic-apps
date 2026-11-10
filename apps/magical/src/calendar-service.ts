@@ -1028,24 +1028,22 @@ export class CalendarService {
       for (const [key, item] of [...this.heldActions]) {
         if (!live.has(item.accountId)) this.heldActions.delete(key);
       }
-      // The persisted suppression list is keyed `google:<accountId>|…`; entries for a gone
-      // account are never matched again and would otherwise be written back for ever.
-      const notified = this.notified.filter((key) => {
+      // The persisted suppression list is keyed `google:<accountId>|…` and `tasks:<accountId>|…`;
+      // entries for a gone account are never matched again and would otherwise be written back for ever.
+      const filterKey = (key: string): boolean => {
         const sep = key.indexOf('|');
         if (sep < 0) return true;
         const source = key.slice(0, sep);
-        return !source.startsWith('google:') || live.has(source.slice('google:'.length));
-      });
+        if (source.startsWith('google:')) return live.has(source.slice('google:'.length));
+        if (source.startsWith('tasks:')) return live.has(source.slice('tasks:'.length));
+        return true;
+      };
+      const notified = this.notified.filter(filterKey);
       if (notified.length !== this.notified.length) {
         this.notified = notified;
         dropped = true;
       }
-      const arrivals = this.arrivals.filter((key) => {
-        const sep = key.indexOf('|');
-        if (sep < 0) return true;
-        const source = key.slice(0, sep);
-        return !source.startsWith('google:') || live.has(source.slice('google:'.length));
-      });
+      const arrivals = this.arrivals.filter(filterKey);
       if (arrivals.length !== this.arrivals.length) {
         this.arrivals = arrivals;
         dropped = true;
@@ -1089,10 +1087,19 @@ export class CalendarService {
       if (item.accountId === accountId) this.heldActions.delete(key);
     }
 
-    // Both files are keyed `google:<accountId>|…`, the same shape `syncPollers` reads.
-    const source = `google:${accountId}|`;
-    this.notified = this.notified.filter((key) => !key.startsWith(source));
-    this.arrivals = this.arrivals.filter((key) => !key.startsWith(source));
+    // Both files are keyed `google:<accountId>|…` and `tasks:<accountId>|…`,
+    // the same shape `syncPollers` reads.
+    const googleSource = `google:${accountId}|`;
+    const tasksSource = `tasks:${accountId}|`;
+    this.notified = this.notified.filter(
+      (key) => !key.startsWith(googleSource) && !key.startsWith(tasksSource),
+    );
+    this.arrivals = this.arrivals.filter(
+      (key) => !key.startsWith(googleSource) && !key.startsWith(tasksSource),
+    );
+
+    this.invites.forget(`google:${accountId}`);
+    this.scheduler.forget(`google:${accountId}`);
 
     this.persistEventCache();
     this.persistState();

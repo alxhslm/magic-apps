@@ -631,8 +631,8 @@ describe('forgetting a removed account', () => {
     fs.writeFileSync(
       alertsFile,
       JSON.stringify({
-        notified: ['google:a|invite|a1', 'google:b|invite|b1'],
-        activeArrivals: ['google:a|invite|a1'],
+        notified: ['google:a|invite|a1', 'google:b|invite|b1', 'tasks:a|task1', 'tasks:b|task2'],
+        activeArrivals: ['google:a|invite|a1', 'tasks:a|task1'],
       }),
     );
 
@@ -649,7 +649,7 @@ describe('forgetting a removed account', () => {
     expect(service.getCachedEvents().get('b')).toHaveLength(1);
 
     const alerts = readSecretFile<{ notified: string[]; activeArrivals: string[] }>(alertsFile);
-    expect(alerts?.notified).toEqual(['google:b|invite|b1']);
+    expect(alerts?.notified).toEqual(['google:b|invite|b1', 'tasks:b|task2']);
     // An arrival left for a gone account is a mark on the badge the user cannot clear.
     expect(alerts?.activeArrivals).toEqual([]);
     const events = readSecretFile<{ events: Record<string, unknown[]> }>(eventsFile);

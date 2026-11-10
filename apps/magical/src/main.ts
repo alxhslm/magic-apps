@@ -1312,6 +1312,7 @@ function createWindow(
   });
 
   accounts = new AccountsManager(mainWindow, calendarPreloadPath(), { initialAccountId });
+  forgetAccountSettings(new Set(accounts.getAccounts().map((a) => a.id)));
 
   // Coming back to the window is when a blank one is most likely to be seen, so the
   // pair is logged: it dates the failure against the suspension that preceded it.
