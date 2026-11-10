@@ -65,18 +65,22 @@ A Gmail address in a calendar event and a Calendar address in an email belong in
 already shows that data. `crossAppLink` in `@magimail/core` maps one app's web addresses to the
 other's deep link:
 
-| Link                                                   | Deep link                                    |
-| :----------------------------------------------------- | :------------------------------------------- |
-| `mail.google.com/mail/u/N/#inbox`                      | `magimail://inbox`                           |
-| `mail.google.com/mail/u/N/#inbox/<thread>`             | `magimail://thread/<thread>`                 |
-| `mail.google.com/mail/u/N/#search/<query>`             | `magimail://search?q=<query>`                |
-| `mail.google.com/mail/u/N/#sent`, `#label/…`           | `magimail://search?q=in:sent`, `label:…`     |
-| `mail.google.com/mail/?view=cm&to=…`                   | `magimail://compose?to=…`                    |
-| `calendar.google.com/…/day/2026/11/5`                  | `magical://date?at=2026-11-05T00:00:00.000Z` |
-| `calendar.google.com/…?eid=<eid>`                      | `magical://event?eid=<eid>&action=reveal`    |
-| `calendar.google.com/…/r/search?q=<query>`             | `magical://search?q=<query>`                 |
-| `calendar.google.com/calendar/render?action=TEMPLATE…` | `magical://quick-add?text=…&dates=…`         |
-| `tasks.google.com/…`                                   | `magical://tasks`                            |
+| Link                                                   | Deep link                                        |
+| :----------------------------------------------------- | :----------------------------------------------- |
+| `mail.google.com/mail/u/N/#inbox`                      | `magimail://inbox`                               |
+| `mail.google.com/mail/u/N/#inbox/<thread>`             | `magimail://thread/<thread>`                     |
+| `mail.google.com/mail/u/N/#search/<query>`             | `magimail://search?q=<query>`                    |
+| `mail.google.com/mail/u/N/#sent` (and mailbox views)   | `magimail://sent` (also `drafts`, `trash`, etc.) |
+| `mail.google.com/mail/u/N/#label/<name>`               | `magimail://label/<name>`                        |
+| `mail.google.com/mail/u/N/#category/<name>`            | `magimail://category/<name>`                     |
+| `mail.google.com/mail/?view=cm&to=…`                   | `magimail://compose?to=…`                        |
+| Other Gmail URLs (settings, etc.)                      | `magimail://navigate?url=…`                      |
+| `calendar.google.com/…/day/2026/11/5`                  | `magical://date?at=2026-11-05T00:00:00.000Z`     |
+| `calendar.google.com/…?eid=<eid>`                      | `magical://event?eid=<eid>&action=reveal`        |
+| `calendar.google.com/…/r/search?q=<query>`             | `magical://search?q=<query>`                     |
+| `calendar.google.com/calendar/render?action=TEMPLATE…` | `magical://quick-add?text=…&dates=…`             |
+| `tasks.google.com/…`                                   | `magical://tasks`                                |
+| Other Calendar URLs (settings, etc.)                   | `magical://navigate?url=…`                       |
 
 The `u/<n>` segment is the browser's sign-in order, not one of our account ids, so it is dropped.
 When the originating account's email is known, `openExternalUrl` passes `account=<email>` in the
