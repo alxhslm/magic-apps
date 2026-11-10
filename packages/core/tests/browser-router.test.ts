@@ -363,6 +363,24 @@ describe('browser-router', () => {
     ]);
   });
 
+  it('opens unwrapped redirector links to Magical when installed', async () => {
+    const fallback = vi.fn().mockResolvedValue(undefined);
+    const runner = vi.fn().mockResolvedValue(undefined);
+
+    await openExternalUrl(
+      'https://www.google.com/url?q=https%3A%2F%2Fcalendar.google.com%2Fcalendar%2Fu%2F0%2Fr%2Ftasks',
+      {
+        browser: 'safari',
+        isAppInstalled: async () => true,
+        fallbackOpenExternal: fallback,
+        openCommandRunner: runner,
+      },
+    );
+
+    expect(fallback).toHaveBeenCalledWith('magical://tasks');
+    expect(runner).not.toHaveBeenCalled();
+  });
+
   it('openExternalUrl launches native meeting app when hasApplicationForUrl returns true', async () => {
     const fallback = vi.fn().mockResolvedValue(undefined);
     const runner = vi.fn().mockResolvedValue(undefined);

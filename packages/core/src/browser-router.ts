@@ -389,7 +389,7 @@ export async function openExternalUrl(
   // The other app's own web interface belongs in that app, which already shows the same data.
   // Only offered when that app is installed, because a deep link nobody handles leaves the
   // user on an error page where a browser tab would have worked.
-  const crossApp = crossAppLink(url);
+  const crossApp = crossAppLink(destinationUrl);
   const appInstalled = options.isAppInstalled ?? isAppInstalled;
   if (crossApp && (await appInstalled(APP_BUNDLE_IDS[crossApp.scheme]).catch(() => false))) {
     let targetLink = crossApp.deepLink;
