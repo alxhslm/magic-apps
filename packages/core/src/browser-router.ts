@@ -404,7 +404,7 @@ export async function openExternalUrl(
         // Leave targetLink untouched if URL parsing fails
       }
     }
-    log.info(`Opening ${redactUrl(url)} in ${crossApp.scheme} (${targetLink})`);
+    log.info(`Opening ${redactUrl(url)} in ${crossApp.scheme} (${redactUrl(targetLink)})`);
     await fallback(targetLink);
     return;
   }

@@ -68,6 +68,14 @@ const GMAIL_VIEW_ROUTES: Record<string, string> = {
   imp: 'important',
 };
 
+function safeDecode(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
 /**
  * Gmail addresses its views in the fragment: `#inbox/<thread>`, `#search/<query>`, `#sent`.
  *
@@ -92,7 +100,7 @@ function gmailDeepLink(url: URL): string {
   if (view === 'search') {
     const query = rest.join('/');
     return query
-      ? `magimail://search?q=${encodeURIComponent(decodeURIComponent(query))}`
+      ? `magimail://search?q=${encodeURIComponent(safeDecode(query))}`
       : 'magimail://inbox';
   }
 
@@ -172,9 +180,9 @@ function calendarDeepLink(url: URL): string {
   return `magical://navigate?url=${encodeURIComponent(url.toString())}`;
 }
 
-/** Gmail's opaque thread ids, plus the legacy hex form. */
+/** Gmail's opaque thread ids, plus the legacy hex form (64-bit int, typically 10-16 hex chars). */
 function isGmailThreadId(value: string): boolean {
-  return /^(?:FMfcgz|KtbxL)[A-Za-z0-9]+$/.test(value) || /^[0-9a-f]{16,}$/i.test(value);
+  return /^(?:FMfcgz|KtbxL)[A-Za-z0-9]+$/.test(value) || /^[0-9a-f]{10,16}$/i.test(value);
 }
 
 /** `/calendar/u/0/r/day/2026/11/5` and its `week`, `month` and `year` siblings. */
@@ -182,10 +190,16 @@ function dayFromPath(pathname: string): string | null {
   const parts = pathname.split('/').filter(Boolean);
   const yearIndex = parts.findIndex((part) => /^\d{4}$/.test(part));
 
-  if (yearIndex === -1 || parts.length < yearIndex + 3) return null;
+  if (yearIndex === -1 || parts.length < yearIndex + 2) return null;
 
-  const [year, month, day] = parts.slice(yearIndex, yearIndex + 3);
+  const year = parts[yearIndex];
+  const month = parts[yearIndex + 1];
+  const day = parts[yearIndex + 2] ?? '1';
   if (!/^\d{1,2}$/.test(month) || !/^\d{1,2}$/.test(day)) return null;
+
+  const m = Number(month);
+  const d = Number(day);
+  if (m < 1 || m > 12 || d < 1 || d > 31) return null;
 
   return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
 }

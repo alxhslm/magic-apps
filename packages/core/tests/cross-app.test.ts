@@ -25,12 +25,24 @@ describe('crossAppLink', () => {
       scheme: 'magimail',
       deepLink: 'magimail://thread/FMfcgzQXKq',
     });
+    expect(crossAppLink('https://mail.google.com/mail/u/0/#inbox/18fa24b91ac051')).toEqual({
+      scheme: 'magimail',
+      deepLink: 'magimail://thread/18fa24b91ac051',
+    });
   });
 
   it('keeps the query a Gmail search link names, encoded once', () => {
     expect(crossAppLink('https://mail.google.com/mail/u/2/#search/from%3Aboss')).toEqual({
       scheme: 'magimail',
       deepLink: 'magimail://search?q=from%3Aboss',
+    });
+    expect(crossAppLink('https://mail.google.com/mail/u/0/#search/50%25')).toEqual({
+      scheme: 'magimail',
+      deepLink: 'magimail://search?q=50%25',
+    });
+    expect(crossAppLink('https://mail.google.com/mail/u/0/#search/%FF')).toEqual({
+      scheme: 'magimail',
+      deepLink: 'magimail://search?q=%25FF',
     });
   });
 
@@ -105,6 +117,10 @@ describe('crossAppLink', () => {
     expect(crossAppLink('https://calendar.google.com/calendar/u/0/r/day/2026/11/5')).toEqual({
       scheme: 'magical',
       deepLink: 'magical://date?at=2026-11-05T00%3A00%3A00.000Z',
+    });
+    expect(crossAppLink('https://calendar.google.com/calendar/u/0/r/month/2026/11')).toEqual({
+      scheme: 'magical',
+      deepLink: 'magical://date?at=2026-11-01T00%3A00%3A00.000Z',
     });
   });
 
