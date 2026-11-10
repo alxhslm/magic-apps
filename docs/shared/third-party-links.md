@@ -16,7 +16,9 @@ flowchart TD
   Unwrap --> Native{"Zoom or Teams link,<br/>or Todoist in Magical?"}
   Native -->|yes| App["Native app via custom scheme<br/>(browser when no client)"]
   Native -->|no| Route["openExternalUrl(url, account)<br/>(@magimail/core)"]
-  Route --> Choice{"browser set<br/>and not system?"}
+  Route --> Cross{"Sister app installed,<br/>and a link to it?"}
+  Cross -->|yes| Sister["Sister app via custom scheme<br/>(magimail:// or magical://)"]
+  Cross -->|no| Choice{"browser set<br/>and not system?"}
   Choice -->|no| System["shell.openExternal<br/>default browser"]
   Choice -->|yes| Direct["/usr/bin/open -b browser<br/>with --profile-directory"]
   App --> Browser["Browser"]
@@ -56,6 +58,43 @@ Instead the default is the browser, and the desktop app is reached one of two wa
   (`hasApplicationForUrl`) whether the scheme has a registered handler and falls back to
   the browser when it does not. In Magical, `openTodoistLinksInApp` (General) turns the Todoist
   rewrite off and `alwaysJoinInBrowser` keeps meeting links in the browser.
+
+## The other app's own links
+
+A Gmail address in a calendar event and a Calendar address in an email belong in the app that
+already shows that data. `crossAppLink` in `@magimail/core` maps one app's web addresses to the
+other's deep link:
+
+| Link                                                   | Deep link                                        |
+| :----------------------------------------------------- | :----------------------------------------------- |
+| `mail.google.com/mail/u/N/#inbox`                      | `magimail://inbox`                               |
+| `mail.google.com/mail/u/N/#inbox/<thread>`             | `magimail://thread/<thread>`                     |
+| `mail.google.com/mail/u/N/#search/<query>`             | `magimail://search?q=<query>`                    |
+| `mail.google.com/mail/u/N/#sent` (and mailbox views)   | `magimail://sent` (also `drafts`, `trash`, etc.) |
+| `mail.google.com/mail/u/N/#label/<name>`               | `magimail://label/<name>`                        |
+| `mail.google.com/mail/u/N/#category/<name>`            | `magimail://category/<name>`                     |
+| `mail.google.com/mail/?view=cm&to=…`                   | `magimail://compose?to=…`                        |
+| Other Gmail URLs (settings, etc.)                      | `magimail://navigate?url=…`                      |
+| `calendar.google.com/…/day/2026/11/5`                  | `magical://date?at=2026-11-05T00:00:00.000Z`     |
+| `calendar.google.com/…?eid=<eid>`                      | `magical://event?eid=<eid>&action=reveal`        |
+| `calendar.google.com/…/r/search?q=<query>`             | `magical://search?q=<query>`                     |
+| `calendar.google.com/calendar/render?action=TEMPLATE…` | `magical://quick-add?text=…&dates=…`             |
+| `tasks.google.com/…`                                   | `magical://tasks`                                |
+| Other Calendar URLs (settings, etc.)                   | `magical://navigate?url=…`                       |
+
+The `u/<n>` segment is the browser's sign-in order, not one of our account ids, so it is dropped.
+When the originating account's email is known, `openExternalUrl` passes `account=<email>` in the
+deep link. Both apps resolve `account` by internal id or verified email, activating the matching
+account. When multiple accounts exist and `account` is omitted for a specific thread
+(`magimail://thread/<id>`), event (`magical://event?eid=...`), or external template quick-add
+(`magical://quick-add`), the app prompts with an account selector dialog rather than guessing
+the active account. Generic routes (`open`, `inbox`, `search`, `tasks`, `date`) fall back to the
+active account. The day path becomes midnight, because the calendar side either reveals an event,
+which is a moment, or opens a day, which is a date.
+
+`openExternalUrl` uses the deep link only when the other app is installed, asked by bundle id.
+`URLForApplicationToOpenURL` answers `nil` for a custom scheme even where the app is there, so
+the scheme question would make every deep link look unowned.
 
 ## Browser and Chromium profile
 

@@ -25,6 +25,7 @@ import {
   type WindowActionTarget,
   viewIsAlive,
   WindowRebuilder,
+  findAccountByIdOrEmail,
 } from '@magimail/core';
 import { localCacheKey } from './native-addon.js';
 import { AccountsManager, calendarPreloadPath } from './accounts-manager.js';
@@ -76,7 +77,11 @@ import {
   isAccountDisabledByFocus,
   isAccountSilencedByFocus,
 } from './focus-filter-manager.js';
-import { accountIdFromLink, MAGICAL_PROTOCOL } from './event-links.js';
+import {
+  accountIdFromLink,
+  isAllowedCalendarNavigationUrl,
+  MAGICAL_PROTOCOL,
+} from './event-links.js';
 import { onIcsFile, readIcsFile, watchForIcsFiles } from './ics-handler.js';
 import { offerToBecomeDefault, promptSetAsDefault } from './default-client.js';
 import { describeIcs, summariseIcs } from './ics-file.js';
@@ -251,7 +256,7 @@ app.on('open-url', (event, url) => {
   // The test is for the service, not the accounts: the launch pass has finished, so a link arriving
   // now builds its own window instead of waiting for a cold launch that already happened.
   if (app.isReady() && calendarService) {
-    dispatchProtocolUrl(url);
+    void dispatchProtocolUrl(url);
   } else {
     pendingProtocolUrl = url;
   }
@@ -262,7 +267,7 @@ app.on('second-instance', (_event, argv) => {
   const protocolUrl = argv.find((a) => a.startsWith(`${MAGICAL_PROTOCOL}://`));
   if (protocolUrl && calendarService) {
     log.info('second-instance URL:', redactUrl(protocolUrl));
-    dispatchProtocolUrl(protocolUrl);
+    void dispatchProtocolUrl(protocolUrl);
   }
   if (!mainWindow) createWindow();
   else {
@@ -635,7 +640,7 @@ const directActions = new SyncCalendarActionDriver({
  * Reveal and navigate raise it themselves. An answering or deleting link does not, because it runs
  * through the drivers a banner uses.
  */
-function ensureWindowForLink(accountId: string): void {
+function ensureWindowForLink(accountId?: string): void {
   openWindowForAction(windowActionTarget, accountId, { show: false });
 }
 
@@ -891,7 +896,7 @@ function handleHelperEvent(method: string, params: Record<string, unknown>): voi
 /**
  * Routes a `magical://` link to the appropriate handler (search, widgets, or events/dates).
  */
-function dispatchProtocolUrl(rawUrl: string): void {
+async function dispatchProtocolUrl(rawUrl: string): Promise<void> {
   try {
     const parsed = new URL(rawUrl);
     if (parsed.protocol !== `${MAGICAL_PROTOCOL}:`) return;
@@ -901,6 +906,70 @@ function dispatchProtocolUrl(rawUrl: string): void {
       const targetAccountId = parsed.searchParams.get('account') || undefined;
       handleSearch(query, targetAccountId);
       return;
+    }
+
+    if (parsed.hostname === 'quick-add') {
+      const templateUrl = eventTemplateUrl(parsed);
+      const title = parsed.searchParams.get('text') || undefined;
+      void handleNewEvent(
+        parsed.searchParams.get('account') || undefined,
+        true,
+        templateUrl ?? undefined,
+        title,
+      );
+      return;
+    }
+
+    if (parsed.hostname === 'tasks') {
+      handleTasks(parsed.searchParams.get('account') || undefined);
+      return;
+    }
+
+    if (parsed.hostname === 'open') {
+      handleOpen(parsed.searchParams.get('account') || undefined);
+      return;
+    }
+
+    if (parsed.hostname === 'navigate') {
+      const targetUrl = parsed.searchParams.get('url');
+      const targetAccountId = parsed.searchParams.get('account') || undefined;
+      if (targetUrl && isAllowedCalendarNavigationUrl(targetUrl)) {
+        handleNavigate(targetUrl, targetAccountId);
+        return;
+      }
+    }
+
+    if (parsed.hostname === 'event') {
+      if (!accounts) createWindow();
+      const manager = accounts;
+      const targetAccountParam = parsed.searchParams.get('account');
+      let targetAccount =
+        targetAccountParam && manager
+          ? findAccountByIdOrEmail(manager.getAccounts(), targetAccountParam)
+          : undefined;
+
+      if (!targetAccount && manager) {
+        const accts = manager.getAccounts();
+        if (accts.length > 1) {
+          const chosen = await chooseEventAccount(manager, {
+            title: uiString('dialog.openEventAccount.title'),
+            message: uiString('dialog.openEventAccount.message'),
+            detail: uiString('dialog.openEventAccount.detail'),
+            parentWindow: mainWindow,
+            forceAsk: true,
+          });
+          if (!chosen) return;
+          targetAccount = chosen;
+        } else {
+          targetAccount = manager.getActiveAccount();
+        }
+      }
+
+      if (targetAccount) {
+        parsed.searchParams.set('account', targetAccount.id);
+        calendarService?.openDeepLink(parsed.toString());
+        return;
+      }
     }
   } catch {
     // If URL parsing fails, let handleWidgetLink / calendarService attempt or log warning
@@ -937,18 +1006,31 @@ function handleWidgetLink(rawUrl: string): boolean {
   return false;
 }
 
-async function handleNewEvent(targetAccountId?: string, external = false): Promise<void> {
+async function handleNewEvent(
+  targetAccountId?: string,
+  external = false,
+  templateUrl?: string,
+  eventTitle?: string,
+): Promise<void> {
   // The menu bar and the widget have no window behind them, and the accounts come from one.
   if (!accounts) createWindow();
   const manager = accounts;
   if (!manager) return;
 
-  const account = targetAccountId
-    ? manager.getAccounts().find((a) => a.id === targetAccountId)
-    : await chooseEventAccount(manager, {
-        parentWindow: mainWindow,
-        fromMainWindow: !external,
-      });
+  const detail = eventTitle
+    ? uiString('dialog.eventAccount.templateDetail', { title: eventTitle })
+    : undefined;
+
+  const account =
+    (targetAccountId
+      ? findAccountByIdOrEmail(manager.getAccounts(), targetAccountId)
+      : undefined) ??
+    (await chooseEventAccount(manager, {
+      parentWindow: mainWindow,
+      fromMainWindow: !external,
+      forceAsk: external && !targetAccountId && Boolean(templateUrl),
+      detail,
+    }));
   if (!account) return;
 
   if (account.id !== manager.getActiveAccountId()) {
@@ -957,7 +1039,94 @@ async function handleNewEvent(targetAccountId?: string, external = false): Promi
     applyMenu();
   }
 
+  if (templateUrl) {
+    manager.openInAccount(account.id, templateUrl);
+    return;
+  }
+
   await manager.triggerCalendarAction('createEvent', account.id);
+}
+
+/**
+ * Google's add-to-calendar form, rebuilt from the fields we pass through a deep link.
+ *
+ * Loading it in the account's view lets Google's own editor prefill the event, so the
+ * title, time, details and location survive without scripting the form.
+ */
+function eventTemplateUrl(link: URL): string | null {
+  if (!link.searchParams.get('text') && !link.searchParams.get('dates')) return null;
+
+  const fields = new URLSearchParams({ action: 'TEMPLATE' });
+  for (const key of ['text', 'dates', 'details', 'location', 'ctz', 'trp', 'crm']) {
+    const value = link.searchParams.get(key);
+    if (value) fields.set(key, value);
+  }
+  return `https://calendar.google.com/calendar/render?${fields.toString()}`;
+}
+
+/** Opens the full-screen Tasks route for an account, which is a Calendar route. */
+function handleTasks(targetAccountId?: string): void {
+  if (!accounts) createWindow();
+  const manager = accounts;
+  if (!manager) return;
+
+  const account =
+    (targetAccountId
+      ? findAccountByIdOrEmail(manager.getAccounts(), targetAccountId)
+      : undefined) ?? manager.getActiveAccount();
+  if (!account) return;
+
+  if (mainWindow) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+  }
+
+  manager.openInAccount(account.id, 'https://calendar.google.com/calendar/u/0/r/tasks');
+}
+
+/** Focuses the main window and optionally switches to the specified account. */
+function handleOpen(targetAccountId?: string): void {
+  if (!accounts) createWindow();
+  const manager = accounts;
+  if (!manager) return;
+
+  const account =
+    (targetAccountId
+      ? findAccountByIdOrEmail(manager.getAccounts(), targetAccountId)
+      : undefined) ?? manager.getActiveAccount();
+  if (account && account.id !== manager.getActiveAccountId()) {
+    manager.switchAccount(account.id);
+    pushToolbarAccounts();
+    applyMenu();
+  }
+
+  if (mainWindow) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+  }
+}
+
+/** Navigates the target account's view to an arbitrary Google Calendar or Tasks URL. */
+function handleNavigate(targetUrl: string, targetAccountId?: string): void {
+  if (!accounts) createWindow();
+  const manager = accounts;
+  if (!manager) return;
+
+  const account =
+    (targetAccountId
+      ? findAccountByIdOrEmail(manager.getAccounts(), targetAccountId)
+      : undefined) ?? manager.getActiveAccount();
+  if (!account) return;
+
+  if (mainWindow) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+  }
+
+  manager.openInAccount(account.id, targetUrl);
 }
 
 /**
@@ -976,7 +1145,7 @@ async function handleNewTask(targetAccountId?: string): Promise<void> {
   if (!manager) return;
 
   const account = targetAccountId
-    ? manager.getAccounts().find((a) => a.id === targetAccountId)
+    ? findAccountByIdOrEmail(manager.getAccounts(), targetAccountId)
     : manager.getActiveAccount();
   if (!account) return;
 
@@ -1114,8 +1283,11 @@ function handleSearch(query?: string, accountId?: string): void {
   const manager = accounts;
   if (!manager) return;
 
-  if (accountId && accountId !== manager.getActiveAccountId()) {
-    manager.switchAccount(accountId);
+  if (accountId) {
+    const target = findAccountByIdOrEmail(manager.getAccounts(), accountId);
+    if (target && target.id !== manager.getActiveAccountId()) {
+      manager.switchAccount(target.id);
+    }
   }
 
   if (mainWindow) {
@@ -1483,7 +1655,7 @@ app.whenReady().then(async () => {
   // is the one already loaded.
   if (startupUrl && accounts && calendarService) {
     log.info('Dispatching startup protocol URL:', redactUrl(startupUrl));
-    dispatchProtocolUrl(startupUrl);
+    void dispatchProtocolUrl(startupUrl);
     pendingProtocolUrl = null;
   }
 

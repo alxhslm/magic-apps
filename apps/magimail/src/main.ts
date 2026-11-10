@@ -17,6 +17,7 @@ import {
   prereleaseBuildExpiredMessage,
   calculateAggregateBadge,
   calculateAggregateUnread,
+  findAccountByIdOrEmail,
   configureSecretFiles,
   createMainWindowOptions,
   configureGoogleSession,
@@ -48,7 +49,7 @@ import { setUiLocale, uiString } from './strings.js';
 import { AccountsManager, asThreadAction, TRIAGE_ACTIONS } from './accounts-manager.js';
 import { updateDockBadge, refreshDockBadge } from './dock.js';
 import { localCacheKey } from './native-addon.js';
-import { accountIdFromLink } from './protocol-links.js';
+import { accountIdFromLink, isAllowedGmailNavigationUrl } from './protocol-links.js';
 import { type ThreadActionOutcome, type TriageAction } from './thread-actions/index.js';
 
 // Replaced by tsup at build time with the Unix milliseconds the bundle was
@@ -503,7 +504,7 @@ async function composeFromMainWindow({ popout = false } = {}): Promise<void> {
  * button, or the menu bar popover with its filter on "All". Neither has an
  * account on screen, so both ask.
  */
-async function composeWithoutAccount(): Promise<void> {
+async function composeWithoutAccount(fields?: string): Promise<void> {
   if (!accountsManager) return;
   const picked = await pickAccount(
     accountsManager,
@@ -511,7 +512,7 @@ async function composeWithoutAccount(): Promise<void> {
     uiString('dialog.composeAccount.detail'),
   );
   if (!picked) return;
-  await accountsManager.triggerMailAction('compose');
+  await accountsManager.triggerComposePopout(fields);
 }
 
 /** Holds or releases the ⌥⌘C global shortcut to match the current setting. */
@@ -558,7 +559,19 @@ function threadTriageFromLink(
 }
 
 /** Dispatches incoming mailto: or magimail:// protocol URLs to the appropriate handler. */
-function dispatchProtocolUrl(url: string): void {
+/** Gmail's own mailbox fragments, as the deep-link host that names each one. */
+const MAILBOX_ROUTES: Record<string, string> = {
+  inbox: '#inbox',
+  sent: '#sent',
+  drafts: '#drafts',
+  starred: '#starred',
+  spam: '#spam',
+  trash: '#trash',
+  all: '#all',
+  important: '#imp',
+};
+
+async function dispatchProtocolUrl(url: string): Promise<void> {
   // Composing needs the manager the window owns, so a window is built for a mailto: link.
   if (url.startsWith('mailto:')) {
     if (!accountsManager)
@@ -606,9 +619,25 @@ function dispatchProtocolUrl(url: string): void {
     const parsed = new URL(url);
     const targetAccountId = parsed.searchParams.get('account') || undefined;
 
-    if (parsed.hostname === 'inbox') {
+    const mailbox = MAILBOX_ROUTES[parsed.hostname];
+    if (parsed.hostname === 'open') {
       if (targetAccountId) {
         accountsManager.switchAccount(targetAccountId);
+      }
+    } else if (parsed.hostname === 'navigate') {
+      const targetUrl = parsed.searchParams.get('url');
+      if (targetUrl && isAllowedGmailNavigationUrl(targetUrl)) {
+        accountsManager.openInAccount(targetAccountId, targetUrl);
+      }
+    } else if (mailbox) {
+      accountsManager.openInAccount(targetAccountId, `https://mail.google.com/mail/u/0/${mailbox}`);
+    } else if (parsed.hostname === 'label' || parsed.hostname === 'category') {
+      const name = parsed.pathname.replace(/^\//, '');
+      if (name) {
+        accountsManager.openInAccount(
+          targetAccountId,
+          `https://mail.google.com/mail/u/0/#${parsed.hostname}/${name}`,
+        );
       }
     } else if (parsed.hostname === 'search') {
       const query = parsed.searchParams.get('q') || parsed.searchParams.get('query') || '';
@@ -624,11 +653,12 @@ function dispatchProtocolUrl(url: string): void {
         accountsManager.focusSearchInActiveView();
       }
     } else if (parsed.hostname === 'compose') {
+      const fields = parsed.searchParams.toString();
       if (targetAccountId) {
         accountsManager.switchAccount(targetAccountId);
-        void accountsManager.triggerMailAction('compose', targetAccountId);
+        void accountsManager.triggerComposePopout(fields || undefined);
       } else {
-        void composeWithoutAccount();
+        void composeWithoutAccount(fields || undefined);
       }
     } else if (parsed.hostname === 'thread') {
       const threadId = parsed.pathname.replace(/^\//, '');
@@ -637,15 +667,33 @@ function dispatchProtocolUrl(url: string): void {
       // anything else is an action this build does not offer, and is logged as such.
       const action = asThreadAction(parsed.searchParams.get('action') ?? 'open');
       if (threadId && action) {
+        let accountId: string | undefined;
+        if (targetAccountId) {
+          const acc = findAccountByIdOrEmail(accountsManager.getAccounts(), targetAccountId);
+          if (acc) {
+            accountId = acc.id;
+          }
+        }
+        if (!accountId) {
+          const accounts = accountsManager.getAccounts();
+          if (accounts.length > 1) {
+            const picked = await chooseComposeAccount(accountsManager, {
+              title: uiString('dialog.threadAccount.title'),
+              message: uiString('dialog.threadAccount.message'),
+              detail: uiString('dialog.threadAccount.detail'),
+              parentWindow: mainWindow,
+            });
+            if (!picked) return;
+            accountId = picked.id;
+          } else {
+            accountId = accountsManager.getActiveAccountId();
+          }
+        }
         // Not getActiveWebContentsView(): account views are loaded lazily, so
         // the target account's view may not exist yet. This is the same path a
         // notification click takes — it switches account, materialises the view
         // and skips the navigation if the thread is already open.
-        void accountsManager.performThreadAction(
-          targetAccountId || accountsManager.getActiveAccountId(),
-          threadId,
-          action,
-        );
+        void accountsManager.performThreadAction(accountId, threadId, action);
       } else if (threadId) {
         log.warn(
           `Ignoring magimail://thread link with unknown action: ${parsed.searchParams.get('action')}`,
@@ -662,7 +710,7 @@ app.on('open-url', (event, url) => {
   event.preventDefault();
   log.info('open-url received:', redactUrl(url));
   if (app.isReady() && initialised) {
-    dispatchProtocolUrl(url);
+    void dispatchProtocolUrl(url);
   } else {
     pendingMailtoUrl = url;
   }
@@ -686,7 +734,11 @@ async function routeThreadAction(
   threadId: string,
   action: TriageAction,
 ): Promise<ThreadActionOutcome> {
-  const source = accountsManager?.getMailboxSource(accountId);
+  const targetAccount = accountsManager
+    ? findAccountByIdOrEmail(accountsManager.getAccounts(), accountId)
+    : undefined;
+  const resolvedAccountId = targetAccount ? targetAccount.id : accountId;
+  const source = accountsManager?.getMailboxSource(resolvedAccountId);
   if (source) {
     const ok = await source.triageThread(threadId, action);
     return ok ? 'ok' : 'failed';
@@ -988,7 +1040,7 @@ if (!hasLock) {
     const protocolUrl = argv.find((a) => a.startsWith('magimail://') || a.startsWith('mailto:'));
     if (protocolUrl && initialised) {
       log.info('second-instance URL:', redactUrl(protocolUrl));
-      dispatchProtocolUrl(protocolUrl);
+      void dispatchProtocolUrl(protocolUrl);
     }
     if (!mainWindow) mainWindow = createMainWindow();
     else {
@@ -1535,7 +1587,7 @@ if (!hasLock) {
     // account it named is the one already loaded.
     if (startupUrl && accountsManager) {
       log.info('Dispatching startup protocol URL:', redactUrl(startupUrl));
-      dispatchProtocolUrl(startupUrl);
+      void dispatchProtocolUrl(startupUrl);
       pendingMailtoUrl = null;
     }
 

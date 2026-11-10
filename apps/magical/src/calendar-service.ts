@@ -2,7 +2,7 @@ import { app, dialog, powerMonitor, shell } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createLogger, redactUrl } from '@magimail/core/logger';
-import { readSecretFile, writeSecretFile } from '@magimail/core';
+import { readSecretFile, writeSecretFile, findAccountByIdOrEmail } from '@magimail/core';
 
 import { collapseWorkingLocations } from './working-locations.js';
 import { CalendarPoller, classifyFailure, type SourceHealth } from './calendar-poller.js';
@@ -649,7 +649,7 @@ export class CalendarService {
       completed: boolean,
     ) => Promise<'ok' | 'busy' | 'failed'>,
     /** Ensures a window for a link before its account is looked up. Optional for tests. */
-    private ensureWindowForLink?: (accountId: string) => void,
+    private ensureWindowForLink?: (accountId?: string) => void,
   ) {
     const persisted = this.loadState();
     this.notified = persisted.notified;
@@ -2063,8 +2063,9 @@ export class CalendarService {
     // Before the lookup: the accounts come from the window this may build.
     this.ensureWindowForLink?.(target.accountId);
 
-    const account =
-      this.getAccounts().find((a) => a.id === target.accountId) ?? this.getAccounts()[0];
+    const active =
+      this.getAccounts().find((a) => a.id === this.activeAccountId) ?? this.getAccounts()[0];
+    const account = findAccountByIdOrEmail(this.getAccounts(), target.accountId) ?? active;
     if (!account) {
       log.warn(`No account to follow a link for; wanted ${target.accountId}`);
       return false;

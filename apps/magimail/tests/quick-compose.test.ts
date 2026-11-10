@@ -117,6 +117,29 @@ describe('chooseComposeAccount', () => {
     ).resolves.toEqual(ACCOUNTS[1]);
   });
 
+  it('passes custom title, message and detail to the alert', async () => {
+    const mgr = mockAccountsManager();
+    vi.mocked(dialog.showMessageBox).mockResolvedValueOnce({
+      response: 0,
+      checkboxChecked: false,
+    });
+
+    await chooseComposeAccount(mgr, {
+      title: 'Custom Title',
+      message: 'Custom Message',
+      detail: 'Custom Detail',
+    });
+
+    const callArgs = vi.mocked(dialog.showMessageBox).mock.calls.at(-1)?.[0] as {
+      title?: string;
+      message?: string;
+      detail?: string;
+    };
+    expect(callArgs?.title).toBe('Custom Title');
+    expect(callArgs?.message).toBe('Custom Message');
+    expect(callArgs?.detail).toBe('Custom Detail');
+  });
+
   it('returns null when cancelled', async () => {
     const mgr = mockAccountsManager();
     vi.mocked(dialog.showMessageBox).mockResolvedValueOnce({
