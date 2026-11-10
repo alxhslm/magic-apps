@@ -5,6 +5,10 @@ import { loadSettings } from './settings-store.js';
 import { uiString } from './strings.js';
 
 export interface ComposeAccountOptions {
+  /** Window title of the alert. Names the action the account is being chosen for. */
+  title?: string;
+  /** First line of the alert, in bold. */
+  message?: string;
   /** Second line of the alert, naming what is about to be composed. */
   detail?: string;
   /** Window to hang the alert off as a sheet. Without one it goes up parentless. */
@@ -25,7 +29,7 @@ export interface ComposeAccountOptions {
  */
 export async function chooseComposeAccount(
   accountsManager: AccountsManager,
-  { detail, parentWindow, fromMainWindow = false }: ComposeAccountOptions = {},
+  { title, message, detail, parentWindow, fromMainWindow = false }: ComposeAccountOptions = {},
 ): Promise<AccountConfig | null> {
   const accounts = accountsManager.getAccounts();
   const activeAccountId = accountsManager.getActiveAccountId();
@@ -47,8 +51,8 @@ export async function chooseComposeAccount(
       accounts.findIndex((a) => a.id === active?.id),
     ),
     cancelId: accounts.length,
-    title: uiString('dialog.composeAccount.title'),
-    message: uiString('dialog.composeAccount.message'),
+    title: title || uiString('dialog.composeAccount.title'),
+    message: message || uiString('dialog.composeAccount.message'),
     detail: detail || uiString('dialog.composeAccount.detail'),
   };
 

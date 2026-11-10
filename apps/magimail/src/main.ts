@@ -561,6 +561,7 @@ function threadTriageFromLink(
 /** Dispatches incoming mailto: or magimail:// protocol URLs to the appropriate handler. */
 /** Gmail's own mailbox fragments, as the deep-link host that names each one. */
 const MAILBOX_ROUTES: Record<string, string> = {
+  inbox: '#inbox',
   sent: '#sent',
   drafts: '#drafts',
   starred: '#starred',
@@ -570,7 +571,7 @@ const MAILBOX_ROUTES: Record<string, string> = {
   important: '#imp',
 };
 
-function dispatchProtocolUrl(url: string): void {
+async function dispatchProtocolUrl(url: string): Promise<void> {
   // Composing needs the manager the window owns, so a window is built for a mailto: link.
   if (url.startsWith('mailto:')) {
     if (!accountsManager)
@@ -619,7 +620,7 @@ function dispatchProtocolUrl(url: string): void {
     const targetAccountId = parsed.searchParams.get('account') || undefined;
 
     const mailbox = MAILBOX_ROUTES[parsed.hostname];
-    if (parsed.hostname === 'inbox' || parsed.hostname === 'open') {
+    if (parsed.hostname === 'open') {
       if (targetAccountId) {
         accountsManager.switchAccount(targetAccountId);
       }
@@ -666,15 +667,33 @@ function dispatchProtocolUrl(url: string): void {
       // anything else is an action this build does not offer, and is logged as such.
       const action = asThreadAction(parsed.searchParams.get('action') ?? 'open');
       if (threadId && action) {
+        let accountId: string | undefined;
+        if (targetAccountId) {
+          const acc = findAccountByIdOrEmail(accountsManager.getAccounts(), targetAccountId);
+          if (acc) {
+            accountId = acc.id;
+          }
+        }
+        if (!accountId) {
+          const accounts = accountsManager.getAccounts();
+          if (accounts.length > 1) {
+            const picked = await chooseComposeAccount(accountsManager, {
+              title: uiString('dialog.threadAccount.title'),
+              message: uiString('dialog.threadAccount.message'),
+              detail: uiString('dialog.threadAccount.detail'),
+              parentWindow: mainWindow,
+            });
+            if (!picked) return;
+            accountId = picked.id;
+          } else {
+            accountId = accountsManager.getActiveAccountId();
+          }
+        }
         // Not getActiveWebContentsView(): account views are loaded lazily, so
         // the target account's view may not exist yet. This is the same path a
         // notification click takes — it switches account, materialises the view
         // and skips the navigation if the thread is already open.
-        void accountsManager.performThreadAction(
-          targetAccountId || accountsManager.getActiveAccountId(),
-          threadId,
-          action,
-        );
+        void accountsManager.performThreadAction(accountId, threadId, action);
       } else if (threadId) {
         log.warn(
           `Ignoring magimail://thread link with unknown action: ${parsed.searchParams.get('action')}`,
@@ -691,7 +710,7 @@ app.on('open-url', (event, url) => {
   event.preventDefault();
   log.info('open-url received:', redactUrl(url));
   if (app.isReady() && initialised) {
-    dispatchProtocolUrl(url);
+    void dispatchProtocolUrl(url);
   } else {
     pendingMailtoUrl = url;
   }
@@ -1021,7 +1040,7 @@ if (!hasLock) {
     const protocolUrl = argv.find((a) => a.startsWith('magimail://') || a.startsWith('mailto:'));
     if (protocolUrl && initialised) {
       log.info('second-instance URL:', redactUrl(protocolUrl));
-      dispatchProtocolUrl(protocolUrl);
+      void dispatchProtocolUrl(protocolUrl);
     }
     if (!mainWindow) mainWindow = createMainWindow();
     else {
@@ -1568,7 +1587,7 @@ if (!hasLock) {
     // account it named is the one already loaded.
     if (startupUrl && accountsManager) {
       log.info('Dispatching startup protocol URL:', redactUrl(startupUrl));
-      dispatchProtocolUrl(startupUrl);
+      void dispatchProtocolUrl(startupUrl);
       pendingMailtoUrl = null;
     }
 
