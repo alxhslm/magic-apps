@@ -410,6 +410,8 @@ export class AtomFeedPoller {
   private categoryById = new Map<string, NotificationCategory>();
   private isWindowFocused = false;
   private powerListenersAttached = false;
+  private isDisposed = false;
+  private powerListeners: Partial<Record<string, () => void>> = {};
   private missingCategories = new Set<NotificationCategory>();
   private latestEntries: AtomMessage[] = [];
   private lastFullCount: number | null = null;
@@ -458,6 +460,12 @@ export class AtomFeedPoller {
       this.hintTimer = null;
     }
     this.isPaused = true;
+    this.teardownPowerMonitor();
+  }
+
+  public destroy(): void {
+    this.isDisposed = true;
+    this.stop();
   }
 
   /**
@@ -468,7 +476,7 @@ export class AtomFeedPoller {
    * rewrites Gmail's title — so they are rate-limited rather than trusted.
    */
   public requestImmediatePoll(): void {
-    if (this.isPaused) return;
+    if (this.isPaused || this.isDisposed) return;
 
     // A queued hint poll already covers this hint; let it stand rather than
     // pushing it further out, so a steady trickle of hints still gets served.
@@ -577,7 +585,7 @@ export class AtomFeedPoller {
   }
 
   public async pollNow(): Promise<void> {
-    if (this.isPolling) return;
+    if (this.isPolling || this.isDisposed) return;
     this.isPolling = true;
 
     try {
@@ -1005,6 +1013,7 @@ export class AtomFeedPoller {
   }
 
   private scheduleNext(): void {
+    if (this.isPaused || this.isDisposed) return;
     if (this.timer) {
       clearTimeout(this.timer);
     }
@@ -1027,7 +1036,7 @@ export class AtomFeedPoller {
   }
 
   private setupPowerMonitor(): void {
-    if (this.powerListenersAttached) return;
+    if (this.powerListenersAttached || this.isDisposed) return;
     this.powerListenersAttached = true;
 
     let pm: typeof electron.powerMonitor | undefined;
@@ -1050,25 +1059,69 @@ export class AtomFeedPoller {
       // Fallback
     }
 
-    pm.on('on-battery', () => {
+    const onBattery = () => {
+      if (this.isDisposed) return;
       this.isOnBattery = true;
       this.scheduleNext();
-    });
-    pm.on('on-ac', () => {
+    };
+    const onAc = () => {
+      if (this.isDisposed) return;
       this.isOnBattery = false;
       this.scheduleNext();
-    });
-    pm.on('suspend', () => {
+    };
+    const onSuspend = () => {
+      if (this.isDisposed) return;
       this.isPaused = true;
       if (this.timer) {
         clearTimeout(this.timer);
         this.timer = null;
       }
-    });
-    pm.on('resume', () => {
+    };
+    const onResume = () => {
+      if (this.isDisposed) return;
       this.isPaused = false;
       this.pollNow();
-    });
+    };
+
+    this.powerListeners = {
+      'on-battery': onBattery,
+      'on-ac': onAc,
+      suspend: onSuspend,
+      resume: onResume,
+    };
+
+    pm.on('on-battery', onBattery);
+    pm.on('on-ac', onAc);
+    pm.on('suspend', onSuspend);
+    pm.on('resume', onResume);
+  }
+
+  private teardownPowerMonitor(): void {
+    if (!this.powerListenersAttached) return;
+    this.powerListenersAttached = false;
+
+    let pm: typeof electron.powerMonitor | undefined;
+    try {
+      if ('powerMonitor' in electron) {
+        pm = (electron as unknown as { powerMonitor?: typeof electron.powerMonitor }).powerMonitor;
+      }
+    } catch {
+      return;
+    }
+    if (!pm || typeof pm.removeListener !== 'function') {
+      return;
+    }
+
+    for (const [event, listener] of Object.entries(this.powerListeners)) {
+      if (listener) {
+        try {
+          pm.removeListener(event as any, listener);
+        } catch {
+          // Best-effort
+        }
+      }
+    }
+    this.powerListeners = {};
   }
 }
 

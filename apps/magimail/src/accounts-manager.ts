@@ -565,7 +565,7 @@ export class AccountsManager {
   }
 
   /** New arrivals across the accounts the Focus Filter includes, and whether the sum may be short. */
-  private getFocusedArrivals(): ArrivalBadgeState {
+  public getFocusedArrivals(): ArrivalBadgeState {
     let count = 0;
     let incomplete = false;
     for (const account of this.getFocusedAccounts()) {

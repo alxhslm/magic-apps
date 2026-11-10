@@ -58,6 +58,11 @@ vi.mock('electron', () => ({
     on: vi.fn((event: string, cb: () => void) => {
       powerMonitorCallbacks[event] = cb;
     }),
+    removeListener: vi.fn((event: string, cb: () => void) => {
+      if (powerMonitorCallbacks[event] === cb) {
+        delete powerMonitorCallbacks[event];
+      }
+    }),
   },
   app: {
     getPath: vi.fn(() => userData),
@@ -605,6 +610,34 @@ describe('AtomFeedPoller', () => {
     expect(mockFetch).toHaveBeenCalled();
 
     poller.stop();
+  });
+
+  it('detaches powerMonitor listeners on stop/destroy and prevents resurrection on resume', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => MOCK_FEED_XML,
+    });
+
+    const poller = new AtomFeedPoller(
+      'acc_destroy_test',
+      'persist:acc_destroy_test',
+      60,
+      180,
+      () => {},
+    );
+    poller.start();
+
+    expect(powerMonitorCallbacks['resume']).toBeDefined();
+
+    poller.destroy();
+
+    expect(powerMonitorCallbacks['resume']).toBeUndefined();
+    expect(powerMonitorCallbacks['on-battery']).toBeUndefined();
+
+    mockFetch.mockClear();
+    await poller.pollNow();
+    expect(mockFetch).not.toHaveBeenCalled();
   });
 });
 
