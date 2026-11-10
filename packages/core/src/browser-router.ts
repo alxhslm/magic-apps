@@ -5,6 +5,8 @@ import { execFile, execFileSync } from 'node:child_process';
 import { promisify } from 'node:util';
 import { app, shell } from 'electron';
 import { createLogger, redactUrl } from './logger.js';
+import { APP_BUNDLE_IDS, crossAppLink } from './cross-app.js';
+import { unwrapRedirectors, toNativeMeetingUrl } from './links.js';
 import type { AccountConfig } from './account.js';
 
 const log = createLogger('BrowserRouter');
@@ -149,6 +151,35 @@ function readLaunchServicesJson(plistPath: string): string {
   });
 }
 
+/**
+ * Whether an application is installed, asked of LaunchServices by bundle id.
+ *
+ * Not by asking who handles the app's URL scheme: `URLForApplicationToOpenURL` answers `nil`
+ * for a custom scheme even where the app is installed, so the scheme question would leave every
+ * deep link looking unowned.
+ */
+const INSTALLED_SCRIPT = `function run(argv) {
+  ObjC.import('AppKit');
+  const app = $.NSWorkspace.sharedWorkspace.URLForApplicationWithBundleIdentifier(argv[0]);
+  return app ? app.path.js : '';
+}`;
+
+async function isAppInstalled(bundleId: string): Promise<boolean> {
+  try {
+    const { stdout } = await execFileAsync('/usr/bin/osascript', [
+      '-l',
+      'JavaScript',
+      '-e',
+      INSTALLED_SCRIPT,
+      bundleId,
+    ]);
+    return stdout.trim().length > 0;
+  } catch (err) {
+    log.warn(`Could not check whether ${bundleId} is installed:`, err);
+    return false;
+  }
+}
+
 function defaultHandlerName(): string | undefined {
   try {
     return app.getApplicationNameForProtocol('https://') || undefined;
@@ -288,6 +319,18 @@ export interface OpenExternalUrlOptions {
   fallbackOpenExternal?: (url: string) => Promise<void>;
   /** Custom home dir for profile reading (testing). */
   customHome?: string;
+  /** Whether another app is installed. Injectable so a test does not need it to be. */
+  isAppInstalled?: (bundleId: string) => Promise<boolean>;
+  /**
+   * LaunchServices check for native custom schemes (Zoom, Teams, etc.).
+   * If provided and the URL is rewritten to a native scheme, checks whether
+   * an app is installed before attempting to launch it via shell.openExternal.
+   */
+  hasApplicationForUrl?: (url: string) => boolean;
+  /**
+   * Optional custom URL rewrite hook before opening (defaults to toNativeMeetingUrl).
+   */
+  rewriteUrl?: (url: string) => string;
 }
 
 /**
@@ -304,9 +347,33 @@ export async function openExternalUrl(
       await shell.openExternal(u);
     });
 
+  const unwrappedUrl = unwrapRedirectors(url);
+
+  if (options.hasApplicationForUrl) {
+    const target = options.rewriteUrl
+      ? options.rewriteUrl(unwrappedUrl)
+      : toNativeMeetingUrl(unwrappedUrl);
+
+    if (target !== unwrappedUrl) {
+      const scheme = target.split(':')[0];
+      if (options.hasApplicationForUrl(target)) {
+        try {
+          await fallback(target);
+          return;
+        } catch (err) {
+          log.warn(`${scheme}: refused the request, opening in the browser:`, err);
+        }
+      } else {
+        log.info(`No application for ${scheme}:, opening in the browser`);
+      }
+    }
+  }
+
+  const destinationUrl = unwrappedUrl;
+
   // Non-web schemes (e.g. mailto:, x-apple.systempreferences:) go to system default directly
-  if (!url.startsWith('http://') && !url.startsWith('https://')) {
-    await fallback(url);
+  if (!destinationUrl.startsWith('http://') && !destinationUrl.startsWith('https://')) {
+    await fallback(destinationUrl);
     return;
   }
 
@@ -319,10 +386,33 @@ export async function openExternalUrl(
       await execFileAsync('/usr/bin/open', args);
     });
 
+  // The other app's own web interface belongs in that app, which already shows the same data.
+  // Only offered when that app is installed, because a deep link nobody handles leaves the
+  // user on an error page where a browser tab would have worked.
+  const crossApp = crossAppLink(destinationUrl);
+  const appInstalled = options.isAppInstalled ?? isAppInstalled;
+  if (crossApp && (await appInstalled(APP_BUNDLE_IDS[crossApp.scheme]).catch(() => false))) {
+    let targetLink = crossApp.deepLink;
+    if (options.account?.email) {
+      try {
+        const parsed = new URL(targetLink);
+        if (!parsed.searchParams.has('account')) {
+          parsed.searchParams.set('account', options.account.email);
+          targetLink = parsed.toString();
+        }
+      } catch {
+        // Leave targetLink untouched if URL parsing fails
+      }
+    }
+    log.info(`Opening ${redactUrl(url)} in ${crossApp.scheme} (${redactUrl(targetLink)})`);
+    await fallback(targetLink);
+    return;
+  }
+
   // Anything we cannot launch ourselves goes to macOS, which is also what keeps a domain
   // owned by a desktop app (Universal Links) out of the browser.
   if (!browserDef || !browserDef.bundleId) {
-    await fallback(url);
+    await fallback(destinationUrl);
     return;
   }
 
@@ -346,28 +436,30 @@ export async function openExternalUrl(
       const wanted = options.account?.browserProfile;
       const isChosen = Boolean(wanted && wanted !== AUTO_PROFILE);
       if (profileDir && (isChosen || profileDir !== lastUsed)) {
-        log.info(`Opening ${redactUrl(url)} in ${browserDef.name} (profile: ${profileDir})`);
+        log.info(
+          `Opening ${redactUrl(destinationUrl)} in ${browserDef.name} (profile: ${profileDir})`,
+        );
         await runner([
           '-b',
           browserDef.bundleId,
           '-n',
           '--args',
           `--profile-directory=${profileDir}`,
-          url,
+          destinationUrl,
         ]);
         return;
       }
 
-      log.info(`Opening ${redactUrl(url)} in ${browserDef.name} (current profile)`);
-      await runner(['-b', browserDef.bundleId, url]);
+      log.info(`Opening ${redactUrl(destinationUrl)} in ${browserDef.name} (current profile)`);
+      await runner(['-b', browserDef.bundleId, destinationUrl]);
       return;
     }
 
     // Non-Chromium browser (e.g. Safari)
-    log.info(`Opening ${redactUrl(url)} in ${browserDef.name}`);
-    await runner(['-b', browserDef.bundleId, url]);
+    log.info(`Opening ${redactUrl(destinationUrl)} in ${browserDef.name}`);
+    await runner(['-b', browserDef.bundleId, destinationUrl]);
   } catch (err) {
     log.warn(`Failed to open in ${browserDef.name}, falling back to system default:`, err);
-    await fallback(url);
+    await fallback(destinationUrl);
   }
 }

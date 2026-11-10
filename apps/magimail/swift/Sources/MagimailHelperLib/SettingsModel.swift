@@ -42,6 +42,11 @@ public final class SettingsModel: ObservableObject {
         didSet { emit("openLinksIn", openLinksIn) }
     }
 
+    /// Keep meeting links in the browser even when Zoom or Teams is installed.
+    @Published public var alwaysJoinInBrowser: Bool = false {
+        didSet { emit("alwaysJoinInBrowser", alwaysJoinInBrowser) }
+    }
+
     /// Electron accelerator for the system-wide quick compose chord, or "off".
     @Published public var quickComposeHotkey: String = "Alt+Command+C" {
         didSet { emit("quickComposeHotkey", quickComposeHotkey) }
@@ -204,6 +209,9 @@ public final class SettingsModel: ObservableObject {
         }
         if let v = dict["openLinksIn"] as? String {
             openLinksIn = v
+        }
+        if let v = dict["alwaysJoinInBrowser"] as? Bool {
+            alwaysJoinInBrowser = v
         }
         if let v = dict["quickComposeHotkey"] as? String {
             quickComposeHotkey = v

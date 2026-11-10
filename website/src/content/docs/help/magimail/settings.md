@@ -31,6 +31,7 @@ Which browser opens links that leave the app.
 - **Only installed browsers are listed.** Picking one sends every link through that browser. If it
   is Chrome, Brave or Edge, links also open in the account's profile; see
   [Chromium profiles](#chromium-profiles).
+- **Always open calls in the browser**: By default, Zoom and Microsoft Teams meeting links in emails open directly in their desktop applications when installed. Turn this on to send them to your chosen browser and Chromium profile instead.
 
 ### Global Quick Compose Shortcut
 

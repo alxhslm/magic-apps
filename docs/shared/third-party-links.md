@@ -13,10 +13,12 @@ Both Magimail and Magical unwrap tracking redirectors via `@magimail/core` befor
 ```mermaid
 flowchart TD
   Trigger["External link click<br/>(email body, event description, task)"] --> Unwrap["unwrapRedirectors(url)<br/>(@magimail/core)"]
-  Unwrap --> Native{"Magical, and a Zoom,<br/>Teams or Todoist link?"}
+  Unwrap --> Native{"Zoom or Teams link,<br/>or Todoist in Magical?"}
   Native -->|yes| App["Native app via custom scheme<br/>(browser when no client)"]
   Native -->|no| Route["openExternalUrl(url, account)<br/>(@magimail/core)"]
-  Route --> Choice{"browser set<br/>and not system?"}
+  Route --> Cross{"Sister app installed,<br/>and a link to it?"}
+  Cross -->|yes| Sister["Sister app via custom scheme<br/>(magimail:// or magical://)"]
+  Cross -->|no| Choice{"browser set<br/>and not system?"}
   Choice -->|no| System["shell.openExternal<br/>default browser"]
   Choice -->|yes| Direct["/usr/bin/open -b browser<br/>with --profile-directory"]
   App --> Browser["Browser"]
@@ -33,7 +35,10 @@ tracking and protection wrappers up to three hops:
   destination URL from the `q` or `url` query parameter.
 - **Outlook Safelinks**: URLs matching `safelinks.protection.outlook.com` extract the target URL from
   the `url` query parameter.
-- **Direct URLs**: URLs without tracking parameters or unrecognised hosts pass through untouched.
+- **Tracking & email analytics redirectors**: Extracts destination URLs from common redirect
+  parameters (`url`, `q`, `dest`, `destination`, `target`, `redirect`, `link`, etc.) while protecting
+  OAuth/SSO authorization flows.
+- **Direct URLs**: URLs without tracking parameters pass through untouched.
 
 ## Desktop apps
 
@@ -45,14 +50,51 @@ Instead the default is the browser, and the desktop app is reached one of two wa
 
 - **The site hands off.** Slack, Linear, Notion and Figma open their desktop app from their own
   web page.
-- **We rewrite the scheme.** Magical rewrites the links that appear in calendars and have a
-  documented desktop scheme: Zoom and Teams meeting links, and Todoist tasks and projects
-  (`app.todoist.com/app/task/<id>` to `todoist://task?id=<id>`, and the same for projects). It asks
-  LaunchServices whether the scheme has a handler and falls back to the browser when it does not.
-  `openTodoistLinksInApp` (General) turns the Todoist rewrite off, sending those links to the
-  browser and profile instead.
+- **We rewrite the scheme.** Both apps rewrite meeting links that appear in messages or
+  calendar events and have a documented desktop scheme: Zoom (`zoommtg://`) and Microsoft
+  Teams (`msteams://`), via `toNativeMeetingUrl` in `@magimail/core`. Magical also rewrites
+  Todoist tasks and projects (`app.todoist.com/app/task/<id>` to `todoist://task?id=<id>`,
+  and the same for projects). Each app asks LaunchServices via its native addon
+  (`hasApplicationForUrl`) whether the scheme has a registered handler and falls back to
+  the browser when it does not. In Magical, `openTodoistLinksInApp` (General) turns the Todoist
+  rewrite off and `alwaysJoinInBrowser` keeps meeting links in the browser.
 
-Magimail has no app rewrites; every external link takes the browser route.
+## The other app's own links
+
+A Gmail address in a calendar event and a Calendar address in an email belong in the app that
+already shows that data. `crossAppLink` in `@magimail/core` maps one app's web addresses to the
+other's deep link:
+
+| Link                                                   | Deep link                                        |
+| :----------------------------------------------------- | :----------------------------------------------- |
+| `mail.google.com/mail/u/N/#inbox`                      | `magimail://inbox`                               |
+| `mail.google.com/mail/u/N/#inbox/<thread>`             | `magimail://thread/<thread>`                     |
+| `mail.google.com/mail/u/N/#search/<query>`             | `magimail://search?q=<query>`                    |
+| `mail.google.com/mail/u/N/#sent` (and mailbox views)   | `magimail://sent` (also `drafts`, `trash`, etc.) |
+| `mail.google.com/mail/u/N/#label/<name>`               | `magimail://label/<name>`                        |
+| `mail.google.com/mail/u/N/#category/<name>`            | `magimail://category/<name>`                     |
+| `mail.google.com/mail/?view=cm&to=…`                   | `magimail://compose?to=…`                        |
+| Other Gmail URLs (settings, etc.)                      | `magimail://navigate?url=…`                      |
+| `calendar.google.com/…/day/2026/11/5`                  | `magical://date?at=2026-11-05T00:00:00.000Z`     |
+| `calendar.google.com/…?eid=<eid>`                      | `magical://event?eid=<eid>&action=reveal`        |
+| `calendar.google.com/…/r/search?q=<query>`             | `magical://search?q=<query>`                     |
+| `calendar.google.com/calendar/render?action=TEMPLATE…` | `magical://quick-add?text=…&dates=…`             |
+| `tasks.google.com/…`                                   | `magical://tasks`                                |
+| Other Calendar URLs (settings, etc.)                   | `magical://navigate?url=…`                       |
+
+The `u/<n>` segment is the browser's sign-in order, not one of our account ids, so it is dropped.
+When the originating account's email is known, `openExternalUrl` passes `account=<email>` in the
+deep link. Both apps resolve `account` by internal id or verified email, activating the matching
+account. When multiple accounts exist and `account` is omitted for a specific thread
+(`magimail://thread/<id>`), event (`magical://event?eid=...`), or external template quick-add
+(`magical://quick-add`), the app prompts with an account selector dialog rather than guessing
+the active account. Generic routes (`open`, `inbox`, `search`, `tasks`, `date`) fall back to the
+active account. The day path becomes midnight, because the calendar side either reveals an event,
+which is a moment, or opens a day, which is a date.
+
+`openExternalUrl` uses the deep link only when the other app is installed, asked by bundle id.
+`URLForApplicationToOpenURL` answers `nil` for a custom scheme even where the app is there, so
+the scheme question would make every deep link look unowned.
 
 ## Browser and Chromium profile
 
@@ -92,8 +134,10 @@ the flag is dropped and a plain `-b` reuses that window. A failed launch falls b
 ## App-specific integration
 
 - **Magimail**: Outbound links in `setWindowOpenHandler` and `will-navigate` in
-  [`../magimail/overview.md`](../magimail/overview.md) unwrap redirectors and then call
-  `openExternalUrl` with the account.
+  [`../magimail/overview.md`](../magimail/overview.md) unwrap redirectors and pass through
+  `openExternalUrl` in `links.ts`. Zoom and Microsoft Teams meeting links are rewritten to native
+  schemes and launched directly if the client is installed, falling back to the browser and
+  account profile without the system dialog.
 - **Magical**: Outbound links in event descriptions and tasks pass through `openExternalUrl` in
   `links.ts`. Magical also rewrites video conference links (Zoom and Microsoft Teams) and Todoist
   tasks and projects to native custom schemes; see

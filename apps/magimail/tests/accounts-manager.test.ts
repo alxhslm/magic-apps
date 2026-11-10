@@ -30,6 +30,10 @@ const TEST_USER_DATA = vi.hoisted(() => `/tmp/magimail-accounts-test-${process.p
 // Capture log lines so the action-diagnostic tests can assert them.
 const logInfo = vi.hoisted(() => vi.fn());
 const logWarn = vi.hoisted(() => vi.fn());
+const hasApplicationForUrl = vi.hoisted(() => vi.fn((_url: string) => true));
+vi.mock('../src/native-handlers.js', () => ({
+  hasApplicationForUrl: (url: string) => hasApplicationForUrl(url),
+}));
 vi.mock('@magimail/core/logger', async () => {
   const actual =
     await vi.importActual<typeof import('@magimail/core/logger')>('@magimail/core/logger');
@@ -1307,6 +1311,25 @@ describe('action diagnostics', () => {
     });
   });
 
+  it('switches and opens accounts using an email address', async () => {
+    const work = manager.addAccount('Work', '#3b82f6');
+    work.email = 'work@corp.com';
+
+    expect(manager.getActiveAccountId()).toBe('account_personal');
+
+    manager.switchAccount('WORK@CORP.COM');
+    expect(manager.getActiveAccountId()).toBe(work.id);
+
+    const wc = manager.getActiveWebContentsView()!.webContents;
+    const load = wc.loadURL as unknown as Mock;
+    load.mockClear();
+
+    manager.openInAccount('work@corp.com', 'https://mail.google.com/mail/u/0/#sent');
+    await vi.waitFor(() => {
+      expect(load).toHaveBeenCalledWith('https://mail.google.com/mail/u/0/#sent');
+    });
+  });
+
   it('re-suspends the account on screen when an action wakes it while the window is hidden', async () => {
     vi.useFakeTimers();
     try {
@@ -1439,6 +1462,57 @@ describe('holding triage while the view is busy', () => {
     );
     expect(event.preventDefault).toHaveBeenCalled();
     expect(shell.openExternal).toHaveBeenCalledWith('https://www.notion.so/my-page-123');
+  });
+
+  it('opens Zoom links in native desktop client when installed', async () => {
+    hasApplicationForUrl.mockReturnValue(true);
+    const wc = manager.getActiveWebContentsView()!.webContents;
+    const openHandler = (
+      wc.setWindowOpenHandler as unknown as Mock
+    ).mock.calls.pop()?.[0] as (details: { url: string }) => { action: string };
+
+    const result = openHandler({
+      url: 'https://zoom.us/j/1234567890?pwd=abc',
+    });
+    expect(result).toEqual({ action: 'deny' });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(hasApplicationForUrl).toHaveBeenCalledWith(
+      'zoommtg://zoom.us/join?action=join&confno=1234567890&pwd=abc',
+    );
+    expect(shell.openExternal).toHaveBeenCalledWith(
+      'zoommtg://zoom.us/join?action=join&confno=1234567890&pwd=abc',
+    );
+  });
+
+  it('falls back to browser when Zoom is not installed', async () => {
+    hasApplicationForUrl.mockReturnValue(false);
+    const wc = manager.getActiveWebContentsView()!.webContents;
+    const openHandler = (
+      wc.setWindowOpenHandler as unknown as Mock
+    ).mock.calls.pop()?.[0] as (details: { url: string }) => { action: string };
+
+    const result = openHandler({
+      url: 'https://zoom.us/j/1234567890?pwd=abc',
+    });
+    expect(result).toEqual({ action: 'deny' });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(shell.openExternal).toHaveBeenCalledWith('https://zoom.us/j/1234567890?pwd=abc');
+  });
+
+  it('opens Teams links in native desktop client when installed', async () => {
+    hasApplicationForUrl.mockReturnValue(true);
+    const wc = manager.getActiveWebContentsView()!.webContents;
+    const willNavigateHandler = (wc.on as unknown as Mock).mock.calls
+      .filter(([event]) => event === 'will-navigate')
+      .pop()?.[1] as (event: { preventDefault: () => void }, url: string) => void;
+
+    const event = { preventDefault: vi.fn() };
+    willNavigateHandler(event, 'https://teams.microsoft.com/l/meetup-join/19%3ameeting_xyz');
+    expect(event.preventDefault).toHaveBeenCalled();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(shell.openExternal).toHaveBeenCalledWith(
+      'msteams://teams.microsoft.com/l/meetup-join/19%3ameeting_xyz',
+    );
   });
 });
 

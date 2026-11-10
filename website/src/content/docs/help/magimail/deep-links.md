@@ -7,13 +7,21 @@ Magimail registers the native macOS `magimail://` URL scheme, allowing you to tr
 
 ## Supported Actions & Parameters
 
-| URL Pattern              | Parameters                              | Description                                                                                     |
-| :----------------------- | :-------------------------------------- | :---------------------------------------------------------------------------------------------- |
-| `magimail://inbox`       | `account`                               | Focuses Magimail and opens the inbox for the specified account.                                 |
-| `magimail://compose`     | `to`, `su`, `body`, `account`           | Opens a compose window pre-filled with recipient, subject, and body text.                       |
-| `magimail://share`       | `files` (repeated), `text`, `url`, `to` | Opens a compose window with attached files staged from Finder or external scripts.              |
-| `magimail://search`      | `q` or `query`, `account`               | Runs a search query directly in Gmail.                                                          |
-| `magimail://thread/<id>` | `account`, `action`                     | Opens the thread, or executes an action (`open`, `archive`, `trash`, `markRead`, `markUnread`). |
+| URL Pattern                  | Parameters                                 | Description                                                                                     |
+| :--------------------------- | :----------------------------------------- | :---------------------------------------------------------------------------------------------- |
+| `magimail://inbox`           | `account`                                  | Focuses Magimail and opens the inbox for the specified account.                                 |
+| `magimail://sent`            | `account`                                  | Opens Sent. Also `drafts`, `starred`, `spam`, `trash`, `all`, `important`.                      |
+| `magimail://label/<name>`    | `account`                                  | Opens a custom label; nested labels keep their slashes (e.g. `label/Work/Projects`).            |
+| `magimail://category/<name>` | `account`                                  | Opens a Gmail category (e.g. `category/social`, `category/updates`).                            |
+| `magimail://compose`         | `to`, `cc`, `bcc`, `su`, `body`, `account` | Opens a compose window pre-filled with recipients, subject, and body text.                      |
+| `magimail://navigate`        | `url`, `account`                           | Navigates the Gmail view to an arbitrary Gmail URL.                                             |
+| `magimail://share`           | `files` (repeated), `text`, `url`, `to`    | Opens a compose window with attached files staged from Finder or external scripts.              |
+| `magimail://search`          | `q` or `query`, `account`                  | Runs a search query directly in Gmail.                                                          |
+| `magimail://thread/<id>`     | `account`, `action`                        | Opens the thread, or executes an action (`open`, `archive`, `trash`, `markRead`, `markUnread`). |
+
+:::tip[Targeting accounts by id or email]
+The `account` parameter accepts either an internal account identifier (such as `account=work`) or the account's email address (such as `account=alex@company.com`). If omitted or if no account matches, Magimail targets the currently active account.
+:::
 
 :::tip[Headless background triage]
 When a deep link includes a triage action such as `action=archive`, `action=trash` or `action=markRead`, Magimail applies the change in the background without opening the main window or taking focus from the app you are in.
@@ -39,6 +47,13 @@ open "magimail://search?q=is:unread%20from:github&account=work"
 open "magimail://thread/18fa24b91ac051?action=archive"
 ```
 
+### Open a Specific Mailbox or Label
+
+```sh
+open "magimail://sent"
+open "magimail://label/Work/Projects?account=work"
+```
+
 ## Using Deep Links in Automations
 
 ### Apple Shortcuts
@@ -57,4 +72,12 @@ open "magimail://thread/18fa24b91ac051?action=archive"
 
 Emails frequently include links to external tools such as Todoist, Notion, Linear, Figma, GitHub, or Slack.
 
-Magimail strips Google's redirect prefix before routing a link, then opens it in the browser chosen in **Settings → General → Opening links**, in the Chromium profile for the account it came from. See [Settings Reference](/help/magimail/settings/#chromium-profiles).
+Magimail strips redirect and tracking wrappers before routing a link, then opens it in the browser chosen in **Settings → General → Opening links**, in the Chromium profile for the account it came from. See [Settings Reference](/help/magimail/settings/#chromium-profiles).
+
+:::tip[Calendar and task links open in Magical]
+When [Magical](/help/magical/getting-started/) is installed, Google Calendar links (dates, events, search, and new event templates) and Google Tasks links clicked inside Magimail automatically open in Magical rather than in a web browser tab.
+:::
+
+:::tip[Video conference calls]
+Meeting links for Zoom and Microsoft Teams open in their native desktop apps when installed. If you prefer to join meetings in your browser, turn on **Always open calls in the browser** in **Settings → General**. See [Settings Reference](/help/magimail/settings/).
+:::

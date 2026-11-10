@@ -7,13 +7,19 @@ Magical registers the native macOS `magical://` URL scheme, allowing you to trig
 
 ## Supported Actions & Parameters
 
-| URL Pattern           | Parameters                       | Description                                                                             |
-| :-------------------- | :------------------------------- | :-------------------------------------------------------------------------------------- |
-| `magical://open`      | _None_                           | Brings the main Magical calendar window to the front.                                   |
-| `magical://quick-add` | _None_                           | Opens the event creation modal (prompts for account if configured to 'Always ask').     |
-| `magical://date`      | `at`, `account`                  | Navigates the calendar to a specific date (e.g. `2026-11-01`).                          |
-| `magical://search`    | `q` or `query`, `account`        | Searches events and meetings across your schedules.                                     |
-| `magical://event`     | `eid`, `account`, `action`, `at` | Focuses an event or executes an RSVP action (`reveal`, `yes`, `no`, `maybe`, `delete`). |
+| URL Pattern           | Parameters                                        | Description                                                                             |
+| :-------------------- | :------------------------------------------------ | :-------------------------------------------------------------------------------------- |
+| `magical://open`      | `account`                                         | Brings the main Magical calendar window to the front.                                   |
+| `magical://navigate`  | `url`, `account`                                  | Navigates the calendar view to a specific Google Calendar or Tasks URL.                 |
+| `magical://quick-add` | `text`, `dates`, `details`, `location`, `account` | Opens the event creation modal, prefilled when event fields are present.                |
+| `magical://tasks`     | `account`                                         | Opens the full-screen Tasks view.                                                       |
+| `magical://date`      | `at`, `account`                                   | Navigates the calendar to a specific date (e.g. `2026-11-01`).                          |
+| `magical://search`    | `q` or `query`, `account`                         | Searches events and meetings across your schedules.                                     |
+| `magical://event`     | `eid`, `account`, `action`, `at`                  | Focuses an event or executes an RSVP action (`reveal`, `yes`, `no`, `maybe`, `delete`). |
+
+:::tip[Targeting accounts by id or email]
+The `account` parameter accepts either an internal account identifier (such as `account=personal`) or the account's email address (such as `account=alex@company.com`). If omitted or if no account matches, Magical targets the currently active account.
+:::
 
 :::tip[Headless background RSVPs]
 When a meeting link carries an RSVP action (`action=yes`, `action=no` or `action=maybe`), Magical records your response in the background without raising the main window. It is the same answer a banner gives; [Meeting Alerts & Invitations](/help/magical/notifications/) covers what happens to the invitation afterwards.
@@ -25,6 +31,18 @@ When a meeting link carries an RSVP action (`action=yes`, `action=no` or `action
 
 ```sh
 open "magical://quick-add"
+```
+
+With event fields, the composer opens prefilled:
+
+```sh
+open "magical://quick-add?text=Standup&dates=20261105T090000Z/20261105T091500Z&location=Room"
+```
+
+### Open Google Tasks
+
+```sh
+open "magical://tasks"
 ```
 
 ### Jump to a Specific Date
@@ -64,6 +82,10 @@ open "magical://search?q=Dentist"
 Event descriptions and Google Tasks frequently include links to external tools such as Todoist, Notion, Linear, Figma, or Slack.
 
 Magical strips Google's redirect prefix before routing a link, then opens it in the browser chosen in **Settings → General → Opening links**, in the Chromium profile for the account it came from. Todoist task and project links open in the Todoist app when it is installed; turn off **Open Todoist links in the Todoist app** to keep them in the browser. See [Settings Reference](/help/magical/settings/#opening-links).
+
+:::tip[Gmail links open in Magimail]
+When [Magimail](/help/magimail/getting-started/) is installed, Gmail links (inbox, threads, compose drafts, search, and mailbox folders) clicked inside Magical automatically open in Magimail rather than in a web browser tab.
+:::
 
 :::tip[Video conference calls]
 Meeting links for Zoom and Microsoft Teams also open in their native desktop apps when installed. If you prefer to join meetings in your browser, turn on **Always open calls in the browser** in **Settings → Notifications**. See [Settings Reference](/help/magical/settings/).

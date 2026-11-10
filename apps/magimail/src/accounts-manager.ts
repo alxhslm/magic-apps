@@ -14,6 +14,7 @@ import {
 } from 'electron';
 import {
   type AccountConfig,
+  findAccountByIdOrEmail,
   TOOLBAR_HEIGHT,
   calculateAggregateBadge,
   calculateAggregateUnread,
@@ -28,11 +29,11 @@ import {
   SUSPEND_NEVER,
   viewIsAlive,
   unwrapRedirectors,
-  openExternalUrl,
   type OpenExternalUrlOptions,
   ACCOUNT_EMAIL_SCRIPT,
   readAccountEmail,
 } from '@magimail/core';
+import { openExternalUrl } from './links.js';
 import {
   GMAIL_LOGIN_URL,
   type DomUnreadReport,
@@ -631,7 +632,7 @@ export class AccountsManager {
    */
   private resolveInitialAccountId(requestedFromLink?: string): { id: string; source: string } {
     if (requestedFromLink) {
-      const linked = this.accounts.find((a) => a.id === requestedFromLink);
+      const linked = findAccountByIdOrEmail(this.accounts, requestedFromLink);
       if (linked) return { id: linked.id, source: 'launch link' };
       log.warn(
         `Cold launch named account ${requestedFromLink}, which is not configured; falling back`,
@@ -1093,15 +1094,16 @@ export class AccountsManager {
   }
 
   public switchAccount(accountId: string): void {
-    const targetAccount = this.accounts.find((a) => a.id === accountId);
+    const targetAccount = findAccountByIdOrEmail(this.accounts, accountId);
     if (!targetAccount) return;
+    const resolvedAccountId = targetAccount.id;
 
     if (this.routeHoldAccountId) {
-      if (accountId !== this.routeHoldAccountId) {
-        this.deferredSwitchAccountId = accountId;
+      if (resolvedAccountId !== this.routeHoldAccountId) {
+        this.deferredSwitchAccountId = resolvedAccountId;
         log.info(
           `Holding ${this.routeHoldAccountId} active until its thread open lands; ` +
-            `deferring switch to ${accountId}`,
+            `deferring switch to ${resolvedAccountId}`,
         );
         return;
       }
@@ -1109,9 +1111,9 @@ export class AccountsManager {
       this.deferredSwitchAccountId = null;
     }
 
-    log.info(`Switching active account to ${accountId}`);
-    this.activeAccountId = accountId;
-    const activeView = this.pool.attachOnly(accountId);
+    log.info(`Switching active account to ${resolvedAccountId}`);
+    this.activeAccountId = resolvedAccountId;
+    const activeView = this.pool.attachOnly(resolvedAccountId);
 
     this.clearBannerTimer();
     this.hideCategoryBanner();
@@ -1121,23 +1123,26 @@ export class AccountsManager {
     // Load URL only after view is attached and has full window bounds. A
     // resumed account returns to where it was rather than to the inbox.
     if (activeView) {
-      const firstLoad = this.pool.firstLoadUrl(accountId, GMAIL_LOGIN_URL);
+      const firstLoad = this.pool.firstLoadUrl(resolvedAccountId, GMAIL_LOGIN_URL);
       if (firstLoad) activeView.webContents.loadURL(firstLoad);
     }
 
     this.notifyToolbar();
     this.updateToolbarActionState();
-    const effective = this.getEffectiveUnreadForAccount(accountId);
-    this.accounts = updateAccountUnread(this.accounts, accountId, effective);
+    const effective = this.getEffectiveUnreadForAccount(resolvedAccountId);
+    this.accounts = updateAccountUnread(this.accounts, resolvedAccountId, effective);
     const focused = this.getFocusedAccounts();
     const total = calculateAggregateUnread(focused);
     updateDockBadge(calculateAggregateBadge(focused), this.getFocusedArrivals());
     this.onUnreadChanged?.(focused, total);
-    this.onMissingCategoriesChanged?.(accountId, this.getMissingCategoriesForAccount(accountId));
+    this.onMissingCategoriesChanged?.(
+      resolvedAccountId,
+      this.getMissingCategoriesForAccount(resolvedAccountId),
+    );
     // Rebuilds the application menu, which marks the account being viewed.
     // Switching was the one account change that notified nothing.
     this.onAccountsChanged?.();
-    this.onAccountSwitched?.(accountId);
+    this.onAccountSwitched?.(resolvedAccountId);
   }
 
   /**
@@ -1149,7 +1154,8 @@ export class AccountsManager {
    * search on a suspended account reading an active view that is not there.
    */
   public openInAccount(accountId: string | undefined, url: string): void {
-    const target = accountId || this.activeAccountId;
+    const targetAccount = findAccountByIdOrEmail(this.accounts, accountId);
+    const target = targetAccount ? targetAccount.id : this.activeAccountId;
     this.switchAccount(target);
 
     const view = this.pool.view(target);
@@ -2300,12 +2306,14 @@ export class AccountsManager {
     messageId: string,
     action: ThreadAction,
   ): Promise<boolean> {
-    if (!this.accounts.some((a) => a.id === accountId)) return false;
+    const targetAccount = findAccountByIdOrEmail(this.accounts, accountId);
+    if (!targetAccount) return false;
+    const resolvedAccountId = targetAccount.id;
 
     // Triage fired at a banner or a popover row leaves no other trace: the window does
     // not move and the account on screen does not change, so without this the only
     // evidence any of it ran is the mail itself changing.
-    log.info(`Thread action ${action} on ${accountId}`);
+    log.info(`Thread action ${action} on ${resolvedAccountId}`);
 
     // Only opening asks to look at something. The rest is triage fired at a
     // banner or a popover row, so it neither raises the window nor changes
@@ -2315,7 +2323,7 @@ export class AccountsManager {
     if (action === 'open') {
       const startedAt = Date.now();
       const opening = this.openThreadQueue.then(() =>
-        this.openThread(accountId, messageId, startedAt),
+        this.openThread(resolvedAccountId, messageId, startedAt),
       );
       // The queue survives a rejected open; the caller still sees the rejection.
       this.openThreadQueue = opening.then(
@@ -2326,7 +2334,7 @@ export class AccountsManager {
     }
 
     // Triage does not wake the account: the mailbox source owns the action.
-    const source = this.mailboxSources.get(accountId);
+    const source = this.mailboxSources.get(resolvedAccountId);
     if (source) {
       return source.triageThread(messageId, action as TriageAction);
     }

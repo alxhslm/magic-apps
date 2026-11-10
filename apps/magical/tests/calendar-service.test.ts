@@ -317,6 +317,30 @@ describe('openDeepLink', () => {
     expect(navigate).toHaveBeenCalledWith('acct', expect.stringContaining('/r/day/2026/9/15'));
   });
 
+  it('resolves the account by its email address in deep links', async () => {
+    const accountWithEmail = {
+      id: 'acct_123',
+      name: 'Work',
+      partition: 'p',
+      color: '#000',
+      email: 'work@corp.com',
+    };
+    const navigate = vi.fn();
+    const reveal = vi.fn(() => Promise.resolve('revealed' as const));
+    const service = new CalendarService(
+      () => [accountWithEmail],
+      navigate,
+      async () => 'ok' as const,
+      reveal,
+    );
+
+    service.openDeepLink(
+      'magical://event?account=WORK%40CORP.COM&eid=ABC&at=2026-09-15T09%3A00%3A00.000Z',
+    );
+    await vi.waitFor(() => expect(reveal).toHaveBeenCalled());
+    expect(reveal).toHaveBeenCalledWith('acct_123', 'ABC', new Date('2026-09-15T09:00:00.000Z'));
+  });
+
   it('opens the window for a link that arrives with no account to resolve against', async () => {
     // No accounts until the window is built; the link must still resolve.
     const reveal = vi.fn(() => Promise.resolve('revealed' as const));
@@ -339,6 +363,23 @@ describe('openDeepLink', () => {
 
     expect(openedFor).toBe('acct');
     expect(reveal).toHaveBeenCalledWith('acct', 'ABC', new Date('2026-09-15T09:00:00.000Z'));
+  });
+
+  it('falls back to activeAccountId when the link omits an account', async () => {
+    const acc1 = { id: 'acc_personal', name: 'Personal', partition: 'p1', color: '#000' };
+    const acc2 = { id: 'acc_work', name: 'Work', partition: 'p2', color: '#fff' };
+    const reveal = vi.fn(() => Promise.resolve('revealed' as const));
+    const service = new CalendarService(
+      () => [acc1, acc2],
+      vi.fn(),
+      async () => 'ok' as const,
+      reveal,
+    );
+    service.setActiveAccount('acc_work');
+
+    service.openDeepLink('magical://event?eid=ABC&at=2026-09-15T09%3A00%3A00.000Z');
+    await vi.waitFor(() => expect(reveal).toHaveBeenCalled());
+    expect(reveal).toHaveBeenCalledWith('acc_work', 'ABC', new Date('2026-09-15T09:00:00.000Z'));
   });
 });
 

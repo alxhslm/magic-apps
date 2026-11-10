@@ -3,6 +3,7 @@ import {
   accountIdFromLink,
   buildEventLink,
   decodeEid,
+  isAllowedCalendarNavigationUrl,
   parseEventLink,
   extractEid,
   resolveToCalendarUrl,
@@ -71,6 +72,14 @@ describe('buildEventLink', () => {
       accountId: 'acct',
       action: 'reveal',
       eid: 'ABC',
+    });
+    expect(parseEventLink('magical://event?eid=ABC')).toEqual({
+      action: 'reveal',
+      eid: 'ABC',
+    });
+    expect(parseEventLink('magical://date?at=2026-11-01')).toEqual({
+      action: 'reveal',
+      date: new Date('2026-11-01T00:00:00.000Z'),
     });
   });
 
@@ -170,7 +179,8 @@ describe('buildEventLink for an occurrence expanded from a series', () => {
 describe('parseEventLink', () => {
   it('rejects links that are not ours or are incomplete', () => {
     expect(parseEventLink('https://example.com')).toBeNull();
-    expect(parseEventLink('magical://event?eid=abc')).toBeNull();
+    expect(parseEventLink('magical://event')).toBeNull();
+    expect(parseEventLink('magical://date')).toBeNull();
     expect(parseEventLink('magical://event?account=a')).toBeNull();
     expect(parseEventLink('magical://unknown?account=a')).toBeNull();
     expect(parseEventLink('magical://date?account=a&at=nonsense')).toBeNull();
@@ -224,6 +234,11 @@ describe('accountIdFromLink', () => {
     expect(accountIdFromLink('magical://event?account=work&eid=ABC&at=2026-09-15')).toBe('work');
     expect(accountIdFromLink('magical://date?account=work&at=2026-09-15')).toBe('work');
     expect(accountIdFromLink('magical://search?q=standup&account=work')).toBe('work');
+    expect(
+      accountIdFromLink(
+        'magical://navigate?url=https%3A%2F%2Fcalendar.google.com%2Fcalendar&account=work',
+      ),
+    ).toBe('work');
   });
 
   it('leaves the choice alone for a widget link that names no account', () => {
@@ -236,5 +251,33 @@ describe('accountIdFromLink', () => {
     expect(accountIdFromLink('https://calendar.google.com/?account=work')).toBeUndefined();
     expect(accountIdFromLink('not a url')).toBeUndefined();
     expect(accountIdFromLink('')).toBeUndefined();
+  });
+});
+
+describe('isAllowedCalendarNavigationUrl', () => {
+  it('allows Google Calendar and Tasks hosts and paths', () => {
+    expect(
+      isAllowedCalendarNavigationUrl('https://calendar.google.com/calendar/u/0/r/settings'),
+    ).toBe(true);
+    expect(
+      isAllowedCalendarNavigationUrl(
+        'https://calendar.google.com/calendar/u/0/r?cid=team%40group.calendar.google.com',
+      ),
+    ).toBe(true);
+    expect(isAllowedCalendarNavigationUrl('https://tasks.google.com/embed/')).toBe(true);
+    expect(
+      isAllowedCalendarNavigationUrl('https://www.google.com/calendar/render?action=TEMPLATE'),
+    ).toBe(true);
+  });
+
+  it('rejects external and non-calendar URLs, and plaintext http', () => {
+    expect(
+      isAllowedCalendarNavigationUrl('http://calendar.google.com/calendar/u/0/r/settings'),
+    ).toBe(false);
+    expect(isAllowedCalendarNavigationUrl('https://mail.google.com/mail/u/0/#inbox')).toBe(false);
+    expect(isAllowedCalendarNavigationUrl('https://google.com/search?q=calendar')).toBe(false);
+    expect(isAllowedCalendarNavigationUrl('https://evil.com/calendar.google.com')).toBe(false);
+    expect(isAllowedCalendarNavigationUrl('javascript:alert(1)')).toBe(false);
+    expect(isAllowedCalendarNavigationUrl('not a url')).toBe(false);
   });
 });
