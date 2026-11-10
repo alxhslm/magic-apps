@@ -19,6 +19,7 @@ account is restored. See
 | `magimail://thread/<id>`     | `account`, `action`                | Opens the thread, or triages it where `action` specifies.                  |
 | `magimail://search`          | `q`, `query`, `account`            | Runs Gmail search query or focuses search in target view.                  |
 | `magimail://compose`         | `account`, `to`, `su`, `body`      | Launches compose pop-out or triggers in-window compose.                    |
+| `magimail://navigate`        | `url`, `account`                   | Navigates the account's view to an arbitrary Gmail URL.                    |
 | `magimail://share`           | `files`, `text`, `url`, `to`, `su` | Opens compose window and synthesises file drop attachment.                 |
 
 ### Inbox (`magimail://inbox`)

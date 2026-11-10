@@ -10,14 +10,15 @@ account is restored. See
 
 ## Route taxonomy
 
-| Route                 | Parameters                                        | Action performed                                                 |
-| :-------------------- | :------------------------------------------------ | :--------------------------------------------------------------- |
-| `magical://event`     | `account`, `eid`, `at`, `action`                  | Reveals the event in the calendar or executes an action.         |
-| `magical://date`      | `account`, `at`                                   | Opens Google Calendar on the specified date.                     |
-| `magical://search`    | `q`, `query`, `account`                           | Runs calendar search query or focuses search in target view.     |
-| `magical://quick-add` | `account`, `text`, `dates`, `details`, `location` | Opens the new event composer, prefilled when fields are present. |
-| `magical://tasks`     | `account`                                         | Opens the full-screen Tasks view.                                |
-| `magical://open`      | _None_                                            | Surfaces and focuses the main calendar window.                   |
+| Route                 | Parameters                                        | Action performed                                                  |
+| :-------------------- | :------------------------------------------------ | :---------------------------------------------------------------- |
+| `magical://event`     | `account`, `eid`, `at`, `action`                  | Reveals the event in the calendar or executes an action.          |
+| `magical://date`      | `account`, `at`                                   | Opens Google Calendar on the specified date.                      |
+| `magical://search`    | `q`, `query`, `account`                           | Runs calendar search query or focuses search in target view.      |
+| `magical://quick-add` | `account`, `text`, `dates`, `details`, `location` | Opens the new event composer, prefilled when fields are present.  |
+| `magical://tasks`     | `account`                                         | Opens the full-screen Tasks view.                                 |
+| `magical://navigate`  | `url`, `account`                                  | Navigates the account's view to an arbitrary Google Calendar URL. |
+| `magical://open`      | `account`                                         | Surfaces and focuses the main calendar window.                    |
 
 ### Event routing (`magical://event`)
 

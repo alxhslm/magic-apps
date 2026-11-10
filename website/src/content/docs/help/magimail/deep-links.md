@@ -14,6 +14,7 @@ Magimail registers the native macOS `magimail://` URL scheme, allowing you to tr
 | `magimail://label/<name>`    | `account`                                  | Opens a custom label; nested labels keep their slashes (e.g. `label/Work/Projects`).            |
 | `magimail://category/<name>` | `account`                                  | Opens a Gmail category (e.g. `category/social`, `category/updates`).                            |
 | `magimail://compose`         | `to`, `cc`, `bcc`, `su`, `body`, `account` | Opens a compose window pre-filled with recipients, subject, and body text.                      |
+| `magimail://navigate`        | `url`, `account`                           | Navigates the Gmail view to an arbitrary Gmail URL.                                             |
 | `magimail://share`           | `files` (repeated), `text`, `url`, `to`    | Opens a compose window with attached files staged from Finder or external scripts.              |
 | `magimail://search`          | `q` or `query`, `account`                  | Runs a search query directly in Gmail.                                                          |
 | `magimail://thread/<id>`     | `account`, `action`                        | Opens the thread, or executes an action (`open`, `archive`, `trash`, `markRead`, `markUnread`). |

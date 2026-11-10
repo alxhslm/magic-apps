@@ -9,7 +9,8 @@ Magical registers the native macOS `magical://` URL scheme, allowing you to trig
 
 | URL Pattern           | Parameters                                        | Description                                                                             |
 | :-------------------- | :------------------------------------------------ | :-------------------------------------------------------------------------------------- |
-| `magical://open`      | _None_                                            | Brings the main Magical calendar window to the front.                                   |
+| `magical://open`      | `account`                                         | Brings the main Magical calendar window to the front.                                   |
+| `magical://navigate`  | `url`, `account`                                  | Navigates the calendar view to a specific Google Calendar or Tasks URL.                 |
 | `magical://quick-add` | `text`, `dates`, `details`, `location`, `account` | Opens the event creation modal, prefilled when event fields are present.                |
 | `magical://tasks`     | `account`                                         | Opens the full-screen Tasks view.                                                       |
 | `magical://date`      | `at`, `account`                                   | Navigates the calendar to a specific date (e.g. `2026-11-01`).                          |
