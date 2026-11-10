@@ -12,9 +12,11 @@ vi.mock('../src/native-handlers.js', () => ({
   hasApplicationForUrl: (url: string) => hasApplicationForUrl(url),
 }));
 
+let mockAlwaysJoinInBrowser = false;
 vi.mock('../src/settings-store.js', () => ({
   loadSettings: () => ({
     openLinksIn: 'system',
+    alwaysJoinInBrowser: mockAlwaysJoinInBrowser,
   }),
 }));
 
@@ -28,6 +30,14 @@ describe('magimail openExternalUrl', () => {
     openExternal.mockResolvedValue(undefined);
     hasApplicationForUrl.mockReset();
     hasApplicationForUrl.mockReturnValue(true);
+    mockAlwaysJoinInBrowser = false;
+  });
+
+  it('keeps Zoom and Teams links in browser when alwaysJoinInBrowser is enabled', async () => {
+    mockAlwaysJoinInBrowser = true;
+    await openExternalUrl('https://zoom.us/j/1234567890?pwd=secretPassword', account);
+
+    expect(openExternal).toHaveBeenCalledWith('https://zoom.us/j/1234567890?pwd=secretPassword');
   });
 
   it('opens Zoom links in native app when installed, keeping pwd', async () => {

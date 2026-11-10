@@ -22,6 +22,31 @@ describe('unwrapRedirectors', () => {
     ).toBe('https://example.com');
   });
 
+  it('unwraps generic tracking and analytics redirectors with dest, target, or redirect', () => {
+    const dest = 'https://example.zoom.us/j/1234567890?pwd=secretPassword';
+    expect(
+      unwrapRedirectors(
+        `https://analytics.tracking.example/link?dest=${encodeURIComponent(dest)}&tracking_id=123`,
+      ),
+    ).toBe(dest);
+    expect(
+      unwrapRedirectors(
+        `https://click.marketing.example/track?target=${encodeURIComponent('https://example.com/meeting')}&user=123`,
+      ),
+    ).toBe('https://example.com/meeting');
+    expect(
+      unwrapRedirectors(
+        `https://email.service.example/r?redirect=${encodeURIComponent('https://teams.live.com/meet/123')}`,
+      ),
+    ).toBe('https://teams.live.com/meet/123');
+  });
+
+  it('does not unwrap OAuth authorization requests', () => {
+    const oauth =
+      'https://accounts.google.com/o/oauth2/v2/auth?client_id=123&redirect_uri=https%3A%2F%2Fapp.example.com%2Fcallback&response_type=code';
+    expect(unwrapRedirectors(oauth)).toBe(oauth);
+  });
+
   it('unwraps nested redirectors up to 3 hops', () => {
     const target = 'https://app.todoist.com/app/task/12345';
     const hop1 = `https://www.google.com/url?q=${encodeURIComponent(target)}`;
@@ -54,8 +79,11 @@ describe('toNativeMeetingUrl', () => {
     );
   });
 
-  it('keeps Zoom password parameters', () => {
+  it('keeps Zoom password parameters without fragments', () => {
     expect(toNativeMeetingUrl('https://acme.zoom.us/j/999?pwd=SeCrEt')).toBe(
+      'zoommtg://zoom.us/join?action=join&confno=999&pwd=SeCrEt',
+    );
+    expect(toNativeMeetingUrl('https://example.zoom.us/j/999?pwd=SeCrEt#success')).toBe(
       'zoommtg://zoom.us/join?action=join&confno=999&pwd=SeCrEt',
     );
   });

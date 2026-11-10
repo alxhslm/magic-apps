@@ -33,7 +33,10 @@ tracking and protection wrappers up to three hops:
   destination URL from the `q` or `url` query parameter.
 - **Outlook Safelinks**: URLs matching `safelinks.protection.outlook.com` extract the target URL from
   the `url` query parameter.
-- **Direct URLs**: URLs without tracking parameters or unrecognised hosts pass through untouched.
+- **Tracking & email analytics redirectors**: Extracts destination URLs from common redirect
+  parameters (`url`, `q`, `dest`, `destination`, `target`, `redirect`, `link`, etc.) while protecting
+  OAuth/SSO authorization flows.
+- **Direct URLs**: URLs without tracking parameters pass through untouched.
 
 ## Desktop apps
 

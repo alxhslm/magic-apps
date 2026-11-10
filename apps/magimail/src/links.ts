@@ -38,6 +38,7 @@ export async function openExternalUrl(
       browser,
       account,
       hasApplicationForUrl,
+      rewriteUrl: settings.alwaysJoinInBrowser ? (url) => url : undefined,
     });
   } catch (err) {
     log.error('Could not open external link:', redactUrl(rawUrl), err);

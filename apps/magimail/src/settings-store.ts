@@ -15,6 +15,11 @@ export interface AppSettings {
    * variable is the Chromium profile.
    */
   openLinksIn: string;
+  /**
+   * When true, meeting links (Zoom, Teams) open in the browser rather than in their
+   * desktop applications.
+   */
+  alwaysJoinInBrowser: boolean;
   launchAtLogin: boolean;
   dockBadgeMode: DockBadgeMode;
   showMenuBarTray: boolean;
@@ -108,6 +113,7 @@ const SETTINGS_FILENAME = 'settings.json';
 const DEFAULT_SETTINGS: AppSettings = {
   theme: 'system',
   openLinksIn: 'system',
+  alwaysJoinInBrowser: false,
   launchAtLogin: false,
   dockBadgeMode: 'allUnread',
   showMenuBarTray: true,
