@@ -253,3 +253,26 @@ export function resolveToCalendarUrl(target: EventLinkTarget, accountIndex = 0):
   const date = target.date ?? new Date();
   return `${base}/day/${date.getFullYear()}/${date.getMonth() + 1}/${date.getDate()}`;
 }
+
+/**
+ * Whether a target URL points to a Google Calendar or Tasks route that Magical is
+ * built to render inside an account's WebContentsView.
+ *
+ * Prevents `magical://navigate?url=...` from loading arbitrary third-party URLs in
+ * an authenticated session partition.
+ */
+export function isAllowedCalendarNavigationUrl(rawUrl: string): boolean {
+  try {
+    const parsed = new URL(rawUrl);
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return false;
+    const host = parsed.hostname.toLowerCase();
+    return (
+      host === 'calendar.google.com' ||
+      host === 'tasks.google.com' ||
+      ((host === 'google.com' || host === 'www.google.com') &&
+        parsed.pathname.startsWith('/calendar/'))
+    );
+  } catch {
+    return false;
+  }
+}

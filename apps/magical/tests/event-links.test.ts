@@ -3,6 +3,7 @@ import {
   accountIdFromLink,
   buildEventLink,
   decodeEid,
+  isAllowedCalendarNavigationUrl,
   parseEventLink,
   extractEid,
   resolveToCalendarUrl,
@@ -224,6 +225,11 @@ describe('accountIdFromLink', () => {
     expect(accountIdFromLink('magical://event?account=work&eid=ABC&at=2026-09-15')).toBe('work');
     expect(accountIdFromLink('magical://date?account=work&at=2026-09-15')).toBe('work');
     expect(accountIdFromLink('magical://search?q=standup&account=work')).toBe('work');
+    expect(
+      accountIdFromLink(
+        'magical://navigate?url=https%3A%2F%2Fcalendar.google.com%2Fcalendar&account=work',
+      ),
+    ).toBe('work');
   });
 
   it('leaves the choice alone for a widget link that names no account', () => {
@@ -236,5 +242,30 @@ describe('accountIdFromLink', () => {
     expect(accountIdFromLink('https://calendar.google.com/?account=work')).toBeUndefined();
     expect(accountIdFromLink('not a url')).toBeUndefined();
     expect(accountIdFromLink('')).toBeUndefined();
+  });
+});
+
+describe('isAllowedCalendarNavigationUrl', () => {
+  it('allows Google Calendar and Tasks hosts and paths', () => {
+    expect(
+      isAllowedCalendarNavigationUrl('https://calendar.google.com/calendar/u/0/r/settings'),
+    ).toBe(true);
+    expect(
+      isAllowedCalendarNavigationUrl(
+        'https://calendar.google.com/calendar/u/0/r?cid=team%40group.calendar.google.com',
+      ),
+    ).toBe(true);
+    expect(isAllowedCalendarNavigationUrl('https://tasks.google.com/embed/')).toBe(true);
+    expect(
+      isAllowedCalendarNavigationUrl('https://www.google.com/calendar/render?action=TEMPLATE'),
+    ).toBe(true);
+  });
+
+  it('rejects external and non-calendar URLs', () => {
+    expect(isAllowedCalendarNavigationUrl('https://mail.google.com/mail/u/0/#inbox')).toBe(false);
+    expect(isAllowedCalendarNavigationUrl('https://google.com/search?q=calendar')).toBe(false);
+    expect(isAllowedCalendarNavigationUrl('https://evil.com/calendar.google.com')).toBe(false);
+    expect(isAllowedCalendarNavigationUrl('javascript:alert(1)')).toBe(false);
+    expect(isAllowedCalendarNavigationUrl('not a url')).toBe(false);
   });
 });

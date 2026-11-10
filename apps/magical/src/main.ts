@@ -77,7 +77,11 @@ import {
   isAccountDisabledByFocus,
   isAccountSilencedByFocus,
 } from './focus-filter-manager.js';
-import { accountIdFromLink, MAGICAL_PROTOCOL } from './event-links.js';
+import {
+  accountIdFromLink,
+  isAllowedCalendarNavigationUrl,
+  MAGICAL_PROTOCOL,
+} from './event-links.js';
 import { onIcsFile, readIcsFile, watchForIcsFiles } from './ics-handler.js';
 import { offerToBecomeDefault, promptSetAsDefault } from './default-client.js';
 import { describeIcs, summariseIcs } from './ics-file.js';
@@ -916,6 +920,20 @@ function dispatchProtocolUrl(rawUrl: string): void {
       handleTasks(parsed.searchParams.get('account') || undefined);
       return;
     }
+
+    if (parsed.hostname === 'open') {
+      handleOpen(parsed.searchParams.get('account') || undefined);
+      return;
+    }
+
+    if (parsed.hostname === 'navigate') {
+      const targetUrl = parsed.searchParams.get('url');
+      const targetAccountId = parsed.searchParams.get('account') || undefined;
+      if (targetUrl && isAllowedCalendarNavigationUrl(targetUrl)) {
+        handleNavigate(targetUrl, targetAccountId);
+        return;
+      }
+    }
   } catch {
     // If URL parsing fails, let handleWidgetLink / calendarService attempt or log warning
   }
@@ -1011,7 +1029,55 @@ function handleTasks(targetAccountId?: string): void {
     : manager.getActiveAccount();
   if (!account) return;
 
+  if (mainWindow) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+  }
+
   manager.openInAccount(account.id, 'https://calendar.google.com/calendar/u/0/r/tasks');
+}
+
+/** Focuses the main window and optionally switches to the specified account. */
+function handleOpen(targetAccountId?: string): void {
+  if (!accounts) createWindow();
+  const manager = accounts;
+  if (!manager) return;
+
+  const account = targetAccountId
+    ? findAccountByIdOrEmail(manager.getAccounts(), targetAccountId)
+    : manager.getActiveAccount();
+  if (account && account.id !== manager.getActiveAccountId()) {
+    manager.switchAccount(account.id);
+    pushToolbarAccounts();
+    applyMenu();
+  }
+
+  if (mainWindow) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+  }
+}
+
+/** Navigates the target account's view to an arbitrary Google Calendar or Tasks URL. */
+function handleNavigate(targetUrl: string, targetAccountId?: string): void {
+  if (!accounts) createWindow();
+  const manager = accounts;
+  if (!manager) return;
+
+  const account = targetAccountId
+    ? findAccountByIdOrEmail(manager.getAccounts(), targetAccountId)
+    : manager.getActiveAccount();
+  if (!account) return;
+
+  if (mainWindow) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+  }
+
+  manager.openInAccount(account.id, targetUrl);
 }
 
 /**
