@@ -256,7 +256,7 @@ app.on('open-url', (event, url) => {
   // The test is for the service, not the accounts: the launch pass has finished, so a link arriving
   // now builds its own window instead of waiting for a cold launch that already happened.
   if (app.isReady() && calendarService) {
-    dispatchProtocolUrl(url);
+    void dispatchProtocolUrl(url);
   } else {
     pendingProtocolUrl = url;
   }
@@ -267,7 +267,7 @@ app.on('second-instance', (_event, argv) => {
   const protocolUrl = argv.find((a) => a.startsWith(`${MAGICAL_PROTOCOL}://`));
   if (protocolUrl && calendarService) {
     log.info('second-instance URL:', redactUrl(protocolUrl));
-    dispatchProtocolUrl(protocolUrl);
+    void dispatchProtocolUrl(protocolUrl);
   }
   if (!mainWindow) createWindow();
   else {
@@ -896,7 +896,7 @@ function handleHelperEvent(method: string, params: Record<string, unknown>): voi
 /**
  * Routes a `magical://` link to the appropriate handler (search, widgets, or events/dates).
  */
-function dispatchProtocolUrl(rawUrl: string): void {
+async function dispatchProtocolUrl(rawUrl: string): Promise<void> {
   try {
     const parsed = new URL(rawUrl);
     if (parsed.protocol !== `${MAGICAL_PROTOCOL}:`) return;
@@ -910,10 +910,12 @@ function dispatchProtocolUrl(rawUrl: string): void {
 
     if (parsed.hostname === 'quick-add') {
       const templateUrl = eventTemplateUrl(parsed);
+      const title = parsed.searchParams.get('text') || undefined;
       void handleNewEvent(
         parsed.searchParams.get('account') || undefined,
         true,
         templateUrl ?? undefined,
+        title,
       );
       return;
     }
@@ -933,6 +935,39 @@ function dispatchProtocolUrl(rawUrl: string): void {
       const targetAccountId = parsed.searchParams.get('account') || undefined;
       if (targetUrl && isAllowedCalendarNavigationUrl(targetUrl)) {
         handleNavigate(targetUrl, targetAccountId);
+        return;
+      }
+    }
+
+    if (parsed.hostname === 'event') {
+      if (!accounts) createWindow();
+      const manager = accounts;
+      const targetAccountParam = parsed.searchParams.get('account');
+      let targetAccount =
+        targetAccountParam && manager
+          ? findAccountByIdOrEmail(manager.getAccounts(), targetAccountParam)
+          : undefined;
+
+      if (!targetAccount && manager) {
+        const accts = manager.getAccounts();
+        if (accts.length > 1) {
+          const chosen = await chooseEventAccount(manager, {
+            title: uiString('dialog.openEventAccount.title'),
+            message: uiString('dialog.openEventAccount.message'),
+            detail: uiString('dialog.openEventAccount.detail'),
+            parentWindow: mainWindow,
+            forceAsk: true,
+          });
+          if (!chosen) return;
+          targetAccount = chosen;
+        } else {
+          targetAccount = manager.getActiveAccount();
+        }
+      }
+
+      if (targetAccount) {
+        parsed.searchParams.set('account', targetAccount.id);
+        calendarService?.openDeepLink(parsed.toString());
         return;
       }
     }
@@ -975,11 +1010,16 @@ async function handleNewEvent(
   targetAccountId?: string,
   external = false,
   templateUrl?: string,
+  eventTitle?: string,
 ): Promise<void> {
   // The menu bar and the widget have no window behind them, and the accounts come from one.
   if (!accounts) createWindow();
   const manager = accounts;
   if (!manager) return;
+
+  const detail = eventTitle
+    ? uiString('dialog.eventAccount.templateDetail', { title: eventTitle })
+    : undefined;
 
   const account =
     (targetAccountId
@@ -988,6 +1028,8 @@ async function handleNewEvent(
     (await chooseEventAccount(manager, {
       parentWindow: mainWindow,
       fromMainWindow: !external,
+      forceAsk: external && !targetAccountId && Boolean(templateUrl),
+      detail,
     }));
   if (!account) return;
 
@@ -1613,7 +1655,7 @@ app.whenReady().then(async () => {
   // is the one already loaded.
   if (startupUrl && accounts && calendarService) {
     log.info('Dispatching startup protocol URL:', redactUrl(startupUrl));
-    dispatchProtocolUrl(startupUrl);
+    void dispatchProtocolUrl(startupUrl);
     pendingProtocolUrl = null;
   }
 

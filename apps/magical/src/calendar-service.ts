@@ -2063,8 +2063,9 @@ export class CalendarService {
     // Before the lookup: the accounts come from the window this may build.
     this.ensureWindowForLink?.(target.accountId);
 
-    const account =
-      findAccountByIdOrEmail(this.getAccounts(), target.accountId) ?? this.getAccounts()[0];
+    const active =
+      this.getAccounts().find((a) => a.id === this.activeAccountId) ?? this.getAccounts()[0];
+    const account = findAccountByIdOrEmail(this.getAccounts(), target.accountId) ?? active;
     if (!account) {
       log.warn(`No account to follow a link for; wanted ${target.accountId}`);
       return false;
