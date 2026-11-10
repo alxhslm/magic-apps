@@ -15,6 +15,7 @@ import {
   saveUnreadCounts,
   withStoredUnreadCounts,
 } from '../src/mailbox/unread-count-store.js';
+import { loadSettings, saveSetting } from '../src/settings-store.js';
 import type { NotificationCategory } from '../src/constants.js';
 import type { ThreadActionDriver } from '../src/thread-actions/index.js';
 
@@ -290,6 +291,23 @@ describe('AccountsManager', () => {
     // Startup sweeps remaining unconfigured accounts from unread-counts.json
     withStoredUnreadCounts(accountsManager.getAccounts());
     expect(loadUnreadCounts()['orphaned_acc_123']).toBeUndefined();
+  });
+
+  it('updates lastActiveAccountId in settings on removal and sweeps unconfigured id on startup', () => {
+    const added = accountsManager.addAccount('Work', '#ef4444');
+    accountsManager.switchAccount(added.id);
+    saveSetting('lastActiveAccountId', added.id);
+    expect(loadSettings().lastActiveAccountId).toBe(added.id);
+
+    accountsManager.removeAccount(added.id);
+    expect(loadSettings().lastActiveAccountId).toBe('account_personal');
+
+    saveSetting('lastActiveAccountId', 'orphaned_123');
+    expect(loadSettings().lastActiveAccountId).toBe('orphaned_123');
+
+    const freshManager = new AccountsManager(new BaseWindow(), '/preload.js');
+    freshManager.initialize();
+    expect(loadSettings().lastActiveAccountId).toBe('account_personal');
   });
 
   it('drops a removed account from the Focus Filter it was named by', () => {

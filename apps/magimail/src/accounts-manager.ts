@@ -672,8 +672,13 @@ export class AccountsManager {
       );
     }
 
-    const remembered = this.accounts.find((a) => a.id === loadSettings().lastActiveAccountId);
-    if (remembered) return { id: remembered.id, source: 'last active' };
+    const rememberedId = loadSettings().lastActiveAccountId;
+    if (rememberedId) {
+      const remembered = this.accounts.find((a) => a.id === rememberedId);
+      if (remembered) return { id: remembered.id, source: 'last active' };
+      // The saved last active account is no longer configured; sweep it from settings.
+      saveSetting('lastActiveAccountId', this.accounts[0]?.id ?? '');
+    }
 
     return { id: this.accounts[0]?.id ?? '', source: 'first account' };
   }
@@ -2867,6 +2872,9 @@ export class AccountsManager {
     this.lastKnownCategoryCounts.delete(accountId);
     this.cacheDerivedCategories.delete(accountId);
     this.missingCategoriesByAccount.delete(accountId);
+    this.emailCaptured.delete(accountId);
+    if (this.routeHoldAccountId === accountId) this.routeHoldAccountId = null;
+    if (this.deferredSwitchAccountId === accountId) this.deferredSwitchAccountId = null;
     for (const key of [...this.mailActionQueue.keys()]) {
       if (key.startsWith(`${accountId}:`)) this.mailActionQueue.delete(key);
     }
@@ -2881,6 +2889,9 @@ export class AccountsManager {
 
     if (this.activeAccountId === accountId) {
       this.switchAccount(this.accounts[0].id);
+      saveSetting('lastActiveAccountId', this.activeAccountId);
+    } else if (loadSettings().lastActiveAccountId === accountId) {
+      saveSetting('lastActiveAccountId', this.activeAccountId);
     }
     this.notifyToolbar();
     this.onAccountsChanged?.();
