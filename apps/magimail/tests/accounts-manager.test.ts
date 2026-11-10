@@ -6,10 +6,14 @@ import { DOM_DRIVE_PREAMBLE } from '@magimail/core';
 import {
   AccountsManager,
   asThreadAction,
-  pruneOrphanAtomState,
   THREAD_ACTIONS,
   TRIAGE_ACTIONS,
 } from '../src/accounts-manager.js';
+import {
+  pruneOrphanAtomState,
+  forgetMailboxAccount,
+  sweepOrphanedMailboxState,
+} from '../src/mailbox/index.js';
 import {
   loadUnreadCounts,
   saveUnreadCounts,

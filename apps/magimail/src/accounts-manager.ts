@@ -55,7 +55,6 @@ import { uiString } from './strings.js';
 import { updateDockBadge, type ArrivalBadgeState } from './dock.js';
 import { openDetachedThreadWindow } from './compose.js';
 import { loadAccounts, saveAccounts, createNewAccount } from './account-store.js';
-import { withStoredUnreadCounts, deleteStoredUnreadCounts } from './mailbox/unread-count-store.js';
 import { loadSettings, saveSetting } from './settings-store.js';
 import { pressRefreshControl } from './thread-actions/sync-driver.js';
 import {
@@ -64,8 +63,10 @@ import {
   type MailboxPollEvent,
   type VerificationCodeItem,
   HybridFeedSource,
+  forgetMailboxAccount,
+  sweepOrphanedMailboxState,
+  withStoredUnreadCounts,
 } from './mailbox/index.js';
-import { clearPollerState } from './atom-poller.js';
 import {
   attachNativeToolbar,
   updateNativeToolbarAccounts,
@@ -241,41 +242,6 @@ function pruneOrphanPartitions(partitions: readonly string[]): void {
       log.info(`Pruned the partition of a removed account: ${entry.name}`);
     } catch (err) {
       log.warn(`Could not prune the partition ${entry.name}:`, err);
-    }
-  }
-}
-
-/**
- * Deletes atom-state files no configured account uses.
- *
- * An account's state file (`atom-state/<accountId>.json`) records seen message IDs for
- * background arrival notifications. `removeAccount` cleans it up inline, but a crash or
- * interrupted removal leaves orphaned files behind. This sweeps `atom-state/` on startup,
- * deleting any state file whose account id is unconfigured.
- */
-export function pruneOrphanAtomState(accountIds: readonly string[]): void {
-  const keep = new Set(accountIds);
-  let dir: string;
-  try {
-    dir = path.join(app.getPath('userData'), 'atom-state');
-  } catch {
-    return;
-  }
-  let entries: fs.Dirent[];
-  try {
-    entries = fs.readdirSync(dir, { withFileTypes: true });
-  } catch {
-    return; // No atom-state directory yet: a fresh install.
-  }
-  for (const entry of entries) {
-    if (!entry.isFile() || !entry.name.endsWith('.json')) continue;
-    const accountId = entry.name.slice(0, -'.json'.length);
-    if (keep.has(accountId)) continue;
-    try {
-      fs.rmSync(path.join(dir, entry.name), { force: true });
-      log.info(`Pruned orphaned atom-state for removed account: ${accountId}`);
-    } catch (err) {
-      log.warn(`Could not prune atom-state ${entry.name}:`, err);
     }
   }
 }
@@ -713,7 +679,7 @@ export class AccountsManager {
     // feed request. Before views became lazy this happened as a side effect of
     // createAccountView running for every account at startup.
     pruneOrphanPartitions(this.accounts.map((a) => a.partition));
-    pruneOrphanAtomState(this.accounts.map((a) => a.id));
+    sweepOrphanedMailboxState(this.accounts.map((a) => a.id));
     for (const account of this.accounts) {
       configureGoogleSession(account.partition);
     }
@@ -2842,7 +2808,7 @@ export class AccountsManager {
       source.forget();
       this.mailboxSources.delete(accountId);
     } else {
-      clearPollerState(accountId);
+      forgetMailboxAccount(accountId);
     }
     // A filter that still names the account would leave the switcher and the badge
     // leaning on an id nothing can reach. `focus-filter.json` itself is left alone: the
@@ -2857,7 +2823,6 @@ export class AccountsManager {
 
     this.accounts.splice(index, 1);
     saveAccounts(this.accounts);
-    deleteStoredUnreadCounts(accountId);
     this.arrivalsByAccount.delete(accountId);
     this.arrivalsIncompleteByAccount.delete(accountId);
     // Everything else keyed by the account goes with it. None of it is wiped by the

@@ -5,6 +5,7 @@ import {
   AtomFeedPoller,
   atomMessageToTrayMessageItem,
   clearPollerState,
+  pruneOrphanAtomState,
   type AtomMessage,
   type AtomPollCallback,
   type AtomPollResult,
@@ -26,7 +27,7 @@ import type {
   VerificationCodeItem,
 } from './types.js';
 import { UnreadLedger } from './unread-ledger.js';
-import { saveUnreadCounts } from './unread-count-store.js';
+import { saveUnreadCounts, deleteStoredUnreadCounts } from './unread-count-store.js';
 
 /** How many times a hint re-reads the cache, and how far apart. */
 /** How long to wait before storing changed counts. */
@@ -296,7 +297,7 @@ export class HybridFeedSource implements MailboxSource {
 
   public forget(): void {
     this.destroy();
-    clearPollerState(this.accountId);
+    forgetMailboxAccount(this.accountId);
   }
 
   public getArrivalCount(): number {
@@ -521,4 +522,21 @@ export class HybridFeedSource implements MailboxSource {
       }
     }
   }
+}
+
+/**
+ * Forgets and clears all persisted mailbox state (unread counts and seen-id atom state)
+ * for an account that has been removed.
+ */
+export function forgetMailboxAccount(accountId: string): void {
+  clearPollerState(accountId);
+  deleteStoredUnreadCounts(accountId);
+}
+
+/**
+ * Sweeps all persisted mailbox state on disk (atom-state files) on startup,
+ * deleting records for accounts that are no longer configured.
+ */
+export function sweepOrphanedMailboxState(activeAccountIds: readonly string[]): void {
+  pruneOrphanAtomState(activeAccountIds);
 }

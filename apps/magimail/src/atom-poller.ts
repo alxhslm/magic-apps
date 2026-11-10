@@ -292,6 +292,41 @@ export function clearPollerState(accountId: string): void {
   }
 }
 
+/**
+ * Deletes atom-state files no configured account uses.
+ *
+ * An account's state file (`atom-state/<accountId>.json`) records seen message IDs for
+ * background arrival notifications. `removeAccount` cleans it up inline, but a crash or
+ * interrupted removal leaves orphaned files behind. This sweeps `atom-state/` on startup,
+ * deleting any state file whose account id is unconfigured.
+ */
+export function pruneOrphanAtomState(accountIds: readonly string[]): void {
+  const keep = new Set(accountIds);
+  let dir: string;
+  try {
+    dir = getStateDir();
+  } catch {
+    return;
+  }
+  let entries: fs.Dirent[];
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return; // No atom-state directory yet: a fresh install.
+  }
+  for (const entry of entries) {
+    if (!entry.isFile() || !entry.name.endsWith('.json')) continue;
+    const accountId = entry.name.slice(0, -'.json'.length);
+    if (keep.has(accountId)) continue;
+    try {
+      fs.rmSync(path.join(dir, entry.name), { force: true });
+      log.info(`Pruned orphaned atom-state for removed account: ${accountId}`);
+    } catch (err) {
+      log.warn(`Could not prune atom-state ${entry.name}:`, err);
+    }
+  }
+}
+
 /** Maps canonical category names to their Gmail Atom sub-feed path segment. */
 const CATEGORY_FEED_PATHS: Record<string, string> = {
   primary: '^smartlabel_personal',
