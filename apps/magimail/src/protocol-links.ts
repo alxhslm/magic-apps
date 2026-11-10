@@ -35,7 +35,7 @@ export function accountIdFromLink(rawUrl: string): string | undefined {
 export function isAllowedGmailNavigationUrl(rawUrl: string): boolean {
   try {
     const parsed = new URL(rawUrl);
-    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return false;
+    if (parsed.protocol !== 'https:') return false;
     const host = parsed.hostname.toLowerCase();
     return host === 'mail.google.com' || host === 'gmail.com' || host === 'www.gmail.com';
   } catch {

@@ -35,7 +35,8 @@ describe('isAllowedGmailNavigationUrl', () => {
     expect(isAllowedGmailNavigationUrl('https://www.gmail.com/mail/u/0/#sent')).toBe(true);
   });
 
-  it('rejects external and non-Gmail URLs', () => {
+  it('rejects external and non-Gmail URLs, and plaintext http', () => {
+    expect(isAllowedGmailNavigationUrl('http://mail.google.com/mail/u/0/#inbox')).toBe(false);
     expect(isAllowedGmailNavigationUrl('https://calendar.google.com/calendar/r')).toBe(false);
     expect(isAllowedGmailNavigationUrl('https://google.com/search?q=gmail')).toBe(false);
     expect(isAllowedGmailNavigationUrl('https://evil.com/mail.google.com')).toBe(false);
