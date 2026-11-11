@@ -171,6 +171,27 @@ describe('crossAppLink', () => {
     });
   });
 
+  it('maps calendar-source Gmail links to magimail navigate route', () => {
+    expect(
+      crossAppLink(
+        'https://mail.google.com/mail?extsrc=cal&plid=ACUX6DNwTK67PHrtKuZt6DrTTz3oL-Ztw6XYr8A',
+      ),
+    ).toEqual({
+      scheme: 'magimail',
+      deepLink:
+        'magimail://navigate?url=https%3A%2F%2Fmail.google.com%2Fmail%3Fextsrc%3Dcal%26plid%3DACUX6DNwTK67PHrtKuZt6DrTTz3oL-Ztw6XYr8A',
+    });
+    expect(
+      crossAppLink(
+        'https://mail.google.com/mail/u/0/?extsrc=cal&plid=ACUX6DNwTK67PHrtKuZt6DrTTz3oL-Ztw6XYr8A',
+      ),
+    ).toEqual({
+      scheme: 'magimail',
+      deepLink:
+        'magimail://navigate?url=https%3A%2F%2Fmail.google.com%2Fmail%2Fu%2F0%2F%3Fextsrc%3Dcal%26plid%3DACUX6DNwTK67PHrtKuZt6DrTTz3oL-Ztw6XYr8A',
+    });
+  });
+
   it('leaves every other link alone', () => {
     expect(crossAppLink('https://app.notion.com/p/page')).toBeNull();
     expect(crossAppLink('https://mail.google.com.evil.test/mail/u/0/#inbox')).toBeNull();
