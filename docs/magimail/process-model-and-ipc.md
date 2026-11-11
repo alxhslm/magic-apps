@@ -11,11 +11,11 @@ widget extension and the App Intents extension.
 `MutationObserver`, so triage in the sidebar reaches the badge without waiting for a network round
 trip. This is the only conventional Electron IPC in the app.
 
-| Channel                     | Direction       | Payload                                                                    | Consumer                                              |
-| --------------------------- | --------------- | -------------------------------------------------------------------------- | ----------------------------------------------------- |
-| `DOM_UNREAD_UPDATE`         | Renderer → Main | `{ timestamp, counts, presentCategories, hasCategoriesSection, isLoaded }` | `AccountsManager.handleDomUnreadUpdate`               |
-| `MAILBOX_CHANGE_HINT`       | Renderer → Main | _(none)_                                                                   | `MailboxSource.requestImmediatePoll` for that account |
-| `UPDATE_MISSING_CATEGORIES` | Main → Renderer | `NotificationCategory[]`                                                   | The in-page setup banner                              |
+| Channel                     | Direction       | Payload                                    | Consumer                                              |
+| --------------------------- | --------------- | ------------------------------------------ | ----------------------------------------------------- |
+| `DOM_UNREAD_UPDATE`         | Renderer → Main | `{ timestamp, counts, presentCategories }` | `AccountsManager.handleDomUnreadUpdate`               |
+| `MAILBOX_CHANGE_HINT`       | Renderer → Main | _(none)_                                   | `MailboxSource.requestImmediatePoll` for that account |
+| `UPDATE_MISSING_CATEGORIES` | Main → Renderer | `NotificationCategory[]`                   | The in-page setup banner                              |
 
 **The sender is identified, never asserted.** Neither renderer channel carries an account id.
 `event.sender.id` is resolved through `getAccountIdForWebContentsId`, so a view can only report about
@@ -27,12 +27,13 @@ comparison and no IPC.
 
 **The two say different things and are trusted differently:**
 
-- `DOM_UNREAD_UPDATE` carries the sidebar's category counts. The DOM is a change detector, not a
-  count authority: the ledger owns the badge total, and the sidebar report tells the poller which
-  categories the page can see (see [`unread-counts.md`](unread-counts.md) and
-  `AccountsManager.getAbsentCategoriesForAccount`). The report also says whether a Categories section
-  exists at all and whether the sidebar has finished loading; `isLoaded: false` suppresses evaluation
-  entirely, so a half-rendered sidebar never registers as an account without categories.
+- `DOM_UNREAD_UPDATE` carries the DOM unread counts and present categories derived from the inbox
+  tabs (`div[role="main"] div[role="tab"]`). The DOM is a change detector, not a count authority: the
+  ledger owns the badge total, and the tab report tells the poller which categories the account has
+  enabled (see [`unread-counts.md`](unread-counts.md) and
+  `AccountsManager.getAbsentCategoriesForAccount`). When the view is away from the inbox (such as viewing
+  a thread or draft), previous detected categories are retained so categories are not spuriously marked
+  absent.
 - `MAILBOX_CHANGE_HINT` carries nothing. It is a _trigger_, not a value: it only changes _when_ the
   source is asked, never what the answer is. Hints are cheap and may be spurious (editing a draft
   mutates the same subtree), so the poller rate-limits them rather than trusting them.

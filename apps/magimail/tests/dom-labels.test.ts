@@ -33,6 +33,11 @@ const LABEL_ACTIONS = [
   'addOnTab',
   'adRowExact',
   'adRowPhrase',
+  'tabPrimary',
+  'tabPromotions',
+  'tabSocial',
+  'tabUpdates',
+  'tabForums',
 ] as const;
 
 interface FakeElementSpec {
@@ -181,6 +186,11 @@ describe('dom-labels.json', () => {
       addOnTab: 'first',
       adRowExact: 'first',
       adRowPhrase: 'first',
+      tabPrimary: 'first',
+      tabPromotions: 'first',
+      tabSocial: 'first',
+      tabUpdates: 'first',
+      tabForums: 'first',
       back: 'only',
     };
     for (const [name, action] of Object.entries(DOM_ACTION_MAP.actions)) {

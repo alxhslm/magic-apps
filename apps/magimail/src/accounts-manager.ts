@@ -293,7 +293,6 @@ export class AccountsManager {
   private dismissedBannersThisSession = new Set<string>();
   private offlineCacheAvailableByAccount: Map<string, boolean> = new Map();
   private currentBannerType: 'categories' | 'offlineMail' = 'offlineMail';
-  private accountsWithCategoriesObserved = new Set<string>();
   private domReports: Map<string, DomUnreadReport> = new Map();
   private mailboxSources: Map<string, MailboxSource> = new Map();
   public onPollResult?: (event: MailboxPollEvent) => void;
@@ -1301,14 +1300,8 @@ export class AccountsManager {
   public handleDomUnreadUpdate(accountId: string, report: DomUnreadReport): void {
     this.domReports.set(accountId, report);
 
-    if (report.hasCategoriesSection) {
-      this.accountsWithCategoriesObserved.add(accountId);
-    }
-
     const absent = this.getAbsentCategoriesForAccount(accountId);
     this.onAbsentCategoriesChanged?.(accountId, absent);
-
-    this.checkMissingCategories(accountId, report);
   }
 
   /**
@@ -1358,34 +1351,6 @@ export class AccountsManager {
 
   public isOfflineCacheAvailable(accountId: string): boolean | undefined {
     return this.offlineCacheAvailableByAccount.get(accountId);
-  }
-
-  private checkMissingCategories(accountId: string, report: DomUnreadReport): void {
-    // If Gmail's DOM report explicitly indicates the mailbox/sidebar is not yet loaded,
-    // do not evaluate missing categories yet to prevent premature flashes.
-    if (report.isLoaded === false) {
-      return;
-    }
-
-    // Category counts are sourced directly from Gmail's local cache,
-    // which accurately computes true unread inbox items (^i + ^u) without needing
-    // categories pinned or unfolded in the sidebar. We no longer prompt the user with
-    // a configuration banner to force categories into the sidebar.
-    const missing: NotificationCategory[] = [];
-
-    this.missingCategoriesByAccount.set(accountId, missing);
-
-    if (accountId === this.activeAccountId) {
-      this.syncCategoryBannerForActiveAccount();
-    }
-
-    // Send missing categories to the active view to display/hide banner
-    const view = this.pool.view(accountId);
-    if (viewIsAlive(view)) {
-      view.webContents.send(IPC_CHANNELS.UPDATE_MISSING_CATEGORIES, missing);
-    }
-
-    this.onMissingCategoriesChanged?.(accountId, missing);
   }
 
   public isCategoryBannerDismissed(accountId: string): boolean {
@@ -1474,8 +1439,9 @@ export class AccountsManager {
   }
 
   public recalculateMissingCategories(): void {
-    for (const [accountId, report] of this.domReports.entries()) {
-      this.checkMissingCategories(accountId, report);
+    for (const account of this.accounts) {
+      const absent = this.getAbsentCategoriesForAccount(account.id);
+      this.onAbsentCategoriesChanged?.(account.id, absent);
     }
   }
 
@@ -2840,7 +2806,6 @@ export class AccountsManager {
     this.failedOfflineUrls.delete(accountId);
     this.dismissedBannersThisSession.delete(accountId);
     this.offlineCacheAvailableByAccount.delete(accountId);
-    this.accountsWithCategoriesObserved.delete(accountId);
     this.domReports.delete(accountId);
     this.lastKnownCategoryCounts.delete(accountId);
     this.cacheDerivedCategories.delete(accountId);

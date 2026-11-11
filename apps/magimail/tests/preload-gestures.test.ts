@@ -6,10 +6,10 @@ const REPO_ROOT = path.resolve(__dirname, '../../..');
 const preloadSource = readFileSync(path.join(REPO_ROOT, 'apps/magimail/src/preload.ts'), 'utf8');
 
 describe('sidebar-driven mailbox unread observer contract', () => {
-  it('scopes strictly to div[role="navigation"]', () => {
+  it('scopes inbox unread to div[role="navigation"] and categories to tabs in main', () => {
     expect(preloadSource).toContain('div[role="navigation"]');
     expect(preloadSource).toMatch(/a\[href\*="#inbox"/);
-    expect(preloadSource).toMatch(/a\[href\*="#category\/\$\{cat\}"\]/);
+    expect(preloadSource).toMatch(/div\[role="main"\] div\[role="tab"\]/);
   });
 
   it('eliminates global click and keydown listeners from preload', () => {
