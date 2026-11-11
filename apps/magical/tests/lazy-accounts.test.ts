@@ -77,10 +77,12 @@ vi.mock('electron', () => {
         executeJavaScript: vi.fn().mockResolvedValue(false),
         sendInputEvent: vi.fn(),
         focus: vi.fn(),
-        canGoBack: vi.fn().mockReturnValue(true),
-        goBack: vi.fn(),
-        canGoForward: vi.fn().mockReturnValue(true),
-        goForward: vi.fn(),
+        navigationHistory: {
+          canGoBack: vi.fn().mockReturnValue(true),
+          goBack: vi.fn(),
+          canGoForward: vi.fn().mockReturnValue(true),
+          goForward: vi.fn(),
+        },
       } as unknown as MockWebContents;
       constructedViews.push(this as unknown as MockView);
     }

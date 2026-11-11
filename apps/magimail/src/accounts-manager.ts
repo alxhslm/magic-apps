@@ -3610,15 +3610,15 @@ export class AccountsManager {
       `,
         )
         .then((clicked) => {
-          if (!clicked && viewIsAlive(view) && view.webContents.canGoBack()) {
-            view.webContents.goBack();
+          if (!clicked && viewIsAlive(view) && view.webContents.navigationHistory.canGoBack()) {
+            view.webContents.navigationHistory.goBack();
           }
         });
       return true;
     }
 
-    if (view.webContents.canGoBack()) {
-      view.webContents.goBack();
+    if (view.webContents.navigationHistory.canGoBack()) {
+      view.webContents.navigationHistory.goBack();
       return true;
     }
 
@@ -3627,8 +3627,8 @@ export class AccountsManager {
 
   public goForward(): boolean {
     const view = this.getActiveWebContentsView();
-    if (viewIsAlive(view) && view.webContents.canGoForward()) {
-      view.webContents.goForward();
+    if (viewIsAlive(view) && view.webContents.navigationHistory.canGoForward()) {
+      view.webContents.navigationHistory.goForward();
       return true;
     }
     return false;
@@ -3637,13 +3637,13 @@ export class AccountsManager {
   public canGoBack(): boolean {
     const view = this.getActiveWebContentsView();
     if (!viewIsAlive(view)) return false;
-    if (view.webContents.canGoBack()) return true;
+    if (view.webContents.navigationHistory.canGoBack()) return true;
     return this.isThreadUrl(view.webContents.getURL());
   }
 
   public canGoForward(): boolean {
     const view = this.getActiveWebContentsView();
-    return Boolean(viewIsAlive(view) && view.webContents.canGoForward());
+    return Boolean(viewIsAlive(view) && view.webContents.navigationHistory.canGoForward());
   }
 
   public async printActiveView(): Promise<void> {
