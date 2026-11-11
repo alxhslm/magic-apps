@@ -3005,8 +3005,8 @@ export class AccountsManager {
    * extract the real thread identifier from the loaded page's DOM or URL, close the temporary window,
    * and route the main window directly to `#inbox/<threadId>` via `performThreadAction`.
    *
-   * If thread resolution fails or times out, falls back to `openDetachedThreadWindow` so the user
-   * can still view the email without altering the main window's navigation state.
+   * If resolution fails or times out, the resolver window is cleanly destroyed without opening
+   * extraneous windows or altering navigation state.
    */
   public async resolveCalendarEventSource(
     accountId: string | undefined,
@@ -3168,13 +3168,7 @@ export class AccountsManager {
           resolved = true;
           cleanup();
           log.warn(
-            `Could not resolve thread ID for calendar event source ${redactUrl(sourceUrl)} on ${target}; falling back to detached window`,
-          );
-          openDetachedThreadWindow(
-            this.preloadPath,
-            account.partition,
-            sourceUrl,
-            this.themeManager,
+            `Could not resolve thread ID for calendar event source ${redactUrl(sourceUrl)} on ${target}`,
           );
         }
       }, 5000);
@@ -3188,7 +3182,6 @@ export class AccountsManager {
     } catch (err) {
       log.warn(`Failed to initialize resolver window for ${redactUrl(sourceUrl)}:`, err);
       cleanup();
-      openDetachedThreadWindow(this.preloadPath, account.partition, sourceUrl, this.themeManager);
       return false;
     }
   }

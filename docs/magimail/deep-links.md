@@ -81,8 +81,8 @@ magimail://navigate?url=https%3A%2F%2Fmail.google.com%2Fmail%2Fu%2F0%2F%23settin
 
 When `url` points to a calendar event source link (`extsrc=cal` and `plid=...`), Magimail does not render
 the standalone card webview into the main window. Instead, it resolves the `plid` token in the background,
-extracts the real thread ID, and routes the main window directly to `#inbox/<threadId>`. If resolution fails,
-it falls back to a clean detached window.
+extracts the real thread ID, and routes the main window directly to `#inbox/<threadId>`. If resolution fails
+or times out, the resolver window is cleanly destroyed without popping up extra windows.
 
 ## Outbound links
 

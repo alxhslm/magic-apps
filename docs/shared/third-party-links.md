@@ -97,8 +97,8 @@ Calendar events created automatically from Gmail (flights, reservations, confirm
 link (`mail.google.com/mail?extsrc=cal&plid=...`). In the browser, this displays a stripped-down
 standalone card webview. `crossAppLink` routes these to `magimail://navigate?url=...`; Magimail resolves
 the server-side `plid` token in the background and opens the originating conversation natively in the
-main window (`#inbox/<threadId>`). If resolution cannot be completed, it falls back to a clean detached
-thread window rather than navigating the main window away.
+main window (`#inbox/<threadId>`). If resolution cannot be completed, the resolver window is cleanly
+destroyed without popping up extra windows or navigating the main window away.
 
 The day path becomes midnight, because the calendar side either reveals an event,
 which is a moment, or opens a day, which is a date.
