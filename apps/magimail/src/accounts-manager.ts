@@ -293,7 +293,6 @@ export class AccountsManager {
   private dismissedBannersThisSession = new Set<string>();
   private offlineCacheAvailableByAccount: Map<string, boolean> = new Map();
   private currentBannerType: 'categories' | 'offlineMail' = 'offlineMail';
-  private accountsWithCategoriesObserved = new Set<string>();
   private domReports: Map<string, DomUnreadReport> = new Map();
   private mailboxSources: Map<string, MailboxSource> = new Map();
   public onPollResult?: (event: MailboxPollEvent) => void;
@@ -914,6 +913,12 @@ export class AccountsManager {
         };
       }
 
+      // Calendar source link (events created from Gmail)
+      if (url.includes('extsrc=cal') || url.includes('plid=')) {
+        void this.resolveCalendarEventSource(account.id, url);
+        return { action: 'deny' };
+      }
+
       // Thread pop-out (Gmail thread URL opened via Shift+click)
       if (
         url.startsWith('https://mail.google.com/mail/') &&
@@ -1154,6 +1159,10 @@ export class AccountsManager {
    * search on a suspended account reading an active view that is not there.
    */
   public openInAccount(accountId: string | undefined, url: string): void {
+    if (url.includes('extsrc=cal') || url.includes('plid=')) {
+      void this.resolveCalendarEventSource(accountId, url);
+      return;
+    }
     const targetAccount = findAccountByIdOrEmail(this.accounts, accountId);
     const target = targetAccount ? targetAccount.id : this.activeAccountId;
     this.switchAccount(target);
@@ -1301,14 +1310,8 @@ export class AccountsManager {
   public handleDomUnreadUpdate(accountId: string, report: DomUnreadReport): void {
     this.domReports.set(accountId, report);
 
-    if (report.hasCategoriesSection) {
-      this.accountsWithCategoriesObserved.add(accountId);
-    }
-
     const absent = this.getAbsentCategoriesForAccount(accountId);
     this.onAbsentCategoriesChanged?.(accountId, absent);
-
-    this.checkMissingCategories(accountId, report);
   }
 
   /**
@@ -1358,34 +1361,6 @@ export class AccountsManager {
 
   public isOfflineCacheAvailable(accountId: string): boolean | undefined {
     return this.offlineCacheAvailableByAccount.get(accountId);
-  }
-
-  private checkMissingCategories(accountId: string, report: DomUnreadReport): void {
-    // If Gmail's DOM report explicitly indicates the mailbox/sidebar is not yet loaded,
-    // do not evaluate missing categories yet to prevent premature flashes.
-    if (report.isLoaded === false) {
-      return;
-    }
-
-    // Category counts are sourced directly from Gmail's local cache,
-    // which accurately computes true unread inbox items (^i + ^u) without needing
-    // categories pinned or unfolded in the sidebar. We no longer prompt the user with
-    // a configuration banner to force categories into the sidebar.
-    const missing: NotificationCategory[] = [];
-
-    this.missingCategoriesByAccount.set(accountId, missing);
-
-    if (accountId === this.activeAccountId) {
-      this.syncCategoryBannerForActiveAccount();
-    }
-
-    // Send missing categories to the active view to display/hide banner
-    const view = this.pool.view(accountId);
-    if (viewIsAlive(view)) {
-      view.webContents.send(IPC_CHANNELS.UPDATE_MISSING_CATEGORIES, missing);
-    }
-
-    this.onMissingCategoriesChanged?.(accountId, missing);
   }
 
   public isCategoryBannerDismissed(accountId: string): boolean {
@@ -1474,8 +1449,9 @@ export class AccountsManager {
   }
 
   public recalculateMissingCategories(): void {
-    for (const [accountId, report] of this.domReports.entries()) {
-      this.checkMissingCategories(accountId, report);
+    for (const account of this.accounts) {
+      const absent = this.getAbsentCategoriesForAccount(account.id);
+      this.onAbsentCategoriesChanged?.(account.id, absent);
     }
   }
 
@@ -2840,7 +2816,6 @@ export class AccountsManager {
     this.failedOfflineUrls.delete(accountId);
     this.dismissedBannersThisSession.delete(accountId);
     this.offlineCacheAvailableByAccount.delete(accountId);
-    this.accountsWithCategoriesObserved.delete(accountId);
     this.domReports.delete(accountId);
     this.lastKnownCategoryCounts.delete(accountId);
     this.cacheDerivedCategories.delete(accountId);
@@ -2958,6 +2933,236 @@ export class AccountsManager {
 
       return false;
     } catch {
+      return false;
+    }
+  }
+
+  public extractThreadIdFromUrl(url: string): string | null {
+    if (!url) return null;
+    try {
+      const urlObj = new URL(url);
+
+      const thParam = urlObj.searchParams.get('th') || urlObj.searchParams.get('permthid');
+      if (thParam && thParam.trim().length >= 10) {
+        return thParam.trim();
+      }
+
+      const hash = urlObj.hash;
+      if (!hash) return null;
+      const cleanHash = hash.replace(/^#/, '').split('?')[0];
+
+      if (/^thread-[fa]:[a-zA-Z0-9_-]+$/i.test(cleanHash)) {
+        return cleanHash;
+      }
+
+      const parts = cleanHash.split('/');
+      if (parts.length >= 2) {
+        const lastPart = parts[parts.length - 1];
+        if (lastPart && !/^p\d+$/i.test(lastPart)) {
+          if (
+            /^[0-9a-fA-F]{10,}$/i.test(lastPart) ||
+            /^(?:FMfcgz|KtbxL)/.test(lastPart) ||
+            lastPart.length >= 10
+          ) {
+            return lastPart;
+          }
+        }
+      }
+    } catch {
+      // Ignore
+    }
+    return null;
+  }
+
+  /**
+   * Resolves a Google Calendar source link (`extsrc=cal&plid=...`) to its originating Gmail
+   * thread and opens it natively in the main window.
+   *
+   * Calendar events created automatically from Gmail (flights, reservations, deliveries) embed
+   * a link back to Gmail using Google's server-side `plid` token. Loading this directly in a browser
+   * opens a stripped-down standalone webview without Gmail chrome.
+   *
+   * Here, we load the link in a background window scoped to the target account's session partition,
+   * extract the real thread identifier from the loaded page's DOM or URL, close the temporary window,
+   * and route the main window directly to `#inbox/<threadId>` via `performThreadAction`.
+   *
+   * If resolution fails or times out, the resolver window is cleanly destroyed without opening
+   * extraneous windows or altering navigation state.
+   */
+  public async resolveCalendarEventSource(
+    accountId: string | undefined,
+    sourceUrl: string,
+  ): Promise<boolean> {
+    const targetAccount = findAccountByIdOrEmail(this.accounts, accountId);
+    const target = targetAccount ? targetAccount.id : this.activeAccountId;
+    const account = this.accounts.find((a) => a.id === target) || this.getActiveAccount();
+    if (!account) return false;
+
+    log.info(`Resolving calendar event source for ${target}:`, redactUrl(sourceUrl));
+
+    if (this.mainWindow) {
+      if (typeof this.mainWindow.isMinimized === 'function' && this.mainWindow.isMinimized()) {
+        this.mainWindow.restore();
+      }
+      if (typeof this.mainWindow.show === 'function') {
+        this.mainWindow.show();
+      }
+      if (typeof this.mainWindow.focus === 'function') {
+        this.mainWindow.focus();
+      }
+    }
+
+    const immediateId = this.extractThreadIdFromUrl(sourceUrl);
+    if (immediateId) {
+      log.info(`Immediate thread ID ${immediateId} extracted from URL for ${target}`);
+      return await this.performThreadAction(target, immediateId, 'open');
+    }
+
+    let resolverWin: BrowserWindow | null = null;
+    let resolved = false;
+    let cleanupTimer: NodeJS.Timeout | null = null;
+
+    const cleanup = () => {
+      if (cleanupTimer) {
+        clearTimeout(cleanupTimer);
+        cleanupTimer = null;
+      }
+      if (resolverWin) {
+        if (typeof resolverWin.isDestroyed !== 'function' || !resolverWin.isDestroyed()) {
+          try {
+            resolverWin.destroy();
+          } catch {
+            // Ignore destruction error
+          }
+        }
+        resolverWin = null;
+      }
+    };
+
+    const extractThreadIdFromPage = async (): Promise<string | null> => {
+      if (!resolverWin) return null;
+      if (typeof resolverWin.isDestroyed === 'function' && resolverWin.isDestroyed()) return null;
+      try {
+        const liveUrl =
+          typeof resolverWin.webContents?.getURL === 'function'
+            ? resolverWin.webContents.getURL()
+            : '';
+        const urlId = this.extractThreadIdFromUrl(liveUrl);
+        if (urlId) return urlId;
+
+        if (typeof resolverWin.webContents?.executeJavaScript === 'function') {
+          const domId = await resolverWin.webContents.executeJavaScript(`
+            (() => {
+              const hash = (location.hash || '').replace(/^#/, '').split('?')[0];
+              const parts = hash.split('/');
+              if (parts.length >= 2) {
+                const last = parts[parts.length - 1];
+                if (last && !/^p\\d+$/i.test(last) && last.length >= 10) return last;
+              }
+
+              const searchParams = new URLSearchParams(location.search);
+              const paramTh = searchParams.get('th') || searchParams.get('permthid');
+              if (paramTh && paramTh.trim().length >= 10) return paramTh.trim();
+
+              const selectors = [
+                '[data-legacy-thread-id]',
+                '[data-thread-id]',
+                '[data-legacy-message-id]',
+                '[data-message-id]',
+              ];
+              for (const sel of selectors) {
+                const el = document.querySelector(sel);
+                if (el) {
+                  const val =
+                    el.getAttribute('data-legacy-thread-id') ||
+                    el.getAttribute('data-thread-id') ||
+                    el.getAttribute('data-legacy-message-id') ||
+                    el.getAttribute('data-message-id');
+                  if (val && val.trim().length >= 10) return val.trim();
+                }
+              }
+
+              const links = Array.from(document.querySelectorAll('a[href]'));
+              for (const a of links) {
+                const href = a.getAttribute('href') || '';
+                const m = /(?:#inbox\\/|#all\\/|#thread\\/|#sent\\/)([a-zA-Z0-9_-]{10,})/.exec(href);
+                if (m) return m[1];
+                const thMatch = /[?&](?:th|permthid)=([a-zA-Z0-9_-]{10,})/.exec(href);
+                if (thMatch) return thMatch[1];
+              }
+
+              return null;
+            })()
+          `);
+
+          if (domId && typeof domId === 'string' && domId.trim().length >= 10) {
+            return domId.trim();
+          }
+        }
+      } catch {
+        // executeJavaScript may fail during navigations or page unloads
+      }
+      return null;
+    };
+
+    const tryResolve = async () => {
+      if (resolved) return;
+      const threadId = await extractThreadIdFromPage();
+      if (threadId && !resolved) {
+        resolved = true;
+        cleanup();
+        log.info(`Resolved calendar event source to thread ${threadId} for ${target}`);
+        await this.performThreadAction(target, threadId, 'open');
+      }
+    };
+
+    try {
+      resolverWin = new BrowserWindow({
+        show: false,
+        width: 1024,
+        height: 768,
+        webPreferences: {
+          preload: this.preloadPath,
+          partition: account.partition,
+          contextIsolation: false,
+          nodeIntegration: false,
+          sandbox: false,
+        },
+      });
+
+      if (resolverWin.webContents && typeof resolverWin.webContents.on === 'function') {
+        resolverWin.webContents.on('did-navigate', () => {
+          void tryResolve();
+        });
+        resolverWin.webContents.on('did-navigate-in-page', () => {
+          void tryResolve();
+        });
+        resolverWin.webContents.on('did-finish-load', () => {
+          void tryResolve();
+          setTimeout(() => void tryResolve(), 500);
+          setTimeout(() => void tryResolve(), 1200);
+        });
+      }
+
+      cleanupTimer = setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          cleanup();
+          log.warn(
+            `Could not resolve thread ID for calendar event source ${redactUrl(sourceUrl)} on ${target}`,
+          );
+        }
+      }, 5000);
+
+      if (typeof resolverWin.loadURL === 'function') {
+        await resolverWin.loadURL(sourceUrl);
+      } else if (typeof resolverWin.webContents?.loadURL === 'function') {
+        await resolverWin.webContents.loadURL(sourceUrl);
+      }
+      return true;
+    } catch (err) {
+      log.warn(`Failed to initialize resolver window for ${redactUrl(sourceUrl)}:`, err);
+      cleanup();
       return false;
     }
   }

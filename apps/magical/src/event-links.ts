@@ -269,7 +269,7 @@ export function isAllowedCalendarNavigationUrl(rawUrl: string): boolean {
       host === 'calendar.google.com' ||
       host === 'tasks.google.com' ||
       ((host === 'google.com' || host === 'www.google.com') &&
-        parsed.pathname.startsWith('/calendar/'))
+        (parsed.pathname === '/calendar' || parsed.pathname.startsWith('/calendar/')))
     );
   } catch {
     return false;
