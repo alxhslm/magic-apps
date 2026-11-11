@@ -47,36 +47,65 @@ Install before capturing. The installed bundles in `/Applications` are what get 
 a TypeScript or Swift change not yet built with `pnpm run magimail:install` or
 `pnpm --filter magical run app:install` will not appear in the shot.
 
-Both apps are the user's daily tools and the launcher restarts them, so confirm before running.
+Both apps are the user's daily tools. On macOS, `open -a <App> --args --demo` sends an event to
+the already running app and discards `--args`, leaving the personal mailbox or calendar on
+screen. Binary WebP files are not checked by the privacy hook, so real accounts and client
+events photographed in error reach the repository undetected.
 
-1. **Launch under the demo profile**:
+Prefer the automated script, which verifies that daily-driver instances are closed, preflights
+the CDP targets against seeded demo fixtures, manages focus, and captures both appearances:
+
+```bash
+pnpm run shots:windows
+# or for a single app:
+./tools/capture-window-shots.sh --app magical
+```
+
+### Manual capture procedure
+
+When capturing by hand, follow these steps in order:
+
+1. **Quit personal instances**:
    ```bash
-   open -a /Applications/Magimail.app --args --demo --inspect=9229
+   pkill -f "/Applications/Magical.app" || true
+   pkill -f "/Applications/Magimail.app" || true
+   ```
+2. **Launch under the demo profile directly from binary**:
+   Never use `open -a` to start a demo instance:
+   ```bash
+   /Applications/Magical.app/Contents/MacOS/Magical --demo --debug-port=9223 >/tmp/magical-demo.log 2>&1 &
    # or
-   open -a /Applications/Magical.app --args --demo --inspect=9229
+   /Applications/Magimail.app/Contents/MacOS/Magimail --demo --debug-port=9222 >/tmp/magimail-demo.log 2>&1 &
    ```
    `--demo` resolves to the `demo` userData profile and tells the app to keep clear of the
-   App Group. That second part matters: on a signed build the group container is keyed to the
-   bundle id and its signature, not the profile, so `--profile=demo` alone leaves Magical
-   reading the real `accounts.json` and `focus-filter.json` from the group. `--demo` makes it
-   read the demo profile's copies and never write into the group. `--profile=demo` still means
-   the same thing and is accepted, so older commands keep working.
-2. **Set window bounds**:
+   App Group.
+3. **Verify the running process and CDP fixture**:
+   Confirm `--demo` appears in the process arguments:
+   ```bash
+   ps aux | grep -E "Magical|Magimail" | grep "\--demo"
+   ```
+   Query `curl -s http://localhost:9223/json` and confirm the loaded calendar is the seeded
+   fixture (such as the week of October 25, 2026), not a live personal calendar. Dismiss any
+   offline mail banners in Magimail before capturing.
+4. **Set window bounds**:
    ```bash
    osascript -e 'tell application "System Events" to tell process "Magical" to set position of window 1 to {100, 100}'
    osascript -e 'tell application "System Events" to tell process "Magical" to set size of window 1 to {1280, 820}'
    ```
-3. **Switch appearances**:
-   Toggle `nativeTheme.themeSource` via the main process inspector on port 9229, or toggle macOS appearance:
+5. **Focus and switch appearances**:
+   Ensure traffic lights render in their active colours (delete `AppleAquaColorVariant` if set to graphite).
+   Activate and raise the window:
    ```bash
+   osascript -e 'tell application "Magical" to activate'
+   osascript -e 'tell application "System Events" to tell process "Magical" to set frontmost to true; perform action "AXRaise" of window 1'
    osascript -e 'tell application "System Events" to tell appearance preferences to set dark mode to true'
    ```
-4. **Capture and scale**:
+6. **Capture and scale**:
    Capture flat without window shadows (`-o`), downsample to the site's canonical window geometry, and convert to WebP:
    ```bash
    screencapture -l <windowId> -o /tmp/shot-raw.png
    sips -z 1025 1600 /tmp/shot-raw.png --out /tmp/shot-1600.png
-   cwebp -q 88 /tmp/shot-1600.png -o website/src/assets/shot-window-magical-light.webp
+   cwebp -q 88 /tmp/shot-1600.png -o website/src/assets/shot-window-magical-dark.webp
    ```
 
 ## Capturing the Dock
