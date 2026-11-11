@@ -287,10 +287,10 @@ struct EmptyState: View {
 
 // MARK: - Mini month grid
 
-/// Seven columns, Monday first whatever the locale says, as the popover's grid
-/// is. Under each numeral sit up to four dots, one per distinct calendar with
-/// something on that day; a day with nine calendars on it should still read as
-/// busy rather than as a smear.
+/// Seven columns, starting on the Mac's first day of the week, as the popover's grid
+/// does. Under each numeral sit up to four dots,
+/// one per distinct calendar with something on that day; a day with nine calendars on it
+/// should still read as busy rather than as a smear.
 struct MiniMonthGrid: View {
     let cache: WidgetCache
     let now: Date
@@ -299,16 +299,14 @@ struct MiniMonthGrid: View {
     var dotSize: CGFloat = 2.8
 
     private var calendar: Calendar {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.firstWeekday = 2
+        var calendar = Calendar.current
         calendar.locale = .current
         return calendar
     }
 
-    /// `M T W T F S S`, from the user's locale and rotated to Monday, the day
-    /// the grid starts on. The letters are not ours to spell out: a locale that
-    /// starts its week on Sunday, or does not use Latin letters, would be shown
-    /// the wrong seven either way.
+    /// The locale's own short weekday letters, rotated so the region's first day leads.
+    /// The letters are not ours to spell out: a locale that starts its week on Sunday, or
+    /// does not use Latin letters, would be shown the wrong seven either way.
     private var weekdaySymbols: [String] {
         let symbols = calendar.veryShortWeekdaySymbols
         let offset = calendar.firstWeekday - 1

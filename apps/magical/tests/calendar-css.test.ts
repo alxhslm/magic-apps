@@ -85,6 +85,11 @@ describe('getCalendarCss', () => {
     expect(getCalendarCss({ hideSidebar: true })).toContain('[data-keeps-details-open]');
   });
 
+  it('keeps loaded side panels containing an iframe visible when hideSidebar is on', () => {
+    const css = getCalendarCss({ hideSidebar: true });
+    expect(css).toContain('[data-keeps-details-open]:not(:has(iframe))');
+  });
+
   it('never hides an ancestor of the companion rail', () => {
     // Core's Gmail rule also hides `div:has(> [role="complementary"])`. In
     // Google Calendar that ancestor wraps the week grid too, so the toggle

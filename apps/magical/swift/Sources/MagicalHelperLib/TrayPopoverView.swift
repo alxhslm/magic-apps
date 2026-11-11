@@ -296,6 +296,8 @@ public struct TrayPopoverView: View {
                     displayedMonth: model.displayedMonthDate,
                     selectedDate: model.highlightedDate,
                     densityDots: model.densityDotsByDay,
+                    // The popover matches the Mac's first day of the week.
+                    firstWeekday: Calendar.current.firstWeekday,
                     onSelectDate: { date in
                         withAnimation(.easeInOut(duration: 0.2)) {
                             model.requestScrollTo(date: date)

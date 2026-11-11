@@ -21,7 +21,9 @@ typedef char* (*LocalCacheKeyFn)(void);
 typedef void (*SidebarAttachFn)(void*);
 typedef double (*SidebarSetVisibleFn)(bool, bool);
 typedef void (*SidebarUpdateDataFn)(const char*);
-typedef void (*SidebarSetViewModeFn)(const char*, const char*);
+// firstWeekday is 0 when the caller has no value yet, which the helper reads as "use the
+// Mac's region"; Apple's .weekday numbering uses 1-7, so 0 is free to mean absent.
+typedef void (*SidebarSetViewModeFn)(const char*, const char*, int);
 typedef void (*SidebarSetTransparencyFn)(bool, bool);
 typedef void (*SidebarSetScrollPositionFn)(double, double, double, double, double);
 
@@ -405,14 +407,19 @@ static Napi::Value SidebarUpdateData(const Napi::CallbackInfo& info) {
   return env.Undefined();
 }
 
-// JS: sidebarSetViewMode(mode: string, anchorDate?: string)
+// JS: sidebarSetViewMode(mode: string, anchorDate?: string, firstWeekday?: number)
 static Napi::Value SidebarSetViewMode(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
   if (!fn_sidebar_set_view_mode) return env.Undefined();
   if (info.Length() < 1 || !info[0].IsString()) return env.Undefined();
   std::string mode = info[0].As<Napi::String>().Utf8Value();
   std::string anchor = (info.Length() > 1 && info[1].IsString()) ? info[1].As<Napi::String>().Utf8Value() : "";
-  fn_sidebar_set_view_mode(mode.c_str(), anchor.empty() ? nullptr : anchor.c_str());
+  int firstWeekday = 0;
+  if (info.Length() > 2 && info[2].IsNumber()) {
+    double raw = info[2].As<Napi::Number>().DoubleValue();
+    if (raw >= 1 && raw <= 7) firstWeekday = static_cast<int>(raw);
+  }
+  fn_sidebar_set_view_mode(mode.c_str(), anchor.empty() ? nullptr : anchor.c_str(), firstWeekday);
   return env.Undefined();
 }
 

@@ -162,8 +162,12 @@ export class AccountsManager {
   public onModeChanged?: (mode: ViewMode) => void;
   /** Fired when the active account's history moves, so the menu can follow it. */
   public onHistoryChanged?: () => void;
-  /** Fired when the active account's timeframe or anchor date moves, so the companion sidebar can follow it. */
-  public onTimeframeChanged?: (timeframe: string, dateStr?: string) => void;
+  /**
+   * Fired when the active account's timeframe or anchor date moves, so the companion sidebar
+   * can follow it. `firstWeekday` is Google's own Start of the week, read from the grid that
+   * is on screen, and is absent in views whose grid cannot say which day a week starts on.
+   */
+  public onTimeframeChanged?: (timeframe: string, dateStr?: string, firstWeekday?: number) => void;
   /** Fired when the active account's 24-hour time grid scrolls, so the companion sidebar can follow in lockstep. */
   public onGridScroll?: (
     hour: number,
@@ -1179,7 +1183,7 @@ export class AccountsManager {
   private receiveCalendarLists(): void {
     ipcMain.on(
       GCAL_VIEW_MODE_CHANNEL,
-      (event, payload: { timeframe?: string; dateStr?: string }) => {
+      (event, payload: { timeframe?: string; dateStr?: string; firstWeekday?: number }) => {
         const entry = [...this.pool.entries()].find(
           ([, view]) => viewIsAlive(view) && view.webContents === event.sender,
         );
@@ -1187,9 +1191,9 @@ export class AccountsManager {
         const [accountId] = entry;
         if (accountId === this.activeAccountId && payload?.timeframe) {
           log.info(
-            `Received GCAL_VIEW_MODE_CHANNEL: ${payload.timeframe} (date: ${payload.dateStr})`,
+            `Received GCAL_VIEW_MODE_CHANNEL: ${payload.timeframe} (date: ${payload.dateStr}, first weekday: ${payload.firstWeekday})`,
           );
-          this.onTimeframeChanged?.(payload.timeframe, payload.dateStr);
+          this.onTimeframeChanged?.(payload.timeframe, payload.dateStr, payload.firstWeekday);
         }
       },
     );

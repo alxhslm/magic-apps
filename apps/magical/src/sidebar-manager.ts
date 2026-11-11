@@ -27,6 +27,15 @@ export class SidebarManager {
   private activeTimeframe: string;
   private activeDateStr?: string;
   /**
+   * The weekday Google Calendar's grid is starting its weeks on for the account on screen,
+   * as Apple's `.weekday` number, or undefined until a grid has reported one.
+   *
+   * Kept here rather than in the helper because the helper is restarted freely and a week
+   * start that forgets itself on a crash is the bug this exists to avoid; it is stored per
+   * account in settings and re-read whenever the account changes.
+   */
+  private activeFirstWeekday?: number;
+  /**
    * How far the agenda has asked for events beyond the default window.
    *
    * Schedule is a continuous feed, so scrolling forward has to widen the window the
@@ -73,7 +82,11 @@ export class SidebarManager {
       const settings = loadSettings();
       addon.sidebarAttach?.(handle);
       addon.sidebarSetVisible?.(this.isVisible, false);
-      addon.sidebarSetViewMode?.(this.activeTimeframe, this.activeDateStr);
+      addon.sidebarSetViewMode?.(
+        this.activeTimeframe,
+        this.activeDateStr,
+        this.resolveFirstWeekday(),
+      );
       addon.sidebarSetTransparency?.(settings.transparentBackground ?? true, true);
       this.pushData();
     } catch (err) {
@@ -172,6 +185,19 @@ export class SidebarManager {
 
   public updateAccounts(accounts: CalendarAccount[]): void {
     this.cachedAccounts = accounts;
+    // The account on screen has its own Start of the week, so the previous account's value
+    // goes and the new one's is read from settings. Its grid re-reports a moment later, but
+    // the frame in between is drawn before that arrives.
+    const previous = this.activeFirstWeekday;
+    this.activeFirstWeekday = undefined;
+    const resolved = this.resolveFirstWeekday();
+    if (resolved !== previous) {
+      try {
+        loadAddon().sidebarSetViewMode?.(this.activeTimeframe, this.activeDateStr, resolved);
+      } catch (err) {
+        log.warn('Could not set sidebar view mode:', err);
+      }
+    }
     this.pushData();
   }
 
@@ -180,18 +206,60 @@ export class SidebarManager {
     this.pushData();
   }
 
-  public setTimeframe(timeframe: string, dateStr?: string): void {
-    if (this.activeTimeframe === timeframe && this.activeDateStr === dateStr) return;
-    log.info(`Setting sidebar timeframe: ${timeframe} (date: ${dateStr})`);
+  public setTimeframe(timeframe: string, dateStr?: string, firstWeekday?: number): void {
+    const previousFirstWeekday = this.activeFirstWeekday;
+    if (firstWeekday !== undefined && firstWeekday !== previousFirstWeekday) {
+      this.activeFirstWeekday = firstWeekday;
+      this.rememberFirstWeekday(firstWeekday);
+    }
+    // A changed Start of the week is why this comparison looks at three things: Google
+    // re-lays out its grid without moving the date, so the sidebar has to change with it.
+    if (
+      this.activeTimeframe === timeframe &&
+      this.activeDateStr === dateStr &&
+      previousFirstWeekday === this.activeFirstWeekday
+    ) {
+      return;
+    }
+    log.info(
+      `Setting sidebar timeframe: ${timeframe} (date: ${dateStr}, first weekday: ${this.activeFirstWeekday})`,
+    );
     this.activeTimeframe = timeframe;
     this.activeDateStr = dateStr;
     saveSetting('lastTimeframe', timeframe);
     if (dateStr) saveSetting('lastDateStr', dateStr);
     try {
-      loadAddon().sidebarSetViewMode?.(timeframe, dateStr);
+      loadAddon().sidebarSetViewMode?.(timeframe, dateStr, this.activeFirstWeekday);
     } catch (err) {
       log.warn('Could not set sidebar view mode:', err);
     }
+  }
+
+  /**
+   * The weekday Google's grid last reported for the account on screen.
+   *
+   * Undefined on the very first launch for an account, and in any view whose grid cannot
+   * say which day a week starts on before that account has ever shown one. The helper
+   * falls back to the Mac's first day for that frame.
+   */
+  private resolveFirstWeekday(): number | undefined {
+    if (this.activeFirstWeekday !== undefined) return this.activeFirstWeekday;
+    const accountId =
+      this.getAccountsManager?.()?.getActiveAccountId?.() ?? loadSettings().lastActiveAccountId;
+    if (!accountId) return undefined;
+    // A settings file written before this key existed has no entry for anyone, and the
+    // caller reads undefined as "this account has never reported one".
+    return (loadSettings().firstWeekdayByAccount ?? {})[accountId];
+  }
+
+  /** Writes a reported weekday back to settings, so the next first frame already knows it. */
+  private rememberFirstWeekday(firstWeekday: number): void {
+    const accountId =
+      this.getAccountsManager?.()?.getActiveAccountId?.() ?? loadSettings().lastActiveAccountId;
+    if (!accountId) return;
+    const stored = loadSettings().firstWeekdayByAccount ?? {};
+    if (stored[accountId] === firstWeekday) return;
+    saveSetting('firstWeekdayByAccount', { ...stored, [accountId]: firstWeekday });
   }
 
   public setTransparency(transparent: boolean, isDark: boolean): void {

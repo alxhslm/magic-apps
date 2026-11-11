@@ -208,9 +208,11 @@ The anti-FOUC injection mechanism, the semantic-selector rule and the theming mo
 
 - `calendar-css.ts` is injected via `webContents.insertCSS()` on `did-navigate`, before initial
   layout and first paint, so there is no flash of unstyled content.
-- **"Hide app sidebar" matches the Google rail by its `data-keeps-details-open` hook**, which sits on
-  the rail, the panel itself and the wrapper around the reopen button and nowhere else — not by the
-  broader `role="complementary"`, which would take the left drawer's calendar lists with it.
+- **"Hide app sidebar" matches the Google rail by its `data-keeps-details-open` hook**, scoped with
+  `:not(:has(iframe))` so that the empty companion rail and reopen button stay hidden, but loaded
+  panels (such as Google Maps opened when clicking an event's location) remain visible and accessible.
+  Matching this hook replaces the English `aria-label*="side panel"` the rule used to depend on, and
+  avoids the broader `role="complementary"` which would take the left drawer's calendar lists with it.
 - **"Hide Tasks tab" (off by default) hides the whole top-right Calendar/Tasks switcher.** Measured
   on a signed-in calendar, the switcher is a plain `div` of two `span`-wrapped buttons — "Switch to
   Calendar" and "Switch to Tasks" — with no role or authored hook, so the container is reached with
@@ -302,9 +304,9 @@ Three actions take data back, and each sits where the scope it clears is visible
   Other accounts and the global settings stay. The partition directory itself stays until the next
   launch's `pruneOrphanPartitions` sweep, rather than the removal, because Chromium may still hold the
   files open. Startup sweeps unconfigured account IDs in `settings.json` (`lastActiveAccountId`,
-  `hiddenCalendars`, `disabledAlertCalendarIds`), and startup cache loaders (`loadEventCache` and
-  `alert-state.json`) prune keys for unconfigured accounts before re-arming, sweeping any state left
-  behind by an interrupted removal or a crash.
+  `hiddenCalendars`, `disabledAlertCalendarIds`, `firstWeekdayByAccount`), and startup cache loaders
+  (`loadEventCache` and `alert-state.json`) prune keys for unconfigured accounts before re-arming,
+  sweeping any state left behind by an interrupted removal or a crash.
 - **Remove All App Data and Quit…**, on its own above Quit in the app menu, removes everything the
   install wrote and then quits. It is the only one of the three that leaves nothing behind, and the
   only cleanup that can run at all: macOS runs no code when a bundle is deleted and never clears its

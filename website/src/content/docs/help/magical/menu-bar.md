@@ -31,6 +31,7 @@ Clicking the menu bar icon reveals your interactive day agenda, which is also wh
   - Click the **chevron next to the month title** to expand or collapse a compact monthly grid with density dots for busy days.
   - Click the **Month Title** at any time to instantly jump the agenda back to **Today**.
   - Click any **date cell** in the mini month to smoothly scroll the agenda timeline straight to that day.
+  - The weeks begin on your Mac's **first day of the week**, from **System Settings → General → Language & Region**.
   - **Hovering** a day's events in the agenda highlights that day in the grid and moves the grid to its month, without moving the agenda underneath the pointer.
   - **Endless Scrolling**: As you scroll towards the bottom of your agenda, Magical fetches and streams the next few months of events automatically.
 - <span class="sym sym-calendar-badge-plus" aria-hidden="true"></span> **Quick Add**: Opens the event composer from the header.

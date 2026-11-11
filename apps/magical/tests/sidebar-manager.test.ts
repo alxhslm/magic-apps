@@ -5,10 +5,13 @@ import type { NormalizedCalendarEvent } from '../src/calendar-decoder.js';
 
 const mockLoadAddon = vi.fn();
 const mockSaveSetting = vi.fn();
-const mockLoadSettings = vi.fn().mockReturnValue({
+const defaultSettings = {
   sidebarVisible: true,
   isCalendarCollapsed: false,
-});
+  lastActiveAccountId: 'acc_personal',
+  firstWeekdayByAccount: {} as Record<string, number>,
+};
+const mockLoadSettings = vi.fn().mockReturnValue(defaultSettings);
 const mockOpenExternal = vi.fn();
 
 vi.mock('electron', () => ({
@@ -43,6 +46,9 @@ describe('SidebarManager', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // Individual tests override this, so it goes back to the default every time rather
+    // than leaving the last test's accounts behind.
+    mockLoadSettings.mockReturnValue({ ...defaultSettings, firstWeekdayByAccount: {} });
     sidebarAttach = vi.fn();
     sidebarSetVisible = vi.fn();
     sidebarSetViewMode = vi.fn();
@@ -86,7 +92,7 @@ describe('SidebarManager', () => {
 
     expect(sidebarAttach).toHaveBeenCalledWith(Buffer.from('handle'));
     expect(sidebarSetVisible).toHaveBeenCalledWith(true, false);
-    expect(sidebarSetViewMode).toHaveBeenCalledWith('day', undefined);
+    expect(sidebarSetViewMode).toHaveBeenCalledWith('day', undefined, undefined);
     expect(mockMainWindow.setMinimumSize).toHaveBeenCalledWith(1320, 600);
   });
 
@@ -173,10 +179,64 @@ describe('SidebarManager', () => {
     );
 
     manager.setTimeframe('week', '2026-10-14');
-    expect(sidebarSetViewMode).toHaveBeenCalledWith('week', '2026-10-14');
+    expect(sidebarSetViewMode).toHaveBeenCalledWith('week', '2026-10-14', undefined);
 
     manager.setTimeframe('day', '2026-10-15');
-    expect(sidebarSetViewMode).toHaveBeenCalledWith('day', '2026-10-15');
+    expect(sidebarSetViewMode).toHaveBeenCalledWith('day', '2026-10-15', undefined);
+  });
+
+  it('draws the first frame from the weekday Google last reported for the account', () => {
+    mockLoadSettings.mockReturnValue({
+      sidebarVisible: true,
+      isCalendarCollapsed: false,
+      lastActiveAccountId: 'acc_personal',
+      firstWeekdayByAccount: { acc_personal: 1 },
+    });
+    const manager = new SidebarManager(
+      () => mockMainWindow as any,
+      () => mockAccountsManager as any,
+    );
+
+    manager.attach(mockMainWindow as any);
+
+    expect(sidebarSetViewMode).toHaveBeenCalledWith('day', undefined, 1);
+  });
+
+  it('remembers the reported weekday per account and republishes when it changes', () => {
+    const manager = new SidebarManager(
+      () => mockMainWindow as any,
+      () => mockAccountsManager as any,
+    );
+
+    manager.setTimeframe('week', '2026-11-04', 1);
+    expect(sidebarSetViewMode).toHaveBeenCalledWith('week', '2026-11-04', 1);
+    expect(mockSaveSetting).toHaveBeenCalledWith('firstWeekdayByAccount', { acc_personal: 1 });
+
+    // Changing Start of the week in Google re-lays the grid out without moving the date,
+    // so the date alone is not enough to decide whether anything changed.
+    manager.setTimeframe('week', '2026-11-04', 2);
+    expect(sidebarSetViewMode).toHaveBeenCalledWith('week', '2026-11-04', 2);
+    expect(mockSaveSetting).toHaveBeenCalledWith('firstWeekdayByAccount', { acc_personal: 2 });
+  });
+
+  it('re-reads the weekday when the account changes', () => {
+    mockLoadSettings.mockReturnValue({
+      sidebarVisible: true,
+      isCalendarCollapsed: false,
+      lastActiveAccountId: 'acc_personal',
+      firstWeekdayByAccount: { acc_work: 7 },
+    });
+    const manager = new SidebarManager(
+      () => mockMainWindow as any,
+      () => mockAccountsManager as any,
+    );
+    manager.setTimeframe('week', '2026-11-04', 1);
+
+    // The new account's own Start of the week, which can differ from the one on screen.
+    mockAccountsManager.getActiveAccountId.mockReturnValue('acc_work');
+    manager.updateAccounts([{ id: 'acc_work' } as CalendarAccount]);
+
+    expect(sidebarSetViewMode).toHaveBeenLastCalledWith('week', '2026-11-04', 7);
   });
 
   it('serializes events and accounts and pushes to native addon', () => {
@@ -393,7 +453,7 @@ describe('SidebarManager', () => {
       () => mockMainWindow as any,
       () => mockAccountsManager as any,
     );
-    mockLoadSettings.mockReturnValueOnce({
+    mockLoadSettings.mockReturnValue({
       sidebarVisible: true,
       isCalendarCollapsed: false,
       hiddenCalendarsRevision: 4,

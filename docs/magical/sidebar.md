@@ -82,9 +82,12 @@ Today is only the fallback when nothing is rendered yet. That is what keeps the 
 range Google Calendar is showing rather than resetting to the current month.
 
 When the timeframe or anchor date changes, `calendar-preload.ts` emits `magical:gcal-view-mode` over
-IPC to the main process. `SidebarManager` receives the payload and pushes the mode and anchor date
-to the native layer via `sidebarSetViewMode`. A report with no anchor keeps the previous one, because
-changing view is not changing date.
+IPC to the main process, carrying the mode, the anchor date and the first weekday read from the grid.
+`SidebarManager` receives the payload and pushes all three to the native layer via
+`sidebarSetViewMode`. A report with no anchor keeps the previous one, because changing view is not
+changing date; a report with no first weekday leaves the last one alone, because a Day or Schedule
+grid has nothing to read it from. A change of first weekday alone is enough to push, since Google
+re-lays its grid out without moving the date when the setting changes.
 
 ## View modes and presentations
 
@@ -134,7 +137,8 @@ not ask for more.
 
 When Google Calendar is in Week view, the sidebar shows:
 
-- **`WeekScrubberView`**: A horizontal bar of seven day pills (Monday through Sunday). Each pill
+- **`WeekScrubberView`**: A horizontal bar of seven day pills, running from Google Calendar's
+  first weekday for that account to the day before it. Each pill
   renders the day initial, date numeral, event density dots, a filled accent disc for Today, and a
   selection outline for the active day. One horizontal swipe moves one day, and the gesture stops at
   the edge of the week Google Calendar is showing: the sidebar moves inside Calendar's range, it does
@@ -163,6 +167,16 @@ Across all modes, the sidebar keeps the user anchored in time:
 
 Google Calendar chooses the range; the sidebar follows it. Nothing in the sidebar navigates the web
 view to another date.
+
+That includes which day a week starts on. The strip, the mini month's lead padding and header row,
+and `displayedMonthGridRange` all take their first weekday from the earliest `[role="main"]
+[data-datekey]` cell Google has drawn, so the first day of the week cannot drift from the calendar
+beside it. The main process stores that weekday per account in `firstWeekdayByAccount`, and the
+helper draws the first frame from the stored value; the Mac's own first day is only the answer on the first
+launch for an account. Because Google keeps the setting per account, switching accounts can move
+the strip's first column. Why that weekday comes from Google rather than the Mac, what the popover
+and the widgets use instead, and why two accounts may disagree with each other while both being
+right, is in [`time-and-locale.md`](time-and-locale.md#first-day-of-the-week).
 
 - **Date selection**: Clicking a date in the mini-month grid or week scrubber selects that day in the
   sidebar only. It never moves Google Calendar, so a day from the neighbouring month can be inspected

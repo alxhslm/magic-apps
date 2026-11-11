@@ -70,6 +70,44 @@ must not change a key or an ordering:
 - The helpers' `yyyy-MM-dd` day keys name a day in a snapshot or a dots map.
 - The `yyyy-MM-dd HH:mm:ss` log stamps exist to be read in a log.
 
+## First day of the week
+
+The region decides it, and the Mac has its own control for it under System Settings, General,
+Language & Region, First day of week. `Calendar.current.firstWeekday` reports the result in Apple's
+numbering, 1 = Sunday through 7 = Saturday. It does not follow a hand-written `AppleFirstWeekday` in
+the global domain, so a test that writes that key reads its own machine's region regardless.
+
+Google Calendar has a Start of the week setting of its own, per Google account, and it defaults to
+the locale rather than to the Mac. The Calendar API does not expose it and nothing in the page's
+markup names it as a setting, so the only place to read it is the grid: the earliest
+`[role="main"] [data-datekey]` cell is the week's first day in Week and 4-Day view, and the lead
+padding in Month view. That is what keeps the weekday in the sidebar equal to the weekday in the
+calendar beside it.
+
+| Surface                                        | Week starts on                                   | Where it is read                                                      |
+| :--------------------------------------------- | :----------------------------------------------- | :-------------------------------------------------------------------- |
+| Companion sidebar                              | Google Calendar's first weekday for that account | The grid's earliest visible cell, relayed on `magical:gcal-view-mode` |
+| Companion sidebar, first frame of a session    | The same, as last reported                       | `firstWeekdayByAccount` in `settings.json`                            |
+| Companion sidebar, first launch for an account | The Mac's first weekday                          | `Calendar.current.firstWeekday`, until a grid reports one             |
+| Menu bar popover mini month                    | The Mac's first weekday                          | `Calendar.current.firstWeekday`                                       |
+| Widgets mini month                             | The Mac's first weekday                          | `Calendar.current.firstWeekday`                                       |
+
+The popover and the widgets match the Mac's setting.
+
+`firstWeekdayByAccount` is stored rather than re-read on launch so the sidebar's first frame is
+right, and it can go stale while Magical is shut, because Google's setting syncs across devices; the
+first grid report of a session corrects it.
+
+**Two accounts can disagree.** Start of the week is per Google account, so on one Mac a Sunday can
+end the week on one account and start it on another, and the sidebar's first column moves when the
+account does. That is why the stored value is keyed by account, and why `SidebarManager` re-reads it
+in `updateAccounts`: the frame drawn while a newly attached account is still loading is then already
+right instead of briefly carrying the previous account's week.
+
+Google's setting and the Mac's are independent, so the two answers can differ: a Sunday-first
+Google account on a Monday-first Mac gives Sunday in the sidebar and Monday in the popover and the
+widgets. Which of the two settings to change is the user's.
+
 ## Timezone
 
 The zone is the Mac's too: every native surface renders in `.current`, and Electron's process-local
