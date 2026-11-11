@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer, webFrame } from 'electron';
 import { applyMainWorldIdentity, chromeBrands, chromeFullVersionBrands } from '@magimail/core';
 import { IPC_CHANNELS } from './constants.js';
+import { derivePresentCategories, extractTabText, type PresentCategory } from './category-tabs.js';
 
 // Suppress automatic window.print() on Gmail print view (view=pt) so Magimail controls printing
 try {
@@ -89,28 +90,6 @@ function parseUnreadFromLink(link: Element): number {
   }
 
   return 0;
-}
-
-function detectCategoriesSection(nav: Element): boolean {
-  // The category links are the signal: an account has the section when its
-  // sidebar renders one of the four supported categories. Matching the English
-  // word "Categories" was a second signal that only worked in English.
-  return Boolean(
-    nav.querySelector(
-      'a[href*="#category/social"], a[href*="#category/updates"], a[href*="#category/promotions"], a[href*="#category/forums"]',
-    ),
-  );
-}
-
-function isSidebarLoaded(nav: Element): boolean {
-  // Gmail's mailbox and navigation are loaded once:
-  // 1. The main content container (div[role="main"]) is mounted
-  // 2. The navigation contains the inbox link
-  // 3. The navigation has rendered its standard menu items
-  const hasMain = Boolean(document.querySelector('div[role="main"]'));
-  const hasInbox = Boolean(nav.querySelector('a[href*="#inbox"]'));
-  const hasItems = nav.querySelectorAll('a, [role="treeitem"]').length >= 4;
-  return hasMain && hasInbox && hasItems;
 }
 
 // Folding the Categories section
@@ -230,6 +209,8 @@ function claimDisclosure(toggle: Element): void {
   }
 }
 
+let lastDetectedCategories: PresentCategory[] = ['inbox'];
+
 function scanSidebar() {
   const nav = document.querySelector('div[role="navigation"]');
   if (!nav) return;
@@ -237,40 +218,43 @@ function scanSidebar() {
   markCategorySection(nav);
   applyCategoriesCollapsed();
 
-  const presentCategories: ('inbox' | 'updates' | 'promotions' | 'social' | 'forums')[] = [];
   const counts: Record<string, number> = {};
 
   // 1. Inbox (Primary)
   const inboxLink = nav.querySelector('a[href*="#inbox"]:not([href*="#inbox/"])');
   if (inboxLink) {
-    presentCategories.push('inbox');
     counts.inbox = parseUnreadFromLink(inboxLink);
   }
 
-  // 2. Categories
+  // 2. Category rows in the sidebar (if present) serve as change hints only.
+  // Their raw numbers are never used as authoritative unread totals (since Gmail's
+  // sidebar category links are label-scoped and include archived messages).
+  // Recording them in `counts` purely detects badge movements to trigger MAILBOX_CHANGE_HINT.
   const categoryKeys = ['updates', 'promotions', 'social', 'forums'] as const;
   for (const cat of categoryKeys) {
     const catLink = nav.querySelector(`a[href*="#category/${cat}"]`);
     if (catLink) {
-      presentCategories.push(cat);
-      // Category rows in Gmail's sidebar (#category/...) are label-scoped and count
-      // archived unread mail across the entire smartlabel query. We do not extract
-      // scalar counts from them for inbox unread totals.
+      counts[cat] = parseUnreadFromLink(catLink);
     }
   }
 
-  const hasCategoriesSection = detectCategoriesSection(nav);
-  const isLoaded = isSidebarLoaded(nav);
+  // 3. Read enabled categories from tabs in div[role="main"]
+  const tabs = Array.from(document.querySelectorAll('div[role="main"] div[role="tab"]'));
+  if (tabs.length > 0) {
+    const tabTexts = tabs.map(extractTabText);
+    const pageLocale = document.documentElement?.lang || 'en';
+    lastDetectedCategories = derivePresentCategories(tabTexts, lastDetectedCategories, pageLocale);
+  }
+
+  const presentCategories = [...lastDetectedCategories];
 
   const report = {
     timestamp: Date.now(),
     counts,
     presentCategories,
-    hasCategoriesSection,
-    isLoaded,
   };
 
-  const reportJson = JSON.stringify({ counts, presentCategories, hasCategoriesSection, isLoaded });
+  const reportJson = JSON.stringify({ counts, presentCategories });
   if (reportJson !== lastReportJson) {
     lastReportJson = reportJson;
     ipcRenderer.send(IPC_CHANNELS.DOM_UNREAD_UPDATE, report);
@@ -298,26 +282,7 @@ function initSidebarObserver() {
     }, 200);
   };
 
-  // Gmail replaces the message list's container when the view changes, and an
-  // observer bound to the old node sees nothing afterwards. Bound once, triage in
-  // a category view had no hint at all, so its count waited for the next poll
-  // while the same triage in the inbox moved in a third of a second. Re-bind
-  // whenever the live container is not the one being watched.
-  let observedMain: Element | null = null;
-  let mainObserver: MutationObserver | null = null;
-  const ensureMainObserver = () => {
-    const main = document.querySelector('div[role="main"]');
-    if (!main || main === observedMain) return;
-    mainObserver?.disconnect();
-    observedMain = main;
-    mainObserver = new MutationObserver(() => queueTriageHint());
-    mainObserver.observe(main, { childList: true, subtree: true });
-  };
-  ensureMainObserver();
-  // A view change announces itself here. The sidebar check below covers the case
-  // where it does not, because a navigation Gmail does not route through the hash
-  // would otherwise leave the observer on the old node again.
-  window.addEventListener('hashchange', ensureMainObserver);
+  let ensureMainObserver: () => void = () => {};
 
   const attachObserver = (nav: Element) => {
     const observer = new MutationObserver(() => {
@@ -341,6 +306,31 @@ function initSidebarObserver() {
     });
     queueSidebarScan();
   };
+
+  // Gmail replaces the message list's container when the view changes, and an
+  // observer bound to the old node sees nothing afterwards. Bound once, triage in
+  // a category view had no hint at all, so its count waited for the next poll
+  // while the same triage in the inbox moved in a third of a second. Re-bind
+  // whenever the live container is not the one being watched.
+  let observedMain: Element | null = null;
+  let mainObserver: MutationObserver | null = null;
+  ensureMainObserver = () => {
+    const main = document.querySelector('div[role="main"]');
+    if (!main || main === observedMain) return;
+    mainObserver?.disconnect();
+    observedMain = main;
+    mainObserver = new MutationObserver(() => {
+      queueTriageHint();
+      queueSidebarScan();
+    });
+    mainObserver.observe(main, { childList: true, subtree: true });
+    queueSidebarScan();
+  };
+  ensureMainObserver();
+  // A view change announces itself here. The sidebar check below covers the case
+  // where it does not, because a navigation Gmail does not route through the hash
+  // would otherwise leave the observer on the old node again.
+  window.addEventListener('hashchange', ensureMainObserver);
 
   const nav = document.querySelector('div[role="navigation"]');
   if (nav) {
