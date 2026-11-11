@@ -1108,6 +1108,14 @@ export class CalendarService {
   }
 
   /**
+   * Forgets an account that has been signed out or removed.
+   * Alias for `forgetAccount` to match the suite's subsystem forget contract.
+   */
+  public forget(accountId: string): void {
+    this.forgetAccount(accountId);
+  }
+
+  /**
    * The range the recurring poll reads: the baseline window around today.
    *
    * Recomputed on every call rather than cached. Magical is a menu bar app people leave

@@ -14,6 +14,7 @@ import {
   loadUnreadCounts,
   saveUnreadCounts,
   withStoredUnreadCounts,
+  UnreadCountStore,
 } from '../src/mailbox/unread-count-store.js';
 import { loadSettings, saveSetting } from '../src/settings-store.js';
 import type { NotificationCategory } from '../src/constants.js';
@@ -295,6 +296,16 @@ describe('AccountsManager', () => {
     // Startup sweeps remaining unconfigured accounts from unread-counts.json
     withStoredUnreadCounts(accountsManager.getAccounts());
     expect(loadUnreadCounts()['orphaned_acc_123']).toBeUndefined();
+
+    // Direct store operations
+    saveUnreadCounts('test_store_1', { total: 3, badge: 1 });
+    saveUnreadCounts('test_store_2', { total: 8, badge: 2 });
+    UnreadCountStore.forget('test_store_1');
+    expect(loadUnreadCounts()['test_store_1']).toBeUndefined();
+    expect(loadUnreadCounts()['test_store_2']).toBeDefined();
+
+    UnreadCountStore.sweepOrphaned(['other_acc']);
+    expect(loadUnreadCounts()['test_store_2']).toBeUndefined();
   });
 
   it('updates lastActiveAccountId in settings on removal and sweeps unconfigured id on startup', () => {

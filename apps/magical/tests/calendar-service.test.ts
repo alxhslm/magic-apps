@@ -696,6 +696,10 @@ describe('forgetting a removed account', () => {
     const events = readSecretFile<{ events: Record<string, unknown[]> }>(eventsFile);
     expect(Object.keys(events?.events ?? {})).toEqual(['b']);
 
+    // service.forget is an alias for forgetAccount matching the suite's lifecycle contract
+    service.forget('b');
+    expect(service.getCachedEvents().has('b')).toBe(false);
+
     service.stop();
   });
 

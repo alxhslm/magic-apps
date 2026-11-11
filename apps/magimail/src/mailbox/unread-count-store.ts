@@ -56,7 +56,10 @@ export function saveUnreadCounts(accountId: string, counts: StoredUnreadCounts):
   }
 }
 
-export function deleteStoredUnreadCounts(accountId: string): void {
+/**
+ * Forgets the stored unread counts for an account that has been removed.
+ */
+export function forgetStoredUnreadCounts(accountId: string): void {
   try {
     const all = loadUnreadCounts();
     if (accountId in all) {
@@ -68,16 +71,15 @@ export function deleteStoredUnreadCounts(accountId: string): void {
   }
 }
 
+/** Backward-compatible alias for forgetStoredUnreadCounts. */
+export const deleteStoredUnreadCounts = forgetStoredUnreadCounts;
+
 /**
- * The accounts, with the counts from the last launch applied.
- *
- * Startup draws the tray from the account list before anything is polled, so
- * without this every launch begins at zero until the first cache read answers.
- * Sweeps any orphaned keys for accounts no longer configured.
+ * Sweeps unconfigured accounts from unread-counts.json.
  */
-export function withStoredUnreadCounts(accounts: AccountConfig[]): AccountConfig[] {
+export function sweepOrphanedUnreadCounts(activeAccountIds: readonly string[]): void {
   const stored = loadUnreadCounts();
-  const live = new Set(accounts.map((a) => a.id));
+  const live = new Set(activeAccountIds);
   let changed = false;
   const cleaned: Record<string, StoredUnreadCounts> = {};
   for (const [id, counts] of Object.entries(stored)) {
@@ -95,9 +97,32 @@ export function withStoredUnreadCounts(accounts: AccountConfig[]): AccountConfig
       // Best-effort
     }
   }
+}
+
+/**
+ * The accounts, with the counts from the last launch applied.
+ *
+ * Startup draws the tray from the account list before anything is polled, so
+ * without this every launch begins at zero until the first cache read answers.
+ * Sweeps any orphaned keys for accounts no longer configured.
+ */
+export function withStoredUnreadCounts(accounts: AccountConfig[]): AccountConfig[] {
+  sweepOrphanedUnreadCounts(accounts.map((a) => a.id));
+  const stored = loadUnreadCounts();
   return accounts.map((account) => {
-    const counts = cleaned[account.id];
+    const counts = stored[account.id];
     if (!counts) return account;
     return { ...account, unreadCount: counts.total, badgeUnreadCount: counts.badge };
   });
 }
+
+/**
+ * Store abstraction for persisted unread count lifecycle operations.
+ */
+export const UnreadCountStore = {
+  load: loadUnreadCounts,
+  save: saveUnreadCounts,
+  forget: forgetStoredUnreadCounts,
+  sweepOrphaned: sweepOrphanedUnreadCounts,
+  withStoredCounts: withStoredUnreadCounts,
+};

@@ -25,7 +25,7 @@ import type {
   VerificationCodeItem,
 } from './types.js';
 import { UnreadLedger } from './unread-ledger.js';
-import { saveUnreadCounts, deleteStoredUnreadCounts } from './unread-count-store.js';
+import { UnreadCountStore, saveUnreadCounts } from './unread-count-store.js';
 
 /** How many times a hint re-reads the cache, and how far apart. */
 /** How long to wait before storing changed counts. */
@@ -296,7 +296,7 @@ export class HybridFeedSource implements MailboxSource {
   public forget(): void {
     this.poller.forget();
     this.destroy();
-    deleteStoredUnreadCounts(this.accountId);
+    UnreadCountStore.forget(this.accountId);
   }
 
   public getArrivalCount(): number {
@@ -529,13 +529,14 @@ export class HybridFeedSource implements MailboxSource {
  */
 export function forgetMailboxAccount(accountId: string): void {
   AtomFeedPoller.forget(accountId);
-  deleteStoredUnreadCounts(accountId);
+  UnreadCountStore.forget(accountId);
 }
 
 /**
- * Sweeps all persisted mailbox state on disk (atom-state files) on startup,
+ * Sweeps all persisted mailbox state on disk (atom-state files and unread-counts) on startup,
  * deleting records for accounts that are no longer configured.
  */
 export function sweepOrphanedMailboxState(activeAccountIds: readonly string[]): void {
   AtomFeedPoller.sweepOrphaned(activeAccountIds);
+  UnreadCountStore.sweepOrphaned(activeAccountIds);
 }
