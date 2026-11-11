@@ -28,8 +28,8 @@ The `account` parameter accepts either an internal account identifier (such as `
 When a deep link includes a triage action such as `action=archive`, `action=trash` or `action=markRead`, Magimail applies the change in the background without opening the main window or taking focus from the app you are in.
 :::
 
-:::tip[Calendar event sources resolve to native threads]
-When navigating to an automated event source link (`mail.google.com/mail?extsrc=cal&plid=...`) from Google Calendar, Magimail resolves the event in the background and opens the full conversation directly in your inbox view, instead of loading a stripped-down standalone webview.
+:::tip[Calendar event links open native threads]
+When you click an email link inside an automated Google Calendar event (such as flight, hotel, or reservation details created from Gmail), Magimail resolves it in the background and opens the full conversation directly in your inbox, instead of showing a stripped-down web card.
 :::
 
 ## Examples

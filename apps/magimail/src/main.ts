@@ -572,6 +572,46 @@ export const MAILBOX_ROUTES: Record<string, string> = {
   important: '#imp',
 };
 
+/**
+ * Resolves an automated Google Calendar source link (`extsrc=cal` / `plid=...`), prompting
+ * for the target account if ambiguous, and opens the originating conversation natively.
+ */
+async function handleCalendarSourceNavigation({
+  targetUrl,
+  targetAccountId,
+  accountsManager,
+  parentWindow,
+}: {
+  targetUrl: string;
+  targetAccountId?: string;
+  accountsManager: AccountsManager;
+  parentWindow: BaseWindow | null;
+}): Promise<void> {
+  let accountId: string | undefined;
+  if (targetAccountId) {
+    const acc = findAccountByIdOrEmail(accountsManager.getAccounts(), targetAccountId);
+    if (acc) {
+      accountId = acc.id;
+    }
+  }
+  if (!accountId) {
+    const accounts = accountsManager.getAccounts();
+    if (accounts.length > 1) {
+      const picked = await chooseComposeAccount(accountsManager, {
+        title: uiString('dialog.threadAccount.title'),
+        message: uiString('dialog.threadAccount.message'),
+        detail: uiString('dialog.threadAccount.detail'),
+        parentWindow,
+      });
+      if (!picked) return;
+      accountId = picked.id;
+    } else {
+      accountId = accountsManager.getActiveAccountId();
+    }
+  }
+  void accountsManager.resolveCalendarEventSource(accountId, targetUrl);
+}
+
 export async function dispatchProtocolUrl(
   url: string,
   manager: any = accountsManager,
@@ -633,29 +673,12 @@ export async function dispatchProtocolUrl(
       const targetUrl = parsed.searchParams.get('url');
       if (targetUrl && isAllowedGmailNavigationUrl(targetUrl)) {
         if (targetUrl.includes('extsrc=cal') || targetUrl.includes('plid=')) {
-          let accountId: string | undefined;
-          if (targetAccountId) {
-            const acc = findAccountByIdOrEmail(activeManager.getAccounts(), targetAccountId);
-            if (acc) {
-              accountId = acc.id;
-            }
-          }
-          if (!accountId) {
-            const accounts = activeManager.getAccounts();
-            if (accounts.length > 1) {
-              const picked = await chooseComposeAccount(activeManager, {
-                title: uiString('dialog.threadAccount.title'),
-                message: uiString('dialog.threadAccount.message'),
-                detail: uiString('dialog.threadAccount.detail'),
-                parentWindow: win,
-              });
-              if (!picked) return;
-              accountId = picked.id;
-            } else {
-              accountId = activeManager.getActiveAccountId();
-            }
-          }
-          void activeManager.resolveCalendarEventSource(accountId, targetUrl);
+          void handleCalendarSourceNavigation({
+            targetUrl,
+            targetAccountId,
+            accountsManager: activeManager,
+            parentWindow: win,
+          });
         } else {
           activeManager.openInAccount(targetAccountId, targetUrl);
         }
