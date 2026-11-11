@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import { applyMainWorldIdentity, chromeBrands, chromeFullVersionBrands } from '@magimail/core';
 import { extractRawCalendarList, extractGaiaId, extractGoogleApiKey } from './calendar-list.js';
-import { resolveAnchorDate } from './calendar-visible-range.js';
+import { resolveAnchorDate, visibleWeekStartWeekday } from './calendar-visible-range.js';
 import {
   CALENDAR_LIST_CHANNEL,
   GCAL_GRID_SCROLL_CHANNEL,
@@ -101,6 +101,7 @@ const VIEW_KEY_TO_TIMEFRAME: Record<string, string> = {
 
 let lastReportedTimeframe: string | null = null;
 let lastReportedDate: string | null = null;
+let lastReportedFirstWeekday: number | null = null;
 
 /**
  * Month view turns a vertical wheel into a month change.
@@ -183,20 +184,33 @@ function checkViewMode(): void {
   // Calendar can stay on a view with no date in the route, so the rendered grid is the
   // authority on what is on screen. Defaulting to today here is what used to move the
   // sidebar to the current month while Calendar showed another one.
+  const dateKeys = visibleDateKeys();
   const resolvedDate = resolveAnchorDate({
     timeframe,
     routeDateStr: dateStr,
-    dateKeys: visibleDateKeys(),
+    dateKeys,
     todayISO: todayISO(),
   });
   dateStr = resolvedDate;
 
-  if (timeframe !== lastReportedTimeframe || dateStr !== lastReportedDate) {
+  // The grid the sidebar is aligned to also says which day Google starts its weeks on. It
+  // travels with the view mode because it is a property of what is on screen, and it is
+  // included in the dedupe so that changing Start of the week in Google's settings
+  // republishes even when the date on screen does not move.
+  const firstWeekday = visibleWeekStartWeekday(timeframe, dateKeys);
+
+  if (
+    timeframe !== lastReportedTimeframe ||
+    dateStr !== lastReportedDate ||
+    firstWeekday !== lastReportedFirstWeekday
+  ) {
     lastReportedTimeframe = timeframe;
     lastReportedDate = dateStr;
+    lastReportedFirstWeekday = firstWeekday;
     ipcRenderer.send(GCAL_VIEW_MODE_CHANNEL, {
       timeframe,
       dateStr,
+      firstWeekday,
     });
   }
 

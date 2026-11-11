@@ -20,7 +20,7 @@ export interface MagicalNativeAddon extends NativeToolbarAddon {
   sidebarAttach?: (handle: Buffer) => void;
   sidebarSetVisible?: (visible: boolean, animated: boolean) => number | undefined;
   sidebarUpdateData?: (json: string) => void;
-  sidebarSetViewMode?: (mode: string, anchorDate?: string) => void;
+  sidebarSetViewMode?: (mode: string, anchorDate?: string, firstWeekday?: number) => void;
   sidebarSetTransparency?: (transparent: boolean, isDark: boolean) => void;
   sidebarSetScrollPosition?: (
     hour: number,

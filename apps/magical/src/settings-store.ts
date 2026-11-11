@@ -132,6 +132,20 @@ export interface MagicalSettings {
    * an account is ignored rather than resurrected.
    */
   lastActiveAccountId: string;
+  /**
+   * The first weekday each Google account's grid starts its weeks on, as Apple's
+   * `.weekday` number (1 = Sunday … 7 = Saturday), keyed by account id.
+   *
+   * Google keeps Start of the week per account and defaults it to the locale, and the
+   * Calendar API does not expose it, so the only source is the grid the sidebar sits
+   * beside. Storing it is what lets the sidebar draw the right week on its first frame
+   * instead of guessing from the Mac and correcting a moment later.
+   *
+   * Per account because two accounts can hold different values, and it can go stale
+   * while Magical is closed, since the setting syncs across devices: the first grid
+   * report of a session corrects it and writes the new value back.
+   */
+  firstWeekdayByAccount: Record<string, number>;
 }
 
 const SETTINGS_FILENAME = 'settings.json';
@@ -162,6 +176,7 @@ const DEFAULT_SETTINGS: MagicalSettings = {
   askAboutDefaultCalendarApp: true,
   showCompletedTasks: true,
   lastActiveAccountId: '',
+  firstWeekdayByAccount: {},
 };
 
 let cached: MagicalSettings | null = null;
@@ -183,6 +198,29 @@ function settingsPath(): string {
 
 /** Unknown keys in the file are dropped, so a setting retired in a later build
  *  does not linger and quietly reappear. */
+/**
+ * The per-account first weekdays in a stored file, dropping anything that is not a day.
+ *
+ * A weekday outside 1–7 would be handed to `Calendar.firstWeekday` and lay out a grid with
+ * no sensible answer, so it is not a value this setting is allowed to hold.
+ */
+function storedFirstWeekdays(value: unknown): Record<string, number> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return {};
+  const weekdays: Record<string, number> = {};
+  for (const [accountId, weekday] of Object.entries(value as Record<string, unknown>)) {
+    if (
+      accountId &&
+      typeof weekday === 'number' &&
+      Number.isInteger(weekday) &&
+      weekday >= 1 &&
+      weekday <= 7
+    ) {
+      weekdays[accountId] = weekday;
+    }
+  }
+  return weekdays;
+}
+
 /** Whether one entry of a stored list is a shape a setting is allowed to hold. */
 function isStoredListItem(item: unknown): boolean {
   if (typeof item === 'string') return true;
@@ -203,6 +241,13 @@ export function mergeSettings(stored: unknown): MagicalSettings {
     // `'object'`, so a corrupt file would put either where a list belongs and every reader
     // would then have to defend itself.
     const fallback = DEFAULT_SETTINGS[key];
+    if (key === 'firstWeekdayByAccount') {
+      // A record, and `typeof null` is `'object'`, so the generic check below would let a
+      // null through and every reader would then have to defend itself. Bad entries are
+      // dropped one at a time rather than losing the whole map.
+      (merged as Record<string, unknown>)[key] = storedFirstWeekdays(value);
+      continue;
+    }
     if (Array.isArray(fallback)) {
       // Two shapes of list are stored: ids, and calendars named by account. Checking only
       // for strings silently emptied the second on every read, so the popover's filter

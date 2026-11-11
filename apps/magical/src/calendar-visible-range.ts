@@ -83,6 +83,41 @@ export function visibleStartDate(dateKeys: Iterable<string | null | undefined>):
 }
 
 /**
+ * The views whose grid is laid out in weeks, so its earliest cell is the week's first day.
+ *
+ * Month belongs here because its earliest cell is the lead padding before the 1st. Day,
+ * Year, Agenda and Schedule do not: a Day grid's earliest cell is the day itself, and Year
+ * shows a whole year of months, so neither says anything about which day a week starts.
+ */
+const WEEK_BASED_TIMEFRAMES = new Set(['week', 'customweek', 'month']);
+
+/**
+ * The weekday Google Calendar is starting its weeks on, or null when the view cannot say.
+ *
+ * The earliest visible cell is the week's first day in Week and 4-Day view, and the lead
+ * padding in Month view, so its weekday is Google's first weekday in both. This is the
+ * only place it can be read: Google keeps Start of the week per account, defaults it to the
+ * locale, and does not expose it through the API. Reading the grid is what makes the
+ * sidebar's week unable to disagree with the calendar drawn beside it.
+ *
+ * Returned in Apple's `.weekday` numbering, 1 = Sunday through 7 = Saturday, because that
+ * is what the helper's `Calendar.firstWeekday` takes.
+ */
+export function visibleWeekStartWeekday(
+  timeframe: string,
+  dateKeys: Iterable<string | null | undefined>,
+): number | null {
+  if (!WEEK_BASED_TIMEFRAMES.has(timeframe)) return null;
+  const iso = visibleStartDate(dateKeys);
+  if (!iso) return null;
+
+  const [year, month, day] = iso.split('-').map(Number);
+  if (!year || !month || !day) return null;
+  // UTC arithmetic on the parts, so the machine's zone cannot move the day across midnight.
+  return new Date(Date.UTC(year, month - 1, day)).getUTCDay() + 1;
+}
+
+/**
  * The date the companion sidebar should anchor to.
  *
  * A route date wins when it falls in the month Calendar is showing, so clicking a day
