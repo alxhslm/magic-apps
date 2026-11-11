@@ -174,6 +174,80 @@ export function buildEventLink(event: NormalizedCalendarEvent, accountId: string
   return `${MAGICAL_PROTOCOL}://date?account=${account}&at=${at}`;
 }
 
+/**
+ * Converts a feed URL (e.g. `webcal://example.com/cal.ics` or `ical://...`) to an HTTP/HTTPS URL.
+ * Handles forms like `webcal://https://example.com/feed` as well as `webcal://example.com/feed`.
+ */
+export function normalizeFeedUrl(rawUrl: string): string {
+  const trimmed = rawUrl.trim();
+  const matchNested = /^(?:webcal|ical):\/\/(https?:\/\/.*)$/i.exec(trimmed);
+  if (matchNested) return matchNested[1];
+  return trimmed.replace(/^(?:webcal|ical):\/\//i, 'https://');
+}
+
+export interface SubscriptionLinkTarget {
+  feedUrl: string;
+  accountId?: string;
+}
+
+/** Parses a feed subscription link (`webcal://`, `ical://`, or `magical://subscribe?url=...`). */
+export function parseSubscriptionLink(rawUrl: string): SubscriptionLinkTarget | null {
+  try {
+    const url = new URL(rawUrl);
+    if (url.protocol === 'webcal:' || url.protocol === 'ical:') {
+      const accountId = url.searchParams.get('account') || undefined;
+      if (accountId) url.searchParams.delete('account');
+      return { feedUrl: normalizeFeedUrl(url.toString()), accountId };
+    }
+    if (url.protocol === `${MAGICAL_PROTOCOL}:`) {
+      const kind = url.hostname || url.pathname.replace(/^\/+/, '');
+      if (kind === 'subscribe' || kind === 'webcal') {
+        const feedUrl = url.searchParams.get('url');
+        if (!feedUrl) return null;
+        let accountId = url.searchParams.get('account') || undefined;
+        try {
+          const innerUrl = new URL(feedUrl);
+          const innerAccount = innerUrl.searchParams.get('account');
+          if (innerAccount && !accountId) {
+            accountId = innerAccount;
+            innerUrl.searchParams.delete('account');
+            return { feedUrl: normalizeFeedUrl(innerUrl.toString()), accountId };
+          }
+        } catch {
+          // If not parseable as a full URL, use as is
+        }
+        return { feedUrl: normalizeFeedUrl(feedUrl), accountId };
+      }
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+export interface ImportLinkTarget {
+  filePath: string;
+  accountId?: string;
+}
+
+/** Parses an .ics file import deep link (`magical://import?file=...`). */
+export function parseImportLink(rawUrl: string): ImportLinkTarget | null {
+  try {
+    const url = new URL(rawUrl);
+    if (url.protocol !== `${MAGICAL_PROTOCOL}:`) return null;
+    const kind = url.hostname || url.pathname.replace(/^\/+/, '');
+    if (kind === 'import' || kind === 'ics') {
+      const filePath = url.searchParams.get('file') || url.searchParams.get('path');
+      if (!filePath) return null;
+      const accountId = url.searchParams.get('account') || undefined;
+      return { filePath, accountId };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 /** Parses a `magical://` link. Returns null for anything it does not recognise. */
 export function parseEventLink(rawUrl: string): EventLinkTarget | null {
   let url: URL;
