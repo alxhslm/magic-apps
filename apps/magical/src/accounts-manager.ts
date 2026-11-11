@@ -1543,9 +1543,9 @@ export class AccountsManager {
   }
 
   /**
-   * Shows the From URL pane in the account's own view, with the feed URL already entered.
+   * Shows the From URL pane in the account's own view, optionally with a feed URL already entered.
    */
-  private async revealWebcalPane(accountId: string, feedUrl: string): Promise<void> {
+  async revealWebcalPane(accountId: string, feedUrl = ''): Promise<void> {
     this.switchAccount(accountId);
     const view = this.pool.view(accountId);
     if (!viewIsAlive(view)) return;

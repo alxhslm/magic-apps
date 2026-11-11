@@ -7,6 +7,7 @@
     "menu.file": { "en": "File" },
     "menu.file.newEvent": { "en": "New Event" },
     "menu.file.importCalendarFile": { "en": "Import Calendar File…" },
+    "menu.file.subscribeCalendarFeed": { "en": "Subscribe to Calendar Feed…" },
     "menu.edit": { "en": "Edit" },
     "menu.edit.find": { "en": "Find" },
     "menu.edit.find.findInPage": { "en": "Find in Page…" },
@@ -164,9 +165,15 @@
       "en": "The Add calendar button could not be pressed"
     },
     "dialog.webcal.reason.noReport": { "en": "Google never reported what it did" },
-    "dialog.webcal.reason.unreadable": { "en": "Google’s confirmation could not be read" },
     "dialog.webcal.reason.accountMissing": { "en": "That account no longer exists" },
     "dialog.webcal.reason.paneUnavailable": { "en": "The subscription page could not be driven" },
+    "dialog.webcal.menu.title": { "en": "Subscribe to Calendar Feed" },
+    "dialog.webcal.menu.clipboardMessage": { "en": "Subscribe to Calendar Feed from Clipboard?" },
+    "dialog.webcal.menu.clipboardDetail": {
+      "en": "Found feed URL on clipboard:\n{url}\n\nDo you want to subscribe to this feed?"
+    },
+    "dialog.webcal.menu.subscribe": { "en": "Subscribe" },
+    "dialog.webcal.menu.openPane": { "en": "Open Settings Pane…" },
 
     "dialog.removeAllData.title": { "en": "Remove All App Data" },
     "dialog.removeAllData.message": { "en": "Remove all app data and quit?" },

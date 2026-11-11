@@ -110,10 +110,12 @@ export async function populateFeedUrl(view: WebContentsView, feedUrl: string): P
         );
         if (!input) return false;
         input.focus();
-        input.value = ${JSON.stringify(feedUrl)};
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-        input.dispatchEvent(new Event('change', { bubbles: true }));
-        input.dispatchEvent(new Event('blur', { bubbles: true }));
+        if (${JSON.stringify(feedUrl)}) {
+          input.value = ${JSON.stringify(feedUrl)};
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+          input.dispatchEvent(new Event('blur', { bubbles: true }));
+        }
         return true;
       })()`,
     ).catch(() => false)) === true

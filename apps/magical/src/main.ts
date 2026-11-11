@@ -1,6 +1,7 @@
 import {
   app,
   BaseWindow,
+  clipboard,
   dialog,
   Menu,
   nativeTheme,
@@ -370,6 +371,7 @@ function applyMenu(): void {
       canGoForward: manager.canGoForward(),
       onNewEvent: () => handleNewEvent(),
       onImportFile: () => void handleImportFile(),
+      onSubscribeFeed: () => void handleSubscribeFeedMenu(),
       onSetAsDefault: () => void promptSetAsDefault(mainWindow),
       onFindInPage: () => {
         findInPageController?.show();
@@ -1223,6 +1225,64 @@ async function handleImportFile(): Promise<void> {
 
   if (canceled || filePaths.length === 0) return;
   await handleIcsFile(filePaths[0]);
+}
+
+/**
+ * File → Subscribe to Calendar Feed… (⌥⌘S)
+ *
+ * If the clipboard contains a calendar feed URL (webcal://, ical://, or http(s)://),
+ * offers to subscribe to it directly in the background. Otherwise, or if the user asks
+ * to review the page, reveals Google Calendar's "From URL" settings pane.
+ */
+async function handleSubscribeFeedMenu(): Promise<void> {
+  if (!accounts) createWindow();
+  const manager = accounts;
+  if (!manager) return;
+
+  const clip = (await clipboard.readText()).trim();
+  const looksLikeFeed =
+    /^(webcal|ical|https?):\/\/[^\s]+$/i.test(clip) &&
+    (clip.includes('.ics') || /^(webcal|ical):/i.test(clip) || /calendar|feed/i.test(clip));
+
+  const parent = mainWindow && !mainWindow.isDestroyed() ? mainWindow : null;
+
+  if (looksLikeFeed) {
+    const options = {
+      type: 'question' as const,
+      buttons: [
+        uiString('dialog.webcal.menu.subscribe'),
+        uiString('dialog.webcal.menu.openPane'),
+        uiString('dialog.cancel'),
+      ],
+      defaultId: 0,
+      cancelId: 2,
+      title: uiString('dialog.webcal.menu.title'),
+      message: uiString('dialog.webcal.menu.clipboardMessage'),
+      detail: uiString('dialog.webcal.menu.clipboardDetail', { url: clip }),
+    };
+
+    const { response } = parent
+      ? await dialog.showMessageBox(parent, options)
+      : await dialog.showMessageBox(options);
+
+    if (response === 0) {
+      await handleWebcalSubscription(clip);
+      return;
+    }
+    if (response !== 1) {
+      return;
+    }
+  }
+
+  const account = await chooseEventAccount(manager, {
+    title: uiString('dialog.webcal.chooseAccount.title'),
+    message: uiString('dialog.webcal.chooseAccount.message'),
+    parentWindow: mainWindow,
+    fromMainWindow: true,
+  });
+  if (!account) return;
+
+  await manager.revealWebcalPane(account.id, looksLikeFeed ? clip : '');
 }
 
 /**
