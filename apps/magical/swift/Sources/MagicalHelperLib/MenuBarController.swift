@@ -242,9 +242,7 @@ public final class MenuBarController: NSObject, NSPopoverDelegate {
             appendText(" \(dayNum)")
 
         case "dayAndMonth":
-            let df = DateFormatter()
-            df.dateFormat = "E d MMM"
-            df.timeZone = .current
+            let df = TimeDisplay.dateFormatter(template: "E d MMM")
             appendText(" \(df.string(from: Date()))")
 
         // Whatever is left today, not just the next four hours the hero card covers; the
@@ -334,6 +332,7 @@ public final class MenuBarController: NSObject, NSPopoverDelegate {
             join.image = NSImage(systemSymbolName: "video.fill", accessibilityDescription: nil)
             join.target = StatusItemTarget.shared
             StatusItemTarget.shared.pendingJoinUrl = url
+            StatusItemTarget.shared.pendingJoinAccountId = next.event.accountId
             menu.addItem(join)
 
             let when = NSMenuItem(
@@ -438,8 +437,8 @@ public final class MenuBarController: NSObject, NSPopoverDelegate {
                 self?.dismissPopover()
                 self?.send(method: "tray.quit")
             },
-            onJoinCall: { [weak self] url in
-                self?.send(method: "tray.joinCall", params: ["url": url])
+            onJoinCall: { [weak self] url, accountId in
+                self?.send(method: "tray.joinCall", params: ["url": url, "accountId": accountId])
             },
             onSelectEvent: { [weak self] event in
                 self?.send(method: "tray.focusEvent", params: [
@@ -449,6 +448,7 @@ public final class MenuBarController: NSObject, NSPopoverDelegate {
                 self?.dismissPopover()
             },
             onRsvp: { [weak self] event, response in
+                HelperLog.info("Tray", "RSVP \(response) chosen for \(event.id) on \(event.accountId)")
                 self?.send(method: "tray.rsvp", params: [
                     "accountId": event.accountId,
                     "eventId": event.id,
@@ -558,6 +558,7 @@ private final class StatusItemTarget: NSObject {
 
     /// The conference link the menu's Join item opens, set as that menu is built.
     var pendingJoinUrl: String?
+    var pendingJoinAccountId: String?
 
     @objc func handleClick() {
         let isSecondary = NSApp.currentEvent.map { event in
@@ -579,7 +580,11 @@ private final class StatusItemTarget: NSObject {
 
     @objc func joinCall() {
         guard let url = pendingJoinUrl else { return }
-        controller?.send(method: "tray.joinCall", params: ["url": url])
+        var params: [String: String] = ["url": url]
+        if let accountId = pendingJoinAccountId, !accountId.isEmpty {
+            params["accountId"] = accountId
+        }
+        controller?.send(method: "tray.joinCall", params: params)
     }
 
     @objc func openApp() {

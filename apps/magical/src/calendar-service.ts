@@ -2,12 +2,13 @@ import { app, dialog, powerMonitor, shell } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createLogger, redactUrl } from '@magimail/core/logger';
-import { readSecretFile, writeSecretFile } from '@magimail/core';
+import { readSecretFile, writeSecretFile, findAccountByIdOrEmail } from '@magimail/core';
 
 import { collapseWorkingLocations } from './working-locations.js';
 import { CalendarPoller, classifyFailure, type SourceHealth } from './calendar-poller.js';
 import { TasksPoller } from './tasks-poller.js';
 import {
+  TasksRateLimitedError,
   TasksRefusedError,
   type TaskEntry,
   type TaskOccurrence,
@@ -45,13 +46,13 @@ import { uiString } from './strings.js';
 import {
   buildEventLink,
   decodeEid,
-  extractEid,
+  eventEid,
   parseEventLink,
   resolveToCalendarUrl,
   type EventLinkAction,
 } from './event-links.js';
 import { loadSettings, type MagicalSettings } from './settings-store.js';
-import type { CalendarAccount } from './accounts.js';
+import { loadAccounts, type CalendarAccount } from './accounts.js';
 import {
   calendarAlertKey,
   pollableCalendarIds,
@@ -160,6 +161,16 @@ const BACKOFF_CAP_MS = 60 * 60 * 1000;
 
 /** Ignore a focus re-poll this soon after the last one, so window switching is free. */
 const FOCUS_POLL_MIN_GAP_MS = 60 * 1000;
+
+/**
+ * Write-settling delay after observing a sync mutation in Google Calendar web UI.
+ *
+ * Gives Google's backend time to commit and index the write before we fetch the range.
+ */
+const CHANGE_HINT_POLL_DELAY_MS = 600;
+
+/** Rate-limits rapid sync mutations (e.g. dragging, multi-deletes). */
+const CHANGE_HINT_COOLDOWN_MS = 2500;
 
 /** How often to retry an action held back while the user edits, and when to give up. */
 const HELD_RETRY_MS = 5_000;
@@ -441,6 +452,9 @@ export class CalendarService {
   /** Timestamp of the most-recently-started `pollAll` — used by `refreshIfStale`. */
   private lastPollStartedAt: number | null = null;
   private isPolling = false;
+  private hintTimer: ReturnType<typeof setTimeout> | null = null;
+  private lastHintPollAt = 0;
+  private needsFollowUpPoll = false;
   public onEventsUpdated?: (events: Map<string, NormalizedCalendarEvent[]>) => void;
 
   public getCachedEvents(): Map<string, NormalizedCalendarEvent[]> {
@@ -476,7 +490,7 @@ export class CalendarService {
     const event = calendarEvents.find((e) => e.id === eventId);
     if (!event) return false;
 
-    const eid = extractEid(event);
+    const eid = eventEid(event);
     if (!eid || !this.performDelete) {
       log.warn(
         `cannot delete event ${eventId} in background without eid/handler; opening in window`,
@@ -543,7 +557,7 @@ export class CalendarService {
       return false;
     }
 
-    const eid = extractEid(event);
+    const eid = eventEid(event);
     if (!eid || !this.performComplete) {
       log.warn(`cannot change task ${eventId} in background without eid/handler; opening it`);
       this.openDeepLink(buildEventLink(event, accountId));
@@ -635,12 +649,19 @@ export class CalendarService {
       completed: boolean,
     ) => Promise<'ok' | 'busy' | 'failed'>,
     /** Ensures a window for a link before its account is looked up. Optional for tests. */
-    private ensureWindowForLink?: (accountId: string) => void,
+    private ensureWindowForLink?: (accountId?: string) => void,
   ) {
     const persisted = this.loadState();
     this.notified = persisted.notified;
     this.arrivals = persisted.activeArrivals ?? [];
-    this.cachedEvents = this.loadEventCache();
+    const loadedEvents = this.loadEventCache();
+    this.cachedEvents = loadedEvents.cache;
+    if (persisted.pruned) {
+      this.persistState();
+    }
+    if (loadedEvents.pruned) {
+      this.persistEventCache();
+    }
     const settings = loadSettings();
     this.badgeMode = settings.dockBadgeMode;
 
@@ -726,6 +747,35 @@ export class CalendarService {
   public pollOnFocus(): void {
     if (Date.now() - this.lastPollAt < FOCUS_POLL_MIN_GAP_MS) return;
     this.pollNow();
+  }
+
+  /**
+   * Triggers an accelerated poll in response to user actions in the Google Calendar web UI
+   * (e.g. creating, updating, or deleting an event, or completing a task).
+   *
+   * Rate-limited with a write-settling delay so Google's backend has completed committing
+   * the mutation before we query for the updated event range.
+   */
+  public requestImmediatePoll(_accountId?: string): void {
+    if (this.isSuspended) return;
+
+    if (this.isPolling) {
+      this.needsFollowUpPoll = true;
+    }
+
+    if (this.hintTimer) return;
+
+    const sinceLastPoll = Date.now() - this.lastHintPollAt;
+    const delay =
+      sinceLastPoll >= CHANGE_HINT_COOLDOWN_MS
+        ? CHANGE_HINT_POLL_DELAY_MS
+        : Math.max(CHANGE_HINT_POLL_DELAY_MS, CHANGE_HINT_COOLDOWN_MS - sinceLastPoll);
+
+    this.hintTimer = setTimeout(() => {
+      this.hintTimer = null;
+      this.lastHintPollAt = Date.now();
+      void this.pollAll();
+    }, delay);
   }
 
   /**
@@ -978,16 +1028,24 @@ export class CalendarService {
       for (const [key, item] of [...this.heldActions]) {
         if (!live.has(item.accountId)) this.heldActions.delete(key);
       }
-      // The persisted suppression list is keyed `google:<accountId>|…`; entries for a gone
-      // account are never matched again and would otherwise be written back for ever.
-      const notified = this.notified.filter((key) => {
+      // The persisted suppression list is keyed `google:<accountId>|…` and `tasks:<accountId>|…`;
+      // entries for a gone account are never matched again and would otherwise be written back for ever.
+      const filterKey = (key: string): boolean => {
         const sep = key.indexOf('|');
         if (sep < 0) return true;
         const source = key.slice(0, sep);
-        return !source.startsWith('google:') || live.has(source.slice('google:'.length));
-      });
+        if (source.startsWith('google:')) return live.has(source.slice('google:'.length));
+        if (source.startsWith('tasks:')) return live.has(source.slice('tasks:'.length));
+        return true;
+      };
+      const notified = this.notified.filter(filterKey);
       if (notified.length !== this.notified.length) {
         this.notified = notified;
+        dropped = true;
+      }
+      const arrivals = this.arrivals.filter(filterKey);
+      if (arrivals.length !== this.arrivals.length) {
+        this.arrivals = arrivals;
         dropped = true;
       }
     }
@@ -1029,15 +1087,32 @@ export class CalendarService {
       if (item.accountId === accountId) this.heldActions.delete(key);
     }
 
-    // Both files are keyed `google:<accountId>|…`, the same shape `syncPollers` reads.
-    const source = `google:${accountId}|`;
-    this.notified = this.notified.filter((key) => !key.startsWith(source));
-    this.arrivals = this.arrivals.filter((key) => !key.startsWith(source));
+    // Both files are keyed `google:<accountId>|…` and `tasks:<accountId>|…`,
+    // the same shape `syncPollers` reads.
+    const googleSource = `google:${accountId}|`;
+    const tasksSource = `tasks:${accountId}|`;
+    this.notified = this.notified.filter(
+      (key) => !key.startsWith(googleSource) && !key.startsWith(tasksSource),
+    );
+    this.arrivals = this.arrivals.filter(
+      (key) => !key.startsWith(googleSource) && !key.startsWith(tasksSource),
+    );
+
+    this.invites.forget(`google:${accountId}`);
+    this.scheduler.forget(`google:${accountId}`);
 
     this.persistEventCache();
     this.persistState();
     this.onEventsUpdated?.(this.cachedEvents);
     this.publishPending();
+  }
+
+  /**
+   * Forgets an account that has been signed out or removed.
+   * Alias for `forgetAccount` to match the suite's subsystem forget contract.
+   */
+  public forget(accountId: string): void {
+    this.forgetAccount(accountId);
   }
 
   /**
@@ -1308,10 +1383,10 @@ export class CalendarService {
       // The cached state stands. It is the last thing Google actually said, and
       // guessing is worse than showing it.
       //
-      // A refusal has already been said once by the poller and is paused there, so it is
-      // not repeated here on every poll; a decode or network failure is worth a line
-      // each time it happens.
-      if (!(err instanceof TasksRefusedError)) {
+      // A refusal or a rate limit has already been said once by the poller and is paused
+      // there, so it is not repeated here on every poll; a decode or network failure is
+      // worth a line each time it happens.
+      if (!(err instanceof TasksRefusedError) && !(err instanceof TasksRateLimitedError)) {
         log.warn(`could not sync tasks completion for ${accountId}:`, err);
       }
       return;
@@ -1485,6 +1560,10 @@ export class CalendarService {
       this.scheduleNext();
     } finally {
       this.isPolling = false;
+      if (this.needsFollowUpPoll) {
+        this.needsFollowUpPoll = false;
+        setTimeout(() => void this.pollAll(), CHANGE_HINT_POLL_DELAY_MS);
+      }
     }
   }
 
@@ -1708,7 +1787,7 @@ export class CalendarService {
   }): void {
     switch (action.action) {
       case 'join':
-        if (action.conferenceUrl) void this.joinCall(action.conferenceUrl);
+        if (action.conferenceUrl) void this.joinCall(action.conferenceUrl, action.accountId);
         break;
 
       case 'snooze':
@@ -1795,8 +1874,10 @@ export class CalendarService {
     // same event carries the organiser's, so the same event can arrive under two eids.
     // The event id is shared, so it is the fallback that finds the cached row either way.
     const linkedId = decodeEid(eid)?.eventId;
+    // Compared against the occurrence's own eid, not the one its web URL carries: for an
+    // expanded occurrence those differ, and the link names the occurrence.
     const cached = (this.cachedEvents.get(accountId) ?? []).find(
-      (e) => extractEid(e) === eid || (linkedId !== undefined && e.id === linkedId),
+      (e) => eventEid(e) === eid || (linkedId !== undefined && e.id === linkedId),
     );
 
     if (cached) {
@@ -1846,7 +1927,7 @@ export class CalendarService {
    */
   private async deliverRsvp(invite: PendingInvite, response: RsvpResponse): Promise<void> {
     const { key } = invite;
-    const eid = extractEid(invite.event);
+    const eid = eventEid(invite.event);
     const accountId = invite.sourceId.replace(/^google:/, '');
     if (!eid) {
       // Without an eid there is no way to address the chip, so fall back to showing the
@@ -1984,8 +2065,14 @@ export class CalendarService {
    * user who turned the preference on is saying something different from a user who never
    * installed Zoom.
    */
-  public async joinCall(conferenceUrl: string): Promise<void> {
-    await openExternalUrl(conferenceUrl);
+  public async joinCall(conferenceUrl: string, accountId?: string): Promise<void> {
+    const account = accountId ? loadAccounts().find((a) => a.id === accountId) : undefined;
+    if (!account) {
+      // Only a caller that has no account to give, which today is a notification action. The
+      // browser profile decides which session the call joins as, so the difference is worth a line.
+      log.warn(`Joining ${redactUrl(conferenceUrl)} without an account`);
+    }
+    await openExternalUrl(conferenceUrl, account);
   }
 
   /**
@@ -2008,8 +2095,9 @@ export class CalendarService {
     // Before the lookup: the accounts come from the window this may build.
     this.ensureWindowForLink?.(target.accountId);
 
-    const account =
-      this.getAccounts().find((a) => a.id === target.accountId) ?? this.getAccounts()[0];
+    const active =
+      this.getAccounts().find((a) => a.id === this.activeAccountId) ?? this.getAccounts()[0];
+    const account = findAccountByIdOrEmail(this.getAccounts(), target.accountId) ?? active;
     if (!account) {
       log.warn(`No account to follow a link for; wanted ${target.accountId}`);
       return false;
@@ -2036,7 +2124,7 @@ export class CalendarService {
     const at =
       target.date ??
       (target.eid
-        ? (this.cachedEvents.get(account.id) ?? []).find((e) => extractEid(e) === target.eid)
+        ? (this.cachedEvents.get(account.id) ?? []).find((e) => eventEid(e) === target.eid)
             ?.startTime
         : undefined);
 
@@ -2094,18 +2182,41 @@ export class CalendarService {
    * engine cannot get away with: a banner for a meeting that finished an hour ago is not
    * a stale count, it is a false alarm.
    */
-  private loadState(): PersistedState {
+  private loadState(): PersistedState & { pruned?: boolean } {
     try {
       const parsed = readSecretFile<Partial<PersistedState>>(this.statePath()) ?? {};
+      const live = new Set(this.getAccounts().map((a) => a.id));
+      const filterKey = (key: string): boolean => {
+        const sep = key.indexOf('|');
+        if (sep < 0) return true;
+        const source = key.slice(0, sep);
+        if (source.startsWith('google:')) {
+          return live.has(source.slice('google:'.length));
+        }
+        if (source.startsWith('tasks:')) {
+          return live.has(source.slice('tasks:'.length));
+        }
+        return true;
+      };
+      const rawNotified = Array.isArray(parsed.notified) ? parsed.notified : [];
+      const rawArrivals = Array.isArray(parsed.activeArrivals) ? parsed.activeArrivals : [];
+      const notified = rawNotified.filter(filterKey);
+      const activeArrivals = rawArrivals.filter(filterKey);
+      const pruned =
+        notified.length !== rawNotified.length || activeArrivals.length !== rawArrivals.length;
+      if (pruned) {
+        log.info('Pruned unconfigured account alerts and arrivals from startup state');
+      }
       return {
-        notified: Array.isArray(parsed.notified) ? parsed.notified : [],
-        activeArrivals: Array.isArray(parsed.activeArrivals) ? parsed.activeArrivals : [],
+        notified,
+        activeArrivals,
+        pruned,
       };
     } catch (err) {
       // Discarded rather than nursed back: an empty record risks repeating one banner,
       // and the next alert to fire rewrites the file.
       log.warn('could not read the alert record; starting from an empty one:', err);
-      return { notified: [], activeArrivals: [] };
+      return { notified: [], activeArrivals: [], pruned: false };
     }
   }
 
@@ -2140,12 +2251,18 @@ export class CalendarService {
    * stops a restart replaying the morning's meetings, so seeding the cache cannot
    * resurrect an alert that has already fired.
    */
-  private loadEventCache(): Map<string, NormalizedCalendarEvent[]> {
+  private loadEventCache(): { cache: Map<string, NormalizedCalendarEvent[]>; pruned: boolean } {
     const cache = new Map<string, NormalizedCalendarEvent[]>();
+    let pruned = false;
     try {
       const parsed = readSecretFile<Partial<PersistedEventCache>>(this.eventCachePath()) ?? {};
+      const live = new Set(this.getAccounts().map((a) => a.id));
       let total = 0;
       for (const [accountId, events] of Object.entries(parsed.events ?? {})) {
+        if (!live.has(accountId)) {
+          pruned = true;
+          continue;
+        }
         if (!Array.isArray(events)) continue;
         const revived = events
           .map((e) => this.reviveEvent(e))
@@ -2155,12 +2272,15 @@ export class CalendarService {
         total += revived.length;
       }
       if (total > 0) log.info(`Seeded ${total} event(s) from the last good read`);
+      if (pruned) {
+        log.info('Pruned unconfigured accounts from startup event cache');
+      }
     } catch (err) {
       // A cache that will not read is discarded rather than repaired: it is an
       // optimisation for this launch, and the next poll refills it.
       log.warn('could not read the event cache; the next poll refills it:', err);
     }
-    return cache;
+    return { cache, pruned };
   }
 
   /**

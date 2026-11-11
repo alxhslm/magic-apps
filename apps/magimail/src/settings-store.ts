@@ -1,18 +1,35 @@
 import { app } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
-import { readSecretFile, writeSecretFile } from '@magimail/core';
+import { getDefaultBrowser, readSecretFile, writeSecretFile } from '@magimail/core';
 import { createLogger } from '@magimail/core/logger';
 
 const log = createLogger('Settings');
 
 export interface AppSettings {
   theme: 'system' | 'light' | 'dark';
+  /**
+   * Which browser opens links that leave the app. `system` hands the URL to macOS.
+   *
+   * One setting for the app: the browser is where someone works, while the per-account
+   * variable is the Chromium profile.
+   */
+  openLinksIn: string;
+  /**
+   * When true, meeting links (Zoom, Teams) open in the browser rather than in their
+   * desktop applications.
+   */
+  alwaysJoinInBrowser: boolean;
   launchAtLogin: boolean;
   dockBadgeMode: DockBadgeMode;
   showMenuBarTray: boolean;
-  menuBarShowCount: boolean;
-  menuBarShowDots: boolean;
+  /**
+   * What each account contributes to the status item: nothing, one filled or
+   * ringed dot, or a two-digit cell. Never a total, because the Dock badge
+   * already carries that and the point of the menu bar is which inbox is
+   * waiting.
+   */
+  menuBarUnreadDisplay: MenuBarUnreadDisplay;
   menuBarUnreadOnly: boolean;
   menuBarVerificationCodes: boolean;
   verificationCodeDurationMinutes: number;
@@ -81,15 +98,26 @@ export const DOCK_BADGE_MODES = ['allUnread', 'newArrivals', 'off'] as const;
 
 export type DockBadgeMode = (typeof DOCK_BADGE_MODES)[number];
 
+/**
+ * The three readings Magimail's status item can show.
+ *
+ * Every one draws one mark per account, so the item's width is a function of
+ * the account count and this setting, never of the unread counts themselves.
+ */
+export const MENU_BAR_UNREAD_DISPLAYS = ['nothing', 'dots', 'numbers'] as const;
+
+export type MenuBarUnreadDisplay = (typeof MENU_BAR_UNREAD_DISPLAYS)[number];
+
 const SETTINGS_FILENAME = 'settings.json';
 
 const DEFAULT_SETTINGS: AppSettings = {
   theme: 'system',
+  openLinksIn: 'system',
+  alwaysJoinInBrowser: false,
   launchAtLogin: false,
   dockBadgeMode: 'allUnread',
   showMenuBarTray: true,
-  menuBarShowCount: true,
-  menuBarShowDots: true,
+  menuBarUnreadDisplay: 'numbers',
   menuBarUnreadOnly: false,
   menuBarVerificationCodes: true,
   verificationCodeDurationMinutes: 15,
@@ -145,12 +173,67 @@ function migrateDockBadge(data: Record<string, unknown>): Record<string, unknown
   return rest;
 }
 
+function isMenuBarUnreadDisplay(value: unknown): value is MenuBarUnreadDisplay {
+  return MENU_BAR_UNREAD_DISPLAYS.includes(value as MenuBarUnreadDisplay);
+}
+
+/**
+ * Carries the old pair of booleans across to one reading.
+ *
+ * `showDots` and `showCount` could express four states, including a total
+ * count that duplicated the Dock badge. Count-plus-dots and count-only both
+ * become `numbers`; dots-only becomes `dots`; neither becomes `nothing`.
+ * The old keys are dropped rather than kept in sync, for the same reason as
+ * `migrateDockBadge`.
+ */
+function migrateMenuBarUnreadDisplay(data: Record<string, unknown>): Record<string, unknown> {
+  const { menuBarShowCount, menuBarShowDots, ...rest } = data;
+  if (rest.menuBarUnreadDisplay === undefined) {
+    // A missing old key meant its default, which was true for both. Reading an
+    // absent key as false would turn a file holding only `showCount: false`
+    // into numbers, when that user had dots on.
+    const hadDots = menuBarShowDots !== false;
+    const hadCount = menuBarShowCount !== false;
+    if (!hadDots && !hadCount) {
+      rest.menuBarUnreadDisplay = 'nothing';
+    } else if (hadDots && !hadCount) {
+      rest.menuBarUnreadDisplay = 'dots';
+    } else {
+      rest.menuBarUnreadDisplay = 'numbers';
+    }
+  }
+  if (!isMenuBarUnreadDisplay(rest.menuBarUnreadDisplay)) {
+    rest.menuBarUnreadDisplay = 'numbers';
+  }
+  return rest;
+}
+
+/**
+ * The browser links open in before the user has chosen one.
+ *
+ * An install that never touched the setting adopts the Mac's default when we can launch
+ * that browser with a profile, so an account's profile works without a second step.
+ * Anything else stays `system`, which leaves the URL to macOS and keeps a domain owned by a
+ * desktop app opening there.
+ */
+function defaultLinkBrowser(): string {
+  const browser = getDefaultBrowser();
+  return browser.isChromium ? browser.id : 'system';
+}
+
 export function loadSettings(): AppSettings {
   if (cachedSettings) return { ...cachedSettings };
   try {
     const stored = readSecretFile<Record<string, unknown>>(getSettingsPath());
     if (stored) {
-      cachedSettings = { ...DEFAULT_SETTINGS, ...migrateDockBadge(stored) } as AppSettings;
+      const merged = {
+        ...DEFAULT_SETTINGS,
+        ...migrateMenuBarUnreadDisplay(migrateDockBadge(stored)),
+      } as AppSettings;
+      cachedSettings = {
+        ...merged,
+        openLinksIn: (stored.openLinksIn as string | undefined) ?? defaultLinkBrowser(),
+      };
       return { ...cachedSettings };
     }
   } catch (err) {
@@ -159,7 +242,7 @@ export function loadSettings(): AppSettings {
     // apart from a fresh install.
     log.error('settings.json could not be read; every setting is back to its default:', err);
   }
-  cachedSettings = { ...DEFAULT_SETTINGS };
+  cachedSettings = { ...DEFAULT_SETTINGS, openLinksIn: defaultLinkBrowser() };
   return { ...cachedSettings };
 }
 

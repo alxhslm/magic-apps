@@ -123,8 +123,10 @@ The badge has three modes, set in Settings → Appearance → Dock & Menu Bar an
 | `newArrivals` | Mail that arrived and is still waiting    | `activeArrivals`                     |
 | `off`         | Nothing                                   | None                                 |
 
-The switcher and the menu bar ignore the setting and always show the unread count per account,
-because both answer what state each inbox is in, and only the backlog answers that.
+The switcher and the menu bar ignore the setting and always read the backlog per account, because
+both answer what state each inbox is in. The menu bar's display setting chooses whether that state is
+a dot, a number or nothing; it does not choose which count it reports. See
+[`menu-bar.md`](menu-bar.md#status-item-mechanics).
 
 The two modes exist because the same number means opposite things to different people. At inbox zero
 the badge should read 1 the moment anything lands. With four thousand unread it reads a permanent

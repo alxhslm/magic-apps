@@ -57,12 +57,57 @@ export function saveUnreadCounts(accountId: string, counts: StoredUnreadCounts):
 }
 
 /**
+ * Forgets the stored unread counts for an account that has been removed.
+ */
+export function forgetStoredUnreadCounts(accountId: string): void {
+  try {
+    const all = loadUnreadCounts();
+    if (accountId in all) {
+      delete all[accountId];
+      writeSecretFile(countsPath(), all);
+    }
+  } catch (err) {
+    log.warn('Could not update stored unread counts for removed account:', err);
+  }
+}
+
+/** Backward-compatible alias for forgetStoredUnreadCounts. */
+export const deleteStoredUnreadCounts = forgetStoredUnreadCounts;
+
+/**
+ * Sweeps unconfigured accounts from unread-counts.json.
+ */
+export function sweepOrphanedUnreadCounts(activeAccountIds: readonly string[]): void {
+  const stored = loadUnreadCounts();
+  const live = new Set(activeAccountIds);
+  let changed = false;
+  const cleaned: Record<string, StoredUnreadCounts> = {};
+  for (const [id, counts] of Object.entries(stored)) {
+    if (live.has(id)) {
+      cleaned[id] = counts;
+    } else {
+      changed = true;
+    }
+  }
+  if (changed) {
+    try {
+      writeSecretFile(countsPath(), cleaned);
+      log.info('Pruned unconfigured accounts from unread counts');
+    } catch {
+      // Best-effort
+    }
+  }
+}
+
+/**
  * The accounts, with the counts from the last launch applied.
  *
  * Startup draws the tray from the account list before anything is polled, so
  * without this every launch begins at zero until the first cache read answers.
+ * Sweeps any orphaned keys for accounts no longer configured.
  */
 export function withStoredUnreadCounts(accounts: AccountConfig[]): AccountConfig[] {
+  sweepOrphanedUnreadCounts(accounts.map((a) => a.id));
   const stored = loadUnreadCounts();
   return accounts.map((account) => {
     const counts = stored[account.id];
@@ -70,3 +115,14 @@ export function withStoredUnreadCounts(accounts: AccountConfig[]): AccountConfig
     return { ...account, unreadCount: counts.total, badgeUnreadCount: counts.badge };
   });
 }
+
+/**
+ * Store abstraction for persisted unread count lifecycle operations.
+ */
+export const UnreadCountStore = {
+  load: loadUnreadCounts,
+  save: saveUnreadCounts,
+  forget: forgetStoredUnreadCounts,
+  sweepOrphaned: sweepOrphanedUnreadCounts,
+  withStoredCounts: withStoredUnreadCounts,
+};

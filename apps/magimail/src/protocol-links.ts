@@ -24,3 +24,21 @@ export function accountIdFromLink(rawUrl: string): string | undefined {
     return undefined;
   }
 }
+
+/**
+ * Whether a target URL points to a Gmail route that Magimail is built to render
+ * inside an account's WebContentsView.
+ *
+ * Prevents `magimail://navigate?url=...` from loading arbitrary third-party URLs in
+ * an authenticated session partition.
+ */
+export function isAllowedGmailNavigationUrl(rawUrl: string): boolean {
+  try {
+    const parsed = new URL(rawUrl);
+    if (parsed.protocol !== 'https:') return false;
+    const host = parsed.hostname.toLowerCase();
+    return host === 'mail.google.com' || host === 'gmail.com' || host === 'www.gmail.com';
+  } catch {
+    return false;
+  }
+}

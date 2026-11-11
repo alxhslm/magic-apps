@@ -93,16 +93,17 @@ struct MenuBarControllerTests {
         #expect(params["eventId"] as? String == "evt_focus")
     }
 
-    @Test func joinCallSendsJoinCallWithUrl() throws {
+    @Test func joinCallSendsJoinCallWithUrlAndAccount() throws {
         let (controller, getLastEvent) = makeTestSetup()
         let popoverView = controller.makePopoverView()
 
-        popoverView.onJoinCall("https://meet.google.com/abc-defg-hij")
+        popoverView.onJoinCall("https://meet.google.com/abc-defg-hij", "acc_work")
 
         let eventSent = try #require(getLastEvent())
         #expect(eventSent.method == "tray.joinCall")
         let params = try #require(eventSent.params?.dict)
         #expect(params["url"] as? String == "https://meet.google.com/abc-defg-hij")
+        #expect(params["accountId"] as? String == "acc_work")
     }
 
     @Test func otherPopoverClosuresSendExpectedMethods() throws {

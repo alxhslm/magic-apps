@@ -1,7 +1,13 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import { applyMainWorldIdentity, chromeBrands, chromeFullVersionBrands } from '@magimail/core';
 import { extractRawCalendarList, extractGaiaId, extractGoogleApiKey } from './calendar-list.js';
-import { CALENDAR_LIST_CHANNEL } from './constants.js';
+import { resolveAnchorDate } from './calendar-visible-range.js';
+import {
+  CALENDAR_LIST_CHANNEL,
+  GCAL_GRID_SCROLL_CHANNEL,
+  GCAL_SCROLL_TO_HOUR_CHANNEL,
+  GCAL_VIEW_MODE_CHANNEL,
+} from './constants.js';
 
 /**
  * Completes the Chrome identity inside the Google Calendar page.
@@ -76,4 +82,402 @@ if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', reportCalendars, { once: true });
 } else {
   reportCalendars();
+}
+
+/**
+ * Observes Google Calendar's active timeframe and anchor date, relaying changes
+ * to the main process so the native companion sidebar adapts its presentation.
+ */
+const VIEW_KEY_TO_TIMEFRAME: Record<string, string> = {
+  DAY: 'day',
+  WEEK: 'week',
+  MONTH: 'month',
+  CUSTOM_DAYS: 'customday',
+  CUSTOM_WEEKS: 'week',
+  YEAR: 'year',
+  AGENDA: 'schedule',
+  SCHEDULE: 'schedule',
+};
+
+let lastReportedTimeframe: string | null = null;
+let lastReportedDate: string | null = null;
+
+/**
+ * Month view turns a vertical wheel into a month change.
+ *
+ * It is Calendar's own gesture, and it means a trackpad cannot be used to scroll the
+ * grid without the month moving under it. Horizontal scroll stays with Calendar, which
+ * is how time is moved in its grid; only the vertical, month-changing one is stopped.
+ *
+ * Registered from the preload so it is earlier than Calendar's own listener: a listener
+ * added later loses the race, even with `stopImmediatePropagation`.
+ */
+function isMonthGridWheel(event: WheelEvent): boolean {
+  if (lastReportedTimeframe !== 'month' || event.ctrlKey) return false;
+  if (Math.abs(event.deltaY) < Math.abs(event.deltaX)) return false;
+  const target = event.target;
+  return target instanceof Element && target.closest('[role="main"]') !== null;
+}
+
+window.addEventListener(
+  'wheel',
+  (event) => {
+    if (!isMonthGridWheel(event)) return;
+    event.stopImmediatePropagation();
+  },
+  { capture: true, passive: false },
+);
+
+/**
+ * Every date Calendar has drawn in its main grid, from the packed `data-datekey`
+ * attribute. The left-hand mini month is outside `[role="main"]`, so its dates cannot
+ * be mistaken for the displayed range.
+ */
+function visibleDateKeys(): string[] {
+  const main = document.querySelector('[role="main"]') ?? document.body;
+  if (!main) return [];
+  return Array.from(main.querySelectorAll('[data-datekey]'))
+    .map((el) => el.getAttribute('data-datekey'))
+    .filter((key): key is string => Boolean(key));
+}
+
+function todayISO(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+}
+
+function checkViewMode(): void {
+  const path = window.location.pathname;
+  const match =
+    /\/r\/(day|week|month|year|customday|customweek|agenda|schedule)(?:\/(\d{4})\/(\d{1,2})\/(\d{1,2}))?/.exec(
+      path,
+    );
+
+  let timeframe: string | null = null;
+  let dateStr: string | null = null;
+
+  if (match) {
+    timeframe = match[1];
+    if (match[2] && match[3] && match[4]) {
+      const y = match[2];
+      const m = match[3].padStart(2, '0');
+      const d = match[4].padStart(2, '0');
+      dateStr = `${y}-${m}-${d}`;
+    }
+  }
+
+  if (!timeframe) {
+    const el = document.querySelector('[data-viewkey], [data-view-key], [data-view]');
+    const rawKey =
+      el?.getAttribute('data-viewkey') ||
+      el?.getAttribute('data-view-key') ||
+      el?.getAttribute('data-view');
+    const key = rawKey?.toUpperCase();
+    if (key && VIEW_KEY_TO_TIMEFRAME[key]) {
+      timeframe = VIEW_KEY_TO_TIMEFRAME[key];
+    }
+  }
+
+  if (!timeframe) return;
+
+  // Calendar can stay on a view with no date in the route, so the rendered grid is the
+  // authority on what is on screen. Defaulting to today here is what used to move the
+  // sidebar to the current month while Calendar showed another one.
+  const resolvedDate = resolveAnchorDate({
+    timeframe,
+    routeDateStr: dateStr,
+    dateKeys: visibleDateKeys(),
+    todayISO: todayISO(),
+  });
+  dateStr = resolvedDate;
+
+  if (timeframe !== lastReportedTimeframe || dateStr !== lastReportedDate) {
+    lastReportedTimeframe = timeframe;
+    lastReportedDate = dateStr;
+    ipcRenderer.send(GCAL_VIEW_MODE_CHANNEL, {
+      timeframe,
+      dateStr,
+    });
+  }
+
+  checkGridScrollContainer();
+}
+
+/**
+ * Observes the main 24-hour time grid scroll container in Day, Week, and 4-Day views,
+ * relaying the vertical scroll position and computed hour row height so the companion
+ * sidebar's timeline aligns in lockstep.
+ */
+let activeScrollContainer: HTMLElement | null = null;
+let activeResizeObserver: ResizeObserver | null = null;
+let lastReportedScrollTop = -1;
+let lastReportedHourHeight = -1;
+let lastReportedGridTop = -1;
+let lastReportedGridHeight = -1;
+let lastReportedCardTop = -1;
+let scrollRaf: number | null = null;
+let isProgrammaticScroll = false;
+let programmaticScrollTimeout: ReturnType<typeof setTimeout> | null = null;
+
+ipcRenderer.on(GCAL_SCROLL_TO_HOUR_CHANNEL, (_event, payload: { hour?: number }) => {
+  if (typeof payload?.hour !== 'number' || !activeScrollContainer) return;
+  const hourHeight = measureHourHeight(activeScrollContainer);
+  const targetScrollTop = Math.round(payload.hour * hourHeight);
+  if (Math.abs(activeScrollContainer.scrollTop - targetScrollTop) > 2) {
+    isProgrammaticScroll = true;
+    if (programmaticScrollTimeout) {
+      clearTimeout(programmaticScrollTimeout);
+    }
+    activeScrollContainer.scrollTop = targetScrollTop;
+    lastReportedScrollTop = targetScrollTop;
+    programmaticScrollTimeout = setTimeout(() => {
+      isProgrammaticScroll = false;
+      programmaticScrollTimeout = null;
+    }, 100);
+  }
+});
+
+function isTimeGridView(timeframe: string | null): boolean {
+  if (!timeframe) return false;
+  return ['day', 'week', 'customday', 'custom_days', 'fourday', '4day'].includes(
+    timeframe.toLowerCase(),
+  );
+}
+
+function measureCardTop(): number {
+  const main = document.querySelector('[role="main"]');
+  if (main) {
+    const rect = main.getBoundingClientRect();
+    if (rect.top >= 30 && rect.top <= 250) {
+      return rect.top;
+    }
+  }
+  return 64;
+}
+
+function measureHourHeight(container: HTMLElement): number {
+  // Check if there is a column with 24 hour slots
+  const candidates = Array.from(container.querySelectorAll<HTMLElement>('div')).filter(
+    (d) => d.children.length === 24,
+  );
+  if (candidates.length > 0) {
+    const firstRow = candidates[0].children[0] as HTMLElement;
+    const h = firstRow.getBoundingClientRect().height;
+    if (h >= 30 && h <= 120) {
+      return h;
+    }
+  }
+
+  // Google Calendar default row height is 48px (or 40px in compact mode)
+  if (container.scrollHeight >= 900) {
+    return Math.round((container.scrollHeight - 1) / 24);
+  }
+
+  return 48;
+}
+
+function findGridScrollContainer(): HTMLElement | null {
+  const main = document.querySelector('[role="main"]');
+  if (!main) return null;
+
+  // 1. In Day, Week, and 4-Day views, Google Calendar renders the scrollable
+  // 24-hour time grid strictly inside [role="main"] as '.mDPmMe'.
+  const mdp = main.querySelector<HTMLElement>('.mDPmMe');
+  if (mdp && mdp.scrollHeight > mdp.clientHeight && mdp.clientHeight > 100) {
+    return mdp;
+  }
+
+  // 2. Fallback: Search for any scrollable container strictly inside [role="main"]
+  // with scrollHeight >= 900 (24 hours is at least 24 * 38 = 912px).
+  const candidates = Array.from(main.querySelectorAll<HTMLElement>('div'));
+  for (const el of candidates) {
+    if (el.scrollHeight >= 900 && el.clientHeight > 150) {
+      const style = window.getComputedStyle(el);
+      if (style.overflowY === 'auto' || style.overflowY === 'scroll') {
+        return el;
+      }
+    }
+  }
+
+  return null;
+}
+
+function reportGridScroll(): void {
+  if (isProgrammaticScroll) return;
+  if (!activeScrollContainer || !isTimeGridView(lastReportedTimeframe)) return;
+  const scrollTop = activeScrollContainer.scrollTop;
+  const hourHeight = measureHourHeight(activeScrollContainer);
+  const rect = activeScrollContainer.getBoundingClientRect();
+  const gridTop = rect.top;
+  const gridHeight = rect.height;
+  const cardTop = measureCardTop();
+
+  if (
+    Math.abs(scrollTop - lastReportedScrollTop) < 0.5 &&
+    Math.abs(hourHeight - lastReportedHourHeight) < 0.5 &&
+    Math.abs(gridTop - lastReportedGridTop) < 0.5 &&
+    Math.abs(gridHeight - lastReportedGridHeight) < 0.5 &&
+    Math.abs(cardTop - lastReportedCardTop) < 0.5
+  ) {
+    return;
+  }
+  lastReportedScrollTop = scrollTop;
+  lastReportedHourHeight = hourHeight;
+  lastReportedGridTop = gridTop;
+  lastReportedGridHeight = gridHeight;
+  lastReportedCardTop = cardTop;
+
+  const hour = scrollTop / hourHeight;
+
+  ipcRenderer.send(GCAL_GRID_SCROLL_CHANNEL, {
+    hour,
+    hourHeight,
+    gridTop,
+    gridHeight,
+    cardTop,
+  });
+}
+
+function onScrollThrottled(): void {
+  if (scrollRaf) return;
+  scrollRaf = requestAnimationFrame(() => {
+    scrollRaf = null;
+    reportGridScroll();
+  });
+}
+
+function checkGridScrollContainer(): void {
+  if (!isTimeGridView(lastReportedTimeframe)) {
+    if (activeScrollContainer) {
+      activeScrollContainer.removeEventListener('scroll', onScrollThrottled);
+      window.removeEventListener('resize', onScrollThrottled);
+      if (activeResizeObserver) {
+        activeResizeObserver.disconnect();
+        activeResizeObserver = null;
+      }
+      activeScrollContainer = null;
+      lastReportedScrollTop = -1;
+      lastReportedHourHeight = -1;
+      lastReportedGridTop = -1;
+      lastReportedGridHeight = -1;
+      lastReportedCardTop = -1;
+    }
+    return;
+  }
+
+  const container = findGridScrollContainer();
+  if (container && container !== activeScrollContainer) {
+    if (activeScrollContainer) {
+      activeScrollContainer.removeEventListener('scroll', onScrollThrottled);
+    }
+    if (activeResizeObserver) {
+      activeResizeObserver.disconnect();
+      activeResizeObserver = null;
+    }
+    activeScrollContainer = container;
+    activeScrollContainer.addEventListener('scroll', onScrollThrottled, { passive: true });
+    window.addEventListener('resize', onScrollThrottled, { passive: true });
+    activeResizeObserver = new ResizeObserver(() => {
+      onScrollThrottled();
+    });
+    activeResizeObserver.observe(container);
+    const main = document.querySelector('[role="main"]');
+    if (main) {
+      activeResizeObserver.observe(main);
+    }
+    reportGridScroll();
+  } else if (activeScrollContainer) {
+    reportGridScroll();
+  }
+}
+
+let checkDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+function debouncedCheckViewMode(): void {
+  if (checkDebounceTimer) clearTimeout(checkDebounceTimer);
+  checkDebounceTimer = setTimeout(checkViewMode, 80);
+}
+
+try {
+  contextBridge.executeInMainWorld({
+    func: () => {
+      try {
+        const origPush = history.pushState.bind(history);
+        history.pushState = function (...args) {
+          const result = origPush(...args);
+          window.dispatchEvent(new Event('magical:navigation'));
+          return result;
+        };
+        const origReplace = history.replaceState.bind(history);
+        history.replaceState = function (...args) {
+          const result = origReplace(...args);
+          window.dispatchEvent(new Event('magical:navigation'));
+          return result;
+        };
+      } catch {
+        // Guard against restricted window contexts
+      }
+    },
+    args: [],
+  });
+} catch {
+  // Guard against restricted window contexts
+}
+
+try {
+  const origPushState = history.pushState.bind(history);
+  history.pushState = function (...args) {
+    const result = origPushState(...args);
+    debouncedCheckViewMode();
+    return result;
+  };
+
+  const origReplaceState = history.replaceState.bind(history);
+  history.replaceState = function (...args) {
+    const result = origReplaceState(...args);
+    debouncedCheckViewMode();
+    return result;
+  };
+} catch {
+  // Guard against restricted window contexts
+}
+
+window.addEventListener('popstate', debouncedCheckViewMode);
+window.addEventListener('hashchange', debouncedCheckViewMode);
+window.addEventListener('magical:navigation', debouncedCheckViewMode);
+
+function attachViewObservers(): void {
+  checkViewMode();
+  let initialRetryCount = 0;
+  const initialRetryTimer = setInterval(() => {
+    initialRetryCount++;
+    checkViewMode();
+    if (initialRetryCount > 20) {
+      clearInterval(initialRetryTimer);
+    }
+  }, 250);
+
+  // Periodic check to capture view transitions that do not trigger DOM mutations or history events
+  setInterval(checkViewMode, 1000);
+
+  const observer = new MutationObserver(debouncedCheckViewMode);
+  if (document.body) {
+    observer.observe(document.body, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: ['data-viewkey', 'data-view-key', 'data-view'],
+    });
+  }
+
+  const titleEl = document.querySelector('title');
+  if (titleEl) {
+    const titleObserver = new MutationObserver(debouncedCheckViewMode);
+    titleObserver.observe(titleEl, { childList: true, characterData: true, subtree: true });
+  }
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', attachViewObservers, { once: true });
+} else {
+  attachViewObservers();
 }

@@ -18,6 +18,8 @@ export interface AccountConfig {
   email?: string;
   /** Whether this account requires authentication / re-signing in */
   needsAuth?: boolean;
+  /** Target profile directory for Chromium browsers, or '_auto' to match by account email. */
+  browserProfile?: string;
 }
 
 export const DEFAULT_ACCOUNTS: AccountConfig[] = [
@@ -43,6 +45,23 @@ export const DEFAULT_ACCOUNTS: AccountConfig[] = [
  */
 export function newAccountId(): string {
   return `account_${globalThis.crypto.randomUUID()}`;
+}
+
+/**
+ * Resolves an account from a list by its internal id or its email address.
+ *
+ * Matching by email allows cross-app links, Raycast, Alfred and Apple Shortcuts to
+ * target an account by address without needing to know internal app-specific account ids.
+ */
+export function findAccountByIdOrEmail<T extends Pick<AccountConfig, 'id'> & { email?: string }>(
+  accounts: T[],
+  idOrEmail: string | undefined | null,
+): T | undefined {
+  if (!idOrEmail) return undefined;
+  const direct = accounts.find((a) => a.id === idOrEmail);
+  if (direct) return direct;
+  const normalized = idOrEmail.trim().toLowerCase();
+  return accounts.find((a) => a.email && a.email.trim().toLowerCase() === normalized);
 }
 
 /**

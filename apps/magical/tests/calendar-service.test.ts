@@ -30,6 +30,7 @@ vi.mock('../src/settings-store', () => ({
     meetingAlertsEnabled: true,
     meetingAlertLeadMinutes: 5,
     alwaysJoinInBrowser: alwaysJoinInBrowser(),
+    openTodoistLinksInApp: true,
     dockBadgeMode: dockBadgeMode(),
     disabledAlertCalendarIds: disabledAlertCalendarIds(),
   }),
@@ -153,10 +154,10 @@ describe('openExternalUrl', () => {
     alwaysJoinInBrowser.mockReturnValue(false);
   });
 
-  it('unwraps redirector URLs before dispatching to external browser', async () => {
+  it('unwraps a redirector and opens the Todoist task in the app', async () => {
     const raw = 'https://www.google.com/url?q=https://app.todoist.com/app/task/1234567890&usd=1';
     await openExternalUrl(raw);
-    expect(openExternal).toHaveBeenCalledWith('https://app.todoist.com/app/task/1234567890');
+    expect(openExternal).toHaveBeenCalledWith('todoist://task?id=1234567890');
   });
 
   it('hands meeting links to desktop app when installed', async () => {
@@ -244,6 +245,12 @@ describe('joinCall', () => {
 
     await expect(makeService().joinCall('https://zoom.us/j/1234567890')).resolves.toBeUndefined();
   });
+
+  it('routes web calls through openExternalUrl using the matching account', async () => {
+    const url = 'https://meet.google.com/abc-defg-hij';
+    await makeService().joinCall(url, 'account_work');
+    expect(openExternal).toHaveBeenCalledWith(url);
+  });
 });
 
 describe('openDeepLink', () => {
@@ -310,6 +317,30 @@ describe('openDeepLink', () => {
     expect(navigate).toHaveBeenCalledWith('acct', expect.stringContaining('/r/day/2026/9/15'));
   });
 
+  it('resolves the account by its email address in deep links', async () => {
+    const accountWithEmail = {
+      id: 'acct_123',
+      name: 'Work',
+      partition: 'p',
+      color: '#000',
+      email: 'work@corp.com',
+    };
+    const navigate = vi.fn();
+    const reveal = vi.fn(() => Promise.resolve('revealed' as const));
+    const service = new CalendarService(
+      () => [accountWithEmail],
+      navigate,
+      async () => 'ok' as const,
+      reveal,
+    );
+
+    service.openDeepLink(
+      'magical://event?account=WORK%40CORP.COM&eid=ABC&at=2026-09-15T09%3A00%3A00.000Z',
+    );
+    await vi.waitFor(() => expect(reveal).toHaveBeenCalled());
+    expect(reveal).toHaveBeenCalledWith('acct_123', 'ABC', new Date('2026-09-15T09:00:00.000Z'));
+  });
+
   it('opens the window for a link that arrives with no account to resolve against', async () => {
     // No accounts until the window is built; the link must still resolve.
     const reveal = vi.fn(() => Promise.resolve('revealed' as const));
@@ -332,6 +363,23 @@ describe('openDeepLink', () => {
 
     expect(openedFor).toBe('acct');
     expect(reveal).toHaveBeenCalledWith('acct', 'ABC', new Date('2026-09-15T09:00:00.000Z'));
+  });
+
+  it('falls back to activeAccountId when the link omits an account', async () => {
+    const acc1 = { id: 'acc_personal', name: 'Personal', partition: 'p1', color: '#000' };
+    const acc2 = { id: 'acc_work', name: 'Work', partition: 'p2', color: '#fff' };
+    const reveal = vi.fn(() => Promise.resolve('revealed' as const));
+    const service = new CalendarService(
+      () => [acc1, acc2],
+      vi.fn(),
+      async () => 'ok' as const,
+      reveal,
+    );
+    service.setActiveAccount('acc_work');
+
+    service.openDeepLink('magical://event?eid=ABC&at=2026-09-15T09%3A00%3A00.000Z');
+    await vi.waitFor(() => expect(reveal).toHaveBeenCalled());
+    expect(reveal).toHaveBeenCalledWith('acc_work', 'ABC', new Date('2026-09-15T09:00:00.000Z'));
   });
 });
 
@@ -624,8 +672,8 @@ describe('forgetting a removed account', () => {
     fs.writeFileSync(
       alertsFile,
       JSON.stringify({
-        notified: ['google:a|invite|a1', 'google:b|invite|b1'],
-        activeArrivals: ['google:a|invite|a1'],
+        notified: ['google:a|invite|a1', 'google:b|invite|b1', 'tasks:a|task1', 'tasks:b|task2'],
+        activeArrivals: ['google:a|invite|a1', 'tasks:a|task1'],
       }),
     );
 
@@ -642,11 +690,59 @@ describe('forgetting a removed account', () => {
     expect(service.getCachedEvents().get('b')).toHaveLength(1);
 
     const alerts = readSecretFile<{ notified: string[]; activeArrivals: string[] }>(alertsFile);
-    expect(alerts?.notified).toEqual(['google:b|invite|b1']);
+    expect(alerts?.notified).toEqual(['google:b|invite|b1', 'tasks:b|task2']);
     // An arrival left for a gone account is a mark on the badge the user cannot clear.
     expect(alerts?.activeArrivals).toEqual([]);
     const events = readSecretFile<{ events: Record<string, unknown[]> }>(eventsFile);
     expect(Object.keys(events?.events ?? {})).toEqual(['b']);
+
+    // service.forget is an alias for forgetAccount matching the suite's lifecycle contract
+    service.forget('b');
+    expect(service.getCachedEvents().has('b')).toBe(false);
+
+    service.stop();
+  });
+
+  it('prunes unconfigured accounts from event cache and alert state on startup before re-arming', () => {
+    const start = inHours(24);
+    const eventsFile = path.join(stateDir, 'event-cache.json');
+    const alertsFile = path.join(stateDir, 'alert-state.json');
+    fs.mkdirSync(stateDir, { recursive: true });
+    fs.writeFileSync(
+      eventsFile,
+      JSON.stringify({
+        events: {
+          a: [persisted('a1', start)],
+          orphaned: [persisted('o1', start)],
+        },
+      }),
+    );
+    fs.writeFileSync(
+      alertsFile,
+      JSON.stringify({
+        notified: ['google:a|invite|a1', 'google:orphaned|invite|o1', 'google:orphaned|o1@123|5'],
+        activeArrivals: ['google:a|invite|a1', 'google:orphaned|invite|o1'],
+      }),
+    );
+
+    // Only account `a` is configured now; `orphaned` was removed while shut down or crashed.
+    const service = new CalendarService(
+      () => [account],
+      () => {},
+      async () => 'ok' as const,
+    );
+
+    // Cached events in memory must not include the orphaned account immediately on load.
+    expect(service.getCachedEvents().has('orphaned')).toBe(false);
+    expect(service.getCachedEvents().get('a')).toHaveLength(1);
+
+    // Files on disk must have been pruned of the unconfigured account.
+    const events = readSecretFile<{ events: Record<string, unknown[]> }>(eventsFile);
+    expect(Object.keys(events?.events ?? {})).toEqual(['a']);
+
+    const alerts = readSecretFile<{ notified: string[]; activeArrivals: string[] }>(alertsFile);
+    expect(alerts?.notified).toEqual(['google:a|invite|a1']);
+    expect(alerts?.activeArrivals).toEqual(['google:a|invite|a1']);
 
     service.stop();
   });
@@ -775,8 +871,8 @@ describe('the invitations dropdown', () => {
 
       await service.answerRsvp('a', 'a-evt', 'yes');
 
-      // The chip is addressed by the eid out of the event's web URL. The popover sends an
-      // event id, which names nothing Google can click.
+      // The chip is addressed by the occurrence's eid, which for this event is the one its
+      // web URL carries. The popover sends an event id, which names nothing Google can click.
       expect(performRsvp.mock.lastCall?.[1]).toBe('ABC');
       expect(performRsvp.mock.lastCall?.[2]).toBe('yes');
       // The poller still reports it as unanswered, so the badge cannot have dropped
@@ -2842,6 +2938,158 @@ describe('task completion sync and persistence', () => {
     await (service as any).syncTasksCompletion('a', [task], WIDE_RANGE);
 
     expect(task.isCompleted).toBe(true);
+    service.stop();
+  });
+
+  describe('requestImmediatePoll', () => {
+    it('debounces rapid calls and triggers a poll', async () => {
+      vi.useFakeTimers();
+      const service = new CalendarService(
+        () => [account],
+        () => {},
+        async () => 'ok' as const,
+      );
+      const pollAllSpy = vi.spyOn(service as any, 'pollAll').mockResolvedValue(undefined);
+
+      service.requestImmediatePoll();
+      service.requestImmediatePoll();
+
+      expect(pollAllSpy).not.toHaveBeenCalled();
+
+      await vi.advanceTimersByTimeAsync(600);
+
+      expect(pollAllSpy).toHaveBeenCalledTimes(1);
+
+      vi.useRealTimers();
+      service.stop();
+    });
+
+    it('sets follow-up poll if a poll is already in flight', () => {
+      const service = new CalendarService(
+        () => [account],
+        () => {},
+        async () => 'ok' as const,
+      );
+      (service as any).isPolling = true;
+
+      service.requestImmediatePoll();
+
+      expect((service as any).needsFollowUpPoll).toBe(true);
+      service.stop();
+    });
+  });
+});
+
+describe('an occurrence expanded from a series schedule', () => {
+  const account = { id: 'acct', name: 'Work', partition: 'p', color: '#000' };
+  const series = 'series1';
+  const eidOf = (eventId: string) =>
+    Buffer.from(`${eventId} me@work.com`, 'utf8').toString('base64url');
+
+  /** The wire's spelling of one occurrence's slot: UTC, no separators. */
+  const slotOf = (start: Date) =>
+    start
+      .toISOString()
+      .replace(/[-:]/g, '')
+      .replace(/\.\d{3}Z$/, 'Z');
+
+  /**
+   * As `expandRecurringEvents` builds one: the occurrence's own slot in `id`, and the
+   * `webUrl` inherited from the series' newest materialised instance, which names a
+   * different occurrence.
+   */
+  const occurrence = (): NormalizedCalendarEvent => ({
+    id: `${series}_R20261104T230000`,
+    instanceId: `${series}_R20261104T230000`,
+    seriesId: series,
+    calendarIds: ['me@work.com'],
+    summary: 'Standup',
+    webUrl: `https://www.google.com/calendar/event?eid=${eidOf(`${series}_20261111T230000Z`)}`,
+    created: null,
+    updated: null,
+    startTime: inHours(24),
+    endTime: inHours(25),
+    isAllDay: false,
+    myResponseStatus: 0,
+    attendees: [],
+    reminders: 'unknown',
+  });
+
+  beforeEach(() => {
+    pollerEvents.clear();
+    updateDockBadge.mockClear();
+    updateToolbarInvites.mockClear();
+  });
+
+  async function polled(service: CalendarService, event: NormalizedCalendarEvent) {
+    pollerEvents.set(`google:${account.id}`, [event]);
+    service.setActiveAccount(account.id);
+    service.syncPollers();
+    service.pollNow();
+    await vi.waitFor(() => expect(service.getCachedEvents().get(account.id) ?? []).toHaveLength(1));
+  }
+
+  it('answers an invitation under its own eid rather than the one the url carries', async () => {
+    const performRsvp = vi.fn(async () => 'ok' as const);
+    const service = new CalendarService(
+      () => [account],
+      () => {},
+      performRsvp,
+    );
+    const event = occurrence();
+    await polled(service, event);
+
+    await service.answerRsvp(account.id, event.id, 'yes');
+
+    expect(performRsvp.mock.lastCall?.[1]).toBe(eidOf(`${series}_${slotOf(event.startTime)}`));
+    service.stop();
+  });
+
+  it('deletes it under its own eid rather than the one the url carries', async () => {
+    const performDelete = vi.fn(async () => 'ok' as const);
+    const service = new CalendarService(
+      () => [account],
+      () => {},
+      async () => 'ok' as const,
+      undefined,
+      undefined,
+      performDelete,
+    );
+    const event = occurrence();
+    await polled(service, event);
+
+    await service.deleteEvent(account.id, event.id);
+
+    expect(performDelete).toHaveBeenCalledWith(
+      account.id,
+      eidOf(`${series}_${slotOf(event.startTime)}`),
+      event.startTime,
+      false,
+    );
+    service.stop();
+  });
+
+  it('finds the cached occurrence when the link answering it arrives', async () => {
+    const performRsvp = vi.fn(async () => 'ok' as const);
+    const service = new CalendarService(
+      () => [account],
+      () => {},
+      performRsvp,
+      vi.fn(async () => 'revealed' as const),
+    );
+    const event = occurrence();
+    await polled(service, event);
+    await vi.waitFor(() => expect(updateDockBadge).toHaveBeenLastCalledWith(1));
+
+    // The action that answers it, on the link `buildEventLink` builds for the card.
+    service.openDeepLink(`${buildEventLink(event, account.id)}&action=yes`);
+
+    await vi.waitFor(() => expect(performRsvp).toHaveBeenCalled());
+    expect(performRsvp.mock.lastCall?.[1]).toBe(eidOf(`${series}_${slotOf(event.startTime)}`));
+    // The pile only empties when the cached row was found; an unmatched link drives the
+    // view instead and leaves the invitation outstanding.
+    await vi.waitFor(() => expect(updateDockBadge).toHaveBeenLastCalledWith(0));
+
     service.stop();
   });
 });

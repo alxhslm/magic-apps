@@ -38,6 +38,7 @@ flowchart TD
     subgraph Addon["Native N-API addon (in-process)"]
         Cocoa["Cocoa window and NSToolbar"]
         DockTile["NSDockTile date icon"]
+        Sidebar["Native companion sidebar (SwiftUI)"]
     end
 
     subgraph Ext["App extensions (OS-hosted .appex)"]
@@ -63,10 +64,10 @@ window in [Window and views](#window-and-views).
 ## Window and views
 
 Magical uses a single `BaseWindow` with `titleBarStyle: 'hiddenInset'`, `sidebar` vibrancy, and
-dimensions of 1280x820 (`minWidth: 1280`), hosting one `WebContentsView` per account. Google
-Calendar's top bar carries non-collapsible navigation controls that demand at least 1211px on
-Workspace accounts, so enforcing `minWidth: 1280` prevents the top bar from clipping or triggering
-horizontal scrolling. `BrowserWindow` would allocate a default renderer process (~100 MB RAM) that is
+dimensions of 1320x850, hosting one `WebContentsView` per account. Google Calendar's top bar carries
+non-collapsible navigation controls that demand at least 1211px on Workspace accounts, so Calendar is
+held at a minimum of 980px and the window's minimum is 1320px with the companion sidebar visible,
+980px with it hidden. That prevents the top bar from clipping or triggering horizontal scrolling. `BrowserWindow` would allocate a default renderer process (~100 MB RAM) that is
 never displayed, so `BaseWindow` is used instead.
 
 ### Titlebar insets and traffic lights
@@ -176,10 +177,19 @@ The toolbar's mechanism, and the rules every native toolbar item follows, are in
 - **`search`**: optional native `NSSearchField` available via toolbar customisation, expanding Google
   search on submit. Dimmed in Tasks mode, because Google's search is an event search, not a task
   search.
+- **`toggleSidebar`**: toggle button (`sidebar.right`) opening and closing the native companion sidebar.
 
 The switcher segments show account colour dots, focus dimming and authentication warning icons. A
 filled dot means invitations have arrived on that account and not been dealt with, which is the only
 thing that says which account they are waiting on.
+
+## Companion sidebar
+
+The native companion sidebar is an AppKit and SwiftUI surface anchored to the right edge of the main
+window. It adapts its view mode to mirror Google Calendar's active timeframe (Fantastical-style for
+month, year and schedule views; scrubber and agenda for week view; single-day agenda for day view),
+folds smoothly via `NSAnimationContext`, and supports `Cmd+\` keyboard toggling. See
+[`sidebar.md`](sidebar.md).
 
 ## Menu bar
 
@@ -227,12 +237,18 @@ application tracks CSS `prefers-color-scheme`, so Magical only has to drive that
 - Internal navigation is permitted for `calendar.google.com`, `accounts.google.com` and
   `myaccount.google.com`.
 - `setWindowOpenHandler` and `will-navigate` intercept external links: meeting links (Zoom, Teams,
-  Meet), Drive attachments and map coordinates all go to the macOS default handler via
-  `shell.openExternal`.
+  Meet), Todoist tasks and projects, Drive attachments and map coordinates go through
+  `openExternalUrl`, respecting the browser chosen in Settings and the account's Chromium profile,
+  falling back to macOS default `shell.openExternal`.
 
 A trackpad swipe or the mouse's own horizontal wheel moves a day, a week or a month, depending on the
 view: it makes the same semantic DOM clicks the `navGroup` arrows make, through `navPrev` and `navNext`.
-Sideways movement belongs to the wheel here because a calendar has nowhere sideways to scroll. The
+Sideways movement belongs to the wheel here because a calendar has nowhere sideways to scroll.
+
+Month view also treats a vertical wheel over the grid as previous or next month, which leaves a
+trackpad unable to scroll without the month moving under it. `calendar-preload.ts` stops that wheel
+before Calendar's own listener sees it, registered from the preload so it runs first. Horizontal
+wheel is untouched and still moves through time; only the vertical month change is refused. The
 mouse's side buttons navigate history: Calendar manages popups, search, and settings through `popstate`,
 so Back dismisses them and returns to the grid. The calendar grid itself does not navigate periods on
 the side buttons — horizontal scroll moves through time instead.
@@ -280,10 +296,15 @@ Three actions take data back, and each sits where the scope it clears is visible
   its cookies and storage. The account and the app's settings stay.
 - **Remove Account…** beside it drops the selected account's record, clears the stored data and cache
   of its Chromium session, and purges what the calendar service held for it: its events leave the
-  in-memory cache and `event-cache.json`, and its suppression keys leave `alert-state.json`, so no
-  meeting or fired alert survives a filter row that no longer exists. Other accounts and the global
-  settings stay. The partition directory itself stays until the next launch's `pruneOrphanPartitions`
-  sweep, rather than the removal, because Chromium may still hold the files open.
+  in-memory cache and `event-cache.json`, and its suppression keys leave `alert-state.json` (covering
+  both `google:` and `tasks:` keys), so no meeting or fired alert survives a filter row that no longer
+  exists. Removing an active account immediately resets `lastActiveAccountId` in `settings.json`.
+  Other accounts and the global settings stay. The partition directory itself stays until the next
+  launch's `pruneOrphanPartitions` sweep, rather than the removal, because Chromium may still hold the
+  files open. Startup sweeps unconfigured account IDs in `settings.json` (`lastActiveAccountId`,
+  `hiddenCalendars`, `disabledAlertCalendarIds`), and startup cache loaders (`loadEventCache` and
+  `alert-state.json`) prune keys for unconfigured accounts before re-arming, sweeping any state left
+  behind by an interrupted removal or a crash.
 - **Remove All App Data and Quit…**, on its own above Quit in the app menu, removes everything the
   install wrote and then quits. It is the only one of the three that leaves nothing behind, and the
   only cleanup that can run at all: macOS runs no code when a bundle is deleted and never clears its

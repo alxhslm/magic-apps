@@ -10,13 +10,15 @@ account is restored. See
 
 ## Route taxonomy
 
-| Route                 | Parameters                       | Action performed                                             |
-| :-------------------- | :------------------------------- | :----------------------------------------------------------- |
-| `magical://event`     | `account`, `eid`, `at`, `action` | Reveals the event in the calendar or executes an action.     |
-| `magical://date`      | `account`, `at`                  | Opens Google Calendar on the specified date.                 |
-| `magical://search`    | `q`, `query`, `account`          | Runs calendar search query or focuses search in target view. |
-| `magical://quick-add` | _None_                           | Prompts the new event composer.                              |
-| `magical://open`      | _None_                           | Surfaces and focuses the main calendar window.               |
+| Route                 | Parameters                                        | Action performed                                                  |
+| :-------------------- | :------------------------------------------------ | :---------------------------------------------------------------- |
+| `magical://event`     | `account`, `eid`, `at`, `action`                  | Reveals the event in the calendar or executes an action.          |
+| `magical://date`      | `account`, `at`                                   | Opens Google Calendar on the specified date.                      |
+| `magical://search`    | `q`, `query`, `account`                           | Runs calendar search query or focuses search in target view.      |
+| `magical://quick-add` | `account`, `text`, `dates`, `details`, `location` | Opens the new event composer, prefilled when fields are present.  |
+| `magical://tasks`     | `account`                                         | Opens the full-screen Tasks view.                                 |
+| `magical://navigate`  | `url`, `account`                                  | Navigates the account's view to an arbitrary Google Calendar URL. |
+| `magical://open`      | `account`                                         | Surfaces and focuses the main calendar window.                    |
 
 ### Event routing (`magical://event`)
 
@@ -34,6 +36,20 @@ magical://event?account=work-account&eid=c3RhdHVzX21lZXRpbmc=&at=2026-10-12T10:0
   (`yes`, `no`, `maybe`) and `delete` execute silently against the view without focusing the window, matching
   notification triage semantics.
 - An unknown action is rejected rather than silently opening the event.
+
+#### Which occurrence the `eid` names
+
+An `eid` names one occurrence, and the grid labels each chip with the occurrence's own id, so a series
+id matches no chip.
+
+- **From Google:** the event's `webUrl` already names the occurrence, so it is used as it is.
+- **Expanded from a schedule:** the occurrence inherits the `webUrl` of the record it copied, which
+  names a different one. The link is rebuilt from its own slot: `<seriesId>_20260918T084000Z` timed,
+  `<seriesId>_20260918` all-day.
+- **A task's chip id** is not an `eid` and passes through.
+
+Answering, deleting and completing reuse this `eventEid`, so an action and the reveal it came
+from address the same occurrence.
 
 ### Date fallback (`magical://date`)
 
@@ -57,18 +73,24 @@ magical://search?q=dentist&account=personal-account
 - If `q` is empty or omitted, Magical focuses the search input in the active view (or triggers the native
   search action).
 
-### Widget shortcuts (`magical://quick-add`, `magical://open`)
+### New events and tasks (`magical://quick-add`, `magical://tasks`)
 
-Emitted by WidgetKit widgets and the menu bar popover:
+Emitted by WidgetKit widgets, the menu bar popover and cross-app links:
 
-- **`magical://quick-add`**: Prompts the account picker (if multiple accounts) and opens event creation.
+- **`magical://quick-add`**: Opens event creation. With `text`, `dates`, `details`, `location` or `ctz`, it loads Google's add-to-calendar form in the account's view so the editor opens prefilled; without them it prompts the account picker if multiple accounts.
+- **`magical://tasks`**: Opens the full-screen Tasks route for the account.
 - **`magical://open`**: Raises and focuses the main window.
 
 ## Outbound links
 
 External links clicked in Google Calendar views, event descriptions and tasks pass through `openExternalUrl`
-in `links.ts`. Magical unwraps Google tracking redirectors via `@magimail/core`, routing recognised
-destinations to native desktop applications (such as Todoist, Notion, Linear, Figma, and Slack) via
-macOS Universal Links. See [`../shared/third-party-links.md`](../shared/third-party-links.md). Meeting
-links (Zoom and Microsoft Teams) are rewritten to custom URL schemes; see
-[`conference-links.md`](conference-links.md).
+in `links.ts`. Magical unwraps Google tracking redirectors via `@magimail/core` and opens the result
+in the chosen browser and account profile. Meeting links (Zoom and Microsoft Teams) and Todoist tasks
+and projects are rewritten to custom URL schemes; see
+[`conference-links.md`](conference-links.md) and
+[`../shared/third-party-links.md`](../shared/third-party-links.md).
+
+`toTodoistAppUrl` rewrites `app.todoist.com/app/task/<id>` to `todoist://task?id=<id>` and the
+project form the same way. `openTodoistLinksInApp` (General, **Open Todoist links in the Todoist
+app**) is on by default; off sends those links to the browser and account profile. A missing Todoist
+client falls back to the browser through `hasApplicationForUrl`, like a meeting link.

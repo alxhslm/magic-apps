@@ -3,6 +3,7 @@ import {
   accountIdFromLink,
   buildEventLink,
   decodeEid,
+  isAllowedCalendarNavigationUrl,
   parseEventLink,
   extractEid,
   resolveToCalendarUrl,
@@ -72,6 +73,14 @@ describe('buildEventLink', () => {
       action: 'reveal',
       eid: 'ABC',
     });
+    expect(parseEventLink('magical://event?eid=ABC')).toEqual({
+      action: 'reveal',
+      eid: 'ABC',
+    });
+    expect(parseEventLink('magical://date?at=2026-11-01')).toEqual({
+      action: 'reveal',
+      date: new Date('2026-11-01T00:00:00.000Z'),
+    });
   });
 
   it('falls back to a date link so a banner never carries a dead link', () => {
@@ -96,10 +105,82 @@ describe('buildEventLink', () => {
   });
 });
 
+/** An eid in the shape the wire uses: base64url of `<eventId> <calendarId>`. */
+const eidOf = (eventId: string, calendarId = 'me@work.com'): string =>
+  Buffer.from(`${eventId} ${calendarId}`, 'utf8').toString('base64url');
+
+/** The Google Calendar URL an event's own `webUrl` carries an eid in. */
+const webUrlWith = (eid: string): string => `https://www.google.com/calendar/event?eid=${eid}`;
+
+describe('buildEventLink for an occurrence expanded from a series', () => {
+  it('names the occurrence rather than the url it inherited from the series', () => {
+    // 11:30 in London on 30 October is 10:30 UTC. The series' newest materialised
+    // instance is three weeks later, so the inherited url names that one.
+    const expanded = event({
+      id: 'series_R20261030T113000',
+      instanceId: 'series_R20261030T113000',
+      seriesId: 'series',
+      startTime: new Date('2026-10-30T10:30:00Z'),
+      endTime: new Date('2026-10-30T11:00:00Z'),
+      webUrl: webUrlWith(eidOf('series_20261120T113000Z')),
+    });
+
+    const target = parseEventLink(buildEventLink(expanded, 'acct'));
+
+    expect(decodeEid(target?.eid ?? '')).toEqual({
+      eventId: 'series_20261030T103000Z',
+      calendarId: 'me@work.com',
+    });
+  });
+
+  it('spells an all-day occurrence as its date alone', () => {
+    const expanded = event({
+      id: 'holidays_R20260918',
+      instanceId: 'holidays_R20260918',
+      seriesId: 'holidays',
+      startTime: new Date('2026-09-18T00:00:00Z'),
+      endTime: new Date('2026-09-19T00:00:00Z'),
+      isAllDay: true,
+      webUrl: webUrlWith(eidOf('holidays_20261225')),
+    });
+
+    const target = parseEventLink(buildEventLink(expanded, 'acct'));
+
+    expect(decodeEid(target?.eid ?? '')?.eventId).toBe('holidays_20260918');
+  });
+
+  it('leaves an occurrence the wire named itself alone', () => {
+    // A materialised occurrence carries its own eid; rebuilding it would only risk
+    // disagreeing with the one Google encoded.
+    const materialised = event({
+      id: 'series_20261120T113000Z',
+      webUrl: webUrlWith(eidOf('series_20261120T113000Z')),
+    });
+
+    expect(parseEventLink(buildEventLink(materialised, 'acct'))?.eid).toBe(
+      eidOf('series_20261120T113000Z'),
+    );
+  });
+
+  it('leaves a task chip id as it is', () => {
+    // A task's chip id is not an eid and has no calendar half to rebuild around.
+    const task = event({
+      id: 'series_R20261030T113000',
+      instanceId: 'series_R20261030T113000',
+      seriesId: 'series',
+      webUrl: '',
+      chipEid: 'tasks_occurrence-1',
+    });
+
+    expect(parseEventLink(buildEventLink(task, 'acct'))?.eid).toBe('tasks_occurrence-1');
+  });
+});
+
 describe('parseEventLink', () => {
   it('rejects links that are not ours or are incomplete', () => {
     expect(parseEventLink('https://example.com')).toBeNull();
-    expect(parseEventLink('magical://event?eid=abc')).toBeNull();
+    expect(parseEventLink('magical://event')).toBeNull();
+    expect(parseEventLink('magical://date')).toBeNull();
     expect(parseEventLink('magical://event?account=a')).toBeNull();
     expect(parseEventLink('magical://unknown?account=a')).toBeNull();
     expect(parseEventLink('magical://date?account=a&at=nonsense')).toBeNull();
@@ -153,6 +234,11 @@ describe('accountIdFromLink', () => {
     expect(accountIdFromLink('magical://event?account=work&eid=ABC&at=2026-09-15')).toBe('work');
     expect(accountIdFromLink('magical://date?account=work&at=2026-09-15')).toBe('work');
     expect(accountIdFromLink('magical://search?q=standup&account=work')).toBe('work');
+    expect(
+      accountIdFromLink(
+        'magical://navigate?url=https%3A%2F%2Fcalendar.google.com%2Fcalendar&account=work',
+      ),
+    ).toBe('work');
   });
 
   it('leaves the choice alone for a widget link that names no account', () => {
@@ -165,5 +251,33 @@ describe('accountIdFromLink', () => {
     expect(accountIdFromLink('https://calendar.google.com/?account=work')).toBeUndefined();
     expect(accountIdFromLink('not a url')).toBeUndefined();
     expect(accountIdFromLink('')).toBeUndefined();
+  });
+});
+
+describe('isAllowedCalendarNavigationUrl', () => {
+  it('allows Google Calendar and Tasks hosts and paths', () => {
+    expect(
+      isAllowedCalendarNavigationUrl('https://calendar.google.com/calendar/u/0/r/settings'),
+    ).toBe(true);
+    expect(
+      isAllowedCalendarNavigationUrl(
+        'https://calendar.google.com/calendar/u/0/r?cid=team%40group.calendar.google.com',
+      ),
+    ).toBe(true);
+    expect(isAllowedCalendarNavigationUrl('https://tasks.google.com/embed/')).toBe(true);
+    expect(
+      isAllowedCalendarNavigationUrl('https://www.google.com/calendar/render?action=TEMPLATE'),
+    ).toBe(true);
+  });
+
+  it('rejects external and non-calendar URLs, and plaintext http', () => {
+    expect(
+      isAllowedCalendarNavigationUrl('http://calendar.google.com/calendar/u/0/r/settings'),
+    ).toBe(false);
+    expect(isAllowedCalendarNavigationUrl('https://mail.google.com/mail/u/0/#inbox')).toBe(false);
+    expect(isAllowedCalendarNavigationUrl('https://google.com/search?q=calendar')).toBe(false);
+    expect(isAllowedCalendarNavigationUrl('https://evil.com/calendar.google.com')).toBe(false);
+    expect(isAllowedCalendarNavigationUrl('javascript:alert(1)')).toBe(false);
+    expect(isAllowedCalendarNavigationUrl('not a url')).toBe(false);
   });
 });

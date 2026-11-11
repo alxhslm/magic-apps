@@ -10,13 +10,17 @@ account is restored. See
 
 ## Route taxonomy
 
-| Route                    | Parameters                         | Action performed                                           |
-| :----------------------- | :--------------------------------- | :--------------------------------------------------------- |
-| `magimail://inbox`       | `account`                          | Focuses main window and switches to account inbox.         |
-| `magimail://thread/<id>` | `account`, `action`                | Opens the thread, or triages it where `action` specifies.  |
-| `magimail://search`      | `q`, `query`, `account`            | Runs Gmail search query or focuses search in target view.  |
-| `magimail://compose`     | `account`, `to`, `su`, `body`      | Launches compose pop-out or triggers in-window compose.    |
-| `magimail://share`       | `files`, `text`, `url`, `to`, `su` | Opens compose window and synthesises file drop attachment. |
+| Route                        | Parameters                         | Action performed                                                           |
+| :--------------------------- | :--------------------------------- | :------------------------------------------------------------------------- |
+| `magimail://inbox`           | `account`                          | Focuses main window and switches to account inbox.                         |
+| `magimail://sent`            | `account`                          | Opens Sent. Also `drafts`, `starred`, `spam`, `trash`, `all`, `important`. |
+| `magimail://label/<name>`    | `account`                          | Opens a label; nested labels keep their slashes.                           |
+| `magimail://category/<name>` | `account`                          | Opens a category.                                                          |
+| `magimail://thread/<id>`     | `account`, `action`                | Opens the thread, or triages it where `action` specifies.                  |
+| `magimail://search`          | `q`, `query`, `account`            | Runs Gmail search query or focuses search in target view.                  |
+| `magimail://compose`         | `account`, `to`, `su`, `body`      | Launches compose pop-out or triggers in-window compose.                    |
+| `magimail://navigate`        | `url`, `account`                   | Navigates the account's view to an arbitrary Gmail URL.                    |
+| `magimail://share`           | `files`, `text`, `url`, `to`, `su` | Opens compose window and synthesises file drop attachment.                 |
 
 ### Inbox (`magimail://inbox`)
 
@@ -71,6 +75,8 @@ security checks.
 
 External links clicked in email bodies, detached thread views, and compose popouts are intercepted by
 `setWindowOpenHandler` and `will-navigate` in `accounts-manager.ts` and `compose.ts`. Magimail unwraps
-Google tracking redirectors via `@magimail/core`, routing recognised destinations to native desktop
-applications (such as Todoist, Notion, Linear, Figma, and Slack) via macOS Universal Links. See
+Google tracking redirectors via `@magimail/core`, rewrites Zoom and Microsoft Teams meeting links to
+native desktop schemes (`toNativeMeetingUrl`), and checks LaunchServices via `hasApplicationForUrl`.
+When the client is installed it opens in the desktop app directly; otherwise it opens in the chosen
+browser and account profile without the system's "no application is set" dialog. See
 [`../shared/third-party-links.md`](../shared/third-party-links.md).

@@ -1,9 +1,9 @@
 import type { WebContentsView } from 'electron';
+import { viewIsAlive } from '@magimail/core';
 import { createLogger } from '@magimail/core/logger';
 import {
   AtomFeedPoller,
   atomMessageToTrayMessageItem,
-  clearPollerState,
   type AtomMessage,
   type AtomPollCallback,
   type AtomPollResult,
@@ -25,7 +25,7 @@ import type {
   VerificationCodeItem,
 } from './types.js';
 import { UnreadLedger } from './unread-ledger.js';
-import { saveUnreadCounts } from './unread-count-store.js';
+import { UnreadCountStore, saveUnreadCounts } from './unread-count-store.js';
 
 /** How many times a hint re-reads the cache, and how far apart. */
 /** How long to wait before storing changed counts. */
@@ -122,7 +122,7 @@ export class HybridFeedSource implements MailboxSource {
         this.options.wake ??
         (async (accId) => {
           const view = this.options.getView?.(accId);
-          if (!view || view.webContents.isDestroyed()) return undefined;
+          if (!viewIsAlive(view)) return undefined;
           return { view, release: () => {} };
         }),
       onActionHeld: this.options.onActionHeld,
@@ -159,7 +159,7 @@ export class HybridFeedSource implements MailboxSource {
 
   public async getRecentMessages(limit = 20): Promise<TrayMessageItem[]> {
     const view = this.options.getView?.(this.accountId);
-    if (view && !view.webContents.isDestroyed()) {
+    if (viewIsAlive(view)) {
       try {
         const snapshot = await readCachedInboxData(view.webContents, limit);
         if (snapshot) {
@@ -208,6 +208,10 @@ export class HybridFeedSource implements MailboxSource {
   }
 
   public async triageThread(threadId: string, action: TriageAction): Promise<boolean> {
+    // Triage leaves no other trace: the window does not move and a refusal rolls the
+    // ledger back without a word, so the line has to say it was asked for.
+    log.info(`Triage ${action} on ${this.accountId}: thread=${threadId}`);
+
     // 0ms latency: update ledger optimistically, but not yet confirmed.
     this.ledger.recordLocalTriage(threadId, threadId, action);
     this.ledger.markLocalTriageInFlight(threadId, threadId);
@@ -225,7 +229,12 @@ export class HybridFeedSource implements MailboxSource {
     }
 
     // The optimistic row must not outlive a failed action.
-    if (this.ledger.rollbackLocalTriage(threadId, threadId)) {
+    const rolledBack = this.ledger.rollbackLocalTriage(threadId, threadId);
+    log.warn(
+      `Triage ${action} on ${this.accountId} failed for thread=${threadId}; ` +
+        (rolledBack ? 'rolled back' : 'no pending row'),
+    );
+    if (rolledBack) {
       this.emitChange({
         addedMessageIds: [],
         removedMessageIds: [],
@@ -239,7 +248,7 @@ export class HybridFeedSource implements MailboxSource {
     await this.poller.pollNow();
 
     const view = this.options.getView?.(this.accountId);
-    if (view && !view.webContents.isDestroyed()) {
+    if (viewIsAlive(view)) {
       try {
         const snapshot = await readCachedInboxData(view.webContents, CACHE_HINT_MAX_ROWS);
         if (snapshot?.messages) {
@@ -285,8 +294,9 @@ export class HybridFeedSource implements MailboxSource {
   }
 
   public forget(): void {
+    this.poller.forget();
     this.destroy();
-    clearPollerState(this.accountId);
+    UnreadCountStore.forget(this.accountId);
   }
 
   public getArrivalCount(): number {
@@ -317,14 +327,14 @@ export class HybridFeedSource implements MailboxSource {
 
     if (this.hintReadInFlight) return;
     const view = this.options.getView?.(this.accountId);
-    if (!view || view.webContents.isDestroyed()) return;
+    if (!viewIsAlive(view)) return;
 
     this.hintReadInFlight = true;
     try {
       for (let attempt = 0; attempt < CACHE_REREAD_ATTEMPTS; attempt += 1) {
         if (attempt > 0) {
           await new Promise((resolve) => setTimeout(resolve, CACHE_REREAD_INTERVAL_MS));
-          if (view.webContents.isDestroyed()) return;
+          if (!viewIsAlive(view)) return;
         }
         let moved = 0;
         try {
@@ -418,7 +428,7 @@ export class HybridFeedSource implements MailboxSource {
 
   public async dispatchUniversalSyncNudge(): Promise<void> {
     const view = this.options.getView?.(this.accountId);
-    if (!view || view.webContents.isDestroyed()) return;
+    if (!viewIsAlive(view)) return;
     await pressRefreshControl(view.webContents);
   }
 
@@ -511,4 +521,22 @@ export class HybridFeedSource implements MailboxSource {
       }
     }
   }
+}
+
+/**
+ * Forgets and clears all persisted mailbox state (unread counts and seen-id atom state)
+ * for an account that has been removed.
+ */
+export function forgetMailboxAccount(accountId: string): void {
+  AtomFeedPoller.forget(accountId);
+  UnreadCountStore.forget(accountId);
+}
+
+/**
+ * Sweeps all persisted mailbox state on disk (atom-state files and unread-counts) on startup,
+ * deleting records for accounts that are no longer configured.
+ */
+export function sweepOrphanedMailboxState(activeAccountIds: readonly string[]): void {
+  AtomFeedPoller.sweepOrphaned(activeAccountIds);
+  UnreadCountStore.sweepOrphaned(activeAccountIds);
 }

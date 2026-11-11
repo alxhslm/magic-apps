@@ -66,6 +66,18 @@ transport.onMessage { request in
             }
             if let accounts = params["accounts"] as? [[String: Any]] {
                 SettingsModel.shared.accounts = accounts
+                if let browserProfiles = request.params?.dict?["browserProfiles"] as? [String: [[String: String]]] {
+                    SettingsModel.shared.browserProfiles = browserProfiles
+                }
+            }
+            if let browserProfiles = params["browserProfiles"] as? [String: [[String: String]]] {
+                SettingsModel.shared.browserProfiles = browserProfiles
+            }
+            if let browsers = params["browsers"] as? [[String: Any]] {
+                SettingsModel.shared.browsers = browsers
+            }
+            if let defaultBrowser = params["defaultBrowser"] as? [String: Any] {
+                SettingsModel.shared.defaultBrowser = defaultBrowser
             }
             if let calendars = params["calendars"] as? [[String: Any]] {
                 SettingsModel.shared.calendars = calendars.map { TrayCalendarItem(from: $0) }
@@ -153,6 +165,9 @@ transport.onMessage { request in
         let accounts = request.params?.dict?["accounts"] as? [[String: Any]] ?? []
         HelperLog.info("Accounts", "Accounts updated: \(accounts.count) account(s)")
         SettingsModel.shared.accounts = accounts
+        if let browserProfiles = request.params?.dict?["browserProfiles"] as? [String: [[String: String]]] {
+            SettingsModel.shared.browserProfiles = browserProfiles
+        }
         if let calendars = request.params?.dict?["calendars"] as? [[String: Any]] {
             SettingsModel.shared.calendars = calendars.map { TrayCalendarItem(from: $0) }
         }

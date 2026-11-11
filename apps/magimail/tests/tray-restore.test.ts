@@ -15,7 +15,7 @@ vi.mock('../src/swift-helper.js', () => ({
 }));
 
 vi.mock('../src/settings-store.js', () => ({
-  loadSettings: vi.fn().mockReturnValue({ menuBarShowCount: true, menuBarShowDots: true }),
+  loadSettings: vi.fn().mockReturnValue({ menuBarUnreadDisplay: 'numbers' }),
 }));
 
 const accounts = [
@@ -94,10 +94,10 @@ describe('Menu bar item survives a helper respawn', () => {
     updateTrayData(accounts, 4, { isOffline: true });
     vi.clearAllMocks();
 
-    updateTrayData(accounts, 4);
+    updateTrayData(accounts, 5);
     expect(sendToHelper).toHaveBeenCalledWith(
       'tray.update',
-      expect.objectContaining({ isOffline: true }),
+      expect.objectContaining({ isOffline: true, totalUnread: 5 }),
     );
 
     // A replacement helper inherits it too, rather than showing a stale list
@@ -111,7 +111,7 @@ describe('Menu bar item survives a helper respawn', () => {
 
     // Coming back online is the one thing that clears it.
     vi.clearAllMocks();
-    updateTrayData(accounts, 4, { isOffline: false });
+    updateTrayData(accounts, 5, { isOffline: false });
     expect(sendToHelper).toHaveBeenCalledWith(
       'tray.update',
       expect.objectContaining({ isOffline: false }),

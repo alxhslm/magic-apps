@@ -44,9 +44,10 @@ sequenceDiagram
 ### Cold-launch account selection
 
 The launch picks the account before the account manager builds its first view. Both apps read the
-`?account=...` the launch URL names and pass it in as the initial account; a launch without one restores the
-last active account from `lastActiveAccountId` in `settings.json`, written on window close and on quit. An id
-that no longer names an account falls through to the first account.
+`?account=...` the launch URL names (accepting either the internal account id or the account's verified
+email address) and pass it in as the initial account; a launch without one restores the last active account
+from `lastActiveAccountId` in `settings.json`, written on window close and on quit. An id or email that
+no longer names an account falls through to the first account.
 
 ## Focus and triage semantics
 
@@ -72,8 +73,9 @@ A triage that arrives with no window runs through `routeAcrossWindow`, `WindowRo
 - **Magical**: [`../magical/deep-links.md`](../magical/deep-links.md) records the `magical://` routes
   (`event`, `date`, `search`, `quick-add`, `open`).
 
-## Outbound links and desktop apps
+## Outbound links
 
-Outbound links clicked inside email bodies, event descriptions and tasks are unwrapped via `@magimail/core`
-to strip Google tracking prefixes and restore Apple Universal Links for external tools (such as Todoist,
-Notion, Linear, Figma, and Slack). See [`third-party-links.md`](third-party-links.md).
+Outbound links clicked inside email bodies, event descriptions and tasks are unwrapped via
+`@magimail/core` to strip Google tracking prefixes, then opened in the chosen browser and account
+profile. Magical rewrites Zoom, Teams and Todoist links to their desktop schemes. See
+[`third-party-links.md`](third-party-links.md).

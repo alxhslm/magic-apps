@@ -58,6 +58,11 @@ vi.mock('electron', () => ({
     on: vi.fn((event: string, cb: () => void) => {
       powerMonitorCallbacks[event] = cb;
     }),
+    removeListener: vi.fn((event: string, cb: () => void) => {
+      if (powerMonitorCallbacks[event] === cb) {
+        delete powerMonitorCallbacks[event];
+      }
+    }),
   },
   app: {
     getPath: vi.fn(() => userData),
@@ -388,6 +393,50 @@ describe('AtomFeedPoller', () => {
     expect(fs.existsSync(stateFile)).toBe(false);
   });
 
+  it('forgets state, stops polling, and cleans up listeners via poller.forget()', async () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://purl.org/atom/ns#">
+  <title>Inbox</title>
+  <fullcount>1</fullcount>
+  <entry>
+    <id>tag:gmail.google.com,2004:clear2</id>
+  </entry>
+</feed>`;
+    queueRootFeeds(xml);
+
+    const poller = new AtomFeedPoller('acc-forget', 'persist:acc-forget', 60, () => {});
+    await poller.pollNow();
+
+    const stateFile = path.join(userData, 'atom-state', 'acc-forget.json');
+    expect(fs.existsSync(stateFile)).toBe(true);
+
+    poller.forget();
+    expect(fs.existsSync(stateFile)).toBe(false);
+
+    // poller.forget() marks it disposed, so subsequent hints and wakeups are no-ops
+    poller.requestImmediatePoll();
+    expect(poller.getArrivalCount()).toBe(0);
+  });
+
+  it('forgets state via static AtomFeedPoller.forget() and sweeps via AtomFeedPoller.sweepOrphaned()', () => {
+    const stateDir = path.join(userData, 'atom-state');
+    fs.mkdirSync(stateDir, { recursive: true });
+    const f1 = path.join(stateDir, 'acc-static-1.json');
+    const f2 = path.join(stateDir, 'acc-static-2.json');
+    const f3 = path.join(stateDir, 'acc-static-3.json');
+    fs.writeFileSync(f1, JSON.stringify({ seenIds: ['1'] }));
+    fs.writeFileSync(f2, JSON.stringify({ seenIds: ['2'] }));
+    fs.writeFileSync(f3, JSON.stringify({ seenIds: ['3'] }));
+
+    AtomFeedPoller.forget('acc-static-1');
+    expect(fs.existsSync(f1)).toBe(false);
+    expect(fs.existsSync(f2)).toBe(true);
+
+    AtomFeedPoller.sweepOrphaned(['acc-static-3']);
+    expect(fs.existsSync(f2)).toBe(false);
+    expect(fs.existsSync(f3)).toBe(true);
+  });
+
   it('handles 401 unauthenticated gracefully without crashing, reporting auth_required', async () => {
     mockFetch.mockResolvedValueOnce({
       ok: false,
@@ -605,6 +654,34 @@ describe('AtomFeedPoller', () => {
     expect(mockFetch).toHaveBeenCalled();
 
     poller.stop();
+  });
+
+  it('detaches powerMonitor listeners on stop/destroy and prevents resurrection on resume', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => MOCK_FEED_XML,
+    });
+
+    const poller = new AtomFeedPoller(
+      'acc_destroy_test',
+      'persist:acc_destroy_test',
+      60,
+      180,
+      () => {},
+    );
+    poller.start();
+
+    expect(powerMonitorCallbacks['resume']).toBeDefined();
+
+    poller.destroy();
+
+    expect(powerMonitorCallbacks['resume']).toBeUndefined();
+    expect(powerMonitorCallbacks['on-battery']).toBeUndefined();
+
+    mockFetch.mockClear();
+    await poller.pollNow();
+    expect(mockFetch).not.toHaveBeenCalled();
   });
 });
 

@@ -9,6 +9,14 @@ import {
   THREAD_ACTIONS,
   TRIAGE_ACTIONS,
 } from '../src/accounts-manager.js';
+import { forgetMailboxAccount, sweepOrphanedMailboxState } from '../src/mailbox/index.js';
+import {
+  loadUnreadCounts,
+  saveUnreadCounts,
+  withStoredUnreadCounts,
+  UnreadCountStore,
+} from '../src/mailbox/unread-count-store.js';
+import { loadSettings, saveSetting } from '../src/settings-store.js';
 import type { NotificationCategory } from '../src/constants.js';
 import type { ThreadActionDriver } from '../src/thread-actions/index.js';
 
@@ -16,14 +24,19 @@ import type { ThreadActionDriver } from '../src/thread-actions/index.js';
 // Hoisted because the vi.mock factory below is hoisted above the imports.
 const TEST_USER_DATA = vi.hoisted(() => `/tmp/magimail-accounts-test-${process.pid}-${Date.now()}`);
 
-// Capture warnings so the action-diagnostic tests can assert them.
+// Capture log lines so the action-diagnostic tests can assert them.
+const logInfo = vi.hoisted(() => vi.fn());
 const logWarn = vi.hoisted(() => vi.fn());
+const hasApplicationForUrl = vi.hoisted(() => vi.fn((_url: string) => true));
+vi.mock('../src/native-handlers.js', () => ({
+  hasApplicationForUrl: (url: string) => hasApplicationForUrl(url),
+}));
 vi.mock('@magimail/core/logger', async () => {
   const actual =
     await vi.importActual<typeof import('@magimail/core/logger')>('@magimail/core/logger');
   return {
     ...actual,
-    createLogger: () => ({ info: vi.fn(), warn: logWarn, error: vi.fn(), debug: vi.fn() }),
+    createLogger: () => ({ info: logInfo, warn: logWarn, error: vi.fn(), debug: vi.fn() }),
   };
 });
 
@@ -44,6 +57,15 @@ vi.mock('@magimail/core', async () => {
     ...actual,
     configureGoogleSession: vi.fn(),
     injectGmailStyles: vi.fn().mockResolvedValue(undefined),
+    // Link routing adopts the Mac's default browser, and a test has no opinion about which
+    // one that is. Pinning it to a browser we cannot launch keeps external links on the
+    // shell.openExternal path these tests assert on, whatever the machine runs.
+    getDefaultBrowser: () => ({
+      id: 'other',
+      name: 'Firefox',
+      bundleId: 'org.mozilla.firefox',
+      isChromium: false,
+    }),
   };
 });
 
@@ -207,6 +229,13 @@ describe('AccountsManager', () => {
     expect(onChanged).toHaveBeenCalledTimes(3);
   });
 
+  it('updates and persists the profile an account opens links in', () => {
+    const added = accountsManager.addAccount('Work', '#ef4444');
+    accountsManager.updateAccountConfig(added.id, { browserProfile: 'Profile 1' });
+    const updated = accountsManager.getAccounts().find((a) => a.id === added.id);
+    expect(updated?.browserProfile).toBe('Profile 1');
+  });
+
   it("deletes a removed account's poller state itself", () => {
     const added = accountsManager.addAccount('Work', '#ef4444');
     // What the account's poller leaves behind: seen ids and unhandled arrivals.
@@ -219,6 +248,81 @@ describe('AccountsManager', () => {
     // Left in `atom-state/`, it is a record of seen messages for a mailbox nobody has,
     // and the call sites in main.ts are not the only way an account can go.
     expect(fs.existsSync(stateFile)).toBe(false);
+  });
+
+  it('sweeps orphaned atom-state files on startup alongside pruneOrphanPartitions', () => {
+    const keepFile = path.join(TEST_USER_DATA, 'atom-state', 'account_personal.json');
+    const orphanFile = path.join(TEST_USER_DATA, 'atom-state', 'account_orphaned_999.json');
+    fs.mkdirSync(path.dirname(keepFile), { recursive: true });
+    fs.writeFileSync(keepFile, JSON.stringify({ seenIds: ['msg-keep'] }));
+    fs.writeFileSync(orphanFile, JSON.stringify({ seenIds: ['msg-orphan'] }));
+
+    const manager = new AccountsManager(mockWin, '/path/to/preload.js');
+    manager.initialize();
+
+    expect(fs.existsSync(keepFile)).toBe(true);
+    expect(fs.existsSync(orphanFile)).toBe(false);
+  });
+
+  it('prunes orphaned atom-state files via sweepOrphanedMailboxState', () => {
+    const stateDir = path.join(TEST_USER_DATA, 'atom-state');
+    const keepFile = path.join(stateDir, 'acc-configured.json');
+    const orphanFile = path.join(stateDir, 'acc-orphaned.json');
+    const nonJsonFile = path.join(stateDir, 'not-a-state-file.txt');
+    fs.mkdirSync(stateDir, { recursive: true });
+    fs.writeFileSync(keepFile, JSON.stringify({ seenIds: ['1'] }));
+    fs.writeFileSync(orphanFile, JSON.stringify({ seenIds: ['2'] }));
+    fs.writeFileSync(nonJsonFile, 'ignored');
+
+    sweepOrphanedMailboxState(['acc-configured']);
+
+    expect(fs.existsSync(keepFile)).toBe(true);
+    expect(fs.existsSync(orphanFile)).toBe(false);
+    expect(fs.existsSync(nonJsonFile)).toBe(true);
+  });
+
+  it('prunes unconfigured accounts from unread-counts.json on removal and startup', () => {
+    const added = accountsManager.addAccount('Work', '#ef4444');
+    saveUnreadCounts(added.id, { total: 10, badge: 3 });
+    saveUnreadCounts('orphaned_acc_123', { total: 5, badge: 1 });
+
+    expect(loadUnreadCounts()[added.id]).toEqual({ total: 10, badge: 3 });
+    expect(loadUnreadCounts()['orphaned_acc_123']).toEqual({ total: 5, badge: 1 });
+
+    // Inline removal deletes the stored counts for the removed account
+    accountsManager.removeAccount(added.id);
+    expect(loadUnreadCounts()[added.id]).toBeUndefined();
+
+    // Startup sweeps remaining unconfigured accounts from unread-counts.json
+    withStoredUnreadCounts(accountsManager.getAccounts());
+    expect(loadUnreadCounts()['orphaned_acc_123']).toBeUndefined();
+
+    // Direct store operations
+    saveUnreadCounts('test_store_1', { total: 3, badge: 1 });
+    saveUnreadCounts('test_store_2', { total: 8, badge: 2 });
+    UnreadCountStore.forget('test_store_1');
+    expect(loadUnreadCounts()['test_store_1']).toBeUndefined();
+    expect(loadUnreadCounts()['test_store_2']).toBeDefined();
+
+    UnreadCountStore.sweepOrphaned(['other_acc']);
+    expect(loadUnreadCounts()['test_store_2']).toBeUndefined();
+  });
+
+  it('updates lastActiveAccountId in settings on removal and sweeps unconfigured id on startup', () => {
+    const added = accountsManager.addAccount('Work', '#ef4444');
+    accountsManager.switchAccount(added.id);
+    saveSetting('lastActiveAccountId', added.id);
+    expect(loadSettings().lastActiveAccountId).toBe(added.id);
+
+    accountsManager.removeAccount(added.id);
+    expect(loadSettings().lastActiveAccountId).toBe('account_personal');
+
+    saveSetting('lastActiveAccountId', 'orphaned_123');
+    expect(loadSettings().lastActiveAccountId).toBe('orphaned_123');
+
+    const freshManager = new AccountsManager(new BaseWindow(), '/preload.js');
+    freshManager.initialize();
+    expect(loadSettings().lastActiveAccountId).toBe('account_personal');
   });
 
   it('drops a removed account from the Focus Filter it was named by', () => {
@@ -369,7 +473,9 @@ describe('AccountsManager', () => {
     // when the thread appears on screen. Arrival cannot be detected by the id.
     let routed = false;
     run.mockImplementation((script: string) => {
-      if (String(script).includes('location.hash =')) routed = true;
+      const s = String(script);
+      if (s.includes('gmail-ready')) return Promise.resolve(true);
+      if (s.includes('location.hash =')) routed = true;
       return Promise.resolve(undefined);
     });
     (wc.getURL as unknown as Mock).mockImplementation(() =>
@@ -390,6 +496,94 @@ describe('AccountsManager', () => {
     const script = run.mock.calls.map(([s]) => String(s)).join('\n');
     expect(script).toContain('msg_123');
     expect(script).toContain('location.hash');
+  });
+
+  it('waits for Gmail chrome before assigning the thread hash', async () => {
+    const wc = accountsManager.getActiveWebContentsView()!.webContents;
+    const run = wc.executeJavaScript as unknown as Mock;
+    run.mockClear();
+
+    let resolveGmailReady: (() => void) | undefined;
+    let gmailReady = false;
+    let routed = false;
+    run.mockImplementation((script: string) => {
+      const s = String(script);
+      if (s.includes('gmail-ready')) {
+        return new Promise<boolean>((resolve) => {
+          resolveGmailReady = () => {
+            gmailReady = true;
+            resolve(true);
+          };
+        });
+      }
+      if (s.includes('location.hash =')) {
+        // The route must not be attempted while Gmail is only loaded.
+        expect(gmailReady).toBe(true);
+        routed = true;
+        return Promise.resolve(true);
+      }
+      return Promise.resolve(undefined);
+    });
+    (wc.getURL as unknown as Mock).mockImplementation(() =>
+      routed
+        ? 'https://mail.google.com/mail/u/0/#inbox/FMfcgzGmockThreadId00000000000001'
+        : 'https://mail.google.com/mail/u/0/#inbox',
+    );
+    (wc.getTitle as unknown as Mock).mockImplementation(() => (routed ? 'A Thread' : 'Inbox'));
+
+    const opening = accountsManager.performThreadAction('account_personal', 'msg_123', 'open');
+    await vi.waitFor(() => expect(resolveGmailReady).toBeTypeOf('function'));
+
+    const beforeReady = run.mock.calls.map(([s]) => String(s));
+    expect(beforeReady.some((s) => s.includes('location.hash ='))).toBe(false);
+
+    resolveGmailReady!();
+    await expect(opening).resolves.toBe(true);
+    expect(logInfo).toHaveBeenCalledWith(
+      expect.stringMatching(/Opened thread on account_personal in \d+ ms/),
+    );
+  });
+
+  it('holds the opening account active until the route lands', async () => {
+    const work = accountsManager.addAccount('Work', '#3b82f6');
+    const wc = accountsManager.getActiveWebContentsView()!.webContents;
+    const run = wc.executeJavaScript as unknown as Mock;
+    run.mockClear();
+
+    let releaseRoute: (() => void) | undefined;
+    let routed = false;
+    run.mockImplementation((script: string) => {
+      const s = String(script);
+      if (s.includes('gmail-ready')) return Promise.resolve(true);
+      if (s.includes('location.hash =')) {
+        routed = true;
+        return Promise.resolve(true);
+      }
+      if (s.includes('thread-route')) {
+        return new Promise<string>((resolve) => {
+          releaseRoute = () => resolve('A Thread');
+        });
+      }
+      return Promise.resolve(undefined);
+    });
+    (wc.getURL as unknown as Mock).mockImplementation(() =>
+      routed
+        ? 'https://mail.google.com/mail/u/0/#inbox/FMfcgzGmockThreadId00000000000001'
+        : 'https://mail.google.com/mail/u/0/#inbox',
+    );
+    (wc.getTitle as unknown as Mock).mockImplementation(() => (routed ? 'A Thread' : 'Inbox'));
+
+    const opening = accountsManager.performThreadAction('account_personal', 'msg_123', 'open');
+    await vi.waitFor(() => expect(releaseRoute).toBeTypeOf('function'));
+
+    accountsManager.switchAccount(work.id);
+    expect(accountsManager.getActiveAccountId()).toBe('account_personal');
+
+    releaseRoute!();
+    await expect(opening).resolves.toBe(true);
+
+    // The switch asked for during the route runs once the route has landed.
+    expect(accountsManager.getActiveAccountId()).toBe(work.id);
   });
 
   it('delegates triage actions directly to the mailbox source without DOM routing', async () => {
@@ -1124,6 +1318,25 @@ describe('action diagnostics', () => {
     });
   });
 
+  it('switches and opens accounts using an email address', async () => {
+    const work = manager.addAccount('Work', '#3b82f6');
+    work.email = 'work@corp.com';
+
+    expect(manager.getActiveAccountId()).toBe('account_personal');
+
+    manager.switchAccount('WORK@CORP.COM');
+    expect(manager.getActiveAccountId()).toBe(work.id);
+
+    const wc = manager.getActiveWebContentsView()!.webContents;
+    const load = wc.loadURL as unknown as Mock;
+    load.mockClear();
+
+    manager.openInAccount('work@corp.com', 'https://mail.google.com/mail/u/0/#sent');
+    await vi.waitFor(() => {
+      expect(load).toHaveBeenCalledWith('https://mail.google.com/mail/u/0/#sent');
+    });
+  });
+
   it('re-suspends the account on screen when an action wakes it while the window is hidden', async () => {
     vi.useFakeTimers();
     try {
@@ -1256,6 +1469,57 @@ describe('holding triage while the view is busy', () => {
     );
     expect(event.preventDefault).toHaveBeenCalled();
     expect(shell.openExternal).toHaveBeenCalledWith('https://www.notion.so/my-page-123');
+  });
+
+  it('opens Zoom links in native desktop client when installed', async () => {
+    hasApplicationForUrl.mockReturnValue(true);
+    const wc = manager.getActiveWebContentsView()!.webContents;
+    const openHandler = (
+      wc.setWindowOpenHandler as unknown as Mock
+    ).mock.calls.pop()?.[0] as (details: { url: string }) => { action: string };
+
+    const result = openHandler({
+      url: 'https://zoom.us/j/1234567890?pwd=abc',
+    });
+    expect(result).toEqual({ action: 'deny' });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(hasApplicationForUrl).toHaveBeenCalledWith(
+      'zoommtg://zoom.us/join?action=join&confno=1234567890&pwd=abc',
+    );
+    expect(shell.openExternal).toHaveBeenCalledWith(
+      'zoommtg://zoom.us/join?action=join&confno=1234567890&pwd=abc',
+    );
+  });
+
+  it('falls back to browser when Zoom is not installed', async () => {
+    hasApplicationForUrl.mockReturnValue(false);
+    const wc = manager.getActiveWebContentsView()!.webContents;
+    const openHandler = (
+      wc.setWindowOpenHandler as unknown as Mock
+    ).mock.calls.pop()?.[0] as (details: { url: string }) => { action: string };
+
+    const result = openHandler({
+      url: 'https://zoom.us/j/1234567890?pwd=abc',
+    });
+    expect(result).toEqual({ action: 'deny' });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(shell.openExternal).toHaveBeenCalledWith('https://zoom.us/j/1234567890?pwd=abc');
+  });
+
+  it('opens Teams links in native desktop client when installed', async () => {
+    hasApplicationForUrl.mockReturnValue(true);
+    const wc = manager.getActiveWebContentsView()!.webContents;
+    const willNavigateHandler = (wc.on as unknown as Mock).mock.calls
+      .filter(([event]) => event === 'will-navigate')
+      .pop()?.[1] as (event: { preventDefault: () => void }, url: string) => void;
+
+    const event = { preventDefault: vi.fn() };
+    willNavigateHandler(event, 'https://teams.microsoft.com/l/meetup-join/19%3ameeting_xyz');
+    expect(event.preventDefault).toHaveBeenCalled();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(shell.openExternal).toHaveBeenCalledWith(
+      'msteams://teams.microsoft.com/l/meetup-join/19%3ameeting_xyz',
+    );
   });
 });
 

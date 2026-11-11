@@ -8,8 +8,9 @@ import SwiftUI
 /// meeting alerts, calendars — but the account list is one problem. Both hold
 /// the main process's `{ id, name, color, needsAuth }` rows and both speak the
 /// same `account.add` / `account.update` / `account.remove` / `account.reorder` /
-/// `account.signIn` events, so this two-member protocol is all the editor needs
-/// to stay out of either app's model.
+/// `account.signIn` events, so this small protocol is all the editor needs to stay out
+/// of either app's model. The browser data comes from macOS and from the Chromium
+/// browsers' `Local State`, and reaches both models the same way.
 ///
 /// An app that grows a genuinely different account list can drop this and write
 /// its own `AccountsTab`; the window takes an opaque view per tab, so nothing
@@ -17,6 +18,13 @@ import SwiftUI
 @MainActor
 public protocol AccountListModel: ObservableObject {
     var accounts: [[String: Any]] { get set }
+    var browserProfiles: [String: [[String: String]]] { get set }
+    /// The browsers the app can launch, without `system`, as `{ id, name, isChromium }`.
+    var browsers: [[String: Any]] { get }
+    /// The browser macOS opens `https` links with, as `{ id, name, bundleId, isChromium }`.
+    var defaultBrowser: [String: Any] { get }
+    /// Which browser links open in, or `system` to follow the Mac's default.
+    var openLinksIn: String { get }
     var transport: StdioTransport? { get }
 }
 
@@ -52,6 +60,7 @@ public struct AccountsTab<Model: AccountListModel>: View {
                         name: value(of: id, "name") ?? "",
                         color: value(of: id, "color") ?? startingColors[0],
                         needsAuth: boolValue(of: id, "needsAuth"),
+                        linksMenu: AnyView(profileMenu(for: id)),
                         onCommit: { name, color in update(id: id, name: name, color: color) },
                         onSignIn: { signIn(id: id) },
                         onRemove: { remove(id: id) }
@@ -90,6 +99,11 @@ public struct AccountsTab<Model: AccountListModel>: View {
             .controlSize(.small)
             .padding(.top, 6)
         }
+        .onAppear {
+            if selectedAccountId == nil {
+                selectedAccountId = accountIds.first
+            }
+        }
     }
 
     // MARK: Actions
@@ -114,18 +128,129 @@ public struct AccountsTab<Model: AccountListModel>: View {
         model.transport?.sendEvent(method: "account.signIn", params: ["accountId": id])
     }
 
-    private func update(id: String, name: String, color: String) {
+    /// The browser links actually open in: the app's choice, or the Mac's default.
+    private var linkedBrowser: String {
+        let chosen = model.openLinksIn
+        return chosen == "system" ? (model.defaultBrowser["id"] as? String ?? "system") : chosen
+    }
+
+    /// Whether that browser keeps profiles we can choose between.
+    private var supportsProfiles: Bool {
+        if let row = model.browsers.first(where: { ($0["id"] as? String) == linkedBrowser }) {
+            return row["isChromium"] as? Bool ?? false
+        }
+        // `system` with a default browser outside our list: the answer is in the default.
+        return model.openLinksIn == "system" && (model.defaultBrowser["isChromium"] as? Bool ?? false)
+    }
+
+    private var linkedBrowserName: String {
+        model.browsers.first { ($0["id"] as? String) == linkedBrowser }?["name"] as? String
+            ?? model.defaultBrowser["name"] as? String
+            ?? "This browser"
+    }
+
+    private func profilesForBrowser(_ browser: String) -> [[String: String]] {
+        model.browserProfiles[browser] ?? []
+    }
+
+    /// The menu's label, naming the profile that will actually be used rather than how the answer
+    /// was reached: the outcome is what the user needs to see.
+    private func profileSummary(for id: String) -> String {
+        guard supportsProfiles else { return "No profiles" }
+
+        let setting = effectiveProfile(for: id)
+        if setting == "_none" {
+            return "None"
+        }
+
+        let chosen = profilesForBrowser(linkedBrowser).first { $0["directory"] == setting }
+        return chosen?["name"] ?? setting
+    }
+
+    /// The per-account half of link routing. The browser is one setting for the app, on the
+    /// General tab; the Google session differs per account, so the profile does too.
+    private func profileMenu(for id: String) -> some View {
+        Menu {
+            Toggle("None", isOn: profileToggle("_none", for: id))
+
+            let profiles = profilesForBrowser(linkedBrowser)
+            if !profiles.isEmpty {
+                Divider()
+                ForEach(profiles, id: \.self) { profile in
+                    Toggle(
+                        profile["name"] ?? profile["directory"] ?? "Profile",
+                        isOn: profileToggle(profile["directory"] ?? "", for: id)
+                    )
+                }
+            }
+        } label: {
+            Text(profileSummary(for: id))
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .disabled(!supportsProfiles)
+        .help(
+            supportsProfiles
+                ? "The Chromium profile this account’s links open in."
+                : "\(linkedBrowserName) has no profiles to choose between."
+        )
+    }
+
+    /// Which row the menu ticks. An unmatched automatic account ticks `None`, because that is
+    /// what will happen; the label and the tick have to agree.
+    private func effectiveProfile(for id: String) -> String {
+        let setting = value(of: id, "browserProfile") ?? "_auto"
+        if setting != "_auto" {
+            return setting
+        }
+
+        guard let email = value(of: id, "email")?.lowercased(), !email.isEmpty,
+              let matched = profilesForBrowser(linkedBrowser).first(where: {
+                  $0["email"]?.lowercased() == email
+              })
+        else { return "_none" }
+
+        return matched["directory"] ?? "_none"
+    }
+
+    /// Profile rows act as a radio group. Turning the chosen one off returns to the automatic
+    /// answer rather than leaving no way to express it.
+    private func profileToggle(_ setting: String, for id: String) -> Binding<Bool> {
+        Binding(
+            get: { effectiveProfile(for: id) == setting },
+            set: { isOn in
+                guard let name = value(of: id, "name"),
+                      let color = value(of: id, "color")
+                else { return }
+                update(
+                    id: id,
+                    name: name,
+                    color: color,
+                    browserProfile: isOn ? setting : "_auto"
+                )
+            }
+        )
+    }
+
+    private func update(
+        id: String,
+        name: String,
+        color: String,
+        browserProfile: String? = nil
+    ) {
         guard !id.isEmpty,
               let index = model.accounts.firstIndex(where: { ($0["id"] as? String) == id })
         else { return }
 
         model.accounts[index]["name"] = name
         model.accounts[index]["color"] = color
-        model.transport?.sendEvent(method: "account.update", params: [
-            "accountId": id,
-            "name": name,
-            "color": color,
-        ])
+
+        var params: [String: Any] = ["accountId": id, "name": name, "color": color]
+        if let browserProfile {
+            model.accounts[index]["browserProfile"] = browserProfile
+            params["browserProfile"] = browserProfile
+        }
+        model.transport?.sendEvent(method: "account.update", params: params)
     }
 
     private func addAccount() {

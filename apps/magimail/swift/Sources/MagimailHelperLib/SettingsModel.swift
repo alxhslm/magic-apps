@@ -37,6 +37,16 @@ public final class SettingsModel: ObservableObject {
         didSet { emit("composeAccountPicker", composeAccountPicker) }
     }
 
+    /// Browser id for links that leave the app, or `system` to let macOS choose.
+    @Published public var openLinksIn: String = "system" {
+        didSet { emit("openLinksIn", openLinksIn) }
+    }
+
+    /// Keep meeting links in the browser even when Zoom or Teams is installed.
+    @Published public var alwaysJoinInBrowser: Bool = false {
+        didSet { emit("alwaysJoinInBrowser", alwaysJoinInBrowser) }
+    }
+
     /// Electron accelerator for the system-wide quick compose chord, or "off".
     @Published public var quickComposeHotkey: String = "Alt+Command+C" {
         didSet { emit("quickComposeHotkey", quickComposeHotkey) }
@@ -57,12 +67,9 @@ public final class SettingsModel: ObservableObject {
         didSet { emit("showMenuBarTray", showMenuBarTray) }
     }
 
-    @Published public var menuBarShowCount: Bool = true {
-        didSet { emit("menuBarShowCount", menuBarShowCount) }
-    }
-
-    @Published public var menuBarShowDots: Bool = true {
-        didSet { emit("menuBarShowDots", menuBarShowDots) }
+    /// "nothing", "dots" or "numbers": what the status item draws per account.
+    @Published public var menuBarUnreadDisplay: String = "numbers" {
+        didSet { emit("menuBarUnreadDisplay", menuBarUnreadDisplay) }
     }
 
     @Published public var menuBarUnreadOnly: Bool = false {
@@ -120,6 +127,11 @@ public final class SettingsModel: ObservableObject {
     // MARK: - Accounts
 
     @Published public var accounts: [[String: Any]] = []
+    @Published public var browserProfiles: [String: [[String: String]]] = [:]
+    /// The browsers the app can open links in, without `system`, as `{ id, name, isChromium }`.
+    @Published public var browsers: [[String: Any]] = []
+    /// The browser macOS opens `https` links with, as `{ id, name, bundleId, isChromium }`.
+    @Published public var defaultBrowser: [String: Any] = [:]
 
     // MARK: - Default handlers
 
@@ -195,6 +207,12 @@ public final class SettingsModel: ObservableObject {
         if let v = dict["composeAccountPicker"] as? String {
             composeAccountPicker = v
         }
+        if let v = dict["openLinksIn"] as? String {
+            openLinksIn = v
+        }
+        if let v = dict["alwaysJoinInBrowser"] as? Bool {
+            alwaysJoinInBrowser = v
+        }
         if let v = dict["quickComposeHotkey"] as? String {
             quickComposeHotkey = v
         }
@@ -204,11 +222,8 @@ public final class SettingsModel: ObservableObject {
         if let v = dict["showMenuBarTray"] as? Bool {
             showMenuBarTray = v
         }
-        if let v = dict["menuBarShowCount"] as? Bool {
-            menuBarShowCount = v
-        }
-        if let v = dict["menuBarShowDots"] as? Bool {
-            menuBarShowDots = v
+        if let v = dict["menuBarUnreadDisplay"] as? String {
+            menuBarUnreadDisplay = v
         }
         if let v = dict["menuBarUnreadOnly"] as? Bool {
             menuBarUnreadOnly = v

@@ -25,12 +25,15 @@ import {
   type WindowActionTarget,
   viewIsAlive,
   WindowRebuilder,
+  findAccountByIdOrEmail,
 } from '@magimail/core';
 import { localCacheKey } from './native-addon.js';
 import { AccountsManager, calendarPreloadPath } from './accounts-manager.js';
 import { loadSettings, saveSetting, type MagicalSettings } from './settings-store.js';
 import { buildAppMenu } from './menu.js';
 import { setUiLocale, uiString } from './strings.js';
+import { setClock } from './time-format.js';
+import { readMacForced24Hour, readMacLocale } from './mac-clock.js';
 import {
   openSettingsWindow,
   pushAccountsToSettings,
@@ -47,6 +50,8 @@ import {
   updateNativeToolbarAccounts,
 } from './native-toolbar.js';
 import { chooseEventAccount } from './account-picker.js';
+import { SidebarManager } from './sidebar-manager.js';
+import { CALENDAR_MIN_HEIGHT, windowMinWidth } from './window-layout.js';
 import { CALENDAR_BASE_URL } from './constants.js';
 import { initDock } from './dock.js';
 import { syncExtensionLogs } from './extension-logs.js';
@@ -72,7 +77,11 @@ import {
   isAccountDisabledByFocus,
   isAccountSilencedByFocus,
 } from './focus-filter-manager.js';
-import { accountIdFromLink, MAGICAL_PROTOCOL } from './event-links.js';
+import {
+  accountIdFromLink,
+  isAllowedCalendarNavigationUrl,
+  MAGICAL_PROTOCOL,
+} from './event-links.js';
 import { onIcsFile, readIcsFile, watchForIcsFiles } from './ics-handler.js';
 import { offerToBecomeDefault, promptSetAsDefault } from './default-client.js';
 import { describeIcs, summariseIcs } from './ics-file.js';
@@ -81,6 +90,7 @@ import { MenuBarManager } from './menubar-manager.js';
 import { canRemoveAllAppData, removeAllAppDataAndQuit } from './remove-all-data.js';
 import { SyncCalendarActionDriver } from './calendar-actions/sync-driver.js';
 import { loadAccounts } from './accounts.js';
+import { canonicaliseCalendarId } from './calendars.js';
 
 // Replaced by tsup at build time with the Unix milliseconds the bundle was
 // compiled at; see `prerelease-build-expiry.ts` in @magimail/core.
@@ -246,7 +256,7 @@ app.on('open-url', (event, url) => {
   // The test is for the service, not the accounts: the launch pass has finished, so a link arriving
   // now builds its own window instead of waiting for a cold launch that already happened.
   if (app.isReady() && calendarService) {
-    dispatchProtocolUrl(url);
+    void dispatchProtocolUrl(url);
   } else {
     pendingProtocolUrl = url;
   }
@@ -257,7 +267,7 @@ app.on('second-instance', (_event, argv) => {
   const protocolUrl = argv.find((a) => a.startsWith(`${MAGICAL_PROTOCOL}://`));
   if (protocolUrl && calendarService) {
     log.info('second-instance URL:', redactUrl(protocolUrl));
-    dispatchProtocolUrl(protocolUrl);
+    void dispatchProtocolUrl(protocolUrl);
   }
   if (!mainWindow) createWindow();
   else {
@@ -272,6 +282,29 @@ let findInPageController: FindInPageController | null = null;
 let calendarService: CalendarService | null = null;
 let accounts: AccountsManager | null = null;
 let menuBarManager: MenuBarManager | null = null;
+let sidebarManager: SidebarManager | null = null;
+
+/**
+ * Sends the stored filter state to both surfaces after either one changes it.
+ *
+ * The menu bar popover runs in the Swift helper and the companion sidebar in the main
+ * window, so each holds its own `TrayModel`. Pushing only the surface that did not change
+ * leaves the other's copy of the filter stale until something unrelated triggers a
+ * redraw, which is why hiding a calendar in one place did not hide it in the other. The
+ * filter is the hidden-calendar set plus the completed-task toggle, which the same menu
+ * offers on both surfaces.
+ */
+function pushFilterStateToSurfaces(): void {
+  // Filter-only updates first: both panes watch these values live, and neither should
+  // wait for every event to be serialised before the tick moves.
+  menuBarManager?.pushFilterUpdate();
+  sidebarManager?.pushFilterState();
+  // The settings window is in the helper and reads the same settings.
+  pushSettingsToHelper();
+  // The full payload still follows for the widget cache and the popover's event list;
+  // it rides behind the filter rather than in front of it.
+  setTimeout(() => menuBarManager?.pushUpdate(), 0);
+}
 /** Set before quitting, so the window being torn down is not rebuilt afterwards. */
 let quitting = false;
 /**
@@ -342,6 +375,7 @@ function applyMenu(): void {
       },
       onSearch: () => handleSearch(),
       onCustomizeToolbar: () => runToolbarCustomization(),
+      onToggleSidebar: () => sidebarManager?.toggleSidebar(),
       currentTheme: loadSettings().theme,
       onSetTheme: applyTheme,
       onRemoveAllData,
@@ -415,8 +449,18 @@ function forgetAccountSettings(live: ReadonlySet<string>): void {
   for (const id of [...accountHealth.keys()]) if (!live.has(id)) accountHealth.delete(id);
 
   const hidden = loadSettings().hiddenCalendars ?? [];
-  const keptHidden = hidden.filter((ref) => live.has(ref.accountId));
-  if (keptHidden.length !== hidden.length) saveSetting('hiddenCalendars', keptHidden);
+  const keptHidden = hidden
+    .filter((ref) => live.has(ref.accountId))
+    .map((ref) => ({
+      accountId: ref.accountId,
+      calendarId: canonicaliseCalendarId(ref.calendarId),
+    }));
+  if (
+    keptHidden.length !== hidden.length ||
+    JSON.stringify(keptHidden) !== JSON.stringify(hidden)
+  ) {
+    saveSetting('hiddenCalendars', keptHidden);
+  }
 
   // A mute names `accountId|calendarId`; a bare calendar id is the older, account-wide
   // shape and is left alone because no account can be read out of it.
@@ -462,6 +506,10 @@ function applySettingChange(key: string, value: unknown): void {
 
   log.info(`Setting ${key} = ${String(value)}`);
   saveSetting(key as keyof MagicalSettings, value as never);
+  // A change made in one surface has to reach the settings window in the helper, or
+  // its toggle keeps the old value until the window is reopened. The helper applies
+  // this with events suppressed, so the echo cannot become a loop.
+  pushSettingsToHelper();
 
   switch (key) {
     case 'theme':
@@ -479,6 +527,7 @@ function applySettingChange(key: string, value: unknown): void {
       // covers it. Same pair Magimail sets.
       applyWindowTransparency(Boolean(value));
       accounts?.reinjectCss();
+      sidebarManager?.setTransparency(Boolean(value), nativeTheme.shouldUseDarkColors);
       return;
 
     case 'hideSidebar':
@@ -532,6 +581,8 @@ function applySettingChange(key: string, value: unknown): void {
             (query, accountId) => handleSearch(query, accountId),
           );
         }
+        menuBarManager.onHiddenCalendarsChanged = pushFilterStateToSurfaces;
+        menuBarManager.onShowCompletedTasksChanged = pushFilterStateToSurfaces;
         menuBarManager.createTray();
         if (accounts) menuBarManager.updateAccounts(accounts.getAccounts());
         if (calendarService) menuBarManager.updateEvents(calendarService.getCachedEvents());
@@ -543,8 +594,11 @@ function applySettingChange(key: string, value: unknown): void {
     case 'menuBarDisplayMode':
     case 'showMenuBarAccountColor':
     case 'isCalendarCollapsed':
-    case 'showCompletedTasks':
       menuBarManager?.pushUpdate();
+      return;
+
+    case 'showCompletedTasks':
+      pushFilterStateToSurfaces();
       return;
   }
 }
@@ -586,7 +640,7 @@ const directActions = new SyncCalendarActionDriver({
  * Reveal and navigate raise it themselves. An answering or deleting link does not, because it runs
  * through the drivers a banner uses.
  */
-function ensureWindowForLink(accountId: string): void {
+function ensureWindowForLink(accountId?: string): void {
   openWindowForAction(windowActionTarget, accountId, { show: false });
 }
 
@@ -718,17 +772,21 @@ function startCalendarService(): void {
     calendarService?.syncPollers();
     if (accounts) {
       pushCalendarsToSettings(accounts, calendarService?.getCachedEvents());
+      menuBarManager?.updateAccounts(accounts.getAccounts());
+      sidebarManager?.updateAccounts(accounts.getAccounts());
     }
   };
 
   calendarService.onEventsUpdated = (events) => {
     menuBarManager?.updateEvents(events);
+    sidebarManager?.updateEvents(events);
     if (accounts) {
       pushCalendarsToSettings(accounts, events);
     }
   };
   if (calendarService.getCachedEvents().size > 0) {
     menuBarManager?.updateEvents(calendarService.getCachedEvents());
+    sidebarManager?.updateEvents(calendarService.getCachedEvents());
   }
 
   calendarService.setActiveAccount(accounts.getActiveAccountId());
@@ -799,6 +857,7 @@ function handleHelperEvent(method: string, params: Record<string, unknown>): voi
       manager.updateAccount(String(params.accountId), {
         name: params.name as string | undefined,
         color: params.color as string | undefined,
+        browserProfile: params.browserProfile as string | undefined,
       });
       break;
 
@@ -837,7 +896,7 @@ function handleHelperEvent(method: string, params: Record<string, unknown>): voi
 /**
  * Routes a `magical://` link to the appropriate handler (search, widgets, or events/dates).
  */
-function dispatchProtocolUrl(rawUrl: string): void {
+async function dispatchProtocolUrl(rawUrl: string): Promise<void> {
   try {
     const parsed = new URL(rawUrl);
     if (parsed.protocol !== `${MAGICAL_PROTOCOL}:`) return;
@@ -847,6 +906,70 @@ function dispatchProtocolUrl(rawUrl: string): void {
       const targetAccountId = parsed.searchParams.get('account') || undefined;
       handleSearch(query, targetAccountId);
       return;
+    }
+
+    if (parsed.hostname === 'quick-add') {
+      const templateUrl = eventTemplateUrl(parsed);
+      const title = parsed.searchParams.get('text') || undefined;
+      void handleNewEvent(
+        parsed.searchParams.get('account') || undefined,
+        true,
+        templateUrl ?? undefined,
+        title,
+      );
+      return;
+    }
+
+    if (parsed.hostname === 'tasks') {
+      handleTasks(parsed.searchParams.get('account') || undefined);
+      return;
+    }
+
+    if (parsed.hostname === 'open') {
+      handleOpen(parsed.searchParams.get('account') || undefined);
+      return;
+    }
+
+    if (parsed.hostname === 'navigate') {
+      const targetUrl = parsed.searchParams.get('url');
+      const targetAccountId = parsed.searchParams.get('account') || undefined;
+      if (targetUrl && isAllowedCalendarNavigationUrl(targetUrl)) {
+        handleNavigate(targetUrl, targetAccountId);
+        return;
+      }
+    }
+
+    if (parsed.hostname === 'event') {
+      if (!accounts) createWindow();
+      const manager = accounts;
+      const targetAccountParam = parsed.searchParams.get('account');
+      let targetAccount =
+        targetAccountParam && manager
+          ? findAccountByIdOrEmail(manager.getAccounts(), targetAccountParam)
+          : undefined;
+
+      if (!targetAccount && manager) {
+        const accts = manager.getAccounts();
+        if (accts.length > 1) {
+          const chosen = await chooseEventAccount(manager, {
+            title: uiString('dialog.openEventAccount.title'),
+            message: uiString('dialog.openEventAccount.message'),
+            detail: uiString('dialog.openEventAccount.detail'),
+            parentWindow: mainWindow,
+            forceAsk: true,
+          });
+          if (!chosen) return;
+          targetAccount = chosen;
+        } else {
+          targetAccount = manager.getActiveAccount();
+        }
+      }
+
+      if (targetAccount) {
+        parsed.searchParams.set('account', targetAccount.id);
+        calendarService?.openDeepLink(parsed.toString());
+        return;
+      }
     }
   } catch {
     // If URL parsing fails, let handleWidgetLink / calendarService attempt or log warning
@@ -883,18 +1006,31 @@ function handleWidgetLink(rawUrl: string): boolean {
   return false;
 }
 
-async function handleNewEvent(targetAccountId?: string, external = false): Promise<void> {
+async function handleNewEvent(
+  targetAccountId?: string,
+  external = false,
+  templateUrl?: string,
+  eventTitle?: string,
+): Promise<void> {
   // The menu bar and the widget have no window behind them, and the accounts come from one.
   if (!accounts) createWindow();
   const manager = accounts;
   if (!manager) return;
 
-  const account = targetAccountId
-    ? manager.getAccounts().find((a) => a.id === targetAccountId)
-    : await chooseEventAccount(manager, {
-        parentWindow: mainWindow,
-        fromMainWindow: !external,
-      });
+  const detail = eventTitle
+    ? uiString('dialog.eventAccount.templateDetail', { title: eventTitle })
+    : undefined;
+
+  const account =
+    (targetAccountId
+      ? findAccountByIdOrEmail(manager.getAccounts(), targetAccountId)
+      : undefined) ??
+    (await chooseEventAccount(manager, {
+      parentWindow: mainWindow,
+      fromMainWindow: !external,
+      forceAsk: external && !targetAccountId && Boolean(templateUrl),
+      detail,
+    }));
   if (!account) return;
 
   if (account.id !== manager.getActiveAccountId()) {
@@ -903,7 +1039,94 @@ async function handleNewEvent(targetAccountId?: string, external = false): Promi
     applyMenu();
   }
 
+  if (templateUrl) {
+    manager.openInAccount(account.id, templateUrl);
+    return;
+  }
+
   await manager.triggerCalendarAction('createEvent', account.id);
+}
+
+/**
+ * Google's add-to-calendar form, rebuilt from the fields we pass through a deep link.
+ *
+ * Loading it in the account's view lets Google's own editor prefill the event, so the
+ * title, time, details and location survive without scripting the form.
+ */
+function eventTemplateUrl(link: URL): string | null {
+  if (!link.searchParams.get('text') && !link.searchParams.get('dates')) return null;
+
+  const fields = new URLSearchParams({ action: 'TEMPLATE' });
+  for (const key of ['text', 'dates', 'details', 'location', 'ctz', 'trp', 'crm']) {
+    const value = link.searchParams.get(key);
+    if (value) fields.set(key, value);
+  }
+  return `https://calendar.google.com/calendar/render?${fields.toString()}`;
+}
+
+/** Opens the full-screen Tasks route for an account, which is a Calendar route. */
+function handleTasks(targetAccountId?: string): void {
+  if (!accounts) createWindow();
+  const manager = accounts;
+  if (!manager) return;
+
+  const account =
+    (targetAccountId
+      ? findAccountByIdOrEmail(manager.getAccounts(), targetAccountId)
+      : undefined) ?? manager.getActiveAccount();
+  if (!account) return;
+
+  if (mainWindow) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+  }
+
+  manager.openInAccount(account.id, 'https://calendar.google.com/calendar/u/0/r/tasks');
+}
+
+/** Focuses the main window and optionally switches to the specified account. */
+function handleOpen(targetAccountId?: string): void {
+  if (!accounts) createWindow();
+  const manager = accounts;
+  if (!manager) return;
+
+  const account =
+    (targetAccountId
+      ? findAccountByIdOrEmail(manager.getAccounts(), targetAccountId)
+      : undefined) ?? manager.getActiveAccount();
+  if (account && account.id !== manager.getActiveAccountId()) {
+    manager.switchAccount(account.id);
+    pushToolbarAccounts();
+    applyMenu();
+  }
+
+  if (mainWindow) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+  }
+}
+
+/** Navigates the target account's view to an arbitrary Google Calendar or Tasks URL. */
+function handleNavigate(targetUrl: string, targetAccountId?: string): void {
+  if (!accounts) createWindow();
+  const manager = accounts;
+  if (!manager) return;
+
+  const account =
+    (targetAccountId
+      ? findAccountByIdOrEmail(manager.getAccounts(), targetAccountId)
+      : undefined) ?? manager.getActiveAccount();
+  if (!account) return;
+
+  if (mainWindow) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+  }
+
+  manager.openInAccount(account.id, targetUrl);
 }
 
 /**
@@ -922,7 +1145,7 @@ async function handleNewTask(targetAccountId?: string): Promise<void> {
   if (!manager) return;
 
   const account = targetAccountId
-    ? manager.getAccounts().find((a) => a.id === targetAccountId)
+    ? findAccountByIdOrEmail(manager.getAccounts(), targetAccountId)
     : manager.getActiveAccount();
   if (!account) return;
 
@@ -1060,8 +1283,11 @@ function handleSearch(query?: string, accountId?: string): void {
   const manager = accounts;
   if (!manager) return;
 
-  if (accountId && accountId !== manager.getActiveAccountId()) {
-    manager.switchAccount(accountId);
+  if (accountId) {
+    const target = findAccountByIdOrEmail(manager.getAccounts(), accountId);
+    if (target && target.id !== manager.getActiveAccountId()) {
+      manager.switchAccount(target.id);
+    }
   }
 
   if (mainWindow) {
@@ -1130,6 +1356,24 @@ function handleToolbarAction(action: string, value: string): void {
       void handleNewTask();
       break;
 
+    case 'toggleSidebar':
+      sidebarManager?.toggleSidebar();
+      break;
+
+    case 'sidebarSelectDate':
+    case 'sidebarOpenEvent':
+    case 'sidebarJoinCall':
+    case 'sidebarDeleteEvent':
+    case 'sidebarCompleteTask':
+    case 'sidebarRsvp':
+    case 'sidebarRefresh':
+    case 'sidebarFilterChanged':
+    case 'sidebarSetShowCompletedTasks':
+    case 'sidebarEnsureRange':
+    case 'sidebarScroll':
+      sidebarManager?.handleSidebarAction(action, value);
+      break;
+
     case 'search':
       handleSearch(value);
       break;
@@ -1144,6 +1388,15 @@ function handleToolbarAction(action: string, value: string): void {
     case 'invite:read':
     case 'invite:open':
       calendarService?.handleInviteAction(action, value);
+      break;
+
+    default:
+      // A sidebar action added in the addon used to be dropped here until somebody
+      // remembered to add it to the list above; `sidebarSetShowCompletedTasks` and
+      // `sidebarEnsureRange` both shipped that way. Relay the prefix instead.
+      if (action.startsWith('sidebar')) {
+        sidebarManager?.handleSidebarAction(action, value);
+      }
       break;
   }
 }
@@ -1170,13 +1423,15 @@ function createWindow(
   // Built opaque from the start when transparency is off, rather than made
   // vibrant and corrected a frame later. Mirrors Magimail's createMainWindow.
   const settings = loadSettings();
+  const isSidebarVisible = settings.sidebarVisible !== false;
+  const initialMinW = windowMinWidth(isSidebarVisible);
   mainWindow = new BaseWindow(
     createMainWindowOptions({
       title: uiString('window.main.title'),
-      width: 1280,
-      height: 820,
-      minWidth: 1280,
-      minHeight: 600,
+      width: isSidebarVisible ? 1320 : 1024,
+      height: 850,
+      minWidth: initialMinW,
+      minHeight: CALENDAR_MIN_HEIGHT,
       // Set when this window is a replacement, so it returns to where the user had it.
       bounds: options.bounds,
       ...(settings.transparentBackground
@@ -1190,6 +1445,14 @@ function createWindow(
   );
 
   attachNativeToolbar(mainWindow);
+
+  sidebarManager = new SidebarManager(
+    () => mainWindow,
+    () => accounts,
+    () => calendarService,
+  );
+  sidebarManager.onFilterChanged = pushFilterStateToSurfaces;
+  sidebarManager.attach(mainWindow);
 
   // Coming back to the window is the moment a stale agenda is most visible, and the
   // poller's own cadence is minutes long. `pollOnFocus` rate-limits this itself, so
@@ -1217,9 +1480,11 @@ function createWindow(
     findInPageController = null;
     mainWindow = null;
     accounts = null;
+    sidebarManager = null;
   });
 
   accounts = new AccountsManager(mainWindow, calendarPreloadPath(), { initialAccountId });
+  forgetAccountSettings(new Set(accounts.getAccounts().map((a) => a.id)));
 
   // Coming back to the window is when a blank one is most likely to be seen, so the
   // pair is logged: it dates the failure against the suspension that preceded it.
@@ -1237,10 +1502,15 @@ function createWindow(
     // so is the grid toolbar: each account keeps its own Calendar vs Tasks mode.
     applyMenu();
     setNativeToolbarMode(accounts.getActiveViewMode());
+    sidebarManager?.updateAccounts(accounts.getAccounts());
   };
   // Removing an account has to purge what was cached for it before the record goes: the
   // poller sweep below only drops accounts that are already gone from the list.
   accounts.onAccountRemoving = (accountId) => calendarService?.forgetAccount(accountId);
+  // Accelerated sync when the user mutates calendar events or tasks in the Google Calendar web UI.
+  accounts.onSyncMutation = (accountId) => {
+    calendarService?.requestImmediatePoll(accountId);
+  };
   // The mode of the account on screen, so the toolbar dims `< Today >` and Search in
   // Tasks without the user having to touch anything first.
   accounts.onModeChanged = (mode) => setNativeToolbarMode(mode);
@@ -1253,6 +1523,7 @@ function createWindow(
     // The dropdown belongs to the account in the window, so it follows the switch.
     calendarService?.setActiveAccount(accounts.getActiveAccountId());
     menuBarManager?.updateAccounts(accounts.getAccounts());
+    sidebarManager?.updateAccounts(accounts.getAccounts());
     forgetAccountSettings(new Set(accounts.getAccounts().map((a) => a.id)));
     // An account that was just removed has to take its poller and its cached events with
     // it, or the agenda keeps drawing a diary whose filter row no longer exists. Cheap
@@ -1261,6 +1532,12 @@ function createWindow(
     // Cheap, and it keeps an open settings window in step with the Accounts
     // menu. The helper ignores it when no window is showing.
     pushAccountsToSettings(accounts, calendarService?.getCachedEvents(), accountsNeedingSignIn());
+  };
+  accounts.onTimeframeChanged = (timeframe, dateStr) => {
+    sidebarManager?.setTimeframe(timeframe, dateStr);
+  };
+  accounts.onGridScroll = (hour, hourHeight, gridTop, gridHeight, cardTop) => {
+    sidebarManager?.setScrollPosition(hour, hourHeight, gridTop, gridHeight, cardTop);
   };
 
   if (!menuBarManager) {
@@ -1274,6 +1551,8 @@ function createWindow(
       (query, accountId) => handleSearch(query, accountId),
     );
   }
+  menuBarManager.onHiddenCalendarsChanged = pushFilterStateToSurfaces;
+  menuBarManager.onShowCompletedTasksChanged = pushFilterStateToSurfaces;
 
   if (loadSettings().showMenuBarIcon) {
     menuBarManager.createTray();
@@ -1281,6 +1560,13 @@ function createWindow(
     if (calendarService) {
       menuBarManager.updateEvents(calendarService.getCachedEvents());
     }
+  }
+
+  if (accounts) {
+    sidebarManager?.updateAccounts(accounts.getAccounts());
+  }
+  if (calendarService) {
+    sidebarManager?.updateEvents(calendarService.getCachedEvents());
   }
 
   pushToolbarAccounts();
@@ -1294,6 +1580,9 @@ function createWindow(
 app.whenReady().then(async () => {
   log.info('App ready');
   setUiLocale(app.getLocale());
+  // The region and the 12/24-hour switch both live in NSUserDefaults, which ICU resolves
+  // once at launch. Read them here, so a relaunch applies a change.
+  setClock(readMacLocale() ?? app.getLocale(), readMacForced24Hour());
   app.setAboutPanelOptions({
     applicationName: 'Magical',
     applicationVersion: app.getVersion(),
@@ -1318,7 +1607,9 @@ app.whenReady().then(async () => {
     accounts?.reinjectCss();
     // An opaque window paints a literal colour, so it has to follow the theme
     // itself — vibrancy would have tracked the appearance for free.
-    if (!loadSettings().transparentBackground) applyWindowTransparency(false);
+    const isTransparent = loadSettings().transparentBackground;
+    if (!isTransparent) applyWindowTransparency(false);
+    sidebarManager?.setTransparency(isTransparent, nativeTheme.shouldUseDarkColors);
   });
 
   onHelperEvent(handleHelperEvent);
@@ -1365,7 +1656,7 @@ app.whenReady().then(async () => {
   // is the one already loaded.
   if (startupUrl && accounts && calendarService) {
     log.info('Dispatching startup protocol URL:', redactUrl(startupUrl));
-    dispatchProtocolUrl(startupUrl);
+    void dispatchProtocolUrl(startupUrl);
     pendingProtocolUrl = null;
   }
 

@@ -6,14 +6,15 @@ import {
   BrowserWindow,
   WebContentsView,
   webFrameMain,
+  type WebContents,
   type WebFrameMain,
   session,
-  shell,
   dialog,
   clipboard,
 } from 'electron';
 import {
   type AccountConfig,
+  findAccountByIdOrEmail,
   TOOLBAR_HEIGHT,
   calculateAggregateBadge,
   calculateAggregateUnread,
@@ -28,7 +29,11 @@ import {
   SUSPEND_NEVER,
   viewIsAlive,
   unwrapRedirectors,
+  type OpenExternalUrlOptions,
+  ACCOUNT_EMAIL_SCRIPT,
+  readAccountEmail,
 } from '@magimail/core';
+import { openExternalUrl } from './links.js';
 import {
   GMAIL_LOGIN_URL,
   type DomUnreadReport,
@@ -51,7 +56,6 @@ import { uiString } from './strings.js';
 import { updateDockBadge, type ArrivalBadgeState } from './dock.js';
 import { openDetachedThreadWindow } from './compose.js';
 import { loadAccounts, saveAccounts, createNewAccount } from './account-store.js';
-import { withStoredUnreadCounts } from './mailbox/unread-count-store.js';
 import { loadSettings, saveSetting } from './settings-store.js';
 import { pressRefreshControl } from './thread-actions/sync-driver.js';
 import {
@@ -60,6 +64,9 @@ import {
   type MailboxPollEvent,
   type VerificationCodeItem,
   HybridFeedSource,
+  forgetMailboxAccount,
+  sweepOrphanedMailboxState,
+  withStoredUnreadCounts,
 } from './mailbox/index.js';
 import {
   attachNativeToolbar,
@@ -245,6 +252,18 @@ export class AccountsManager {
   private activeAccountId: string = this.accounts[0]?.id ?? '';
   /** The account a cold-launch link named, resolved in `initialize()`. */
   private requestedInitialAccountId?: string;
+  /**
+   * The account a thread open is keeping on screen until its route lands.
+   *
+   * A switch during the route detaches the view, and a detached view loses the
+   * hash assignment to Gmail's own navigation. The hold defers other switches
+   * instead of letting one land mid-route.
+   */
+  private routeHoldAccountId: string | null = null;
+  /** The last switch asked for while a route held another account active. */
+  private deferredSwitchAccountId: string | null = null;
+  /** Opens run one at a time, so a second cannot take the first one's hold. */
+  private openThreadQueue: Promise<void> = Promise.resolve();
   private readonly pool: RendererPool<AccountConfig, WebContentsView>;
   private mainWindow: BaseWindow;
   private preloadPath: string;
@@ -258,6 +277,8 @@ export class AccountsManager {
   private mailActionTimer: ReturnType<typeof setInterval> | null = null;
   /** Tracks URLs that failed loading due to network/offline errors, so reconnect reloads them. */
   private failedOfflineUrls: Map<string, string> = new Map();
+  /** Accounts whose address has been asked of the page, so a reload does not ask again. */
+  private emailCaptured = new Set<string>();
   public onAccountsChanged?: () => void;
   public onGmailSignIn?: (accountId: string) => void;
   public onUnreadChanged?: (accounts: AccountConfig[], totalUnread: number) => void;
@@ -511,7 +532,7 @@ export class AccountsManager {
   }
 
   /** New arrivals across the accounts the Focus Filter includes, and whether the sum may be short. */
-  private getFocusedArrivals(): ArrivalBadgeState {
+  public getFocusedArrivals(): ArrivalBadgeState {
     let count = 0;
     let incomplete = false;
     for (const account of this.getFocusedAccounts()) {
@@ -611,15 +632,20 @@ export class AccountsManager {
    */
   private resolveInitialAccountId(requestedFromLink?: string): { id: string; source: string } {
     if (requestedFromLink) {
-      const linked = this.accounts.find((a) => a.id === requestedFromLink);
+      const linked = findAccountByIdOrEmail(this.accounts, requestedFromLink);
       if (linked) return { id: linked.id, source: 'launch link' };
       log.warn(
         `Cold launch named account ${requestedFromLink}, which is not configured; falling back`,
       );
     }
 
-    const remembered = this.accounts.find((a) => a.id === loadSettings().lastActiveAccountId);
-    if (remembered) return { id: remembered.id, source: 'last active' };
+    const rememberedId = loadSettings().lastActiveAccountId;
+    if (rememberedId) {
+      const remembered = this.accounts.find((a) => a.id === rememberedId);
+      if (remembered) return { id: remembered.id, source: 'last active' };
+      // The saved last active account is no longer configured; sweep it from settings.
+      saveSetting('lastActiveAccountId', this.accounts[0]?.id ?? '');
+    }
 
     return { id: this.accounts[0]?.id ?? '', source: 'first account' };
   }
@@ -654,6 +680,7 @@ export class AccountsManager {
     // feed request. Before views became lazy this happened as a side effect of
     // createAccountView running for every account at startup.
     pruneOrphanPartitions(this.accounts.map((a) => a.partition));
+    sweepOrphanedMailboxState(this.accounts.map((a) => a.id));
     for (const account of this.accounts) {
       configureGoogleSession(account.partition);
     }
@@ -847,7 +874,9 @@ export class AccountsManager {
         ) {
           return { action: 'allow' };
         }
-        shell.openExternal(unwrapRedirectors(childUrl));
+        const target = unwrapRedirectors(childUrl);
+        const activeAcc = this.accounts.find((a) => a.id === this.activeAccountId);
+        void openExternalUrl(target, this.outboundLinkOptions(activeAcc));
         return { action: 'deny' };
       });
 
@@ -923,7 +952,7 @@ export class AccountsManager {
 
       const target = unwrapRedirectors(url);
       log.info(`Account ${account.id} opening in the browser:`, redactUrl(target));
-      shell.openExternal(target);
+      void openExternalUrl(target, this.outboundLinkOptions(account));
       return { action: 'deny' };
     });
 
@@ -939,7 +968,7 @@ export class AccountsManager {
         event.preventDefault();
         const target = unwrapRedirectors(url);
         log.info(`Account ${account.id} navigating out to the browser:`, redactUrl(target));
-        shell.openExternal(target);
+        void openExternalUrl(target, this.outboundLinkOptions(account));
       }
     });
 
@@ -975,6 +1004,7 @@ export class AccountsManager {
       if (account.id === this.activeAccountId) {
         this.syncCategoryBannerForActiveAccount();
       }
+      this.captureAccountEmail(account.id, view.webContents);
     });
 
     view.webContents.on('did-navigate-in-page', (_event, url) => {
@@ -1064,12 +1094,26 @@ export class AccountsManager {
   }
 
   public switchAccount(accountId: string): void {
-    const targetAccount = this.accounts.find((a) => a.id === accountId);
+    const targetAccount = findAccountByIdOrEmail(this.accounts, accountId);
     if (!targetAccount) return;
+    const resolvedAccountId = targetAccount.id;
 
-    log.info(`Switching active account to ${accountId}`);
-    this.activeAccountId = accountId;
-    const activeView = this.pool.attachOnly(accountId);
+    if (this.routeHoldAccountId) {
+      if (resolvedAccountId !== this.routeHoldAccountId) {
+        this.deferredSwitchAccountId = resolvedAccountId;
+        log.info(
+          `Holding ${this.routeHoldAccountId} active until its thread open lands; ` +
+            `deferring switch to ${resolvedAccountId}`,
+        );
+        return;
+      }
+      // Switching back to the held account cancels a switch that was waiting.
+      this.deferredSwitchAccountId = null;
+    }
+
+    log.info(`Switching active account to ${resolvedAccountId}`);
+    this.activeAccountId = resolvedAccountId;
+    const activeView = this.pool.attachOnly(resolvedAccountId);
 
     this.clearBannerTimer();
     this.hideCategoryBanner();
@@ -1079,23 +1123,26 @@ export class AccountsManager {
     // Load URL only after view is attached and has full window bounds. A
     // resumed account returns to where it was rather than to the inbox.
     if (activeView) {
-      const firstLoad = this.pool.firstLoadUrl(accountId, GMAIL_LOGIN_URL);
+      const firstLoad = this.pool.firstLoadUrl(resolvedAccountId, GMAIL_LOGIN_URL);
       if (firstLoad) activeView.webContents.loadURL(firstLoad);
     }
 
     this.notifyToolbar();
     this.updateToolbarActionState();
-    const effective = this.getEffectiveUnreadForAccount(accountId);
-    this.accounts = updateAccountUnread(this.accounts, accountId, effective);
+    const effective = this.getEffectiveUnreadForAccount(resolvedAccountId);
+    this.accounts = updateAccountUnread(this.accounts, resolvedAccountId, effective);
     const focused = this.getFocusedAccounts();
     const total = calculateAggregateUnread(focused);
     updateDockBadge(calculateAggregateBadge(focused), this.getFocusedArrivals());
     this.onUnreadChanged?.(focused, total);
-    this.onMissingCategoriesChanged?.(accountId, this.getMissingCategoriesForAccount(accountId));
+    this.onMissingCategoriesChanged?.(
+      resolvedAccountId,
+      this.getMissingCategoriesForAccount(resolvedAccountId),
+    );
     // Rebuilds the application menu, which marks the account being viewed.
     // Switching was the one account change that notified nothing.
     this.onAccountsChanged?.();
-    this.onAccountSwitched?.(accountId);
+    this.onAccountSwitched?.(resolvedAccountId);
   }
 
   /**
@@ -1107,7 +1154,8 @@ export class AccountsManager {
    * search on a suspended account reading an active view that is not there.
    */
   public openInAccount(accountId: string | undefined, url: string): void {
-    const target = accountId || this.activeAccountId;
+    const targetAccount = findAccountByIdOrEmail(this.accounts, accountId);
+    const target = targetAccount ? targetAccount.id : this.activeAccountId;
     this.switchAccount(target);
 
     const view = this.pool.view(target);
@@ -1787,6 +1835,56 @@ export class AccountsManager {
     this.onUnreadChanged?.(focused, total);
   }
 
+  /**
+   * Learns and stores the address the account is signed in as.
+   *
+   * An account record holds a name, colour and partition, which cannot tell the link router
+   * which Chromium profile is the same person. The page can, so it is asked once it settles.
+   */
+  private captureAccountEmail(accountId: string, contents: WebContents): void {
+    const account = this.accounts.find((a) => a.id === accountId);
+    if (!account || account.email) return;
+    if (!contents.getURL().startsWith('https://mail.google.com/mail/')) return;
+    if (this.emailCaptured.has(accountId)) return;
+    this.emailCaptured.add(accountId);
+
+    void readAccountEmail({
+      read: () => contents.executeJavaScript(ACCOUNT_EMAIL_SCRIPT, true),
+      isAlive: () => !contents.isDestroyed(),
+    }).then((email) => {
+      if (!email) {
+        // A page that never showed one may be signed out, or may need a reload. Either way
+        // the next load is the next chance, so it is not remembered as a failure. Said out
+        // loud because the alternative is an account that silently never matches a profile.
+        log.info(`No signed-in address on the page for account ${accountId}`);
+        this.emailCaptured.delete(accountId);
+        return;
+      }
+      const target = this.accounts.find((a) => a.id === accountId);
+      if (!target || target.email === email) return;
+      target.email = email;
+      saveAccounts(this.accounts);
+      // The address itself stays out of the log: it is account data, and the id is enough
+      // to follow what happened.
+      log.info(`Recorded the signed-in address for account ${accountId}`);
+      this.onAccountsChanged?.();
+    });
+  }
+
+  /**
+   * How a link should leave this app, for one account.
+   *
+   * Reads settings each time rather than caching: the user can change any of it while the window is
+   * open, and a link clicked a second later should follow the new answer.
+   */
+  private outboundLinkOptions(account?: AccountConfig): OpenExternalUrlOptions {
+    const settings = loadSettings();
+    return {
+      browser: settings.openLinksIn,
+      account,
+    };
+  }
+
   public setAccountAuthRequired(accountId: string, needsAuth: boolean): void {
     const acc = this.accounts.find((a) => a.id === accountId);
     if (!acc || Boolean(acc.needsAuth) === needsAuth) return;
@@ -2094,8 +2192,8 @@ export class AccountsManager {
         return await wc.executeJavaScript(`
           ${DOM_DRIVE_PREAMBLE}
           (async () => Boolean(await waitUntil(
-            () => resolveOrdered(['[role="main"]', '[gh="cm"]']) !== null || location.hash.length > 0,
-            { timeoutMs: ${remaining}, label: 'gmail-ready' },
+            () => resolveOrdered(['[role="main"]', '[gh="cm"]']) !== null,
+            { timeoutMs: ${remaining}, quietMs: 250, label: 'gmail-ready' },
           )))()
         `);
       } catch {
@@ -2208,12 +2306,14 @@ export class AccountsManager {
     messageId: string,
     action: ThreadAction,
   ): Promise<boolean> {
-    if (!this.accounts.some((a) => a.id === accountId)) return false;
+    const targetAccount = findAccountByIdOrEmail(this.accounts, accountId);
+    if (!targetAccount) return false;
+    const resolvedAccountId = targetAccount.id;
 
     // Triage fired at a banner or a popover row leaves no other trace: the window does
     // not move and the account on screen does not change, so without this the only
     // evidence any of it ran is the mail itself changing.
-    log.info(`Thread action ${action} on ${accountId}`);
+    log.info(`Thread action ${action} on ${resolvedAccountId}`);
 
     // Only opening asks to look at something. The rest is triage fired at a
     // banner or a popover row, so it neither raises the window nor changes
@@ -2221,34 +2321,87 @@ export class AccountsManager {
     // waking loads Gmail again, and leaving the user on a blank window until it
     // finishes is worse than showing the account it is about to switch to.
     if (action === 'open') {
-      this.mainWindow.show();
-      this.mainWindow.focus();
+      const startedAt = Date.now();
+      const opening = this.openThreadQueue.then(() =>
+        this.openThread(resolvedAccountId, messageId, startedAt),
+      );
+      // The queue survives a rejected open; the caller still sees the rejection.
+      this.openThreadQueue = opening.then(
+        () => undefined,
+        () => undefined,
+      );
+      return opening;
+    }
 
+    // Triage does not wake the account: the mailbox source owns the action.
+    const source = this.mailboxSources.get(resolvedAccountId);
+    if (source) {
+      return source.triageThread(messageId, action as TriageAction);
+    }
+    return false;
+  }
+
+  /**
+   * Open one thread, holding its account active until the route lands.
+   *
+   * A view that has loaded is not necessarily showing Gmail: it may still be
+   * navigating after a wake, and a hash assigned during that navigation is lost
+   * to Gmail's own route. `waitForGmail` waits for the app's chrome, not for the
+   * load event, so the hash lands on the page that will keep it.
+   */
+  private async openThread(
+    accountId: string,
+    messageId: string,
+    startedAt: number,
+  ): Promise<boolean> {
+    this.mainWindow.show();
+    this.mainWindow.focus();
+
+    this.routeHoldAccountId = accountId;
+    try {
       const woken = await this.wakeAccountForAction(accountId);
       if (!woken) return false;
       const { view, release } = woken;
 
-      this.switchAccount(accountId);
       try {
-        if (await this.isShowingThread(view, messageId)) return true;
+        this.switchAccount(accountId);
+
+        if (await this.isShowingThread(view, messageId)) {
+          log.info(
+            `Opened thread on ${accountId} in ${Date.now() - startedAt} ms (already on screen)`,
+          );
+          return true;
+        }
+
+        if (!(await this.waitForGmail(view))) {
+          log.info(`Dropped open on ${accountId}: Gmail was not showing when the route was due`);
+          return false;
+        }
+
         const routed = await this.routeToThread(view, messageId);
         if (!routed) {
           log.info(`Dropped open on ${accountId}: the view would not leave what it is showing`);
           await this.restorePreviousRoute(view, messageId);
           return false;
         }
+        log.info(`Opened thread on ${accountId} in ${Date.now() - startedAt} ms`);
         return true;
       } finally {
         release();
       }
+    } finally {
+      this.releaseRouteHold();
     }
+  }
 
-    // Triage does not wake the account: the mailbox source owns the action.
-    const source = this.mailboxSources.get(accountId);
-    if (source) {
-      return source.triageThread(messageId, action as TriageAction);
-    }
-    return false;
+  /** Lift the hold and apply whichever switch was waiting behind it. */
+  private releaseRouteHold(): void {
+    this.routeHoldAccountId = null;
+    const deferred = this.deferredSwitchAccountId;
+    this.deferredSwitchAccountId = null;
+    if (!deferred || deferred === this.activeAccountId) return;
+    if (!this.accounts.some((a) => a.id === deferred)) return;
+    this.switchAccount(deferred);
   }
 
   /**
@@ -2662,6 +2815,8 @@ export class AccountsManager {
     if (source) {
       source.forget();
       this.mailboxSources.delete(accountId);
+    } else {
+      forgetMailboxAccount(accountId);
     }
     // A filter that still names the account would leave the switcher and the badge
     // leaning on an id nothing can reach. `focus-filter.json` itself is left alone: the
@@ -2690,6 +2845,9 @@ export class AccountsManager {
     this.lastKnownCategoryCounts.delete(accountId);
     this.cacheDerivedCategories.delete(accountId);
     this.missingCategoriesByAccount.delete(accountId);
+    this.emailCaptured.delete(accountId);
+    if (this.routeHoldAccountId === accountId) this.routeHoldAccountId = null;
+    if (this.deferredSwitchAccountId === accountId) this.deferredSwitchAccountId = null;
     for (const key of [...this.mailActionQueue.keys()]) {
       if (key.startsWith(`${accountId}:`)) this.mailActionQueue.delete(key);
     }
@@ -2704,6 +2862,9 @@ export class AccountsManager {
 
     if (this.activeAccountId === accountId) {
       this.switchAccount(this.accounts[0].id);
+      saveSetting('lastActiveAccountId', this.activeAccountId);
+    } else if (loadSettings().lastActiveAccountId === accountId) {
+      saveSetting('lastActiveAccountId', this.activeAccountId);
     }
     this.notifyToolbar();
     this.onAccountsChanged?.();
@@ -2712,12 +2873,13 @@ export class AccountsManager {
 
   public updateAccountConfig(
     accountId: string,
-    updates: { name?: string; color?: string },
+    updates: { name?: string; color?: string; browserProfile?: string },
   ): boolean {
     const account = this.accounts.find((a) => a.id === accountId);
     if (!account) return false;
     if (updates.name !== undefined) account.name = updates.name;
     if (updates.color !== undefined) account.color = updates.color;
+    if (updates.browserProfile !== undefined) account.browserProfile = updates.browserProfile;
     saveAccounts(this.accounts);
     this.notifyToolbar();
     // A rename has to reach the Accounts menu as well as the toolbar.

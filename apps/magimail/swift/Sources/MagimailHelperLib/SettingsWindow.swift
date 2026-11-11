@@ -33,7 +33,7 @@ public enum SettingsWindow {
                         id: "general",
                         label: String(localized: "General"),
                         icon: "gearshape",
-                        height: 180
+                        height: 210
                     ) {
                         GeneralTab().environmentObject(model)
                     },
@@ -106,6 +106,18 @@ struct GeneralTab: View {
                 Text(verbatim: "⌃⌥⌘C").tag("Control+Alt+Command+C")
             }
             .help("Opens a compose window from any application. It always asks which account to send from when there is more than one, since no account is on screen to be the active one.")
+
+            Divider()
+
+            LinksBrowserPicker(
+                selection: $model.openLinksIn,
+                browsers: model.browsers,
+                defaultBrowser: model.defaultBrowser
+            )
+            .help("Each account chooses its own Chromium profile in Accounts.")
+
+            Toggle("Always open calls in the browser", isOn: $model.alwaysJoinInBrowser)
+                .help("Zoom and Teams calls open in their desktop apps by default. Turn this on if you are signed in to the meeting's account in a browser rather than in the desktop app.")
 
             Divider()
 
@@ -221,8 +233,16 @@ struct AppearanceTab: View {
                         .foregroundStyle(.secondary)
                 }
                 Toggle("Show menu bar tray", isOn: $model.showMenuBarTray)
-                Toggle("Show unread count", isOn: $model.menuBarShowCount)
-                Toggle("Show color dots", isOn: $model.menuBarShowDots)
+                Picker("Menu bar status:", selection: $model.menuBarUnreadDisplay) {
+                    Text("Menu bar icon only").tag("nothing")
+                    Text("Unread status dots").tag("dots")
+                    Text("Unread count").tag("numbers")
+                }
+                if model.menuBarUnreadDisplay == "numbers" {
+                    Text("One cell per account, with 0 for a quiet one, so the item keeps its width as mail arrives or is read.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
                 Toggle("Show verification codes", isOn: $model.menuBarVerificationCodes)
                 if model.menuBarVerificationCodes {
                     Picker("Keep in menu bar for:", selection: $model.verificationCodeDurationMinutes) {

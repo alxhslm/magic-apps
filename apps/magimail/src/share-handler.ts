@@ -12,7 +12,7 @@ import {
   removeShareTempDir,
   removeStagedShareFiles,
 } from './share-staging.js';
-import { DOM_DRIVE_PREAMBLE } from '@magimail/core';
+import { DOM_DRIVE_PREAMBLE, findAccountByIdOrEmail } from '@magimail/core';
 import { domAction } from './dom-labels.js';
 import { createLogger, redactText, redactUrl } from '@magimail/core/logger';
 
@@ -52,14 +52,25 @@ async function composeShare(
   accountsManager: AccountsManager,
   mainWindow?: BaseWindow | null,
 ): Promise<void> {
-  const picked = await pickAccount(
-    accountsManager,
-    mainWindow,
-    uiString('dialog.composeAccount.shareDetail'),
-  );
-  if (!picked) return;
-
   const parsed = new URL(url);
+  const targetAccountId = parsed.searchParams.get('account');
+  const target = targetAccountId
+    ? findAccountByIdOrEmail(accountsManager.getAccounts(), targetAccountId)
+    : undefined;
+
+  if (target) {
+    if (target.id !== accountsManager.getActiveAccountId()) {
+      accountsManager.switchAccount(target.id);
+    }
+  } else {
+    const picked = await pickAccount(
+      accountsManager,
+      mainWindow,
+      uiString('dialog.composeAccount.shareDetail'),
+    );
+    if (!picked) return;
+  }
+
   const sharedText = parsed.searchParams.get('text') || '';
   const sharedUrl = parsed.searchParams.get('url') || '';
   const subject = parsed.searchParams.get('subject') || parsed.searchParams.get('su') || '';

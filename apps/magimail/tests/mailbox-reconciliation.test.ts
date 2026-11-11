@@ -4,6 +4,12 @@ import type { AtomMessage, MailboxChangeEvent, TrayMessageItem } from '../src/ma
 import { HybridFeedSource } from '../src/mailbox/hybrid-feed-source.js';
 import * as syncDriverModule from '../src/thread-actions/sync-driver.js';
 
+const { logInfo, logWarn } = vi.hoisted(() => ({ logInfo: vi.fn(), logWarn: vi.fn() }));
+
+vi.mock('@magimail/core/logger', () => ({
+  createLogger: () => ({ info: logInfo, warn: logWarn, error: vi.fn(), debug: vi.fn() }),
+}));
+
 describe('UnreadLedger State Machine', () => {
   let ledger: UnreadLedger;
 
@@ -1205,6 +1211,34 @@ describe('Scenario 5: Universal Sync Nudge Dispatch', () => {
     source.destroy();
   });
 
+  /**
+   * Electron reads `view.webContents` back as `undefined` once the WebContents is
+   * destroyed, so the natural guard `!view.webContents.isDestroyed()` throws instead
+   * of answering. A hint lands about 100ms after a suspend, so this is the reply that
+   * arrives from a dead view.
+   */
+  it('returns from a mailbox hint when the view has been torn down', async () => {
+    const mockPoller = {
+      pollNow: vi.fn().mockResolvedValue(undefined),
+      requestImmediatePoll: vi.fn(),
+      stop: vi.fn(),
+      destroy: vi.fn(),
+      updateNotificationSettings: vi.fn(),
+      setFocusAndMissingCategories: vi.fn(),
+      getLatestEntries: vi.fn().mockReturnValue([]),
+    };
+
+    const source = new HybridFeedSource('acc-torn-down', {
+      partition: 'persist:acc-torn-down',
+      getView: () => ({ webContents: undefined }) as any,
+      pollerFactory: () => mockPoller as any,
+    });
+
+    await expect(source.handleMailboxChangeHint()).resolves.toBeUndefined();
+
+    source.destroy();
+  });
+
   it('routes triage through the configured thread action driver', async () => {
     const perform = vi.fn().mockResolvedValue(true);
     const mockPoller = {
@@ -1226,6 +1260,64 @@ describe('Scenario 5: Universal Sync Nudge Dispatch', () => {
 
     expect(ok).toBe(true);
     expect(perform).toHaveBeenCalledWith(undefined, 'acc-driver', 'th-1', 'archive');
+    source.destroy();
+  });
+
+  /**
+   * A triage leaves no other trace: the window does not move, and the ledger rolls
+   * back without a word. Without a line on each side, a refused delete is
+   * indistinguishable from a click that never arrived.
+   */
+  it('logs the triage as it starts and again when the driver refuses', async () => {
+    let pollCallback: (result: any) => void = () => {};
+    const mockPoller = {
+      pollNow: vi.fn().mockResolvedValue(undefined),
+      stop: vi.fn(),
+      destroy: vi.fn(),
+      updateNotificationSettings: vi.fn(),
+      setFocusAndMissingCategories: vi.fn(),
+      getLatestEntries: vi.fn().mockReturnValue([
+        {
+          id: 'm-log-1',
+          threadId: 'th-log-1',
+          from: 'someone',
+          subject: 'hello',
+          snippet: 'hi',
+          link: '',
+          issued: new Date(1000).toISOString(),
+          modified: new Date(1000).toISOString(),
+          category: 'primary',
+        },
+      ]),
+    };
+
+    const source = new HybridFeedSource('acc-triage-log', {
+      partition: 'persist:acc-triage-log',
+      threadActionDriver: { perform: async () => false },
+      pollerFactory: (_accountId, _partition, cb) => {
+        pollCallback = cb;
+        return mockPoller as any;
+      },
+    });
+    pollCallback({
+      accountId: 'acc-triage-log',
+      totalUnread: 1,
+      newMessages: [],
+      newArrivalCount: 1,
+      arrivalsIncomplete: false,
+      rawFullCount: 1,
+      status: 'ok',
+    });
+    logInfo.mockClear();
+    logWarn.mockClear();
+
+    const ok = await source.triageThread('th-log-1', 'trash');
+
+    expect(ok).toBe(false);
+    expect(logInfo).toHaveBeenCalledWith('Triage trash on acc-triage-log: thread=th-log-1');
+    expect(logWarn).toHaveBeenCalledWith(
+      'Triage trash on acc-triage-log failed for thread=th-log-1; rolled back',
+    );
     source.destroy();
   });
 

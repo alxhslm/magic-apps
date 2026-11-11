@@ -30,6 +30,7 @@ function magicAppsAssets() {
               if (filePath.endsWith('.css')) res.setHeader('Content-Type', 'text/css');
               else if (filePath.endsWith('.svg')) res.setHeader('Content-Type', 'image/svg+xml');
               else if (filePath.endsWith('.webp')) res.setHeader('Content-Type', 'image/webp');
+              else if (filePath.endsWith('.png')) res.setHeader('Content-Type', 'image/png');
               else if (filePath.endsWith('.jpg') || filePath.endsWith('.jpeg'))
                 res.setHeader('Content-Type', 'image/jpeg');
               return fs.createReadStream(filePath).pipe(res);
@@ -115,6 +116,7 @@ export default defineConfig({
             { label: 'Multiple Accounts', link: '/help/magical/accounts/' },
             { label: 'Keyboard Shortcuts', link: '/help/magical/shortcuts/' },
             { label: 'Window Toolbar', link: '/help/magical/toolbar/' },
+            { label: 'Companion Sidebar', link: '/help/magical/sidebar/' },
             { label: 'Invitations & Badges', link: '/help/magical/invitation-tray/' },
             { label: 'Menu Bar & Popover', link: '/help/magical/menu-bar/' },
             { label: 'Meeting Alerts & Invitations', link: '/help/magical/notifications/' },

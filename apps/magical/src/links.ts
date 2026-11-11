@@ -1,11 +1,15 @@
-import { shell } from 'electron';
-import { unwrapRedirectors } from '@magimail/core';
+import {
+  unwrapRedirectors,
+  toNativeMeetingUrl,
+  openExternalUrl as openBrowserUrl,
+} from '@magimail/core';
 import { createLogger, redactUrl } from '@magimail/core/logger';
 import { INTERNAL_ORIGINS } from './constants.js';
 import { hasApplicationForUrl } from './native-handlers.js';
 import { loadSettings } from './settings-store.js';
+import type { CalendarAccount } from './accounts.js';
 
-export { unwrapRedirectors } from '@magimail/core';
+export { unwrapRedirectors, toNativeMeetingUrl } from '@magimail/core';
 
 const log = createLogger('Links');
 
@@ -46,61 +50,47 @@ export function withoutQuery(rawUrl: string): string {
 }
 
 /**
- * Rewrites a recognised video conference web URL to its native desktop scheme.
+ * Rewrites a Todoist task or project link to its desktop scheme.
  *
- * Zoom and Teams support custom schemes that join the meeting in the native client
- * directly. Google Meet has no native client and Webex is kept in the browser.
+ * Todoist's site does not hand off to the desktop app, and calendar events carry task links,
+ * so this is the one app Magical opens itself. The id is the same in both forms.
  */
-export function toNativeMeetingUrl(url: string): string {
+export function toTodoistAppUrl(url: string): string {
   const unwrapped = unwrapRedirectors(url);
-  const zoom = /^https?:\/\/[^/]*zoom\.us\/[jw]\/(\d+)/.exec(unwrapped);
-  if (zoom) {
-    const pwd = /[?&]pwd=([^&]+)/.exec(unwrapped)?.[1];
-    return `zoommtg://zoom.us/join?action=join&confno=${zoom[1]}${pwd ? `&pwd=${pwd}` : ''}`;
-  }
-  if (/^https?:\/\/teams\.(microsoft|live)\.com\//.test(unwrapped)) {
-    return unwrapped.replace(/^https?:\/\//, 'msteams://');
-  }
-  return unwrapped;
+  const match = /^https?:\/\/(?:app\.)?todoist\.com\/app\/(task|project)\/([A-Za-z0-9]+)/.exec(
+    unwrapped,
+  );
+  return match ? `todoist://${match[1]}?id=${match[2]}` : unwrapped;
 }
 
 /**
- * Dispatches an external URL to macOS.
+ * Dispatches an external URL for an account.
  *
- * Shared click gate used by `window.open`, in-view navigation, and the Join Call button.
- * Redirector wrappers (such as Google outbound tracking links or Outlook Safelinks) are
- * unwrapped before dispatch so macOS Universal Links can resolve desktop applications
- * (e.g. Todoist, Notion, Linear, Figma). Meeting URLs (Zoom, Teams) are rewritten to their
- * native custom schemes unless `alwaysJoinInBrowser` is enabled. If a custom meeting scheme
- * has no registered client or throws, it falls back to opening the unwrapped web URL in the
- * system default browser.
+ * Shared click gate used by `window.open`, in-view navigation and the Join Call button.
+ * Redirector wrappers are unwrapped first, so the router sees the destination. Meeting URLs
+ * (Zoom, Teams) are rewritten to their native schemes unless `alwaysJoinInBrowser` is on, and
+ * fall back to the web URL when no client is installed.
  */
-export async function openExternalUrl(rawUrl: string): Promise<void> {
-  const unwrappedUrl = unwrapRedirectors(rawUrl);
+export async function openExternalUrl(rawUrl: string, account?: CalendarAccount): Promise<void> {
   const settings = loadSettings();
-  let target = unwrappedUrl;
-
-  if (!settings.alwaysJoinInBrowser) {
-    target = toNativeMeetingUrl(target);
-  }
-
-  if (target !== unwrappedUrl) {
-    const scheme = target.split(':')[0];
-    if (hasApplicationForUrl(target)) {
-      try {
-        await shell.openExternal(target);
-        return;
-      } catch (err) {
-        log.warn(`${scheme}: refused the request, opening in the browser:`, err);
-      }
-    } else {
-      log.info(`No application for ${scheme}:, opening in the browser`);
-    }
-  }
 
   try {
-    await shell.openExternal(unwrappedUrl);
+    await openBrowserUrl(rawUrl, {
+      browser: settings.openLinksIn,
+      account,
+      hasApplicationForUrl,
+      rewriteUrl: (url) => {
+        let target = url;
+        if (!settings.alwaysJoinInBrowser) {
+          target = toNativeMeetingUrl(target);
+        }
+        if (target === url && settings.openTodoistLinksInApp) {
+          target = toTodoistAppUrl(target);
+        }
+        return target;
+      },
+    });
   } catch (err) {
-    log.error('Could not open external link:', redactUrl(unwrappedUrl), err);
+    log.error('Could not open external link:', redactUrl(rawUrl), err);
   }
 }

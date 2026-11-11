@@ -507,6 +507,85 @@ let magimailTrayParams: [String: Any] = [
     "isOffline": false,
 ]
 
+let sidebarTaskStart = Calendar.current.date(bySettingHour: 15, minute: 0, second: 0, of: now) ?? now
+let magicalSidebarTask: [String: Any] = [
+    "id": "sb-task-1",
+    "accountId": "work",
+    "calendarIds": ["tasks@tasks.google.com"],
+    "calendarName": "Tasks",
+    "summary": "Send quarterly report",
+    "startTime": sidebarTaskStart.timeIntervalSince1970 * 1000,
+    "endTime": sidebarTaskStart.addingTimeInterval(3600).timeIntervalSince1970 * 1000,
+    "isAllDay": false,
+    "colorHex": Fixtures.calendarWork,
+    "myResponseStatus": 1,
+    "eventType": 9,
+    "isCompleted": false,
+]
+
+let magicalSidebarTrayPayload: [String: Any] = [
+    "accounts": [
+        ["id": "personal", "name": "Personal", "color": Fixtures.calendarPersonal,
+         "email": "you@example.com", "unreadCount": 0, "needsAuth": false],
+        ["id": "work", "name": "Work", "color": Fixtures.calendarWork,
+         "email": "you@work.example.com", "unreadCount": 0, "needsAuth": false],
+    ],
+    "calendars": [
+        ["id": "personal", "accountId": "personal", "name": "Personal",
+         "colorHex": Fixtures.calendarPersonal],
+        ["id": "family", "accountId": "personal", "name": "Family",
+         "colorHex": Fixtures.calendarFamily],
+        ["id": "work", "accountId": "work", "name": "Work",
+         "colorHex": Fixtures.calendarWork],
+        ["id": "team", "accountId": "work", "name": "Team",
+         "colorHex": Fixtures.calendarTeam],
+    ] as [[String: Any]],
+    "events": (fixtures + [
+        Fixtures.Event(
+            id: "sb-allday-1",
+            title: "Strategy Offsite",
+            start: Calendar.current.startOfDay(for: now),
+            end: Calendar.current.date(byAdding: .day, value: 1, to: Calendar.current.startOfDay(for: now)) ?? now,
+            allDay: true,
+            colour: Fixtures.calendarWork,
+            calendar: "Work",
+            conference: nil
+        ),
+        Fixtures.Event(
+            id: "sb-allday-2",
+            title: "Maya's Birthday",
+            start: Calendar.current.startOfDay(for: now),
+            end: Calendar.current.date(byAdding: .day, value: 1, to: Calendar.current.startOfDay(for: now)) ?? now,
+            allDay: true,
+            colour: Fixtures.calendarFamily,
+            calendar: "Family",
+            conference: nil
+        ),
+    ]).map { event -> [String: Any] in
+        let isWork = event.calendar == "Work" || event.calendar == "Team"
+        let accountId = isWork ? "work" : "personal"
+        var raw: [String: Any] = [
+            "id": event.id,
+            "accountId": accountId,
+            "calendarIds": [event.calendar.lowercased()],
+            "calendarName": event.calendar,
+            "summary": event.title,
+            "startTime": event.start.timeIntervalSince1970 * 1000,
+            "endTime": event.end.timeIntervalSince1970 * 1000,
+            "isAllDay": event.allDay,
+            "colorHex": event.colour,
+            "myResponseStatus": 1,
+        ]
+        if let conference = event.conference {
+            raw["conferenceUrl"] = conference
+        }
+        return raw
+    } + [magicalSidebarTask],
+    "activeAccountId": "work",
+    "isCalendarCollapsed": false,
+    "isOffline": false,
+]
+
 // MARK: - App & Render
 
 let app = NSApplication.shared
@@ -756,4 +835,41 @@ MainActor.assumeIsolated {
     .environment(\.colorScheme, .light)
 
     write("shot-tasks-magical", magicalTasks, size: CGSize(width: 340 + 52, height: 300 + 52))
+
+    // 7. Magical companion sidebar (Week, Month, Day views)
+    @MainActor
+    func makeSidebarShot(
+        mode: MagicalHelperLib.SidebarViewMode,
+        timeframe: String
+    ) -> some View {
+        let model = MagicalHelperLib.SidebarModel()
+        model.trayModel.update(from: magicalSidebarTrayPayload)
+        model.setViewMode(mode, anchor: now, timeframe: timeframe)
+        model.setScrollPosition(
+            hour: 8.5,
+            hourHeight: 48.0,
+            gridTop: 184.0,
+            gridHeight: 450.0,
+            cardTop: 64.0
+        )
+
+        return MagicalHelperLib.SidebarRootView(model: model)
+            .frame(width: 324, height: 600)
+            .background(Color(red: 0.98, green: 0.98, blue: 0.99))
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(Color.black.opacity(0.12), lineWidth: 1)
+            )
+            .shadow(color: .black.opacity(0.18), radius: 12, x: 0, y: 6)
+            .padding(26)
+            .background(Color(red: 0.937, green: 0.937, blue: 0.949))
+            .environment(\.colorScheme, .light)
+    }
+
+    let sidebarShotSize = CGSize(width: 324 + 52, height: 600 + 52)
+    write("shot-sidebar-week-magical", makeSidebarShot(mode: .week, timeframe: "week"), size: sidebarShotSize)
+    write("shot-sidebar-magical", makeSidebarShot(mode: .week, timeframe: "week"), size: sidebarShotSize)
+    write("shot-sidebar-month-magical", makeSidebarShot(mode: .fantastical, timeframe: "month"), size: sidebarShotSize)
+    write("shot-sidebar-day-magical", makeSidebarShot(mode: .day, timeframe: "day"), size: sidebarShotSize)
 }

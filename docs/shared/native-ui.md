@@ -142,6 +142,13 @@ The monitor acts on release rather than press, which is what Chrome and AppKit b
 It is a local monitor, so it sees an event before the responder chain does; returning nil consumes
 the event, and the same press cannot also reach the web view.
 
+An overlaid native pane can own the gesture instead. `ToolbarManagerBase.shouldIgnoreMouseNavigation(_:)`
+is asked before the monitor accumulates any travel, and Magical's toolbar answers true for a
+`scrollWheel` over the companion sidebar. Both surfaces install local monitors and both see every
+event, so without that answer the window-wide monitor had already counted the travel by the time the
+sidebar consumed it: one swipe moved a day in the sidebar and navigated the calendar period at the
+same time. Side buttons are not excluded, because Back still means Back over the sidebar.
+
 The View menu's Back and Forward move the active account through its history, and both items are
 enabled from `canGoBack()` and `canGoForward()`, so they grey out when there is nowhere to go, as a
 browser's do. When an account view in Magimail is in a thread with no prior session history entry
@@ -182,8 +189,8 @@ does nothing but forward the request: there is no HTML settings window to fall b
 helper binary is missing there is no settings window at all.
 
 The helper is restarted freely, so it holds no authority over what Settings shows. The main process
-pushes the settings file, the account list and the app version with the request, and the window draws
-from whatever that push last carried. Opening Settings from the helper's own menu therefore goes
+pushes the settings file, the account list, the Chromium profiles, the detected default browser and
+the app version with the request, and the window draws from whatever that push last carried. Opening Settings from the helper's own menu therefore goes
 through the main process rather than instantiating the window locally, which would show the built-in
 defaults on a fresh helper and miss an account added since.
 
@@ -193,8 +200,8 @@ Both helpers build that window on `HelperUI` (`packages/swift-ui`): the `NSWindo
 list of `SettingsTab` values, each carrying a pane id, label, SF Symbol and height — so the two
 windows cannot drift apart in their chrome. The panes themselves stay in the app, because they read
 the app's own `SettingsModel`; the account list editor is generic over an `AccountListModel` protocol
-(`accounts` plus a `transport`) both models satisfy, and an app that outgrows it can point its spec at
-its own view instead. The package carries no catalog of its own; the sentences it draws sit in each
+(`accounts`, `browserProfiles`, `defaultBrowser` and a `transport`) both models satisfy, and an app
+that outgrows it can point its spec at its own view instead. The package carries no catalog of its own; the sentences it draws sit in each
 app's catalog and resolve against the app bundle the helper runs inside — see
 [`ui-strings.md`](ui-strings.md).
 

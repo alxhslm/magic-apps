@@ -24,7 +24,7 @@ const { SwiftHelper } = await import('../src/swift-helper.js');
 interface FakeChild extends EventEmitter {
   stdout: PassThrough;
   stderr: PassThrough;
-  stdin: { writable: boolean; write: ReturnType<typeof vi.fn> };
+  stdin: EventEmitter & { writable: boolean; write: ReturnType<typeof vi.fn> };
   kill: ReturnType<typeof vi.fn>;
 }
 
@@ -39,6 +39,23 @@ function makeHelper(logPrefix?: string) {
   return new SwiftHelper({ candidatePaths: ['/fake/MagimailHelper'], logPrefix, logger: sink });
 }
 
+function makeTimedHelper(requestTimeoutMs = 1000) {
+  return new SwiftHelper({
+    candidatePaths: ['/fake/MagimailHelper'],
+    logger: sink,
+    requestTimeoutMs,
+  });
+}
+
+function makeChild(): FakeChild {
+  return Object.assign(new EventEmitter(), {
+    stdout: new PassThrough(),
+    stderr: new PassThrough(),
+    stdin: Object.assign(new EventEmitter(), { writable: true, write: vi.fn() }),
+    kill: vi.fn(),
+  }) as FakeChild;
+}
+
 /** Feeds a line to stderr and waits for readline to deliver it. */
 async function emitStderr(line: string): Promise<void> {
   child.stderr.write(`${line}\n`);
@@ -46,14 +63,15 @@ async function emitStderr(line: string): Promise<void> {
   await new Promise((resolve) => setImmediate(resolve));
 }
 
+/** Feeds a response to stdout and lets readline deliver it without running the request timer. */
+async function emitStdout(line: string): Promise<void> {
+  child.stdout.write(`${line}\n`);
+  await vi.advanceTimersByTimeAsync(0);
+}
+
 beforeEach(() => {
   existsSyncMock.mockReturnValue(true);
-  child = Object.assign(new EventEmitter(), {
-    stdout: new PassThrough(),
-    stderr: new PassThrough(),
-    stdin: { writable: true, write: vi.fn() },
-    kill: vi.fn(),
-  }) as FakeChild;
+  child = makeChild();
   spawnMock.mockReturnValue(child);
   sink = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
 });
@@ -175,12 +193,8 @@ describe('helper request timeout and recovery', () => {
     vi.useRealTimers();
   });
 
-  it('times out after requestTimeoutMs, logs error, resolves null, and terminates the helper', async () => {
-    const helper = new SwiftHelper({
-      candidatePaths: ['/fake/MagimailHelper'],
-      logger: sink,
-      requestTimeoutMs: 1000,
-    });
+  it('resolves null on the first missed deadline but leaves the helper running', async () => {
+    const helper = makeTimedHelper();
     helper.spawn();
 
     const promise = helper.send('tray.update', { test: true });
@@ -193,35 +207,78 @@ describe('helper request timeout and recovery', () => {
 
     expect(result).toBeNull();
     expect(sink.error).toHaveBeenCalledWith('tray.update timed out after 1000ms');
-    expect(child.kill).toHaveBeenCalled();
-    expect(helper.isRunning()).toBe(false);
+    expect(sink.warn).toHaveBeenCalledWith(
+      'Keeping the helper after one missed deadline (request 1); 0 other request(s) still pending',
+    );
+    expect(child.kill).not.toHaveBeenCalled();
+    expect(helper.isRunning()).toBe(true);
   });
 
-  it('resolves all concurrent pending requests with null when helper times out', async () => {
-    const helper = new SwiftHelper({
-      candidatePaths: ['/fake/MagimailHelper'],
-      logger: sink,
-      requestTimeoutMs: 1000,
-    });
+  it('kills on the second consecutive miss and resolves every in-flight request null', async () => {
+    const helper = makeTimedHelper();
     helper.spawn();
 
     const p1 = helper.send('tray.update');
-    const p2 = helper.send('calendars.update');
+    vi.advanceTimersByTime(1000);
+    expect(await p1).toBeNull();
+    expect(child.kill).not.toHaveBeenCalled();
 
+    const p2 = helper.send('tray.update');
+    const p3 = helper.send('calendars.update');
     vi.advanceTimersByTime(1000);
 
-    const [r1, r2] = await Promise.all([p1, p2]);
-    expect(r1).toBeNull();
+    const [r2, r3] = await Promise.all([p2, p3]);
     expect(r2).toBeNull();
-    expect(child.kill).toHaveBeenCalled();
+    expect(r3).toBeNull();
+    expect(sink.error).toHaveBeenCalledWith(
+      'Restarting the helper after 2 consecutive missed deadlines (request 2 missed); 1 other request(s) resolved null',
+    );
+    expect(child.kill).toHaveBeenCalledTimes(1);
+    expect(helper.isRunning()).toBe(false);
   });
 
-  it('respawns the helper on subsequent send after timeout termination', async () => {
-    const helper = new SwiftHelper({
-      candidatePaths: ['/fake/MagimailHelper'],
-      logger: sink,
-      requestTimeoutMs: 1000,
-    });
+  it('resets the count when the helper replies, including to an earlier request', async () => {
+    const helper = makeTimedHelper();
+    helper.spawn();
+
+    const p1 = helper.send('tray.update');
+    vi.advanceTimersByTime(1000);
+    await p1;
+
+    // A reply that arrives after its own deadline still proves the helper is alive.
+    await emitStdout(JSON.stringify({ id: 1, result: 'late' }));
+    expect(sink.warn).toHaveBeenCalledWith(
+      'tray.update replied after its deadline (request 1); the helper is alive',
+    );
+
+    const p2 = helper.send('tray.update');
+    vi.advanceTimersByTime(1000);
+    expect(await p2).toBeNull();
+    expect(child.kill).not.toHaveBeenCalled();
+
+    const p3 = helper.send('tray.update');
+    vi.advanceTimersByTime(1000);
+    expect(await p3).toBeNull();
+    expect(child.kill).toHaveBeenCalledTimes(1);
+  });
+
+  it('logs when a later reply recovers a helper that missed one deadline', async () => {
+    const helper = makeTimedHelper();
+    helper.spawn();
+
+    const p1 = helper.send('tray.update');
+    vi.advanceTimersByTime(1000);
+    await p1;
+
+    const p2 = helper.send('tray.update');
+    await emitStdout(JSON.stringify({ id: 2, result: 'ok' }));
+
+    expect(await p2).toBe('ok');
+    expect(sink.info).toHaveBeenCalledWith('Helper replied after 1 missed deadline(s); keeping it');
+  });
+
+  it('respawns the helper on the send after the second miss terminates it', async () => {
+    const helper = makeTimedHelper();
     helper.spawn();
     expect(spawnMock).toHaveBeenCalledTimes(1);
 
@@ -229,19 +286,57 @@ describe('helper request timeout and recovery', () => {
     vi.advanceTimersByTime(1000);
     await p1;
 
+    const p2 = helper.send('tray.update');
+    vi.advanceTimersByTime(1000);
+    await p2;
+
     expect(helper.isRunning()).toBe(false);
 
-    // Next send should spawn a fresh helper
-    const secondChild = Object.assign(new EventEmitter(), {
-      stdout: new PassThrough(),
-      stderr: new PassThrough(),
-      stdin: { writable: true, write: vi.fn() },
-      kill: vi.fn(),
-    }) as FakeChild;
+    const secondChild = makeChild();
     spawnMock.mockReturnValue(secondChild);
 
     helper.send('tray.update');
     expect(spawnMock).toHaveBeenCalledTimes(2);
     expect(secondChild.stdin.write).toHaveBeenCalled();
+  });
+});
+
+describe('helper stdin failures', () => {
+  it('logs a stream error instead of letting write EPIPE escape', async () => {
+    const helper = makeHelper();
+    helper.spawn();
+
+    const promise = helper.send('tray.update');
+    child.stdin.emit('error', Object.assign(new Error('write EPIPE'), { code: 'EPIPE' }));
+
+    expect(sink.error).toHaveBeenCalledWith('Helper stdin failed: write EPIPE');
+    expect(sink.warn).toHaveBeenCalledWith(
+      'Helper is unusable; dropping 1 pending request(s); the next send starts a new one',
+    );
+    await expect(promise).resolves.toBeNull();
+    expect(helper.isRunning()).toBe(false);
+  });
+
+  it('logs a synchronous write failure and resolves that request null', async () => {
+    const helper = makeHelper();
+    helper.spawn();
+    child.stdin.write.mockImplementationOnce(() => {
+      throw new Error('write EPIPE');
+    });
+
+    await expect(helper.send('tray.update')).resolves.toBeNull();
+    expect(sink.error).toHaveBeenCalledWith('tray.update write failed: write EPIPE');
+  });
+
+  it('logs the EPIPE when the helper is killed with a request still in flight', async () => {
+    const helper = makeHelper();
+    helper.spawn();
+
+    const promise = helper.send('tray.update');
+    helper.kill();
+    child.stdin.emit('error', Object.assign(new Error('write EPIPE'), { code: 'EPIPE' }));
+
+    expect(sink.error).toHaveBeenCalledWith('Helper stdin failed: write EPIPE');
+    await expect(promise).resolves.toBeNull();
   });
 });

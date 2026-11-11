@@ -363,12 +363,7 @@ public struct CachedEvent: Codable, Identifiable {
 enum WidgetFormat {
     /// Short time, so it follows the 12- or 24-hour clock the user has set
     /// rather than pinning one of them.
-    private static let timeFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .none
-        formatter.timeStyle = .short
-        return formatter
-    }()
+    private static let timeFormatter = TimeDisplay.time
 
     /// Fixed locale and no time zone drift: this has to produce exactly the key
     /// `widget-cache.ts` wrote, or a day's dots go missing.
@@ -408,9 +403,7 @@ enum WidgetFormat {
 
     /// `SUN 20`, for a header that has to say what day it is in very little room.
     static func shortDay(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "EEE d"
-        return formatter.string(from: date).uppercased()
+        TimeDisplay.dateFormatter(template: "E d").string(from: date).uppercased()
     }
 
     /// `SUNDAY`.
@@ -431,9 +424,7 @@ enum WidgetFormat {
         {
             return String(localized: "TOMORROW")
         }
-        let formatter = DateFormatter()
-        formatter.dateFormat = "EEEE d"
-        return formatter.string(from: date).uppercased()
+        return TimeDisplay.dateFormatter(template: "EEEE d").string(from: date).uppercased()
     }
 }
 

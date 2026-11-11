@@ -33,6 +33,9 @@ public final class MenuBarController: NSObject, NSPopoverDelegate {
             button.image?.size = BrandArtwork.mark.menuBarGlyph.size
             button.image?.isTemplate = true
             button.image?.accessibilityDescription = "Magimail"
+            // The title sits tight against the glyph; the dots and cells are
+            // their own spacing rather than AppKit's image-title gap.
+            button.imageHugsTitle = true
             button.action = #selector(StatusItemTarget.togglePopover)
             button.target = StatusItemTarget.shared
             button.sendAction(on: [.leftMouseDown, .rightMouseDown])
@@ -74,47 +77,28 @@ public final class MenuBarController: NSObject, NSPopoverDelegate {
         guard let button = statusItem?.button else { return }
 
         let model = TrayModel.shared
-        let withUnread = model.accounts.filter { $0.unreadCount > 0 }
-
-        // An attributed title rather than emoji. The emoji dots exist in only a
-        // handful of hues, so an account's hex colour had to be mapped onto the
-        // nearest one: two accounts could collapse onto the same glyph, grey
-        // rendered as white, and a colour outside the set had no glyph at all.
-        // A bullet takes the account's exact colour, and the counts stay on
-        // `labelColor` so they follow the menu bar's appearance without being
-        // redrawn.
-        let title = NSMutableAttributedString()
-
-        func appendDot(_ hex: String) {
-            title.append(NSAttributedString(string: "\u{25CF}", attributes: [
-                .foregroundColor: NSColor(hex: hex),
-                .font: NSFont.systemFont(ofSize: 9),
-            ]))
+        let accounts = model.accounts.map {
+            MenuBarAccount(
+                name: $0.name,
+                color: $0.color,
+                unreadCount: $0.unreadCount,
+                needsAuth: $0.needsAuth
+            )
         }
 
-        func appendText(_ string: String) {
-            title.append(NSAttributedString(string: string, attributes: [
-                .foregroundColor: NSColor.labelColor,
-                .font: NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .regular),
-            ]))
-        }
-
-        if model.showDots, model.showCount {
-            for account in withUnread {
-                appendText(title.length == 0 ? " " : "  ")
-                appendDot(account.color)
-                appendText(" \(account.unreadCount)")
-            }
-        } else if model.showDots {
-            for account in withUnread {
-                appendText(title.length == 0 ? " " : " ")
-                appendDot(account.color)
-            }
-        } else if model.showCount, model.totalUnread > 0 {
-            appendText(" \(model.totalUnread)")
-        }
-
-        button.attributedTitle = title
+        // The title has one mark per account, so its width depends on the
+        // account list and the setting, not on the counts. That is the whole
+        // point: a read in the popover must not move the glyph or the popover
+        // anchored to it. Emoji were replaced by attachments and coloured text
+        // because an account's hex colour had no exact glyph, and a colour
+        // outside the emoji set had no glyph at all.
+        button.attributedTitle = MenuBarTitle.attributed(
+            display: model.unreadDisplay,
+            accounts: accounts
+        )
+        button.image?.accessibilityDescription = MenuBarTitle.accessibilityDescription(
+            accounts: accounts
+        )
     }
 
     func togglePopover() {
@@ -217,6 +201,9 @@ public final class MenuBarController: NSObject, NSPopoverDelegate {
         pop.contentViewController = host
         popover = pop
         HelperLog.info("Tray", "Showing tray popover")
+        // The whole button, not the glyph's rect inside it. Anchoring to the
+        // glyph made the popover close as soon as it opened, so the click
+        // looked dead; the arrow's exact position is not worth that.
         pop.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
 
         // Request messages from Electron for all accounts

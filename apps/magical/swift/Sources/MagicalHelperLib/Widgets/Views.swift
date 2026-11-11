@@ -49,9 +49,7 @@ struct WidgetHeader: View {
 
     /// `September 2026`, the status every family but the small one carries.
     static func month(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMMM yyyy"
-        return formatter.string(from: date)
+        TimeDisplay.dateFormatter(template: "yMMMM").string(from: date)
     }
 
     var body: some View {
@@ -594,10 +592,9 @@ public struct AgendaMediumView: View {
         }
     }
 
+    /// `WED`, not `WEDNESDAY`: the gutter is 58pt and the full name wraps inside it.
     private var weekday: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "EEEE"
-        return formatter.string(from: now).uppercased()
+        TimeDisplay.dateFormatter(template: "EEE").string(from: now).uppercased()
     }
 
     /// Today's events, then tomorrow's under a heading once today runs out.
