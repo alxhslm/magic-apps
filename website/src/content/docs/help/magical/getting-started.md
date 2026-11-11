@@ -49,11 +49,17 @@ Magical operates in two complementary modes:
 
 ## Working Offline
 
-Magical keeps a local copy of your calendar so your schedule is always available:
+Magical keeps a local copy of your calendar so your schedule is always available. We also recommend turning on offline mode in Google Calendar:
 
 - **Always Visible**: Even when your Mac has no Wi-Fi or is in airplane mode, your upcoming meetings, agenda and tasks remain visible in the menu bar popover and desktop widgets. [Google Tasks](/help/magical/tasks/) covers the tasks half.
 - **Meeting Reminders Still Fire**: Alerts are armed from the local copy of your calendar, so reminders arrive on time even when you are disconnected. See [Meeting Alerts and Invitations](/help/magical/notifications/).
 - **Instant Launch**: The app opens straight to your schedule without waiting for a connection to load.
+
+### How to Turn On Offline Mode in Google Calendar
+
+1. Click the gear icon in Google Calendar → **Settings**.
+2. Under **General**, select **Offline**.
+3. Turn on **Offline calendar**.
 
 ---
 

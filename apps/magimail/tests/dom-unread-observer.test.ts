@@ -195,12 +195,11 @@ describe('DOM unread observation and adaptive polling', () => {
     // 1. Initially no banner is shown before any scan
     expect(accountsManager.isCategoryBannerShowing()).toBe(false);
 
-    // 2. DOM report without updates or social in sidebar
+    // 2. DOM report without updates or social tabs
     accountsManager.handleDomUnreadUpdate('account_personal', {
       timestamp: Date.now(),
       counts: { inbox: 2 },
       presentCategories: ['inbox'],
-      isLoaded: true,
     });
 
     // Banner is NOT shown because local cache supplies category counts
@@ -260,20 +259,18 @@ describe('DOM unread observation and adaptive polling', () => {
     expect(mockCurrentSettings.dismissedApiPrompts).toEqual(['other_prompt']);
   });
 
-  it('identifies absent categories for Atom feed polling when categories tree is folded', () => {
+  it('identifies absent categories for Atom feed polling when category tabs are absent', () => {
     const onAbsent = vi.fn();
     accountsManager.onAbsentCategoriesChanged = onAbsent;
 
-    // Report arrives for an account with hasCategoriesSection: true (e.g. Work), but categories tree is folded
+    // Report arrives for an account with only inbox tab (no category tabs enabled/present)
     accountsManager.handleDomUnreadUpdate('account_personal', {
       timestamp: Date.now(),
       counts: { inbox: 2 },
       presentCategories: ['inbox'],
-      hasCategoriesSection: true,
-      isLoaded: true,
     });
 
-    // For banner UI: not missing because hasCategoriesSection is true
+    // For banner UI: not missing because offline cache is available
     expect(accountsManager.getMissingCategoriesForAccount('account_personal')).toEqual([]);
     expect(accountsManager.isCategoryBannerShowing()).toBe(false);
 
@@ -284,13 +281,11 @@ describe('DOM unread observation and adaptive polling', () => {
   });
 
   it('accurately blends unread counts from Atom feeds when categories are folded', () => {
-    // 1. Account has inbox unread: 2 in DOM, but social is folded/absent
+    // 1. Account has inbox unread: 2 in DOM, but social is absent
     accountsManager.handleDomUnreadUpdate('account_personal', {
       timestamp: Date.now(),
       counts: { inbox: 2 },
       presentCategories: ['inbox'],
-      hasCategoriesSection: true,
-      isLoaded: true,
     });
 
     // 2. Poller fetches category feed for social (via ^smartlabel_social) and reports 1 unread
@@ -318,18 +313,16 @@ describe('DOM unread observation and adaptive polling', () => {
         ['forums', 0],
       ]),
     );
-    // Categories expanded: every category is in the sidebar.
+    // Categories expanded: every category tab is present.
     accountsManager.handleDomUnreadUpdate('account_personal', {
       timestamp: Date.now(),
       counts: { inbox: 0, updates: 1, promotions: 0, social: 0, forums: 0 },
       presentCategories: ['inbox', 'updates', 'promotions', 'social', 'forums'],
-      hasCategoriesSection: true,
-      isLoaded: true,
     });
     expect(accountsManager.getEffectiveUnreadForAccount('account_personal')).toBe(1);
 
     // 2. A poll lands while the section is open. Nothing is absent from the
-    //    sidebar, so the poller fetches only the sub-feeds it must -- the
+    //    DOM, so the poller fetches only the sub-feeds it must -- the
     //    silenced ones -- and reports no count for Updates or Social.
     accountsManager.handleExternalUnreadUpdate(
       'account_personal',
@@ -342,14 +335,12 @@ describe('DOM unread observation and adaptive polling', () => {
     );
     expect(accountsManager.getEffectiveUnreadForAccount('account_personal')).toBe(1);
 
-    // 3. The user folds Categories and its rows leave the sidebar. The message
+    // 3. The user folds Categories or navigates away. The message
     //    is still unread, so the count must not move.
     accountsManager.handleDomUnreadUpdate('account_personal', {
       timestamp: Date.now(),
       counts: { inbox: 0 },
       presentCategories: ['inbox'],
-      hasCategoriesSection: true,
-      isLoaded: true,
     });
     expect(accountsManager.getEffectiveUnreadForAccount('account_personal')).toBe(1);
   });
@@ -367,8 +358,6 @@ describe('DOM unread observation and adaptive polling', () => {
       timestamp: Date.now(),
       counts: { inbox: 0 },
       presentCategories: ['inbox'],
-      hasCategoriesSection: true,
-      isLoaded: true,
     });
     expect(accountsManager.getEffectiveUnreadForAccount('account_personal')).toBe(0);
 

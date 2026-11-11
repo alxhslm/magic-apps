@@ -377,7 +377,6 @@ describe('AccountsManager', () => {
       timestamp: Date.now(),
       counts: { inbox: 3 },
       presentCategories: ['inbox'],
-      isLoaded: true,
     });
     onUnreadChanged.mockClear();
 

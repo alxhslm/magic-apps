@@ -36,6 +36,36 @@
       "match": "contains",
       "order": "first"
     },
+    "tabPrimary": {
+      "scope": "div[role=\"main\"]",
+      "labels": { "en": ["Primary"] },
+      "match": "startsWith",
+      "order": "first"
+    },
+    "tabPromotions": {
+      "scope": "div[role=\"main\"]",
+      "labels": { "en": ["Promotions"] },
+      "match": "startsWith",
+      "order": "first"
+    },
+    "tabSocial": {
+      "scope": "div[role=\"main\"]",
+      "labels": { "en": ["Social"] },
+      "match": "startsWith",
+      "order": "first"
+    },
+    "tabUpdates": {
+      "scope": "div[role=\"main\"]",
+      "labels": { "en": ["Updates"] },
+      "match": "startsWith",
+      "order": "first"
+    },
+    "tabForums": {
+      "scope": "div[role=\"main\"]",
+      "labels": { "en": ["Forums"] },
+      "match": "startsWith",
+      "order": "first"
+    },
     "back": { "selectors": ["div[act=\"19\"]"], "order": "only" }
   }
 }

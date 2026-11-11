@@ -53,6 +53,4 @@ export interface DomUnreadReport {
   timestamp: number;
   counts: DomCategoryCounts;
   presentCategories: ('inbox' | NotificationCategory)[];
-  hasCategoriesSection?: boolean;
-  isLoaded?: boolean;
 }

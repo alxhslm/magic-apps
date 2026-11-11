@@ -26,6 +26,10 @@ In **Settings → Notifications**, you can set an alert level for each Gmail inb
 - **Badge only**: Increments the unread count in your Dock and menu bar without interrupting you with banners.
 - **Off**: Completely ignores new arrivals in that category.
 
+:::tip[Faster category updates]
+For the fastest unread updates across your categories, we recommend displaying Categories in Gmail's left sidebar (**Settings → See all settings → Labels → Categories → show**). Badge changes in the sidebar act as instant change hints, refreshing your counts and widgets without waiting for a scheduled check.
+:::
+
 ## Check Intervals and Power States
 
 In **Settings → Advanced**, Magimail lets you balance inbox freshness against laptop battery consumption. See the [Settings Reference](/help/magimail/settings/):
