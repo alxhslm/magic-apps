@@ -104,10 +104,9 @@ account does. That is why the stored value is keyed by account, and why `Sidebar
 in `updateAccounts`: the frame drawn while a newly attached account is still loading is then already
 right instead of briefly carrying the previous account's week.
 
-The one visible consequence is deliberate. With a Sunday-first Google account active and a
-Monday-first Mac, the first day of the week is Sunday in the sidebar and Monday in the popover and
-the widgets. The sidebar shows the other events for the period beside it, so the first day there
-has to match the calendar's.
+Google's setting and the Mac's are independent, so the two answers can differ: a Sunday-first
+Google account on a Monday-first Mac gives Sunday in the sidebar and Monday in the popover and the
+widgets. Which of the two settings to change is the user's.
 
 ## Timezone
 
