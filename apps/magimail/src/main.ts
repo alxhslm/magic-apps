@@ -627,7 +627,33 @@ async function dispatchProtocolUrl(url: string): Promise<void> {
     } else if (parsed.hostname === 'navigate') {
       const targetUrl = parsed.searchParams.get('url');
       if (targetUrl && isAllowedGmailNavigationUrl(targetUrl)) {
-        accountsManager.openInAccount(targetAccountId, targetUrl);
+        if (targetUrl.includes('extsrc=cal') || targetUrl.includes('plid=')) {
+          let accountId: string | undefined;
+          if (targetAccountId) {
+            const acc = findAccountByIdOrEmail(accountsManager.getAccounts(), targetAccountId);
+            if (acc) {
+              accountId = acc.id;
+            }
+          }
+          if (!accountId) {
+            const accounts = accountsManager.getAccounts();
+            if (accounts.length > 1) {
+              const picked = await chooseComposeAccount(accountsManager, {
+                title: uiString('dialog.threadAccount.title'),
+                message: uiString('dialog.threadAccount.message'),
+                detail: uiString('dialog.threadAccount.detail'),
+                parentWindow: mainWindow,
+              });
+              if (!picked) return;
+              accountId = picked.id;
+            } else {
+              accountId = accountsManager.getActiveAccountId();
+            }
+          }
+          void accountsManager.resolveCalendarEventSource(accountId, targetUrl);
+        } else {
+          accountsManager.openInAccount(targetAccountId, targetUrl);
+        }
       }
     } else if (mailbox) {
       accountsManager.openInAccount(targetAccountId, `https://mail.google.com/mail/u/0/${mailbox}`);

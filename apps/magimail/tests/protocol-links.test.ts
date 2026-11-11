@@ -33,6 +33,11 @@ describe('isAllowedGmailNavigationUrl', () => {
     );
     expect(isAllowedGmailNavigationUrl('https://gmail.com/mail/u/0/#inbox')).toBe(true);
     expect(isAllowedGmailNavigationUrl('https://www.gmail.com/mail/u/0/#sent')).toBe(true);
+    expect(
+      isAllowedGmailNavigationUrl(
+        'https://mail.google.com/mail?extsrc=cal&plid=ACUX6DNwTK67PHrtKuZt6DrTTz3oL-Ztw6XYr8A',
+      ),
+    ).toBe(true);
   });
 
   it('rejects external and non-Gmail URLs, and plaintext http', () => {
