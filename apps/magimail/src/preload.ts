@@ -226,7 +226,19 @@ function scanSidebar() {
     counts.inbox = parseUnreadFromLink(inboxLink);
   }
 
-  // 2. Read enabled categories from tabs in div[role="main"]
+  // 2. Category rows in the sidebar (if present) serve as change hints only.
+  // Their raw numbers are never used as authoritative unread totals (since Gmail's
+  // sidebar category links are label-scoped and include archived messages).
+  // Recording them in `counts` purely detects badge movements to trigger MAILBOX_CHANGE_HINT.
+  const categoryKeys = ['updates', 'promotions', 'social', 'forums'] as const;
+  for (const cat of categoryKeys) {
+    const catLink = nav.querySelector(`a[href*="#category/${cat}"]`);
+    if (catLink) {
+      counts[cat] = parseUnreadFromLink(catLink);
+    }
+  }
+
+  // 3. Read enabled categories from tabs in div[role="main"]
   const tabs = Array.from(document.querySelectorAll('div[role="main"] div[role="tab"]'));
   if (tabs.length > 0) {
     const tabTexts = tabs.map(extractTabText);

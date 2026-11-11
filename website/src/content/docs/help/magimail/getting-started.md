@@ -57,6 +57,15 @@ _"For accurate category badges and instant menu bar sync: enable offline mail in
 
 Once enabled, your unread badges, menu bar previews and desktop widgets keep working without a connection.
 
+### Showing Categories in the Sidebar (Recommended)
+
+Magimail reads your enabled categories from your inbox tabs, but showing them in Gmail's sidebar provides the fastest unread updates:
+
+1. Click the gear icon in Gmail → **See all settings** → **Labels**.
+2. Under **Categories**, click **show** next to **Categories** (or next to individual categories you use).
+
+When category rows appear in the sidebar, badge changes serve as instant change hints, refreshing your menu bar and widget counts immediately.
+
 ---
 
 ## System Permissions & Startup
