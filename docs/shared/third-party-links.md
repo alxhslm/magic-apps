@@ -40,6 +40,10 @@ tracking and protection wrappers up to three hops:
   OAuth/SSO authorization flows.
 - **Direct URLs**: URLs without tracking parameters pass through untouched.
 
+## In-page companion panels
+
+Certain links inside Google Workspace—notably clicking an event location in Google Calendar, or opening Keep, Tasks or add-on cards from message side actions—are not standard navigation or `window.open` requests. Google intercepts these clicks in-page and loads the target (such as Google Maps) into an embedded companion panel `iframe`. Because these actions do not invoke navigation or `window.open`, the link gate is never called; both apps scope their sidebar-hiding rules with `:not(:has(iframe))` so that loaded cards remain visible even when the empty companion rail is hidden.
+
 ## Desktop apps
 
 There is no table of apps a host belongs to. A host table cannot tell whether the app claims a

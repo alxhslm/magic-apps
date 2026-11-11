@@ -192,14 +192,18 @@ ${rules} {
  * CSS to hide the right-hand app sidebar (Calendar, Keep, Tasks, etc) and its toggle button.
  * Targets the companion panel container and expand/collapse arrow button semantically,
  * ensuring Quick settings and Gemini side drawers remain visible and functional.
+ *
+ * Scoped with `:not(:has(iframe))` so that when Google loads content (like Maps, Keep, or Tasks
+ * cards) into the companion panel, the loaded card remains visible while the empty sidebar
+ * and reopen button stay hidden.
  */
 export function getHideSidebarCss(): string {
   // The container is a strong hook in the map; the toggle has only a label.
   const sidePanel = domSelector('sidePanel');
   return `
 /* Right side companion panel and toggle arrow button */
-div:has(> ${sidePanel}),
-${sidePanel},
+div:has(> ${sidePanel}):not(:has(iframe)),
+${sidePanel}:not(:has(iframe)),
 [role="button"]:is(${labelUnion('sidePanelToggle')}) {
   display: none !important;
 }
