@@ -1,29 +1,25 @@
 # Calendar protocol handlers
 
-Opening a `.ics` file works today, and so does becoming the app macOS opens them with. Subscribing to
-a feed does not. Import extensions, sub-calendar selection and queueing an offline import, are
+Opening a `.ics` file and subscribing to `webcal://` and `ical://` feeds are supported. Import
+extensions, sub-calendar selection and queueing an offline import, are
 [`ics-import-extensions.md`](ics-import-extensions.md).
 
 ## Feed subscriptions
 
 A `webcal://` link is a subscription to a feed, not a file to import, and the difference decides the
 implementation. Importing copies events once; subscribing hands Google a URL that Google re-fetches
-on its own schedule. Importing a feed produces a snapshot that silently goes stale.
+on its own schedule.
 
-Claiming the schemes is one line each, registered before `whenReady` beside the existing `magical`
-registration:
+Magical claims the schemes before `whenReady`:
 
 ```ts
 app.setAsDefaultProtocolClient('webcal');
 app.setAsDefaultProtocolClient('ical');
 ```
 
-Handling one means driving Google Calendar's **From URL** pane, a sibling of the Import pane already
-driven in
-[`ics-import.md`'s Import pane](../../docs/magical/ics-import.md#import-pane),
-rather than its file input. The account picker and the hidden-view mechanism carry over unchanged;
-only the control being worked and the confirmation being read differ, and both need reading off the
-live page before anything is written against them.
+Handling one drives Google Calendar's **From URL** pane (`/settings/addbyurl`) in a background view
+via plain DOM scripting without CDP, falling back to revealing the pane with the URL pre-populated
+if Google requires manual intervention. Subscriptions can also be triggered via `magical://subscribe?url=...`.
 
 ## Deep links `magical://` does not carry yet
 

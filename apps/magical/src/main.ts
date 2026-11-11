@@ -1,6 +1,7 @@
 import {
   app,
   BaseWindow,
+  clipboard,
   dialog,
   Menu,
   nativeTheme,
@@ -81,15 +82,18 @@ import {
   accountIdFromLink,
   isAllowedCalendarNavigationUrl,
   MAGICAL_PROTOCOL,
+  normalizeFeedUrl,
+  parseSubscriptionLink,
 } from './event-links.js';
 import { onIcsFile, readIcsFile, watchForIcsFiles } from './ics-handler.js';
 import { offerToBecomeDefault, promptSetAsDefault } from './default-client.js';
 import { describeIcs, summariseIcs } from './ics-file.js';
 import type { IcsImportOutcome } from './ics-import.js';
+import type { WebcalSubscriptionOutcome } from './webcal-import.js';
 import { MenuBarManager } from './menubar-manager.js';
 import { canRemoveAllAppData, removeAllAppDataAndQuit } from './remove-all-data.js';
 import { SyncCalendarActionDriver } from './calendar-actions/sync-driver.js';
-import { loadAccounts } from './accounts.js';
+import { loadAccounts, type CalendarAccount } from './accounts.js';
 import { canonicaliseCalendarId } from './calendars.js';
 
 // Replaced by tsup at build time with the Unix milliseconds the bundle was
@@ -116,6 +120,8 @@ if (isDemoMode()) {
 // Claimed here but reported below, once the logger exists: moving the claim
 // later would risk a launching link arriving before it is registered.
 const protocolClaimed = app.setAsDefaultProtocolClient(MAGICAL_PROTOCOL);
+app.setAsDefaultProtocolClient('webcal');
+app.setAsDefaultProtocolClient('ical');
 watchForIcsFiles();
 try {
   const userData = resolveUserDataPath({
@@ -264,7 +270,12 @@ app.on('open-url', (event, url) => {
 
 app.on('second-instance', (_event, argv) => {
   log.info('Second instance launched; focusing main window');
-  const protocolUrl = argv.find((a) => a.startsWith(`${MAGICAL_PROTOCOL}://`));
+  const protocolUrl = argv.find(
+    (a) =>
+      a.startsWith(`${MAGICAL_PROTOCOL}://`) ||
+      a.startsWith('webcal://') ||
+      a.startsWith('ical://'),
+  );
   if (protocolUrl && calendarService) {
     log.info('second-instance URL:', redactUrl(protocolUrl));
     void dispatchProtocolUrl(protocolUrl);
@@ -360,6 +371,7 @@ function applyMenu(): void {
       canGoForward: manager.canGoForward(),
       onNewEvent: () => handleNewEvent(),
       onImportFile: () => void handleImportFile(),
+      onSubscribeFeed: () => void handleSubscribeFeedMenu(),
       onSetAsDefault: () => void promptSetAsDefault(mainWindow),
       onFindInPage: () => {
         findInPageController?.show();
@@ -909,7 +921,29 @@ function handleHelperEvent(method: string, params: Record<string, unknown>): voi
 async function dispatchProtocolUrl(rawUrl: string): Promise<void> {
   try {
     const parsed = new URL(rawUrl);
+    if (parsed.protocol === 'webcal:' || parsed.protocol === 'ical:') {
+      await handleWebcalSubscription(rawUrl);
+      return;
+    }
     if (parsed.protocol !== `${MAGICAL_PROTOCOL}:`) return;
+
+    if (parsed.hostname === 'subscribe' || parsed.hostname === 'webcal') {
+      const feedUrl = parsed.searchParams.get('url');
+      const targetAccountId = parsed.searchParams.get('account') || undefined;
+      if (feedUrl) {
+        await handleWebcalSubscription(feedUrl, targetAccountId);
+        return;
+      }
+    }
+
+    if (parsed.hostname === 'import' || parsed.hostname === 'ics') {
+      const filePath = parsed.searchParams.get('file') || parsed.searchParams.get('path');
+      const targetAccountId = parsed.searchParams.get('account') || undefined;
+      if (filePath) {
+        await handleIcsFile(filePath, targetAccountId);
+        return;
+      }
+    }
 
     if (parsed.hostname === 'search') {
       const query = parsed.searchParams.get('q') || parsed.searchParams.get('query') || '';
@@ -1194,13 +1228,71 @@ async function handleImportFile(): Promise<void> {
 }
 
 /**
+ * File → Subscribe to Calendar Feed… (⌥⌘S)
+ *
+ * If the clipboard contains a calendar feed URL (webcal://, ical://, or http(s)://),
+ * offers to subscribe to it directly in the background. Otherwise, or if the user asks
+ * to review the page, reveals Google Calendar's "From URL" settings pane.
+ */
+async function handleSubscribeFeedMenu(): Promise<void> {
+  if (!accounts) createWindow();
+  const manager = accounts;
+  if (!manager) return;
+
+  const clip = (await clipboard.readText()).trim();
+  const looksLikeFeed =
+    /^(webcal|ical|https?):\/\/[^\s]+$/i.test(clip) &&
+    (clip.includes('.ics') || /^(webcal|ical):/i.test(clip) || /calendar|feed/i.test(clip));
+
+  const parent = mainWindow && !mainWindow.isDestroyed() ? mainWindow : null;
+
+  if (looksLikeFeed) {
+    const options = {
+      type: 'question' as const,
+      buttons: [
+        uiString('dialog.webcal.menu.subscribe'),
+        uiString('dialog.webcal.menu.openPane'),
+        uiString('dialog.cancel'),
+      ],
+      defaultId: 0,
+      cancelId: 2,
+      title: uiString('dialog.webcal.menu.title'),
+      message: uiString('dialog.webcal.menu.clipboardMessage'),
+      detail: uiString('dialog.webcal.menu.clipboardDetail', { url: clip }),
+    };
+
+    const { response } = parent
+      ? await dialog.showMessageBox(parent, options)
+      : await dialog.showMessageBox(options);
+
+    if (response === 0) {
+      await handleWebcalSubscription(clip);
+      return;
+    }
+    if (response !== 1) {
+      return;
+    }
+  }
+
+  const account = await chooseEventAccount(manager, {
+    title: uiString('dialog.webcal.chooseAccount.title'),
+    message: uiString('dialog.webcal.chooseAccount.message'),
+    parentWindow: mainWindow,
+    fromMainWindow: true,
+  });
+  if (!account) return;
+
+  await manager.revealWebcalPane(account.id, looksLikeFeed ? clip : '');
+}
+
+/**
  * Imports one `.ics` file, whether it was double-clicked or chosen from the File menu.
  *
  * The account is always asked for when there is more than one, and never stands in from
  * the active account the way File → New Event allows: the file arrives from Finder or
  * Mail, with no account on screen to have been the one meant.
  */
-async function handleIcsFile(filePath: string): Promise<void> {
+async function handleIcsFile(filePath: string, targetAccountId?: string): Promise<void> {
   // A double-clicked file arrives with no window; the picker and the import need one.
   if (!accounts) createWindow();
   const manager = accounts;
@@ -1220,19 +1312,114 @@ async function handleIcsFile(filePath: string): Promise<void> {
   const described = describeIcs(summary, path.basename(filePath));
   log.info(`Opened an .ics holding ${summary.eventCount} event(s)`);
 
-  const account = await chooseEventAccount(manager, {
-    title: uiString('dialog.ics.chooseAccount.title'),
-    message: uiString('dialog.ics.chooseAccount.message'),
-    detail: described,
-    parentWindow: mainWindow,
-    // A file arrives from outside the window with no account to have been the one
-    // meant, so this asks whatever the picker setting says.
-    forceAsk: true,
-  });
+  let account: CalendarAccount | null | undefined =
+    targetAccountId && manager
+      ? findAccountByIdOrEmail(manager.getAccounts(), targetAccountId)
+      : undefined;
+
+  if (!account) {
+    account = await chooseEventAccount(manager, {
+      title: uiString('dialog.ics.chooseAccount.title'),
+      message: uiString('dialog.ics.chooseAccount.message'),
+      detail: described,
+      parentWindow: mainWindow,
+      // A file arrives from outside the window with no account to have been the one
+      // meant, so this asks whatever the picker setting says.
+      forceAsk: true,
+    });
+  }
   if (!account) return;
 
   const outcome = await manager.importIcsFile(account.id, filePath);
   await reportImport(outcome, account.name, summary.title);
+}
+
+/**
+ * Subscribes to an incoming webcal:// or ical:// feed URL through Google Calendar's From URL pane.
+ */
+async function handleWebcalSubscription(
+  rawFeedUrl: string,
+  targetAccountId?: string,
+): Promise<void> {
+  if (!accounts) createWindow();
+  const manager = accounts;
+  if (!manager) return;
+
+  const parsed = parseSubscriptionLink(rawFeedUrl);
+  const feedUrl = parsed ? parsed.feedUrl : normalizeFeedUrl(rawFeedUrl);
+  const resolvedAccountId = targetAccountId ?? parsed?.accountId;
+
+  let feedHost = '';
+  try {
+    feedHost = new URL(feedUrl).hostname;
+  } catch {
+    feedHost = feedUrl;
+  }
+  log.info(`Subscribing to calendar feed: ${redactUrl(feedUrl)}`);
+
+  let account: CalendarAccount | null | undefined =
+    resolvedAccountId && manager
+      ? findAccountByIdOrEmail(manager.getAccounts(), resolvedAccountId)
+      : undefined;
+
+  if (!account) {
+    const accts = manager.getAccounts();
+    if (accts.length > 1) {
+      account = await chooseEventAccount(manager, {
+        title: uiString('dialog.webcal.chooseAccount.title'),
+        message: uiString('dialog.webcal.chooseAccount.message'),
+        detail: feedHost,
+        parentWindow: mainWindow,
+        forceAsk: true,
+      });
+    } else {
+      account = manager.getActiveAccount();
+    }
+  }
+  if (!account) return;
+
+  const outcome = await manager.subscribeWebcal(account.id, feedUrl);
+  await reportWebcalSubscription(outcome, account.name, feedHost);
+}
+
+/**
+ * Tells the user what happened to the feed subscription they requested.
+ */
+async function reportWebcalSubscription(
+  outcome: WebcalSubscriptionOutcome,
+  accountName: string,
+  feedHost: string,
+): Promise<void> {
+  if (outcome.kind === 'subscribed') {
+    dispatchNotice({
+      key: `magical.webcal.${Date.now()}`,
+      accountId: accounts?.getActiveAccountId() ?? '',
+      title: uiString('dialog.webcal.subscribed.title'),
+      subtitle: accountName,
+      body: feedHost
+        ? `${feedHost} · ${uiString('dialog.webcal.subscribed.body')}`
+        : uiString('dialog.webcal.subscribed.body'),
+    });
+    return;
+  }
+
+  if (outcome.kind === 'rejected') {
+    await dialog.showMessageBox({
+      type: 'warning',
+      message: uiString('dialog.webcal.rejected.message'),
+      detail: outcome.reason ?? uiString('dialog.webcal.rejected.detail'),
+    });
+    return;
+  }
+
+  await dialog.showMessageBox({
+    type: 'info',
+    message: uiString('dialog.webcal.finish.message'),
+    detail: uiString('dialog.webcal.finish.detail', {
+      reason: outcome.reason,
+      account: accountName,
+    }),
+  });
 }
 
 /**

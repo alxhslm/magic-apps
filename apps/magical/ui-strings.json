@@ -7,6 +7,7 @@
     "menu.file": { "en": "File" },
     "menu.file.newEvent": { "en": "New Event" },
     "menu.file.importCalendarFile": { "en": "Import Calendar File…" },
+    "menu.file.subscribeCalendarFeed": { "en": "Subscribe to Calendar Feed…" },
     "menu.edit": { "en": "Edit" },
     "menu.edit.find": { "en": "Find" },
     "menu.edit.find.findInPage": { "en": "Find in Page…" },
@@ -147,6 +148,32 @@
     "dialog.ics.reason.unreadable": { "en": "Google’s confirmation could not be read" },
     "dialog.ics.reason.accountMissing": { "en": "That account no longer exists" },
     "dialog.ics.reason.paneUnavailable": { "en": "The import pane could not be driven" },
+    "dialog.webcal.chooseAccount.title": { "en": "Subscribe to Calendar Feed" },
+    "dialog.webcal.chooseAccount.message": { "en": "Choose Account for Subscription" },
+    "dialog.webcal.subscribed.title": { "en": "Subscribed to Calendar" },
+    "dialog.webcal.subscribed.body": { "en": "Calendar feed added successfully" },
+    "dialog.webcal.rejected.message": { "en": "Google Calendar did not subscribe to that feed." },
+    "dialog.webcal.rejected.detail": {
+      "en": "Google could not read or fetch the calendar feed URL."
+    },
+    "dialog.webcal.finish.message": { "en": "Finish the subscription in Google Calendar." },
+    "dialog.webcal.finish.detail": {
+      "en": "{reason}. Google’s own subscription page is now open in {account} with the URL already entered — press Add calendar to finish."
+    },
+    "dialog.webcal.reason.paneRejected": { "en": "The subscription page did not accept the URL" },
+    "dialog.webcal.reason.buttonUnavailable": {
+      "en": "The Add calendar button could not be pressed"
+    },
+    "dialog.webcal.reason.noReport": { "en": "Google never reported what it did" },
+    "dialog.webcal.reason.accountMissing": { "en": "That account no longer exists" },
+    "dialog.webcal.reason.paneUnavailable": { "en": "The subscription page could not be driven" },
+    "dialog.webcal.menu.title": { "en": "Subscribe to Calendar Feed" },
+    "dialog.webcal.menu.clipboardMessage": { "en": "Subscribe to Calendar Feed from Clipboard?" },
+    "dialog.webcal.menu.clipboardDetail": {
+      "en": "Found feed URL on clipboard:\n{url}\n\nDo you want to subscribe to this feed?"
+    },
+    "dialog.webcal.menu.subscribe": { "en": "Subscribe" },
+    "dialog.webcal.menu.openPane": { "en": "Open Settings Pane…" },
 
     "dialog.removeAllData.title": { "en": "Remove All App Data" },
     "dialog.removeAllData.message": { "en": "Remove all app data and quit?" },

@@ -16,9 +16,9 @@ const log = createLogger('DefaultClient');
  * Electron can claim schemes; a `.ics` file is a content type, which Electron cannot
  * reach at all. See `DefaultHandler.swift`.
  *
- * macOS has no single "default calendar app" to set. It tracks one handler per type, so
- * this asks about `.ics` alone — the only thing Magical can open today. A prompt that
- * claimed everything calendar-shaped would take `webcal:` links Magical cannot yet service.
+ * macOS has no single "default calendar app" to set. It tracks one handler per type,
+ * and asks about `.ics` and `webcal:` feeds through LaunchServices and the Swift helper.
+ * See `DefaultHandler.swift`.
  */
 
 interface HandlerRow {

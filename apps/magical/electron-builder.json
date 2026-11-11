@@ -90,6 +90,10 @@
         {
           "CFBundleURLName": "Magical Event Link",
           "CFBundleURLSchemes": ["magical"]
+        },
+        {
+          "CFBundleURLName": "iCalendar Feed",
+          "CFBundleURLSchemes": ["webcal", "ical"]
         }
       ]
     }

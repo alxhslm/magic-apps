@@ -19,6 +19,8 @@ account is restored. See
 | `magical://tasks`     | `account`                                         | Opens the full-screen Tasks view.                                 |
 | `magical://navigate`  | `url`, `account`                                  | Navigates the account's view to an arbitrary Google Calendar URL. |
 | `magical://open`      | `account`                                         | Surfaces and focuses the main calendar window.                    |
+| `magical://subscribe` | `url`, `account`                                  | Subscribes the account to a `webcal` or `ical` calendar feed.     |
+| `magical://import`    | `file`, `account`                                 | Imports a `.ics` calendar file into the account.                  |
 
 ### Event routing (`magical://event`)
 
@@ -80,6 +82,8 @@ Emitted by WidgetKit widgets, the menu bar popover and cross-app links:
 - **`magical://quick-add`**: Opens event creation. With `text`, `dates`, `details`, `location` or `ctz`, it loads Google's add-to-calendar form in the account's view so the editor opens prefilled; without them it prompts the account picker if multiple accounts.
 - **`magical://tasks`**: Opens the full-screen Tasks route for the account.
 - **`magical://open`**: Raises and focuses the main window.
+- **`magical://subscribe`**: Subscribes to an external feed URL (`url` parameter). Also claims incoming `webcal://` and `ical://` URLs, driving Google Calendar's **From URL** pane (`/settings/addbyurl`) in a background view without CDP.
+- **`magical://import`**: Imports a local calendar file (`file` or `path` parameter) into an account using Google Calendar's Import pane.
 
 ## Outbound links
 
