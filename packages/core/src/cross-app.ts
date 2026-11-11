@@ -47,7 +47,7 @@ export function crossAppLink(rawUrl: string): CrossAppLink | null {
   }
   if (
     (host === 'www.google.com' || host === 'google.com') &&
-    url.pathname.startsWith('/calendar/')
+    (url.pathname === '/calendar' || url.pathname.startsWith('/calendar/'))
   ) {
     return { scheme: 'magical', deepLink: calendarDeepLink(url) };
   }
@@ -67,6 +67,7 @@ const GMAIL_VIEW_ROUTES: Record<string, string> = {
   trash: 'trash',
   all: 'all',
   imp: 'important',
+  important: 'important',
 };
 
 function safeDecode(value: string): string {
@@ -88,6 +89,16 @@ function getParam(params: URLSearchParams, ...keys: string[]): string | null {
     }
   }
   return null;
+}
+
+/** Non-functional Google session and locale query params to ignore on root view routing. */
+const IGNORABLE_ROOT_PARAMS = new Set(['authuser', 'pli', 'hl']);
+
+function hasOnlyIgnorableParams(params: URLSearchParams): boolean {
+  for (const key of params.keys()) {
+    if (!IGNORABLE_ROOT_PARAMS.has(key.toLowerCase())) return false;
+  }
+  return true;
 }
 
 /**
@@ -145,6 +156,10 @@ function gmailDeepLink(url: URL): string {
   const getQueryParam = (key: string): string | null =>
     url.searchParams.get(key) || hashParams.get(key);
 
+  if (fragment && isGmailThreadId(fragment)) {
+    return `magimail://thread/${encodeURIComponent(fragment)}`;
+  }
+
   if (view === 'search') {
     const query = rest.join('/');
     return query
@@ -189,7 +204,7 @@ function gmailDeepLink(url: URL): string {
   }
 
   const hasNoViewOrFolder = !fragment || fragment === 'inbox' || view === 'inbox';
-  if (hasNoViewOrFolder && url.searchParams.size === 0 && hashParams.size === 0) {
+  if (hasNoViewOrFolder && hasOnlyIgnorableParams(url.searchParams) && hashParams.size === 0) {
     return 'magimail://inbox';
   }
 
@@ -207,7 +222,7 @@ function calendarDeepLink(url: URL): string {
   // own event editor with them, rather than rebuilding an editor or dropping the event.
   if (url.searchParams.get('action') === 'TEMPLATE') {
     const fields = new URLSearchParams({ action: 'TEMPLATE' });
-    for (const key of ['text', 'dates', 'details', 'location', 'ctz', 'trp', 'crm']) {
+    for (const key of ['text', 'dates', 'details', 'location', 'ctz', 'trp', 'crm', 'add']) {
       const value = url.searchParams.get(key);
       if (value) fields.set(key, value);
     }
@@ -256,16 +271,20 @@ function calendarDeepLink(url: URL): string {
   const isRootCalendarPath =
     !path || /^\/calendar(?:\/u\/\d+)?(?:\/r)?$/.test(path) || path === '/calendar/render';
 
-  if (isRootCalendarPath && url.searchParams.size === 0) {
+  if (isRootCalendarPath && hasOnlyIgnorableParams(url.searchParams)) {
     return 'magical://open';
   }
 
   return `magical://navigate?url=${encodeURIComponent(url.toString())}`;
 }
 
-/** Gmail's opaque thread ids, plus the legacy hex form (64-bit int, typically 10-16 hex chars). */
+/** Gmail's opaque thread ids, legacy hex forms, and canonical permalink IDs (`thread-f:...`, `thread-a:...`). */
 export function isGmailThreadId(value: string): boolean {
-  return /^(?:FMfcgz|KtbxL)[A-Za-z0-9]+$/.test(value) || /^[0-9a-f]{10,16}$/i.test(value);
+  return (
+    /^(?:FMfcgz|KtbxL)[A-Za-z0-9]+$/.test(value) ||
+    /^[0-9a-f]{10,16}$/i.test(value) ||
+    /^thread-[fa]:[a-zA-Z0-9_-]+$/i.test(value)
+  );
 }
 
 /** `/calendar/u/0/r/day/2026/11/5` and its `week`, `month` and `year` siblings. */

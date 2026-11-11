@@ -268,6 +268,9 @@ describe('isAllowedCalendarNavigationUrl', () => {
     expect(
       isAllowedCalendarNavigationUrl('https://www.google.com/calendar/render?action=TEMPLATE'),
     ).toBe(true);
+    expect(isAllowedCalendarNavigationUrl('https://google.com/calendar')).toBe(true);
+    expect(isAllowedCalendarNavigationUrl('https://www.google.com/calendar')).toBe(true);
+    expect(isAllowedCalendarNavigationUrl('https://google.com/calendar/')).toBe(true);
   });
 
   it('rejects external and non-calendar URLs, and plaintext http', () => {

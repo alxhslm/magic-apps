@@ -49,6 +49,20 @@ describe('crossAppLink', () => {
       deepLink: 'magimail://thread/18fa24b91ac051',
     });
     expect(
+      crossAppLink('https://mail.google.com/mail/u/0/?permthid=thread-f:1800000000000000'),
+    ).toEqual({
+      scheme: 'magimail',
+      deepLink: 'magimail://thread/thread-f%3A1800000000000000',
+    });
+    expect(crossAppLink('https://mail.google.com/mail/u/0/#thread-f:1800000000000000')).toEqual({
+      scheme: 'magimail',
+      deepLink: 'magimail://thread/thread-f%3A1800000000000000',
+    });
+    expect(crossAppLink('https://mail.google.com/mail/u/0/#thread-a:r-1800000000000000')).toEqual({
+      scheme: 'magimail',
+      deepLink: 'magimail://thread/thread-a%3Ar-1800000000000000',
+    });
+    expect(
       crossAppLink('https://mail.google.com/mail/u/0/#inbox/FMfcgzQXKq?th=18fa24b91ac051'),
     ).toEqual({
       scheme: 'magimail',
@@ -140,6 +154,14 @@ describe('crossAppLink', () => {
       scheme: 'magimail',
       deepLink: 'magimail://snoozed',
     });
+    expect(crossAppLink('https://mail.google.com/mail/u/0/#important')).toEqual({
+      scheme: 'magimail',
+      deepLink: 'magimail://important',
+    });
+    expect(crossAppLink('https://mail.google.com/mail/u/0/#imp')).toEqual({
+      scheme: 'magimail',
+      deepLink: 'magimail://important',
+    });
     expect(crossAppLink('https://mail.google.com/mail/u/0/#label/Work')).toEqual({
       scheme: 'magimail',
       deepLink: 'magimail://label/Work',
@@ -149,12 +171,12 @@ describe('crossAppLink', () => {
   it('turns an add-to-calendar link into a prefilled new event', () => {
     expect(
       crossAppLink(
-        'https://calendar.google.com/calendar/render?action=TEMPLATE&text=Standup&dates=20261105T090000Z/20261105T091500Z&location=Room',
+        'https://calendar.google.com/calendar/render?action=TEMPLATE&text=Standup&dates=20261105T090000Z/20261105T091500Z&location=Room&add=colleague%40example.com',
       ),
     ).toEqual({
       scheme: 'magical',
       deepLink:
-        'magical://quick-add?action=TEMPLATE&text=Standup&dates=20261105T090000Z%2F20261105T091500Z&location=Room',
+        'magical://quick-add?action=TEMPLATE&text=Standup&dates=20261105T090000Z%2F20261105T091500Z&location=Room&add=colleague%40example.com',
     });
   });
 
@@ -277,6 +299,22 @@ describe('crossAppLink', () => {
     expect(crossAppLink('https://calendar.google.com/calendar/u/0/r')).toEqual({
       scheme: 'magical',
       deepLink: 'magical://open',
+    });
+    expect(crossAppLink('https://calendar.google.com/calendar/u/0/r?authuser=0')).toEqual({
+      scheme: 'magical',
+      deepLink: 'magical://open',
+    });
+    expect(crossAppLink('https://google.com/calendar')).toEqual({
+      scheme: 'magical',
+      deepLink: 'magical://open',
+    });
+    expect(crossAppLink('https://www.google.com/calendar')).toEqual({
+      scheme: 'magical',
+      deepLink: 'magical://open',
+    });
+    expect(crossAppLink('https://mail.google.com/mail/u/0/?authuser=0#inbox')).toEqual({
+      scheme: 'magimail',
+      deepLink: 'magimail://inbox',
     });
   });
 
