@@ -31,6 +31,31 @@ describe('crossAppLink', () => {
     });
   });
 
+  it('keeps thread permalinks that use query parameters', () => {
+    expect(crossAppLink('https://mail.google.com/mail/?view=pt&th=18fa24b91ac051')).toEqual({
+      scheme: 'magimail',
+      deepLink: 'magimail://thread/18fa24b91ac051',
+    });
+    expect(crossAppLink('https://mail.google.com/mail/?view=cv&th=18fa24b91ac051')).toEqual({
+      scheme: 'magimail',
+      deepLink: 'magimail://thread/18fa24b91ac051',
+    });
+    expect(crossAppLink('https://mail.google.com/mail/u/0/?th=FMfcgzQXKq')).toEqual({
+      scheme: 'magimail',
+      deepLink: 'magimail://thread/FMfcgzQXKq',
+    });
+    expect(crossAppLink('https://mail.google.com/mail/u/0/?permthid=18fa24b91ac051')).toEqual({
+      scheme: 'magimail',
+      deepLink: 'magimail://thread/18fa24b91ac051',
+    });
+    expect(
+      crossAppLink('https://mail.google.com/mail/u/0/#inbox/FMfcgzQXKq?th=18fa24b91ac051'),
+    ).toEqual({
+      scheme: 'magimail',
+      deepLink: 'magimail://thread/FMfcgzQXKq',
+    });
+  });
+
   it('keeps the query a Gmail search link names, encoded once', () => {
     expect(crossAppLink('https://mail.google.com/mail/u/2/#search/from%3Aboss')).toEqual({
       scheme: 'magimail',
@@ -46,6 +71,25 @@ describe('crossAppLink', () => {
     });
   });
 
+  it('handles search queries specified via searchParams', () => {
+    expect(crossAppLink('https://mail.google.com/mail/u/0/?q=from%3Aboss')).toEqual({
+      scheme: 'magimail',
+      deepLink: 'magimail://search?q=from%3Aboss',
+    });
+    expect(crossAppLink('https://mail.google.com/mail/?q=standup')).toEqual({
+      scheme: 'magimail',
+      deepLink: 'magimail://search?q=standup',
+    });
+    expect(crossAppLink('https://calendar.google.com/calendar/r?q=standup')).toEqual({
+      scheme: 'magical',
+      deepLink: 'magical://search?q=standup',
+    });
+    expect(crossAppLink('https://calendar.google.com/calendar/u/0/r?q=standup')).toEqual({
+      scheme: 'magical',
+      deepLink: 'magical://search?q=standup',
+    });
+  });
+
   it('turns a Gmail compose link into a prefilled compose link', () => {
     expect(
       crossAppLink(
@@ -57,10 +101,44 @@ describe('crossAppLink', () => {
     });
   });
 
+  it('turns a mailto link encapsulated by Gmail into a compose link', () => {
+    expect(
+      crossAppLink(
+        'https://mail.google.com/mail/?extsrc=mailto&url=mailto%3Aalex%40corp.com%3Fsubject%3DHello%26body%3DWorld%26cc%3Dteam%40corp.com',
+      ),
+    ).toEqual({
+      scheme: 'magimail',
+      deepLink: 'magimail://compose?to=alex%40corp.com&subject=Hello&body=World&cc=team%40corp.com',
+    });
+    expect(
+      crossAppLink(
+        'https://mail.google.com/mail/u/0/?extsrc=mailto&url=mailto%3Aalex%40corp.com%3Fsubject%3DHello%26body%3DWorld%26cc%3Dteam%40corp.com%26bcc%3Daudit%40corp.com',
+      ),
+    ).toEqual({
+      scheme: 'magimail',
+      deepLink:
+        'magimail://compose?to=alex%40corp.com&subject=Hello&body=World&cc=team%40corp.com&bcc=audit%40corp.com',
+    });
+    expect(
+      crossAppLink('https://mail.google.com/mail/?extsrc=mailto&url=mailto%3Aalex%40corp.com'),
+    ).toEqual({
+      scheme: 'magimail',
+      deepLink: 'magimail://compose?to=alex%40corp.com',
+    });
+    expect(crossAppLink('https://mail.google.com/mail/?extsrc=mailto')).toEqual({
+      scheme: 'magimail',
+      deepLink: 'magimail://compose',
+    });
+  });
+
   it('turns a Gmail folder into its own route', () => {
     expect(crossAppLink('https://mail.google.com/mail/u/0/#sent')).toEqual({
       scheme: 'magimail',
       deepLink: 'magimail://sent',
+    });
+    expect(crossAppLink('https://mail.google.com/mail/u/0/#snoozed')).toEqual({
+      scheme: 'magimail',
+      deepLink: 'magimail://snoozed',
     });
     expect(crossAppLink('https://mail.google.com/mail/u/0/#label/Work')).toEqual({
       scheme: 'magimail',
@@ -137,6 +215,62 @@ describe('crossAppLink', () => {
       scheme: 'magical',
       deepLink: 'magical://event?eid=Y3Jhd2ZvcmQ&action=reveal',
     });
+  });
+
+  it('maps calendar RSVP action links to response deep links', () => {
+    expect(
+      crossAppLink(
+        'https://calendar.google.com/calendar/event?action=RESPOND&eid=Y3Jhd2ZvcmQ&rst=1',
+      ),
+    ).toEqual({
+      scheme: 'magical',
+      deepLink: 'magical://event?eid=Y3Jhd2ZvcmQ&action=yes',
+    });
+    expect(
+      crossAppLink(
+        'https://calendar.google.com/calendar/event?action=RESPOND&eid=Y3Jhd2ZvcmQ&rst=2',
+      ),
+    ).toEqual({
+      scheme: 'magical',
+      deepLink: 'magical://event?eid=Y3Jhd2ZvcmQ&action=no',
+    });
+    expect(
+      crossAppLink(
+        'https://calendar.google.com/calendar/event?action=RESPOND&eid=Y3Jhd2ZvcmQ&rst=3',
+      ),
+    ).toEqual({
+      scheme: 'magical',
+      deepLink: 'magical://event?eid=Y3Jhd2ZvcmQ&action=maybe',
+    });
+    expect(
+      crossAppLink('https://calendar.google.com/calendar/event?action=RESPOND&eid=Y3Jhd2ZvcmQ'),
+    ).toEqual({
+      scheme: 'magical',
+      deepLink: 'magical://event?eid=Y3Jhd2ZvcmQ&action=reveal',
+    });
+    expect(
+      crossAppLink(
+        'https://calendar.google.com/calendar/event?action=RESPOND&eid=Y3Jhd2ZvcmQ&rst=99',
+      ),
+    ).toEqual({
+      scheme: 'magical',
+      deepLink: 'magical://event?eid=Y3Jhd2ZvcmQ&action=reveal',
+    });
+  });
+
+  it('maps duplicate event links to event reveal links', () => {
+    expect(
+      crossAppLink('https://calendar.google.com/calendar/u/0/r/eventedit/copy/Y3Jhd2ZvcmQ'),
+    ).toEqual({
+      scheme: 'magical',
+      deepLink: 'magical://event?eid=Y3Jhd2ZvcmQ&action=reveal',
+    });
+    expect(crossAppLink('https://calendar.google.com/calendar/eventedit/copy/Y3Jhd2ZvcmQ')).toEqual(
+      {
+        scheme: 'magical',
+        deepLink: 'magical://event?eid=Y3Jhd2ZvcmQ&action=reveal',
+      },
+    );
   });
 
   it('opens the calendar when the link names nothing more specific', () => {

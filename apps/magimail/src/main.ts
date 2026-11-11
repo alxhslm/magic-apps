@@ -560,8 +560,9 @@ function threadTriageFromLink(
 
 /** Dispatches incoming mailto: or magimail:// protocol URLs to the appropriate handler. */
 /** Gmail's own mailbox fragments, as the deep-link host that names each one. */
-const MAILBOX_ROUTES: Record<string, string> = {
+export const MAILBOX_ROUTES: Record<string, string> = {
   inbox: '#inbox',
+  snoozed: '#snoozed',
   sent: '#sent',
   drafts: '#drafts',
   starred: '#starred',
@@ -571,13 +572,17 @@ const MAILBOX_ROUTES: Record<string, string> = {
   important: '#imp',
 };
 
-async function dispatchProtocolUrl(url: string): Promise<void> {
+export async function dispatchProtocolUrl(
+  url: string,
+  manager: any = accountsManager,
+  win: BaseWindow | null = mainWindow,
+): Promise<void> {
   // Composing needs the manager the window owns, so a window is built for a mailto: link.
   if (url.startsWith('mailto:')) {
-    if (!accountsManager)
-      openWindowForAction(windowActionTarget, accountIdFromLink(url), { show: false });
-    if (!accountsManager) return;
-    handleMailtoUrl({ url, accountsManager, mainWindow });
+    if (!manager) openWindowForAction(windowActionTarget, accountIdFromLink(url), { show: false });
+    const activeManager = manager ?? accountsManager;
+    if (!activeManager) return;
+    handleMailtoUrl({ url, accountsManager: activeManager, mainWindow: win });
     return;
   }
 
@@ -599,20 +604,20 @@ async function dispatchProtocolUrl(url: string): Promise<void> {
 
   // Every other link asks to look at something, and resolving an account, composing through one or
   // opening a thread all need the manager the window owns, so a window is built for it.
-  if (!accountsManager)
-    openWindowForAction(windowActionTarget, accountIdFromLink(url), { show: false });
-  if (!accountsManager) return;
+  if (!manager) openWindowForAction(windowActionTarget, accountIdFromLink(url), { show: false });
+  const activeManager = manager ?? accountsManager;
+  if (!activeManager) return;
 
   if (url.startsWith('magimail://share')) {
-    handleShareUrl({ url, accountsManager, mainWindow });
+    handleShareUrl({ url, accountsManager: activeManager, mainWindow: win });
     return;
   }
 
   // Everything left asks to see something, so the window is raised before the link is followed.
-  if (mainWindow) {
-    if (mainWindow.isMinimized()) mainWindow.restore();
-    mainWindow.show();
-    mainWindow.focus();
+  if (win) {
+    if (win.isMinimized()) win.restore();
+    win.show();
+    win.focus();
   }
 
   try {
@@ -622,7 +627,7 @@ async function dispatchProtocolUrl(url: string): Promise<void> {
     const mailbox = MAILBOX_ROUTES[parsed.hostname];
     if (parsed.hostname === 'open') {
       if (targetAccountId) {
-        accountsManager.switchAccount(targetAccountId);
+        activeManager.switchAccount(targetAccountId);
       }
     } else if (parsed.hostname === 'navigate') {
       const targetUrl = parsed.searchParams.get('url');
@@ -630,37 +635,37 @@ async function dispatchProtocolUrl(url: string): Promise<void> {
         if (targetUrl.includes('extsrc=cal') || targetUrl.includes('plid=')) {
           let accountId: string | undefined;
           if (targetAccountId) {
-            const acc = findAccountByIdOrEmail(accountsManager.getAccounts(), targetAccountId);
+            const acc = findAccountByIdOrEmail(activeManager.getAccounts(), targetAccountId);
             if (acc) {
               accountId = acc.id;
             }
           }
           if (!accountId) {
-            const accounts = accountsManager.getAccounts();
+            const accounts = activeManager.getAccounts();
             if (accounts.length > 1) {
-              const picked = await chooseComposeAccount(accountsManager, {
+              const picked = await chooseComposeAccount(activeManager, {
                 title: uiString('dialog.threadAccount.title'),
                 message: uiString('dialog.threadAccount.message'),
                 detail: uiString('dialog.threadAccount.detail'),
-                parentWindow: mainWindow,
+                parentWindow: win,
               });
               if (!picked) return;
               accountId = picked.id;
             } else {
-              accountId = accountsManager.getActiveAccountId();
+              accountId = activeManager.getActiveAccountId();
             }
           }
-          void accountsManager.resolveCalendarEventSource(accountId, targetUrl);
+          void activeManager.resolveCalendarEventSource(accountId, targetUrl);
         } else {
-          accountsManager.openInAccount(targetAccountId, targetUrl);
+          activeManager.openInAccount(targetAccountId, targetUrl);
         }
       }
     } else if (mailbox) {
-      accountsManager.openInAccount(targetAccountId, `https://mail.google.com/mail/u/0/${mailbox}`);
+      activeManager.openInAccount(targetAccountId, `https://mail.google.com/mail/u/0/${mailbox}`);
     } else if (parsed.hostname === 'label' || parsed.hostname === 'category') {
       const name = parsed.pathname.replace(/^\//, '');
       if (name) {
-        accountsManager.openInAccount(
+        activeManager.openInAccount(
           targetAccountId,
           `https://mail.google.com/mail/u/0/#${parsed.hostname}/${name}`,
         );
@@ -668,21 +673,21 @@ async function dispatchProtocolUrl(url: string): Promise<void> {
     } else if (parsed.hostname === 'search') {
       const query = parsed.searchParams.get('q') || parsed.searchParams.get('query') || '';
       if (query.trim()) {
-        accountsManager.openInAccount(
+        activeManager.openInAccount(
           targetAccountId,
           `https://mail.google.com/mail/u/0/#search/${encodeURIComponent(query.trim())}`,
         );
       } else {
         if (targetAccountId) {
-          accountsManager.switchAccount(targetAccountId);
+          activeManager.switchAccount(targetAccountId);
         }
-        accountsManager.focusSearchInActiveView();
+        activeManager.focusSearchInActiveView();
       }
     } else if (parsed.hostname === 'compose') {
       const fields = parsed.searchParams.toString();
       if (targetAccountId) {
-        accountsManager.switchAccount(targetAccountId);
-        void accountsManager.triggerComposePopout(fields || undefined);
+        activeManager.switchAccount(targetAccountId);
+        void activeManager.triggerComposePopout(fields || undefined);
       } else {
         void composeWithoutAccount(fields || undefined);
       }
@@ -695,31 +700,31 @@ async function dispatchProtocolUrl(url: string): Promise<void> {
       if (threadId && action) {
         let accountId: string | undefined;
         if (targetAccountId) {
-          const acc = findAccountByIdOrEmail(accountsManager.getAccounts(), targetAccountId);
+          const acc = findAccountByIdOrEmail(activeManager.getAccounts(), targetAccountId);
           if (acc) {
             accountId = acc.id;
           }
         }
         if (!accountId) {
-          const accounts = accountsManager.getAccounts();
+          const accounts = activeManager.getAccounts();
           if (accounts.length > 1) {
-            const picked = await chooseComposeAccount(accountsManager, {
+            const picked = await chooseComposeAccount(activeManager, {
               title: uiString('dialog.threadAccount.title'),
               message: uiString('dialog.threadAccount.message'),
               detail: uiString('dialog.threadAccount.detail'),
-              parentWindow: mainWindow,
+              parentWindow: win,
             });
             if (!picked) return;
             accountId = picked.id;
           } else {
-            accountId = accountsManager.getActiveAccountId();
+            accountId = activeManager.getActiveAccountId();
           }
         }
         // Not getActiveWebContentsView(): account views are loaded lazily, so
         // the target account's view may not exist yet. This is the same path a
         // notification click takes — it switches account, materialises the view
         // and skips the navigation if the thread is already open.
-        void accountsManager.performThreadAction(accountId, threadId, action);
+        void activeManager.performThreadAction(accountId, threadId, action);
       } else if (threadId) {
         log.warn(
           `Ignoring magimail://thread link with unknown action: ${parsed.searchParams.get('action')}`,

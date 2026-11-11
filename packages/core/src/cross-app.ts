@@ -62,6 +62,7 @@ const GMAIL_VIEW_ROUTES: Record<string, string> = {
   sent: 'sent',
   drafts: 'drafts',
   starred: 'starred',
+  snoozed: 'snoozed',
   spam: 'spam',
   trash: 'trash',
   all: 'all',
@@ -74,6 +75,19 @@ function safeDecode(value: string): string {
   } catch {
     return value;
   }
+}
+
+function getParam(params: URLSearchParams, ...keys: string[]): string | null {
+  for (const key of keys) {
+    const direct = params.get(key);
+    if (direct !== null) return direct;
+  }
+  for (const [k, v] of params.entries()) {
+    if (keys.some((target) => target.toLowerCase() === k.toLowerCase())) {
+      return v;
+    }
+  }
+  return null;
 }
 
 /**
@@ -94,8 +108,42 @@ function gmailDeepLink(url: URL): string {
     return `magimail://compose${query ? `?${query}` : ''}`;
   }
 
-  const fragment = url.hash.replace(/^#/, '');
+  if (url.searchParams.get('extsrc') === 'mailto') {
+    const rawTarget = url.searchParams.get('url');
+    if (rawTarget) {
+      try {
+        const mailto = new URL(rawTarget);
+        if (mailto.protocol === 'mailto:') {
+          const fields = new URLSearchParams();
+          const pathTo = mailto.pathname ? safeDecode(mailto.pathname).trim() : '';
+          const queryTo = getParam(mailto.searchParams, 'to')?.trim() ?? '';
+          const to = [pathTo, queryTo].filter(Boolean).join(',');
+          if (to) fields.set('to', to);
+          for (const key of ['subject', 'body', 'cc', 'bcc'] as const) {
+            const value =
+              key === 'subject'
+                ? (getParam(mailto.searchParams, 'subject', 'su') ??
+                  getParam(url.searchParams, 'subject', 'su'))
+                : (getParam(mailto.searchParams, key) ?? getParam(url.searchParams, key));
+            if (value) fields.set(key, value);
+          }
+          const query = fields.toString();
+          return `magimail://compose${query ? `?${query}` : ''}`;
+        }
+      } catch {
+        // Fall through to bare compose
+      }
+    }
+    return 'magimail://compose';
+  }
+
+  const rawFragment = url.hash.replace(/^#/, '');
+  const [fragment, fragmentQuery] = rawFragment.split('?');
+  const hashParams = new URLSearchParams(fragmentQuery ?? '');
   const [view, ...rest] = fragment.split('/');
+
+  const getQueryParam = (key: string): string | null =>
+    url.searchParams.get(key) || hashParams.get(key);
 
   if (view === 'search') {
     const query = rest.join('/');
@@ -111,6 +159,15 @@ function gmailDeepLink(url: URL): string {
     return `magimail://thread/${encodeURIComponent(threadId)}`;
   }
 
+  const th = getQueryParam('th');
+  if (th && isGmailThreadId(th)) {
+    return `magimail://thread/${encodeURIComponent(th)}`;
+  }
+  const permthid = getQueryParam('permthid');
+  if (permthid && isGmailThreadId(permthid)) {
+    return `magimail://thread/${encodeURIComponent(permthid)}`;
+  }
+
   const route = GMAIL_VIEW_ROUTES[view];
   if (route) {
     return `magimail://${route}`;
@@ -120,13 +177,19 @@ function gmailDeepLink(url: URL): string {
     return `magimail://${view}/${rest.join('/')}`;
   }
 
+  const searchQuery = getQueryParam('q');
+  const hasNoHashView = !fragment || fragment === 'inbox' || view === 'inbox';
+  if (searchQuery && hasNoHashView) {
+    return `magimail://search?q=${encodeURIComponent(searchQuery)}`;
+  }
+
   const isCalendarSource = url.searchParams.get('extsrc') === 'cal' || url.searchParams.has('plid');
   if (isCalendarSource) {
     return `magimail://navigate?url=${encodeURIComponent(url.toString())}`;
   }
 
   const hasNoViewOrFolder = !fragment || fragment === 'inbox' || view === 'inbox';
-  if (hasNoViewOrFolder && url.searchParams.size === 0) {
+  if (hasNoViewOrFolder && url.searchParams.size === 0 && hashParams.size === 0) {
     return 'magimail://inbox';
   }
 
@@ -155,6 +218,9 @@ function calendarDeepLink(url: URL): string {
   if (/\/search(?:\/|$)/.test(url.pathname)) {
     return query ? `magical://search?q=${encodeURIComponent(query)}` : 'magical://search';
   }
+  if (query) {
+    return `magical://search?q=${encodeURIComponent(query)}`;
+  }
 
   if (/\/r\/tasks(?:\/|$)/.test(url.pathname)) {
     return 'magical://tasks';
@@ -162,10 +228,21 @@ function calendarDeepLink(url: URL): string {
 
   const eid = url.searchParams.get('eid');
   if (eid) {
-    return `magical://event?eid=${encodeURIComponent(eid)}&action=reveal`;
+    let action = 'reveal';
+    if (url.searchParams.get('action') === 'RESPOND') {
+      const rst = url.searchParams.get('rst');
+      if (rst === '1') {
+        action = 'yes';
+      } else if (rst === '2') {
+        action = 'no';
+      } else if (rst === '3') {
+        action = 'maybe';
+      }
+    }
+    return `magical://event?eid=${encodeURIComponent(eid)}&action=${action}`;
   }
 
-  const eventEditMatch = /\/eventedit\/([^/?#]+)/.exec(url.pathname);
+  const eventEditMatch = /\/eventedit\/(?:copy\/)?([^/?#]+)/.exec(url.pathname);
   if (eventEditMatch) {
     return `magical://event?eid=${encodeURIComponent(eventEditMatch[1])}&action=reveal`;
   }
