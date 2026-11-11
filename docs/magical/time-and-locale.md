@@ -98,6 +98,18 @@ which is what Google itself defaults to. `firstWeekdayByAccount` is stored rathe
 launch so the sidebar's first frame is right, and it can go stale while Magical is shut, because
 Google's setting syncs across devices; the first grid report of a session corrects it.
 
+**Two accounts can disagree.** Start of the week is per Google account, so on one Mac a Sunday can
+end the week on one account and start it on another, and the sidebar's first column moves when the
+account does. That is why the stored value is keyed by account, and why `SidebarManager` re-reads it
+in `updateAccounts`: the frame drawn while a newly attached account is still loading is then already
+right instead of briefly carrying the previous account's week.
+
+The one visible consequence is deliberate. With a Sunday-first Google account active and a
+Monday-first Mac, the sidebar starts its week on Sunday while the popover and the widgets start on
+Monday. Before this behaviour existed, all three agreed with each other and none of them could agree
+with a Google account that had overridden its own default. The sidebar exists to show the other
+events for the period beside it, so it is the surface that has to give way.
+
 ## Timezone
 
 The zone is the Mac's too: every native surface renders in `.current`, and Electron's process-local

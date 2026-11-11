@@ -173,8 +173,10 @@ and `displayedMonthGridRange` all take their first weekday from the earliest `[r
 [data-datekey]` cell Google has drawn, so the sidebar's week cannot drift from the week beside it.
 The main process stores that weekday per account in `firstWeekdayByAccount`, and the helper draws
 its first frame from the stored value; the Mac's own first day is only the answer on the first
-launch for an account. Why the sidebar reads Google rather than the Mac, and what the popover and
-widgets use instead, is in [`time-and-locale.md`](time-and-locale.md#first-day-of-the-week).
+launch for an account. Because Google keeps the setting per account, switching accounts can move
+the strip's first column. Why the sidebar reads Google rather than the Mac, what the popover and
+widgets use instead, and why two accounts may disagree with each other while both being right, is
+in [`time-and-locale.md`](time-and-locale.md#first-day-of-the-week).
 
 - **Date selection**: Clicking a date in the mini-month grid or week scrubber selects that day in the
   sidebar only. It never moves Google Calendar, so a day from the neighbouring month can be inspected
