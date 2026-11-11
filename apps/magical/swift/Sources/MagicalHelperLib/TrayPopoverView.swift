@@ -296,8 +296,8 @@ public struct TrayPopoverView: View {
                     displayedMonth: model.displayedMonthDate,
                     selectedDate: model.highlightedDate,
                     densityDots: model.densityDotsByDay,
-                    // The popover has no Google grid beside it to agree with, so its weeks
-                    // follow the Mac's region.
+                    // The popover has no Google grid beside it, so the first day of the
+                    // week comes from the Mac's region.
                     firstWeekday: Calendar.current.firstWeekday,
                     onSelectDate: { date in
                         withAnimation(.easeInOut(duration: 0.2)) {

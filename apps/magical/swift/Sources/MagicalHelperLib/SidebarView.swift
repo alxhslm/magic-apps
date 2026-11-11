@@ -93,9 +93,9 @@ public final class SidebarModel: ObservableObject {
 
     /// The day the sidebar's weeks start on, as Apple's `.weekday` number.
     ///
-    /// Google Calendar owns this, not the Mac: the sidebar exists to show the other events
-    /// for the period beside it, so a week that starts on a different day from Google's grid
-    /// is showing the wrong seven days. Google keeps Start of the week per account, defaults
+    /// Google Calendar decides this, not the Mac: the sidebar shows the other events for the
+    /// period beside it, so a week beginning on a different day from Google's grid would show
+    /// the wrong seven days. Google keeps Start of the week per account, defaults
     /// it to the locale, and does not expose it through the API, so the value arrives from
     /// the grid itself and the main process stores it per account. Until this account has
     /// ever reported one it stays on the Mac's own first day.

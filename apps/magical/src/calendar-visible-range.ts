@@ -97,8 +97,8 @@ const WEEK_BASED_TIMEFRAMES = new Set(['week', 'customweek', 'month']);
  * The earliest visible cell is the week's first day in Week and 4-Day view, and the lead
  * padding in Month view, so its weekday is Google's first weekday in both. This is the
  * only place it can be read: Google keeps Start of the week per account, defaults it to the
- * locale, and does not expose it through the API. Reading the grid is what makes the
- * sidebar's week unable to disagree with the calendar drawn beside it.
+ * locale, and does not expose it through the API. Reading the grid is what keeps the
+ * weekday in the sidebar equal to the weekday in the calendar drawn beside it.
  *
  * Returned in Apple's `.weekday` numbering, 1 = Sunday through 7 = Saturday, because that
  * is what the helper's `Calendar.firstWeekday` takes.

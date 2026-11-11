@@ -81,8 +81,8 @@ Google Calendar has a Start of the week setting of its own, per Google account, 
 the locale rather than to the Mac. The Calendar API does not expose it and nothing in the page's
 markup names it as a setting, so the only place to read it is the grid: the earliest
 `[role="main"] [data-datekey]` cell is the week's first day in Week and 4-Day view, and the lead
-padding in Month view. That is what makes the companion sidebar unable to disagree with the calendar
-beside it, which is its whole purpose.
+padding in Month view. That is what keeps the weekday in the sidebar equal to the weekday in the
+calendar beside it.
 
 | Surface                                        | Week starts on                                   | Where it is read                                                      |
 | :--------------------------------------------- | :----------------------------------------------- | :-------------------------------------------------------------------- |
@@ -92,9 +92,9 @@ beside it, which is its whole purpose.
 | Menu bar popover mini month                    | The Mac's first weekday                          | `Calendar.current.firstWeekday`                                       |
 | Widgets mini month                             | The Mac's first weekday                          | `Calendar.current.firstWeekday`                                       |
 
-The popover and the widgets cannot follow Google: a widget renders with no web view to ask, and an
-override in Google's settings would leave them disagreeing with the sidebar. They follow the region,
-which is what Google itself defaults to. `firstWeekdayByAccount` is stored rather than re-read on
+The popover and the widgets have no Google grid to read: a widget renders with no web view, and an
+override in Google's settings would leave them on a different first day from the sidebar. They take
+the region's answer, which is what Google itself defaults to. `firstWeekdayByAccount` is stored rather than re-read on
 launch so the sidebar's first frame is right, and it can go stale while Magical is shut, because
 Google's setting syncs across devices; the first grid report of a session corrects it.
 
@@ -105,10 +105,9 @@ in `updateAccounts`: the frame drawn while a newly attached account is still loa
 right instead of briefly carrying the previous account's week.
 
 The one visible consequence is deliberate. With a Sunday-first Google account active and a
-Monday-first Mac, the sidebar starts its week on Sunday while the popover and the widgets start on
-Monday. Before this behaviour existed, all three agreed with each other and none of them could agree
-with a Google account that had overridden its own default. The sidebar exists to show the other
-events for the period beside it, so it is the surface that has to give way.
+Monday-first Mac, the first day of the week is Sunday in the sidebar and Monday in the popover and
+the widgets. The sidebar shows the other events for the period beside it, so the first day there
+has to match the calendar's.
 
 ## Timezone
 

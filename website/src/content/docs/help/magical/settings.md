@@ -45,24 +45,15 @@ Magical's date and time formats follow your Mac.
 
 Relaunch Magical after changing any of them, so the menu bar, popover, sidebar, banners and widgets all pick it up together.
 
-#### The companion sidebar's week
+#### First day of the week in the sidebar
 
-The [companion sidebar](/help/magical/sidebar/) sits beside Google Calendar's own grid, so its week starts on **Google Calendar's** first day rather than the Mac's. Google keeps that setting in your Google account, not in Magical:
+The first day of the week in the [companion sidebar](/help/magical/sidebar/) comes from **Google Calendar**, not from the Mac, because the sidebar shows the events for the period in the grid beside it. That setting lives in your Google account, not in Magical:
 
 1. Open Google Calendar in your browser.
 2. Go to **Settings** → **General** → **Start of the week**.
 3. Choose **Sunday**, **Monday** or **Saturday**, or leave it on the locale default.
 
-The sidebar follows within a moment, without relaunching Magical.
-
-#### Checking that they match
-
-Compare the first column of the sidebar's week strip with the first column of Google Calendar's grid; they are the same day. Two cases can look like a fault and are not:
-
-- **Your sidebar and popover start on different days.** The two surfaces follow different sources, so this happens when Google's Start of the week is not the same as your Mac's first day. Set one to match the other if you would rather they agree.
-- **Your week start changes when you switch accounts.** Start of the week belongs to each Google account, so two accounts can hold different answers, and the sidebar follows whichever one is on screen.
-
-If the sidebar does not match the grid beside it, quit and reopen Magical; if it still does not, check that Google Calendar's grid itself moved, because the sidebar always copies what is drawn there.
+The sidebar updates within a moment, without relaunching Magical.
 
 ---
 

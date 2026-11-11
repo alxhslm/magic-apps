@@ -193,7 +193,7 @@ function checkViewMode(): void {
   });
   dateStr = resolvedDate;
 
-  // The grid the sidebar is aligned to also says which day Google starts its weeks on. It
+  // The grid the sidebar is aligned to also gives the day Google starts its weeks on. It
   // travels with the view mode because it is a property of what is on screen, and it is
   // included in the dedupe so that changing Start of the week in Google's settings
   // republishes even when the date on screen does not move.

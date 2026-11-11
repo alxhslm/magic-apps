@@ -170,13 +170,13 @@ view to another date.
 
 That includes which day a week starts on. The strip, the mini month's lead padding and header row,
 and `displayedMonthGridRange` all take their first weekday from the earliest `[role="main"]
-[data-datekey]` cell Google has drawn, so the sidebar's week cannot drift from the week beside it.
-The main process stores that weekday per account in `firstWeekdayByAccount`, and the helper draws
-its first frame from the stored value; the Mac's own first day is only the answer on the first
+[data-datekey]` cell Google has drawn, so the first day of the week cannot drift from the calendar
+beside it. The main process stores that weekday per account in `firstWeekdayByAccount`, and the
+helper draws the first frame from the stored value; the Mac's own first day is only the answer on the first
 launch for an account. Because Google keeps the setting per account, switching accounts can move
-the strip's first column. Why the sidebar reads Google rather than the Mac, what the popover and
-widgets use instead, and why two accounts may disagree with each other while both being right, is
-in [`time-and-locale.md`](time-and-locale.md#first-day-of-the-week).
+the strip's first column. Why that weekday comes from Google rather than the Mac, what the popover
+and the widgets use instead, and why two accounts may disagree with each other while both being
+right, is in [`time-and-locale.md`](time-and-locale.md#first-day-of-the-week).
 
 - **Date selection**: Clicking a date in the mini-month grid or week scrubber selects that day in the
   sidebar only. It never moves Google Calendar, so a day from the neighbouring month can be inspected

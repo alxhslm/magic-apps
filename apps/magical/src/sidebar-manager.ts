@@ -213,7 +213,7 @@ export class SidebarManager {
       this.rememberFirstWeekday(firstWeekday);
     }
     // A changed Start of the week is why this comparison looks at three things: Google
-    // re-lays out its grid without moving the date, and the sidebar has to follow that too.
+    // re-lays out its grid without moving the date, so the sidebar has to change with it.
     if (
       this.activeTimeframe === timeframe &&
       this.activeDateStr === dateStr &&

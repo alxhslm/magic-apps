@@ -137,9 +137,9 @@ export interface MagicalSettings {
    * `.weekday` number (1 = Sunday … 7 = Saturday), keyed by account id.
    *
    * Google keeps Start of the week per account and defaults it to the locale, and the
-   * Calendar API does not expose it, so the only source is the grid the sidebar sits
-   * beside. Storing it is what lets the sidebar draw the right week on its first frame
-   * instead of guessing from the Mac and correcting a moment later.
+   * Calendar API does not expose it, so the only source is the grid drawn beside the
+   * sidebar. Storing it is what lets the first frame show the right week instead of
+   * guessing from the Mac and correcting a moment later.
    *
    * Per account because two accounts can hold different values, and it can go stale
    * while Magical is closed, since the setting syncs across devices: the first grid
