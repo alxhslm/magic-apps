@@ -158,7 +158,10 @@ Three actions take data back, and each sits where the scope it clears is visible
 Removing an account also drops it from the in-memory Focus Filter state, so the account switcher and
 the Dock badge stop leaning on an id nothing can reach. `focus-filter.json` is left as it is: the App
 Intents extension owns that file, and an account id it names that no longer exists is ignored there.
+The removal immediately resets `lastActiveAccountId` in `settings.json` when the removed account was
+active, and purges its stored unread count from `unread-counts.json` alongside its `atom-state/` file.
 The partition directory itself stays until the next launch's `pruneOrphanPartitions` sweep, rather
 than the removal, because Chromium may still hold the files open. The fixed `magimail_personal` and
-`magimail_work` partitions are exempt from both. Startup also sweeps `atom-state/` via `sweepOrphanedMailboxState`,
-deleting any seen-message records left behind by an interrupted removal or a crash for accounts no longer configured.
+`magimail_work` partitions are exempt from both. Startup also sweeps `atom-state/` and `unread-counts.json`
+via `sweepOrphanedMailboxState`, and resets `lastActiveAccountId` if pointing to an unconfigured ID,
+deleting any state left behind by an interrupted removal or a crash.
