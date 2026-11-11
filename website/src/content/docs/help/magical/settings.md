@@ -20,8 +20,8 @@ The General tab manages startup behaviour and default calendar file handling:
 Magical can act as macOS's default handler for both invitation files and live feed subscriptions:
 
 - **Calendar files (.ics)**: Shows which app opens `.ics` files, with a button to make Magical the handler. Once Magical holds the type the button disappears, and the only way back is to name another app in Finder's Get Info panel. Double-clicking an invite imports it directly into Google Calendar in a background view without disturbing your active schedule.
-- **Calendar feeds (webcal://)**: Shows which app subscribes to `webcal://` and `ical://` URLs, with a button to make Magical the default. Clicking a calendar subscription link on a website hands it straight to Magical, which subscribes to the feed in Google Calendar in the background and posts a native notification banner when added.
-- **Importing by hand**: **File → Import Calendar File…** (<kbd>⇧⌘I</kbd>) reaches the same import flow for a file on your disk.
+- **Calendar feeds (webcal://, ical://)**: Shows which app subscribes to `webcal://` and `ical://` URLs, with a button to make Magical the default. Clicking a calendar subscription link on a website hands it straight to Magical, which subscribes to the feed in Google Calendar in the background and posts a native notification banner when added.
+- **Importing and subscribing by hand**: **File → Import Calendar File…** (<kbd>⇧⌘I</kbd>) reaches the same import flow for a file on your disk, and **File → Subscribe to Calendar Feed…** (<kbd>⌥⌘S</kbd>) allows subscribing to a feed directly from your clipboard or opening Google Calendar's From URL pane.
 - **New event account**: Choose whether new events are added to your currently active calendar account or prompt you to pick an account every time.
 
 ### Opening links

@@ -65,6 +65,11 @@ is already open and the file is not in front of the user. It joins the flow at `
 both routes meet there. The picker takes one file at a time: each file is a separate question about
 which account it belongs in, and allowing several would ask that question repeatedly.
 
+**File → Subscribe to Calendar Feed…** (`⌥⌘S`) mirrors this for calendar feed subscriptions. When
+invoked, Magical checks the system clipboard: if a valid feed URL (`webcal://`, `ical://`, or
+`https://`) is present, it offers to subscribe in the background directly; otherwise it reveals
+Google Calendar's native "From URL" settings pane with the input field focused.
+
 ## Describing the file
 
 `readIcsFile` reads the file to a string, or returns null when it has been moved or deleted;
@@ -208,11 +213,12 @@ sentence with a different app in it, so the row reads as one fact that changes.
 
 Three surfaces reach the same claim:
 
-| Surface                                                   | Behaviour                                                   |
-| :-------------------------------------------------------- | :---------------------------------------------------------- |
-| Magical → **Set Magical as Default for Calendar Files…**  | Always answers, including "already the default"             |
-| **Settings → General**, the **Calendar files (.ics)** row | Shows who holds the type; the button goes once Magical does |
-| The launch prompt, once                                   | Claim it, not now, or stop asking                           |
+| Surface                                                                 | Behaviour                                                   |
+| :---------------------------------------------------------------------- | :---------------------------------------------------------- |
+| Magical → **Set Magical as Default for Calendar Files…**                | Always answers, including "already the default"             |
+| **Settings → General**, the **Calendar files (.ics)** row               | Shows who holds the type; the button goes once Magical does |
+| **Settings → General**, the **Calendar feeds (webcal://, ical://)** row | Shows who handles `webcal:` and `ical:` feeds               |
+| The launch prompt, once                                                 | Claim it, not now, or stop asking                           |
 
 `promptSetAsDefault` is the menu item. It always puts a dialog up, ignoring
 `askAboutDefaultCalendarApp` and answering even when Magical already holds the type: the user chose
