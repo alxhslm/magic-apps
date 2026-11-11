@@ -188,6 +188,12 @@ describe('getHideSidebarCss', () => {
     expect(css).not.toContain('.bAw');
     expect(css).not.toContain('div[role="navigation"]');
   });
+
+  it('keeps loaded side cards containing an iframe visible when hideSidebar is on', () => {
+    const css = getHideSidebarCss();
+    expect(css).toContain('div:has(> [role="complementary"]):not(:has(iframe))');
+    expect(css).toContain('[role="complementary"]:not(:has(iframe))');
+  });
 });
 
 describe('folding the Categories section', () => {
