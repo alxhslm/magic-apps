@@ -56,7 +56,6 @@ import { uiString } from './strings.js';
 import { updateDockBadge, type ArrivalBadgeState } from './dock.js';
 import { openDetachedThreadWindow } from './compose.js';
 import { loadAccounts, saveAccounts, createNewAccount } from './account-store.js';
-import { withStoredUnreadCounts } from './mailbox/unread-count-store.js';
 import { loadSettings, saveSetting } from './settings-store.js';
 import { pressRefreshControl } from './thread-actions/sync-driver.js';
 import {
@@ -65,6 +64,9 @@ import {
   type MailboxPollEvent,
   type VerificationCodeItem,
   HybridFeedSource,
+  forgetMailboxAccount,
+  sweepOrphanedMailboxState,
+  withStoredUnreadCounts,
 } from './mailbox/index.js';
 import {
   attachNativeToolbar,
@@ -530,7 +532,7 @@ export class AccountsManager {
   }
 
   /** New arrivals across the accounts the Focus Filter includes, and whether the sum may be short. */
-  private getFocusedArrivals(): ArrivalBadgeState {
+  public getFocusedArrivals(): ArrivalBadgeState {
     let count = 0;
     let incomplete = false;
     for (const account of this.getFocusedAccounts()) {
@@ -637,8 +639,13 @@ export class AccountsManager {
       );
     }
 
-    const remembered = this.accounts.find((a) => a.id === loadSettings().lastActiveAccountId);
-    if (remembered) return { id: remembered.id, source: 'last active' };
+    const rememberedId = loadSettings().lastActiveAccountId;
+    if (rememberedId) {
+      const remembered = this.accounts.find((a) => a.id === rememberedId);
+      if (remembered) return { id: remembered.id, source: 'last active' };
+      // The saved last active account is no longer configured; sweep it from settings.
+      saveSetting('lastActiveAccountId', this.accounts[0]?.id ?? '');
+    }
 
     return { id: this.accounts[0]?.id ?? '', source: 'first account' };
   }
@@ -673,6 +680,7 @@ export class AccountsManager {
     // feed request. Before views became lazy this happened as a side effect of
     // createAccountView running for every account at startup.
     pruneOrphanPartitions(this.accounts.map((a) => a.partition));
+    sweepOrphanedMailboxState(this.accounts.map((a) => a.id));
     for (const account of this.accounts) {
       configureGoogleSession(account.partition);
     }
@@ -2807,6 +2815,8 @@ export class AccountsManager {
     if (source) {
       source.forget();
       this.mailboxSources.delete(accountId);
+    } else {
+      forgetMailboxAccount(accountId);
     }
     // A filter that still names the account would leave the switcher and the badge
     // leaning on an id nothing can reach. `focus-filter.json` itself is left alone: the
@@ -2835,6 +2845,9 @@ export class AccountsManager {
     this.lastKnownCategoryCounts.delete(accountId);
     this.cacheDerivedCategories.delete(accountId);
     this.missingCategoriesByAccount.delete(accountId);
+    this.emailCaptured.delete(accountId);
+    if (this.routeHoldAccountId === accountId) this.routeHoldAccountId = null;
+    if (this.deferredSwitchAccountId === accountId) this.deferredSwitchAccountId = null;
     for (const key of [...this.mailActionQueue.keys()]) {
       if (key.startsWith(`${accountId}:`)) this.mailActionQueue.delete(key);
     }
@@ -2849,6 +2862,9 @@ export class AccountsManager {
 
     if (this.activeAccountId === accountId) {
       this.switchAccount(this.accounts[0].id);
+      saveSetting('lastActiveAccountId', this.activeAccountId);
+    } else if (loadSettings().lastActiveAccountId === accountId) {
+      saveSetting('lastActiveAccountId', this.activeAccountId);
     }
     this.notifyToolbar();
     this.onAccountsChanged?.();

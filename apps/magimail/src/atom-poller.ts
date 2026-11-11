@@ -292,6 +292,41 @@ export function clearPollerState(accountId: string): void {
   }
 }
 
+/**
+ * Deletes atom-state files no configured account uses.
+ *
+ * An account's state file (`atom-state/<accountId>.json`) records seen message IDs for
+ * background arrival notifications. `removeAccount` cleans it up inline, but a crash or
+ * interrupted removal leaves orphaned files behind. This sweeps `atom-state/` on startup,
+ * deleting any state file whose account id is unconfigured.
+ */
+export function pruneOrphanAtomState(accountIds: readonly string[]): void {
+  const keep = new Set(accountIds);
+  let dir: string;
+  try {
+    dir = getStateDir();
+  } catch {
+    return;
+  }
+  let entries: fs.Dirent[];
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return; // No atom-state directory yet: a fresh install.
+  }
+  for (const entry of entries) {
+    if (!entry.isFile() || !entry.name.endsWith('.json')) continue;
+    const accountId = entry.name.slice(0, -'.json'.length);
+    if (keep.has(accountId)) continue;
+    try {
+      fs.rmSync(path.join(dir, entry.name), { force: true });
+      log.info(`Pruned orphaned atom-state for removed account: ${accountId}`);
+    } catch (err) {
+      log.warn(`Could not prune atom-state ${entry.name}:`, err);
+    }
+  }
+}
+
 /** Maps canonical category names to their Gmail Atom sub-feed path segment. */
 const CATEGORY_FEED_PATHS: Record<string, string> = {
   primary: '^smartlabel_personal',
@@ -410,6 +445,8 @@ export class AtomFeedPoller {
   private categoryById = new Map<string, NotificationCategory>();
   private isWindowFocused = false;
   private powerListenersAttached = false;
+  private isDisposed = false;
+  private powerListeners: Partial<Record<string, () => void>> = {};
   private missingCategories = new Set<NotificationCategory>();
   private latestEntries: AtomMessage[] = [];
   private lastFullCount: number | null = null;
@@ -458,6 +495,35 @@ export class AtomFeedPoller {
       this.hintTimer = null;
     }
     this.isPaused = true;
+    this.teardownPowerMonitor();
+  }
+
+  public destroy(): void {
+    this.isDisposed = true;
+    this.stop();
+  }
+
+  /**
+   * Stops polling, tears down all power listeners, marks the poller disposed,
+   * and unlinks the persisted seen-id state file for this account.
+   */
+  public forget(): void {
+    this.destroy();
+    clearPollerState(this.accountId);
+  }
+
+  /**
+   * Deletes persisted atom state for an account without needing an active poller instance.
+   */
+  public static forget(accountId: string): void {
+    clearPollerState(accountId);
+  }
+
+  /**
+   * Sweeps atom-state/ directory on startup, unlinking state files for accounts that are no longer configured.
+   */
+  public static sweepOrphaned(accountIds: readonly string[]): void {
+    pruneOrphanAtomState(accountIds);
   }
 
   /**
@@ -468,7 +534,7 @@ export class AtomFeedPoller {
    * rewrites Gmail's title — so they are rate-limited rather than trusted.
    */
   public requestImmediatePoll(): void {
-    if (this.isPaused) return;
+    if (this.isPaused || this.isDisposed) return;
 
     // A queued hint poll already covers this hint; let it stand rather than
     // pushing it further out, so a steady trickle of hints still gets served.
@@ -577,7 +643,7 @@ export class AtomFeedPoller {
   }
 
   public async pollNow(): Promise<void> {
-    if (this.isPolling) return;
+    if (this.isPolling || this.isDisposed) return;
     this.isPolling = true;
 
     try {
@@ -1005,6 +1071,7 @@ export class AtomFeedPoller {
   }
 
   private scheduleNext(): void {
+    if (this.isPaused || this.isDisposed) return;
     if (this.timer) {
       clearTimeout(this.timer);
     }
@@ -1027,7 +1094,7 @@ export class AtomFeedPoller {
   }
 
   private setupPowerMonitor(): void {
-    if (this.powerListenersAttached) return;
+    if (this.powerListenersAttached || this.isDisposed) return;
     this.powerListenersAttached = true;
 
     let pm: typeof electron.powerMonitor | undefined;
@@ -1050,25 +1117,69 @@ export class AtomFeedPoller {
       // Fallback
     }
 
-    pm.on('on-battery', () => {
+    const onBattery = () => {
+      if (this.isDisposed) return;
       this.isOnBattery = true;
       this.scheduleNext();
-    });
-    pm.on('on-ac', () => {
+    };
+    const onAc = () => {
+      if (this.isDisposed) return;
       this.isOnBattery = false;
       this.scheduleNext();
-    });
-    pm.on('suspend', () => {
+    };
+    const onSuspend = () => {
+      if (this.isDisposed) return;
       this.isPaused = true;
       if (this.timer) {
         clearTimeout(this.timer);
         this.timer = null;
       }
-    });
-    pm.on('resume', () => {
+    };
+    const onResume = () => {
+      if (this.isDisposed) return;
       this.isPaused = false;
       this.pollNow();
-    });
+    };
+
+    this.powerListeners = {
+      'on-battery': onBattery,
+      'on-ac': onAc,
+      suspend: onSuspend,
+      resume: onResume,
+    };
+
+    pm.on('on-battery', onBattery);
+    pm.on('on-ac', onAc);
+    pm.on('suspend', onSuspend);
+    pm.on('resume', onResume);
+  }
+
+  private teardownPowerMonitor(): void {
+    if (!this.powerListenersAttached) return;
+    this.powerListenersAttached = false;
+
+    let pm: typeof electron.powerMonitor | undefined;
+    try {
+      if ('powerMonitor' in electron) {
+        pm = (electron as unknown as { powerMonitor?: typeof electron.powerMonitor }).powerMonitor;
+      }
+    } catch {
+      return;
+    }
+    if (!pm || typeof pm.removeListener !== 'function') {
+      return;
+    }
+
+    for (const [event, listener] of Object.entries(this.powerListeners)) {
+      if (listener) {
+        try {
+          pm.removeListener(event as any, listener);
+        } catch {
+          // Best-effort
+        }
+      }
+    }
+    this.powerListeners = {};
   }
 }
 

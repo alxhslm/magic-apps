@@ -9,6 +9,14 @@ import {
   THREAD_ACTIONS,
   TRIAGE_ACTIONS,
 } from '../src/accounts-manager.js';
+import { forgetMailboxAccount, sweepOrphanedMailboxState } from '../src/mailbox/index.js';
+import {
+  loadUnreadCounts,
+  saveUnreadCounts,
+  withStoredUnreadCounts,
+  UnreadCountStore,
+} from '../src/mailbox/unread-count-store.js';
+import { loadSettings, saveSetting } from '../src/settings-store.js';
 import type { NotificationCategory } from '../src/constants.js';
 import type { ThreadActionDriver } from '../src/thread-actions/index.js';
 
@@ -240,6 +248,81 @@ describe('AccountsManager', () => {
     // Left in `atom-state/`, it is a record of seen messages for a mailbox nobody has,
     // and the call sites in main.ts are not the only way an account can go.
     expect(fs.existsSync(stateFile)).toBe(false);
+  });
+
+  it('sweeps orphaned atom-state files on startup alongside pruneOrphanPartitions', () => {
+    const keepFile = path.join(TEST_USER_DATA, 'atom-state', 'account_personal.json');
+    const orphanFile = path.join(TEST_USER_DATA, 'atom-state', 'account_orphaned_999.json');
+    fs.mkdirSync(path.dirname(keepFile), { recursive: true });
+    fs.writeFileSync(keepFile, JSON.stringify({ seenIds: ['msg-keep'] }));
+    fs.writeFileSync(orphanFile, JSON.stringify({ seenIds: ['msg-orphan'] }));
+
+    const manager = new AccountsManager(mockWin, '/path/to/preload.js');
+    manager.initialize();
+
+    expect(fs.existsSync(keepFile)).toBe(true);
+    expect(fs.existsSync(orphanFile)).toBe(false);
+  });
+
+  it('prunes orphaned atom-state files via sweepOrphanedMailboxState', () => {
+    const stateDir = path.join(TEST_USER_DATA, 'atom-state');
+    const keepFile = path.join(stateDir, 'acc-configured.json');
+    const orphanFile = path.join(stateDir, 'acc-orphaned.json');
+    const nonJsonFile = path.join(stateDir, 'not-a-state-file.txt');
+    fs.mkdirSync(stateDir, { recursive: true });
+    fs.writeFileSync(keepFile, JSON.stringify({ seenIds: ['1'] }));
+    fs.writeFileSync(orphanFile, JSON.stringify({ seenIds: ['2'] }));
+    fs.writeFileSync(nonJsonFile, 'ignored');
+
+    sweepOrphanedMailboxState(['acc-configured']);
+
+    expect(fs.existsSync(keepFile)).toBe(true);
+    expect(fs.existsSync(orphanFile)).toBe(false);
+    expect(fs.existsSync(nonJsonFile)).toBe(true);
+  });
+
+  it('prunes unconfigured accounts from unread-counts.json on removal and startup', () => {
+    const added = accountsManager.addAccount('Work', '#ef4444');
+    saveUnreadCounts(added.id, { total: 10, badge: 3 });
+    saveUnreadCounts('orphaned_acc_123', { total: 5, badge: 1 });
+
+    expect(loadUnreadCounts()[added.id]).toEqual({ total: 10, badge: 3 });
+    expect(loadUnreadCounts()['orphaned_acc_123']).toEqual({ total: 5, badge: 1 });
+
+    // Inline removal deletes the stored counts for the removed account
+    accountsManager.removeAccount(added.id);
+    expect(loadUnreadCounts()[added.id]).toBeUndefined();
+
+    // Startup sweeps remaining unconfigured accounts from unread-counts.json
+    withStoredUnreadCounts(accountsManager.getAccounts());
+    expect(loadUnreadCounts()['orphaned_acc_123']).toBeUndefined();
+
+    // Direct store operations
+    saveUnreadCounts('test_store_1', { total: 3, badge: 1 });
+    saveUnreadCounts('test_store_2', { total: 8, badge: 2 });
+    UnreadCountStore.forget('test_store_1');
+    expect(loadUnreadCounts()['test_store_1']).toBeUndefined();
+    expect(loadUnreadCounts()['test_store_2']).toBeDefined();
+
+    UnreadCountStore.sweepOrphaned(['other_acc']);
+    expect(loadUnreadCounts()['test_store_2']).toBeUndefined();
+  });
+
+  it('updates lastActiveAccountId in settings on removal and sweeps unconfigured id on startup', () => {
+    const added = accountsManager.addAccount('Work', '#ef4444');
+    accountsManager.switchAccount(added.id);
+    saveSetting('lastActiveAccountId', added.id);
+    expect(loadSettings().lastActiveAccountId).toBe(added.id);
+
+    accountsManager.removeAccount(added.id);
+    expect(loadSettings().lastActiveAccountId).toBe('account_personal');
+
+    saveSetting('lastActiveAccountId', 'orphaned_123');
+    expect(loadSettings().lastActiveAccountId).toBe('orphaned_123');
+
+    const freshManager = new AccountsManager(new BaseWindow(), '/preload.js');
+    freshManager.initialize();
+    expect(loadSettings().lastActiveAccountId).toBe('account_personal');
   });
 
   it('drops a removed account from the Focus Filter it was named by', () => {

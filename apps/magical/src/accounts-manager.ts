@@ -1014,8 +1014,13 @@ export class AccountsManager {
       );
     }
 
-    const remembered = this.accounts.find((a) => a.id === loadSettings().lastActiveAccountId);
-    if (remembered) return { id: remembered.id, source: 'last active' };
+    const rememberedId = loadSettings().lastActiveAccountId;
+    if (rememberedId) {
+      const remembered = this.accounts.find((a) => a.id === rememberedId);
+      if (remembered) return { id: remembered.id, source: 'last active' };
+      // The saved last active account is no longer configured; sweep it from settings.
+      saveSetting('lastActiveAccountId', this.accounts[0]?.id ?? '');
+    }
 
     return { id: this.accounts[0]?.id ?? '', source: 'first account' };
   }
@@ -1116,8 +1121,12 @@ export class AccountsManager {
     });
     void ses.clearCache().catch(() => {});
 
+    this.emailCaptured.delete(accountId);
     if (this.activeAccountId === accountId) {
       this.switchAccount(this.accounts[Math.min(index, this.accounts.length - 1)].id);
+      saveSetting('lastActiveAccountId', this.activeAccountId);
+    } else if (loadSettings().lastActiveAccountId === accountId) {
+      saveSetting('lastActiveAccountId', this.activeAccountId);
     }
     this.onAccountsChanged?.();
     return true;

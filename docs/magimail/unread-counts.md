@@ -112,6 +112,8 @@ includes; the toolbar switcher shows every account's own total, which is the unf
 The mailbox source keeps the counts between launches in `unread-counts.json`, encrypted, so a launch
 draws the tray from the last known number rather than from zero. See
 [`sessions-and-security.md`](../shared/sessions-and-security.md#which-files-are-sealed).
+Account removal purges its record from `unread-counts.json` inline via `forgetMailboxAccount()`,
+and startup sweeps any orphaned keys via `sweepOrphanedMailboxState()`.
 
 ## Categories
 
