@@ -17,7 +17,7 @@ import UniformTypeIdentifiers
 /// redirecting links for someone who only ever agreed to `.ics`.
 @MainActor
 public enum DefaultHandler {
-    /// A claim Magical can make. Supports `.ics` calendar files and `webcal` feeds.
+    /// A claim Magical can make. Supports `.ics` calendar files and `webcal`/`ical` feeds.
     public enum Target: String, CaseIterable {
         case ics
         case webcal
@@ -29,10 +29,10 @@ public enum DefaultHandler {
             }
         }
 
-        var urlScheme: String? {
+        var urlSchemes: [String] {
             switch self {
-            case .ics: nil
-            case .webcal: "webcal"
+            case .ics: []
+            case .webcal: ["webcal", "ical"]
             }
         }
 
@@ -40,7 +40,7 @@ public enum DefaultHandler {
         var label: String {
             switch self {
             case .ics: String(localized: "Calendar files (.ics)")
-            case .webcal: String(localized: "Calendar feeds (webcal://)")
+            case .webcal: String(localized: "Calendar feeds (webcal://, ical://)")
             }
         }
     }
@@ -67,14 +67,22 @@ public enum DefaultHandler {
             }
             let name = FileManager.default.displayName(atPath: handler.path)
             return (name, handler == appBundle)
-        } else if let scheme = target.urlScheme {
-            guard let dummyUrl = URL(string: "\(scheme):"),
-                  let handler = NSWorkspace.shared.urlForApplication(toOpen: dummyUrl)
-            else {
-                return nil
+        } else if !target.urlSchemes.isEmpty {
+            var lastName: String?
+            var allMagical = true
+            for scheme in target.urlSchemes {
+                guard let dummyUrl = URL(string: "\(scheme):"),
+                      let handler = NSWorkspace.shared.urlForApplication(toOpen: dummyUrl)
+                else {
+                    return nil
+                }
+                lastName = FileManager.default.displayName(atPath: handler.path)
+                if handler != appBundle {
+                    allMagical = false
+                }
             }
-            let name = FileManager.default.displayName(atPath: handler.path)
-            return (name, handler == appBundle)
+            guard let name = lastName else { return nil }
+            return (name, allMagical)
         }
         return nil
     }
@@ -107,17 +115,27 @@ public enum DefaultHandler {
                     }
                 }
             }
-        } else if let scheme = target.urlScheme {
-            HelperLog.info("Defaults", "Claiming scheme \(scheme) for \(bundle.lastPathComponent)")
-            NSWorkspace.shared.setDefaultApplication(at: bundle, toOpenURLsWithScheme: scheme) { error in
-                Task { @MainActor in
-                    if let error {
-                        HelperLog.warn("Defaults", "Claim failed: \(error.localizedDescription)")
-                        completion(error.localizedDescription)
-                    } else {
-                        completion(nil)
+        } else if !target.urlSchemes.isEmpty {
+            HelperLog.info("Defaults", "Claiming schemes \(target.urlSchemes.joined(separator: ", ")) for \(bundle.lastPathComponent)")
+            let schemes = target.urlSchemes
+            let group = DispatchGroup()
+            var firstError: String?
+
+            for scheme in schemes {
+                group.enter()
+                NSWorkspace.shared.setDefaultApplication(at: bundle, toOpenURLsWithScheme: scheme) { error in
+                    Task { @MainActor in
+                        if let error, firstError == nil {
+                            HelperLog.warn("Defaults", "Claim for \(scheme) failed: \(error.localizedDescription)")
+                            firstError = error.localizedDescription
+                        }
+                        group.leave()
                     }
                 }
+            }
+
+            group.notify(queue: .main) {
+                completion(firstError)
             }
         } else {
             completion(String(localized: "macOS does not recognize that type"))
