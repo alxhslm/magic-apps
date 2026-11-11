@@ -10,7 +10,8 @@ Magimail registers the native macOS `magimail://` URL scheme, allowing you to tr
 | URL Pattern                  | Parameters                                 | Description                                                                                     |
 | :--------------------------- | :----------------------------------------- | :---------------------------------------------------------------------------------------------- |
 | `magimail://inbox`           | `account`                                  | Focuses Magimail and opens the inbox for the specified account.                                 |
-| `magimail://sent`            | `account`                                  | Opens Sent. Also `drafts`, `starred`, `spam`, `trash`, `all`, `important`.                      |
+| `magimail://snoozed`         | `account`                                  | Opens the Snoozed mailbox view.                                                                 |
+| `magimail://sent`            | `account`                                  | Opens Sent. Also `drafts`, `starred`, `snoozed`, `spam`, `trash`, `all`, `important`.           |
 | `magimail://label/<name>`    | `account`                                  | Opens a custom label; nested labels keep their slashes (e.g. `label/Work/Projects`).            |
 | `magimail://category/<name>` | `account`                                  | Opens a Gmail category (e.g. `category/social`, `category/updates`).                            |
 | `magimail://compose`         | `to`, `cc`, `bcc`, `su`, `body`, `account` | Opens a compose window pre-filled with recipients, subject, and body text.                      |
@@ -79,7 +80,7 @@ Emails frequently include links to external tools such as Todoist, Notion, Linea
 Magimail strips redirect and tracking wrappers before routing a link, then opens it in the browser chosen in **Settings → General → Opening links**, in the Chromium profile for the account it came from. See [Settings Reference](/help/magimail/settings/#chromium-profiles).
 
 :::tip[Calendar and task links open in Magical]
-When [Magical](/help/magical/getting-started/) is installed, Google Calendar links (dates, events, search, and new event templates) and Google Tasks links clicked inside Magimail automatically open in Magical rather than in a web browser tab.
+When [Magical](/help/magical/getting-started/) is installed, Google Calendar links (dates, events, search, new event templates, and RSVP actions in invitation emails) and Google Tasks links clicked inside Magimail automatically open in Magical rather than in a web browser tab.
 :::
 
 :::tip[Video conference calls]

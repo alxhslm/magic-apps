@@ -10,17 +10,18 @@ account is restored. See
 
 ## Route taxonomy
 
-| Route                        | Parameters                         | Action performed                                                           |
-| :--------------------------- | :--------------------------------- | :------------------------------------------------------------------------- |
-| `magimail://inbox`           | `account`                          | Focuses main window and switches to account inbox.                         |
-| `magimail://sent`            | `account`                          | Opens Sent. Also `drafts`, `starred`, `spam`, `trash`, `all`, `important`. |
-| `magimail://label/<name>`    | `account`                          | Opens a label; nested labels keep their slashes.                           |
-| `magimail://category/<name>` | `account`                          | Opens a category.                                                          |
-| `magimail://thread/<id>`     | `account`, `action`                | Opens the thread, or triages it where `action` specifies.                  |
-| `magimail://search`          | `q`, `query`, `account`            | Runs Gmail search query or focuses search in target view.                  |
-| `magimail://compose`         | `account`, `to`, `su`, `body`      | Launches compose pop-out or triggers in-window compose.                    |
-| `magimail://navigate`        | `url`, `account`                   | Navigates the account's view to an arbitrary Gmail URL.                    |
-| `magimail://share`           | `files`, `text`, `url`, `to`, `su` | Opens compose window and synthesises file drop attachment.                 |
+| Route                        | Parameters                         | Action performed                                                                      |
+| :--------------------------- | :--------------------------------- | :------------------------------------------------------------------------------------ |
+| `magimail://inbox`           | `account`                          | Focuses main window and switches to account inbox.                                    |
+| `magimail://snoozed`         | `account`                          | Opens Snoozed mailbox.                                                                |
+| `magimail://sent`            | `account`                          | Opens Sent. Also `drafts`, `starred`, `snoozed`, `spam`, `trash`, `all`, `important`. |
+| `magimail://label/<name>`    | `account`                          | Opens a label; nested labels keep their slashes.                                      |
+| `magimail://category/<name>` | `account`                          | Opens a category.                                                                     |
+| `magimail://thread/<id>`     | `account`, `action`                | Opens the thread, or triages it where `action` specifies.                             |
+| `magimail://search`          | `q`, `query`, `account`            | Runs Gmail search query or focuses search in target view.                             |
+| `magimail://compose`         | `account`, `to`, `su`, `body`      | Launches compose pop-out or triggers in-window compose.                               |
+| `magimail://navigate`        | `url`, `account`                   | Navigates the account's view to an arbitrary Gmail URL.                               |
+| `magimail://share`           | `files`, `text`, `url`, `to`, `su` | Opens compose window and synthesises file drop attachment.                            |
 
 ### Inbox (`magimail://inbox`)
 
@@ -64,6 +65,11 @@ Activates email composition:
 
 - With `account`: switches to the account and triggers the in-window compose shortcut or detached compose.
 - Without `account`: prompts with the native compose account picker.
+- Web mailto templates (`mail.google.com/mail/?extsrc=mailto&url=mailto:...`) unpack automatically into pre-filled compose fields (`to`, `subject`, `body`, `cc`, `bcc`).
+
+### Query permalinks (`?th=...`)
+
+Print views (`?view=pt&th=...`), popout views (`?view=cv&th=...`), and direct query permalinks (`?th=...`) are detected when no hash fragment is present and routed directly to `magimail://thread/<id>` rather than loading raw webmail.
 
 ### Share Extension (`magimail://share`)
 
