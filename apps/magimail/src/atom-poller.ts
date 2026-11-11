@@ -504,6 +504,29 @@ export class AtomFeedPoller {
   }
 
   /**
+   * Stops polling, tears down all power listeners, marks the poller disposed,
+   * and unlinks the persisted seen-id state file for this account.
+   */
+  public forget(): void {
+    this.destroy();
+    clearPollerState(this.accountId);
+  }
+
+  /**
+   * Deletes persisted atom state for an account without needing an active poller instance.
+   */
+  public static forget(accountId: string): void {
+    clearPollerState(accountId);
+  }
+
+  /**
+   * Sweeps atom-state/ directory on startup, unlinking state files for accounts that are no longer configured.
+   */
+  public static sweepOrphaned(accountIds: readonly string[]): void {
+    pruneOrphanAtomState(accountIds);
+  }
+
+  /**
    * Re-poll shortly, because the renderer signalled that the mailbox changed.
    *
    * This is a *trigger* only: the feed response stays the sole source of the

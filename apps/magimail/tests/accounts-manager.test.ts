@@ -9,11 +9,7 @@ import {
   THREAD_ACTIONS,
   TRIAGE_ACTIONS,
 } from '../src/accounts-manager.js';
-import {
-  pruneOrphanAtomState,
-  forgetMailboxAccount,
-  sweepOrphanedMailboxState,
-} from '../src/mailbox/index.js';
+import { forgetMailboxAccount, sweepOrphanedMailboxState } from '../src/mailbox/index.js';
 import {
   loadUnreadCounts,
   saveUnreadCounts,
@@ -267,7 +263,7 @@ describe('AccountsManager', () => {
     expect(fs.existsSync(orphanFile)).toBe(false);
   });
 
-  it('prunes orphaned atom-state files via pruneOrphanAtomState', () => {
+  it('prunes orphaned atom-state files via sweepOrphanedMailboxState', () => {
     const stateDir = path.join(TEST_USER_DATA, 'atom-state');
     const keepFile = path.join(stateDir, 'acc-configured.json');
     const orphanFile = path.join(stateDir, 'acc-orphaned.json');
@@ -277,7 +273,7 @@ describe('AccountsManager', () => {
     fs.writeFileSync(orphanFile, JSON.stringify({ seenIds: ['2'] }));
     fs.writeFileSync(nonJsonFile, 'ignored');
 
-    pruneOrphanAtomState(['acc-configured']);
+    sweepOrphanedMailboxState(['acc-configured']);
 
     expect(fs.existsSync(keepFile)).toBe(true);
     expect(fs.existsSync(orphanFile)).toBe(false);

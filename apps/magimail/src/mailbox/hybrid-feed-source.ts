@@ -4,8 +4,6 @@ import { createLogger } from '@magimail/core/logger';
 import {
   AtomFeedPoller,
   atomMessageToTrayMessageItem,
-  clearPollerState,
-  pruneOrphanAtomState,
   type AtomMessage,
   type AtomPollCallback,
   type AtomPollResult,
@@ -296,8 +294,9 @@ export class HybridFeedSource implements MailboxSource {
   }
 
   public forget(): void {
+    this.poller.forget();
     this.destroy();
-    forgetMailboxAccount(this.accountId);
+    deleteStoredUnreadCounts(this.accountId);
   }
 
   public getArrivalCount(): number {
@@ -529,7 +528,7 @@ export class HybridFeedSource implements MailboxSource {
  * for an account that has been removed.
  */
 export function forgetMailboxAccount(accountId: string): void {
-  clearPollerState(accountId);
+  AtomFeedPoller.forget(accountId);
   deleteStoredUnreadCounts(accountId);
 }
 
@@ -538,5 +537,5 @@ export function forgetMailboxAccount(accountId: string): void {
  * deleting records for accounts that are no longer configured.
  */
 export function sweepOrphanedMailboxState(activeAccountIds: readonly string[]): void {
-  pruneOrphanAtomState(activeAccountIds);
+  AtomFeedPoller.sweepOrphaned(activeAccountIds);
 }
