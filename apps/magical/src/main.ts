@@ -1057,7 +1057,7 @@ function eventTemplateUrl(link: URL): string | null {
   if (!link.searchParams.get('text') && !link.searchParams.get('dates')) return null;
 
   const fields = new URLSearchParams({ action: 'TEMPLATE' });
-  for (const key of ['text', 'dates', 'details', 'location', 'ctz', 'trp', 'crm']) {
+  for (const key of ['text', 'dates', 'details', 'location', 'ctz', 'trp', 'crm', 'add']) {
     const value = link.searchParams.get(key);
     if (value) fields.set(key, value);
   }
