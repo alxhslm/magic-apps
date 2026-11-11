@@ -853,18 +853,27 @@ function createMainWindow(
     findInPageController?.updateTarget();
   };
   accountsManager.onAccountsChanged = () => {
+    const currentAccounts = accountsManager?.getAccounts() ?? [];
+    const liveIds = new Set(currentAccounts.map((a) => a.id));
+    for (const id of restrictedAccounts) {
+      if (!liveIds.has(id)) restrictedAccounts.delete(id);
+    }
+    for (const id of lastWidgetMessages.keys()) {
+      if (!liveIds.has(id)) lastWidgetMessages.delete(id);
+    }
+
     updateApplicationMenu(preloadPath);
     // The Settings window keeps its own copy of the account list, taken when it
     // opened, so it has to be told when one is added, removed, reordered or
     // renamed — otherwise its Accounts pane goes stale while the toolbar
     // switcher updates.
-    sendToHelper('accounts.update', { accounts: accountsManager?.getAccounts() ?? [] });
+    sendToHelper('accounts.update', { accounts: currentAccounts });
     const focused = accountsManager?.getFocusedAccounts() ?? [];
     const total = calculateAggregateUnread(focused);
-    updateTrayData(focused, total);
+    updateTrayData(focused, total, { isRestricted: restrictedAccounts.size > 0 });
     // The menu bar and tray show everything; the dock badge is the attention
     // surface and counts only categories the user has not silenced.
-    updateDockBadge(calculateAggregateBadge(focused));
+    updateDockBadge(calculateAggregateBadge(focused), accountsManager?.getFocusedArrivals());
   };
   accountsManager.onThreadStateChanged = (isThread) => updateApplicationMenu(preloadPath, isThread);
   accountsManager.onHistoryChanged = () => updateApplicationMenu(preloadPath);

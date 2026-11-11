@@ -654,7 +654,14 @@ export class CalendarService {
     const persisted = this.loadState();
     this.notified = persisted.notified;
     this.arrivals = persisted.activeArrivals ?? [];
-    this.cachedEvents = this.loadEventCache();
+    const loadedEvents = this.loadEventCache();
+    this.cachedEvents = loadedEvents.cache;
+    if (persisted.pruned) {
+      this.persistState();
+    }
+    if (loadedEvents.pruned) {
+      this.persistEventCache();
+    }
     const settings = loadSettings();
     this.badgeMode = settings.dockBadgeMode;
 
@@ -1021,16 +1028,24 @@ export class CalendarService {
       for (const [key, item] of [...this.heldActions]) {
         if (!live.has(item.accountId)) this.heldActions.delete(key);
       }
-      // The persisted suppression list is keyed `google:<accountId>|…`; entries for a gone
-      // account are never matched again and would otherwise be written back for ever.
-      const notified = this.notified.filter((key) => {
+      // The persisted suppression list is keyed `google:<accountId>|…` and `tasks:<accountId>|…`;
+      // entries for a gone account are never matched again and would otherwise be written back for ever.
+      const filterKey = (key: string): boolean => {
         const sep = key.indexOf('|');
         if (sep < 0) return true;
         const source = key.slice(0, sep);
-        return !source.startsWith('google:') || live.has(source.slice('google:'.length));
-      });
+        if (source.startsWith('google:')) return live.has(source.slice('google:'.length));
+        if (source.startsWith('tasks:')) return live.has(source.slice('tasks:'.length));
+        return true;
+      };
+      const notified = this.notified.filter(filterKey);
       if (notified.length !== this.notified.length) {
         this.notified = notified;
+        dropped = true;
+      }
+      const arrivals = this.arrivals.filter(filterKey);
+      if (arrivals.length !== this.arrivals.length) {
+        this.arrivals = arrivals;
         dropped = true;
       }
     }
@@ -1072,15 +1087,32 @@ export class CalendarService {
       if (item.accountId === accountId) this.heldActions.delete(key);
     }
 
-    // Both files are keyed `google:<accountId>|…`, the same shape `syncPollers` reads.
-    const source = `google:${accountId}|`;
-    this.notified = this.notified.filter((key) => !key.startsWith(source));
-    this.arrivals = this.arrivals.filter((key) => !key.startsWith(source));
+    // Both files are keyed `google:<accountId>|…` and `tasks:<accountId>|…`,
+    // the same shape `syncPollers` reads.
+    const googleSource = `google:${accountId}|`;
+    const tasksSource = `tasks:${accountId}|`;
+    this.notified = this.notified.filter(
+      (key) => !key.startsWith(googleSource) && !key.startsWith(tasksSource),
+    );
+    this.arrivals = this.arrivals.filter(
+      (key) => !key.startsWith(googleSource) && !key.startsWith(tasksSource),
+    );
+
+    this.invites.forget(`google:${accountId}`);
+    this.scheduler.forget(`google:${accountId}`);
 
     this.persistEventCache();
     this.persistState();
     this.onEventsUpdated?.(this.cachedEvents);
     this.publishPending();
+  }
+
+  /**
+   * Forgets an account that has been signed out or removed.
+   * Alias for `forgetAccount` to match the suite's subsystem forget contract.
+   */
+  public forget(accountId: string): void {
+    this.forgetAccount(accountId);
   }
 
   /**
@@ -2150,18 +2182,41 @@ export class CalendarService {
    * engine cannot get away with: a banner for a meeting that finished an hour ago is not
    * a stale count, it is a false alarm.
    */
-  private loadState(): PersistedState {
+  private loadState(): PersistedState & { pruned?: boolean } {
     try {
       const parsed = readSecretFile<Partial<PersistedState>>(this.statePath()) ?? {};
+      const live = new Set(this.getAccounts().map((a) => a.id));
+      const filterKey = (key: string): boolean => {
+        const sep = key.indexOf('|');
+        if (sep < 0) return true;
+        const source = key.slice(0, sep);
+        if (source.startsWith('google:')) {
+          return live.has(source.slice('google:'.length));
+        }
+        if (source.startsWith('tasks:')) {
+          return live.has(source.slice('tasks:'.length));
+        }
+        return true;
+      };
+      const rawNotified = Array.isArray(parsed.notified) ? parsed.notified : [];
+      const rawArrivals = Array.isArray(parsed.activeArrivals) ? parsed.activeArrivals : [];
+      const notified = rawNotified.filter(filterKey);
+      const activeArrivals = rawArrivals.filter(filterKey);
+      const pruned =
+        notified.length !== rawNotified.length || activeArrivals.length !== rawArrivals.length;
+      if (pruned) {
+        log.info('Pruned unconfigured account alerts and arrivals from startup state');
+      }
       return {
-        notified: Array.isArray(parsed.notified) ? parsed.notified : [],
-        activeArrivals: Array.isArray(parsed.activeArrivals) ? parsed.activeArrivals : [],
+        notified,
+        activeArrivals,
+        pruned,
       };
     } catch (err) {
       // Discarded rather than nursed back: an empty record risks repeating one banner,
       // and the next alert to fire rewrites the file.
       log.warn('could not read the alert record; starting from an empty one:', err);
-      return { notified: [], activeArrivals: [] };
+      return { notified: [], activeArrivals: [], pruned: false };
     }
   }
 
@@ -2196,12 +2251,18 @@ export class CalendarService {
    * stops a restart replaying the morning's meetings, so seeding the cache cannot
    * resurrect an alert that has already fired.
    */
-  private loadEventCache(): Map<string, NormalizedCalendarEvent[]> {
+  private loadEventCache(): { cache: Map<string, NormalizedCalendarEvent[]>; pruned: boolean } {
     const cache = new Map<string, NormalizedCalendarEvent[]>();
+    let pruned = false;
     try {
       const parsed = readSecretFile<Partial<PersistedEventCache>>(this.eventCachePath()) ?? {};
+      const live = new Set(this.getAccounts().map((a) => a.id));
       let total = 0;
       for (const [accountId, events] of Object.entries(parsed.events ?? {})) {
+        if (!live.has(accountId)) {
+          pruned = true;
+          continue;
+        }
         if (!Array.isArray(events)) continue;
         const revived = events
           .map((e) => this.reviveEvent(e))
@@ -2211,12 +2272,15 @@ export class CalendarService {
         total += revived.length;
       }
       if (total > 0) log.info(`Seeded ${total} event(s) from the last good read`);
+      if (pruned) {
+        log.info('Pruned unconfigured accounts from startup event cache');
+      }
     } catch (err) {
       // A cache that will not read is discarded rather than repaired: it is an
       // optimisation for this launch, and the next poll refills it.
       log.warn('could not read the event cache; the next poll refills it:', err);
     }
-    return cache;
+    return { cache, pruned };
   }
 
   /**

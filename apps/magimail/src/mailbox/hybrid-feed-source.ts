@@ -4,7 +4,6 @@ import { createLogger } from '@magimail/core/logger';
 import {
   AtomFeedPoller,
   atomMessageToTrayMessageItem,
-  clearPollerState,
   type AtomMessage,
   type AtomPollCallback,
   type AtomPollResult,
@@ -26,7 +25,7 @@ import type {
   VerificationCodeItem,
 } from './types.js';
 import { UnreadLedger } from './unread-ledger.js';
-import { saveUnreadCounts } from './unread-count-store.js';
+import { UnreadCountStore, saveUnreadCounts } from './unread-count-store.js';
 
 /** How many times a hint re-reads the cache, and how far apart. */
 /** How long to wait before storing changed counts. */
@@ -295,8 +294,9 @@ export class HybridFeedSource implements MailboxSource {
   }
 
   public forget(): void {
+    this.poller.forget();
     this.destroy();
-    clearPollerState(this.accountId);
+    UnreadCountStore.forget(this.accountId);
   }
 
   public getArrivalCount(): number {
@@ -521,4 +521,22 @@ export class HybridFeedSource implements MailboxSource {
       }
     }
   }
+}
+
+/**
+ * Forgets and clears all persisted mailbox state (unread counts and seen-id atom state)
+ * for an account that has been removed.
+ */
+export function forgetMailboxAccount(accountId: string): void {
+  AtomFeedPoller.forget(accountId);
+  UnreadCountStore.forget(accountId);
+}
+
+/**
+ * Sweeps all persisted mailbox state on disk (atom-state files and unread-counts) on startup,
+ * deleting records for accounts that are no longer configured.
+ */
+export function sweepOrphanedMailboxState(activeAccountIds: readonly string[]): void {
+  AtomFeedPoller.sweepOrphaned(activeAccountIds);
+  UnreadCountStore.sweepOrphaned(activeAccountIds);
 }
