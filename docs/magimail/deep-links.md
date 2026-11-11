@@ -71,6 +71,19 @@ Invoked by the macOS Share extension (`MagimailShare.appex`) to hand staged atta
 Electron Main. See [`share-and-handlers.md`](share-and-handlers.md) for full payload specification and file
 security checks.
 
+### Navigation and Calendar Source (`magimail://navigate`)
+
+Navigates an account's WebContentsView to an authorized Gmail URL (`mail.google.com` or `gmail.com`).
+
+```text
+magimail://navigate?url=https%3A%2F%2Fmail.google.com%2Fmail%2Fu%2F0%2F%23settings%2Flabels&account=work-account
+```
+
+When `url` points to a calendar event source link (`extsrc=cal` and `plid=...`), Magimail does not render
+the standalone card webview into the main window. Instead, it resolves the `plid` token in the background,
+extracts the real thread ID, and routes the main window directly to `#inbox/<threadId>`. If resolution fails,
+it falls back to a clean detached window.
+
 ## Outbound links
 
 External links clicked in email bodies, detached thread views, and compose popouts are intercepted by

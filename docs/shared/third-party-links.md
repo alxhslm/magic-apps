@@ -74,6 +74,7 @@ other's deep link:
 | `mail.google.com/mail/u/N/#label/<name>`               | `magimail://label/<name>`                        |
 | `mail.google.com/mail/u/N/#category/<name>`            | `magimail://category/<name>`                     |
 | `mail.google.com/mail/?view=cm&to=…`                   | `magimail://compose?to=…`                        |
+| `mail.google.com/mail?extsrc=cal&plid=…`               | `magimail://navigate?url=…` (resolves to thread) |
 | Other Gmail URLs (settings, etc.)                      | `magimail://navigate?url=…`                      |
 | `calendar.google.com/…/day/2026/11/5`                  | `magical://date?at=2026-11-05T00:00:00.000Z`     |
 | `calendar.google.com/…?eid=<eid>`                      | `magical://event?eid=<eid>&action=reveal`        |
@@ -86,10 +87,20 @@ The `u/<n>` segment is the browser's sign-in order, not one of our account ids, 
 When the originating account's email is known, `openExternalUrl` passes `account=<email>` in the
 deep link. Both apps resolve `account` by internal id or verified email, activating the matching
 account. When multiple accounts exist and `account` is omitted for a specific thread
-(`magimail://thread/<id>`), event (`magical://event?eid=...`), or external template quick-add
+(`magimail://thread/<id>`), event (`magical://event?eid=...`), calendar-source link
+(`magimail://navigate?url=...extsrc=cal...`), or external template quick-add
 (`magical://quick-add`), the app prompts with an account selector dialog rather than guessing
 the active account. Generic routes (`open`, `inbox`, `search`, `tasks`, `date`) fall back to the
-active account. The day path becomes midnight, because the calendar side either reveals an event,
+active account.
+
+Calendar events created automatically from Gmail (flights, reservations, confirmations) embed a source
+link (`mail.google.com/mail?extsrc=cal&plid=...`). In the browser, this displays a stripped-down
+standalone card webview. `crossAppLink` routes these to `magimail://navigate?url=...`; Magimail resolves
+the server-side `plid` token in the background and opens the originating conversation natively in the
+main window (`#inbox/<threadId>`). If resolution cannot be completed, it falls back to a clean detached
+thread window rather than navigating the main window away.
+
+The day path becomes midnight, because the calendar side either reveals an event,
 which is a moment, or opens a day, which is a date.
 
 `openExternalUrl` uses the deep link only when the other app is installed, asked by bundle id.

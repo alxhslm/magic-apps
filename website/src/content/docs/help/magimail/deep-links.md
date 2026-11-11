@@ -14,7 +14,7 @@ Magimail registers the native macOS `magimail://` URL scheme, allowing you to tr
 | `magimail://label/<name>`    | `account`                                  | Opens a custom label; nested labels keep their slashes (e.g. `label/Work/Projects`).            |
 | `magimail://category/<name>` | `account`                                  | Opens a Gmail category (e.g. `category/social`, `category/updates`).                            |
 | `magimail://compose`         | `to`, `cc`, `bcc`, `su`, `body`, `account` | Opens a compose window pre-filled with recipients, subject, and body text.                      |
-| `magimail://navigate`        | `url`, `account`                           | Navigates the Gmail view to an arbitrary Gmail URL.                                             |
+| `magimail://navigate`        | `url`, `account`                           | Navigates the Gmail view to an arbitrary Gmail URL (or resolves calendar events to threads).    |
 | `magimail://share`           | `files` (repeated), `text`, `url`, `to`    | Opens a compose window with attached files staged from Finder or external scripts.              |
 | `magimail://search`          | `q` or `query`, `account`                  | Runs a search query directly in Gmail.                                                          |
 | `magimail://thread/<id>`     | `account`, `action`                        | Opens the thread, or executes an action (`open`, `archive`, `trash`, `markRead`, `markUnread`). |
@@ -25,6 +25,10 @@ The `account` parameter accepts either an internal account identifier (such as `
 
 :::tip[Headless background triage]
 When a deep link includes a triage action such as `action=archive`, `action=trash` or `action=markRead`, Magimail applies the change in the background without opening the main window or taking focus from the app you are in.
+:::
+
+:::tip[Calendar event sources resolve to native threads]
+When navigating to an automated event source link (`mail.google.com/mail?extsrc=cal&plid=...`) from Google Calendar, Magimail resolves the event in the background and opens the full conversation directly in your inbox view, instead of loading a stripped-down standalone webview.
 :::
 
 ## Examples
