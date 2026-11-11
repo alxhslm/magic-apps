@@ -70,6 +70,34 @@ must not change a key or an ordering:
 - The helpers' `yyyy-MM-dd` day keys name a day in a snapshot or a dots map.
 - The `yyyy-MM-dd HH:mm:ss` log stamps exist to be read in a log.
 
+## First day of the week
+
+The region decides it, and the Mac has its own control for it under System Settings, General,
+Language & Region, First day of week. `Calendar.current.firstWeekday` reports the result in Apple's
+numbering, 1 = Sunday through 7 = Saturday. It does not follow a hand-written `AppleFirstWeekday` in
+the global domain, so a test that writes that key reads its own machine's region regardless.
+
+Google Calendar has a Start of the week setting of its own, per Google account, and it defaults to
+the locale rather than to the Mac. The Calendar API does not expose it and nothing in the page's
+markup names it as a setting, so the only place to read it is the grid: the earliest
+`[role="main"] [data-datekey]` cell is the week's first day in Week and 4-Day view, and the lead
+padding in Month view. That is what makes the companion sidebar unable to disagree with the calendar
+beside it, which is its whole purpose.
+
+| Surface                                        | Week starts on                                   | Where it is read                                                      |
+| :--------------------------------------------- | :----------------------------------------------- | :-------------------------------------------------------------------- |
+| Companion sidebar                              | Google Calendar's first weekday for that account | The grid's earliest visible cell, relayed on `magical:gcal-view-mode` |
+| Companion sidebar, first frame of a session    | The same, as last reported                       | `firstWeekdayByAccount` in `settings.json`                            |
+| Companion sidebar, first launch for an account | The Mac's first weekday                          | `Calendar.current.firstWeekday`, until a grid reports one             |
+| Menu bar popover mini month                    | The Mac's first weekday                          | `Calendar.current.firstWeekday`                                       |
+| Widgets mini month                             | The Mac's first weekday                          | `Calendar.current.firstWeekday`                                       |
+
+The popover and the widgets cannot follow Google: a widget renders with no web view to ask, and an
+override in Google's settings would leave them disagreeing with the sidebar. They follow the region,
+which is what Google itself defaults to. `firstWeekdayByAccount` is stored rather than re-read on
+launch so the sidebar's first frame is right, and it can go stale while Magical is shut, because
+Google's setting syncs across devices; the first grid report of a session corrects it.
+
 ## Timezone
 
 The zone is the Mac's too: every native surface renders in `.current`, and Electron's process-local

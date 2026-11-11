@@ -159,7 +159,10 @@ screen.
 
 ### Mini-month grid
 
-Seven columns, Monday first regardless of locale, with neighbouring months' days filling the grid out.
+Seven columns starting on the Mac's first day of the week, with neighbouring months' days filling the
+grid out. The popover has no Google Calendar grid beside it to agree with and a widget has no web
+view to ask, so both take the region's answer; only the companion sidebar follows Google's own
+setting. See [`time-and-locale.md`](time-and-locale.md#first-day-of-the-week).
 Each day shows up to four dots, one per distinct calendar colour with an event that day, from
 `TrayModel.densityDotsByDay`. Today carries a solid disc and the selection a ring, so the two states
 compose. Clicking a day calls `requestScrollTo(date:)`, and scrolling the agenda calls `selectDate(_:)`,
