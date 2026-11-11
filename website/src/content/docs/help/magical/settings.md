@@ -41,8 +41,28 @@ Magical's date and time formats follow your Mac.
 
 - **12- or 24-hour clock**: the **24-Hour Time** switch in **System Settings → General → Date & Time**. On, a meeting reads `14:35`; off, `2:35 pm`.
 - **Date order and language**: **System Settings → General → Language & Region**. A British Mac reads `18 Oct`, an American one `Oct 18`.
+- **First day of the week**: also **Language & Region**, under **First day of week**. The menu bar popover and the widgets start their weeks on that day.
 
-Relaunch Magical after changing either, so the menu bar, popover, sidebar, banners and widgets all pick it up together.
+Relaunch Magical after changing any of them, so the menu bar, popover, sidebar, banners and widgets all pick it up together.
+
+#### The companion sidebar's week
+
+The [companion sidebar](/help/magical/sidebar/) sits beside Google Calendar's own grid, so its week starts on **Google Calendar's** first day rather than the Mac's. Google keeps that setting in your Google account, not in Magical:
+
+1. Open Google Calendar in your browser.
+2. Go to **Settings** → **General** → **Start of the week**.
+3. Choose **Sunday**, **Monday** or **Saturday**, or leave it on the locale default.
+
+The sidebar follows within a moment, without relaunching Magical.
+
+#### Checking that they match
+
+Compare the first column of the sidebar's week strip with the first column of Google Calendar's grid; they are the same day. Two cases can look like a fault and are not:
+
+- **Your sidebar and popover start on different days.** The two surfaces follow different sources, so this happens when Google's Start of the week is not the same as your Mac's first day. Set one to match the other if you would rather they agree.
+- **Your week start changes when you switch accounts.** Start of the week belongs to each Google account, so two accounts can hold different answers, and the sidebar follows whichever one is on screen.
+
+If the sidebar does not match the grid beside it, quit and reopen Magical; if it still does not, check that Google Calendar's grid itself moved, because the sidebar always copies what is drawn there.
 
 ---
 
