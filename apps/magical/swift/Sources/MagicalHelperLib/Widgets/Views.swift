@@ -288,8 +288,7 @@ struct EmptyState: View {
 // MARK: - Mini month grid
 
 /// Seven columns, starting on the Mac's first day of the week, as the popover's grid
-/// does. A widget renders with Google Calendar closed, so the region is the only source for
-/// the first day of the week. Under each numeral sit up to four dots,
+/// does. Under each numeral sit up to four dots,
 /// one per distinct calendar with something on that day; a day with nine calendars on it
 /// should still read as busy rather than as a smear.
 struct MiniMonthGrid: View {

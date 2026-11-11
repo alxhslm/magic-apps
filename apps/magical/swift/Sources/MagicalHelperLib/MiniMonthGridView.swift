@@ -2,9 +2,9 @@ import SwiftUI
 
 /// What the mini month derives from the week's first day.
 ///
-/// Both answers are the whole reason this is not arithmetic inside the view: the grid in the
-/// sidebar begins on the day Google Calendar begins its weeks, the popover's on the Mac's, and
-/// a test has to be able to ask each one the same question.
+/// Both answers are the whole reason this is not arithmetic inside the view: the sidebar
+/// begins on the day Google Calendar begins its weeks, the popover on the Mac's, and a test has
+/// to be able to ask each one the same question.
 public enum MiniMonthLayout {
     /// The locale's own short weekday letters, rotated so the week's first day leads.
     ///
@@ -37,8 +37,8 @@ public struct MiniMonthGridView: View {
     public let displayedMonth: Date
     public let selectedDate: Date
     public let densityDots: [String: [Color]]
-    /// The day this grid's weeks start on, from the source that decides it: Google Calendar
-    /// for the sidebar, the Mac's region for the popover.
+    /// The day this grid's weeks start on: Google Calendar's for the sidebar, the Mac's
+    /// region for the popover.
     public let firstWeekday: Int
     public let onSelectDate: (Date) -> Void
 

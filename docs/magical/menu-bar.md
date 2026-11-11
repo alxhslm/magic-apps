@@ -160,9 +160,7 @@ screen.
 ### Mini-month grid
 
 Seven columns starting on the Mac's first day of the week, with neighbouring months' days filling the
-grid out. The first day of the week comes from the region, as it does on the widgets, because a
-widget has no web view to read a grid from and the popover has no grid beside it. The companion
-sidebar is the surface that takes its first day from Google's own setting. See
+grid out. The widgets match it. See
 [`time-and-locale.md`](time-and-locale.md#first-day-of-the-week).
 Each day shows up to four dots, one per distinct calendar colour with an event that day, from
 `TrayModel.densityDotsByDay`. Today carries a solid disc and the selection a ring, so the two states

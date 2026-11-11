@@ -75,8 +75,7 @@ with the day underneath.
 Dots are calendar colours and they stop at four, so a day with nine calendars on it still reads as
 busy rather than as a smear. **An event marks every day it covers**, not only the day it starts. Today
 is a solid blue disc with white numerals. Weeks start on the Mac's first day of the week, as the
-popover's grid does, because a widget renders with Google Calendar closed and the region is the only
-source either surface has. See
+popover's grid does. See
 [`time-and-locale.md`](time-and-locale.md#first-day-of-the-week).
 
 A widget cannot select a day, so the selection the popover tracks does not exist here: the day shown

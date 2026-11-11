@@ -92,11 +92,11 @@ calendar beside it.
 | Menu bar popover mini month                    | The Mac's first weekday                          | `Calendar.current.firstWeekday`                                       |
 | Widgets mini month                             | The Mac's first weekday                          | `Calendar.current.firstWeekday`                                       |
 
-The popover and the widgets have no Google grid to read: a widget renders with no web view, and an
-override in Google's settings would leave them on a different first day from the sidebar. They take
-the region's answer, which is what Google itself defaults to. `firstWeekdayByAccount` is stored rather than re-read on
-launch so the sidebar's first frame is right, and it can go stale while Magical is shut, because
-Google's setting syncs across devices; the first grid report of a session corrects it.
+The popover and the widgets match the Mac's setting.
+
+`firstWeekdayByAccount` is stored rather than re-read on launch so the sidebar's first frame is
+right, and it can go stale while Magical is shut, because Google's setting syncs across devices; the
+first grid report of a session corrects it.
 
 **Two accounts can disagree.** Start of the week is per Google account, so on one Mac a Sunday can
 end the week on one account and start it on another, and the sidebar's first column moves when the
