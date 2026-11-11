@@ -17,14 +17,22 @@ import UniformTypeIdentifiers
 /// redirecting links for someone who only ever agreed to `.ics`.
 @MainActor
 public enum DefaultHandler {
-    /// A claim Magical can make. Only `.ics` is claimable today, because it is the only
-    /// one Magical can actually service; the rest wait for the flows that handle them.
+    /// A claim Magical can make. Supports `.ics` calendar files and `webcal` feeds.
     public enum Target: String, CaseIterable {
         case ics
+        case webcal
 
         var contentType: UTType? {
             switch self {
             case .ics: UTType("com.apple.ical.ics")
+            case .webcal: nil
+            }
+        }
+
+        var urlScheme: String? {
+            switch self {
+            case .ics: nil
+            case .webcal: "webcal"
             }
         }
 
@@ -32,6 +40,7 @@ public enum DefaultHandler {
         var label: String {
             switch self {
             case .ics: String(localized: "Calendar files (.ics)")
+            case .webcal: String(localized: "Calendar feeds (webcal://)")
             }
         }
     }
@@ -52,12 +61,22 @@ public enum DefaultHandler {
     /// handler in Finder's Get Info panel whenever they like, and a settings row showing
     /// what Magical last set would be a row that lies.
     public static func current(_ target: Target) -> (name: String, isMagical: Bool)? {
-        guard let type = target.contentType, let handler = NSWorkspace.shared.urlsForApplications(toOpen: type).first else {
-            return nil
+        if let type = target.contentType {
+            guard let handler = NSWorkspace.shared.urlsForApplications(toOpen: type).first else {
+                return nil
+            }
+            let name = FileManager.default.displayName(atPath: handler.path)
+            return (name, handler == appBundle)
+        } else if let scheme = target.urlScheme {
+            guard let dummyUrl = URL(string: "\(scheme):"),
+                  let handler = NSWorkspace.shared.urlForApplication(toOpen: dummyUrl)
+            else {
+                return nil
+            }
+            let name = FileManager.default.displayName(atPath: handler.path)
+            return (name, handler == appBundle)
         }
-
-        let name = FileManager.default.displayName(atPath: handler.path)
-        return (name, handler == appBundle)
+        return nil
     }
 
     /// Whether claiming could work at all, so the settings row can say why it cannot.
@@ -71,25 +90,37 @@ public enum DefaultHandler {
     /// the handler for a type — the only way back is to name a different app — so nothing
     /// here offers to undo it, and the settings row is a button rather than a switch.
     public static func claim(_ target: Target, completion: @escaping (String?) -> Void) {
-        guard let type = target.contentType else {
-            completion(String(localized: "macOS does not recognize that file type"))
-            return
-        }
         guard let bundle = appBundle else {
             completion(String(localized: "Magical is not running from an app bundle"))
             return
         }
 
-        HelperLog.info("Defaults", "Claiming \(target.rawValue) for \(bundle.lastPathComponent)")
-        NSWorkspace.shared.setDefaultApplication(at: bundle, toOpen: type) { error in
-            Task { @MainActor in
-                if let error {
-                    HelperLog.warn("Defaults", "Claim failed: \(error.localizedDescription)")
-                    completion(error.localizedDescription)
-                } else {
-                    completion(nil)
+        if let type = target.contentType {
+            HelperLog.info("Defaults", "Claiming \(target.rawValue) for \(bundle.lastPathComponent)")
+            NSWorkspace.shared.setDefaultApplication(at: bundle, toOpen: type) { error in
+                Task { @MainActor in
+                    if let error {
+                        HelperLog.warn("Defaults", "Claim failed: \(error.localizedDescription)")
+                        completion(error.localizedDescription)
+                    } else {
+                        completion(nil)
+                    }
                 }
             }
+        } else if let scheme = target.urlScheme {
+            HelperLog.info("Defaults", "Claiming scheme \(scheme) for \(bundle.lastPathComponent)")
+            NSWorkspace.shared.setDefaultApplication(at: bundle, toOpenURLsWithScheme: scheme) { error in
+                Task { @MainActor in
+                    if let error {
+                        HelperLog.warn("Defaults", "Claim failed: \(error.localizedDescription)")
+                        completion(error.localizedDescription)
+                    } else {
+                        completion(nil)
+                    }
+                }
+            }
+        } else {
+            completion(String(localized: "macOS does not recognize that type"))
         }
     }
 

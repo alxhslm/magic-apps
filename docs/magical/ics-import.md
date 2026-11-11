@@ -191,8 +191,8 @@ identity, so it is the one that can name the bundle.
 macOS exposes no "default calendar app" role. Mail and the browser are the only two roles System
 Settings offers; everything else is tracked per content type and per URL scheme, which is why
 `.ics`, `webcal:` and `ical:` can be owned by three different apps at once on the same Mac.
-`DefaultHandler.Target` mirrors that, and carries one case because `.ics` is the only thing Magical
-can service.
+`DefaultHandler.Target` mirrors that, offering separate claim targets for calendar files (`.ics`)
+and calendar feed subscriptions (`webcal:`).
 
 ### The claim button
 
