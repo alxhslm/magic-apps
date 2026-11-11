@@ -94,10 +94,12 @@ vi.mock('electron', () => {
     },
     print: vi.fn(),
     printToPDF: vi.fn().mockResolvedValue(Buffer.from('%PDF-1.4 test')),
-    canGoBack: vi.fn().mockReturnValue(true),
-    goBack: vi.fn(),
-    canGoForward: vi.fn().mockReturnValue(true),
-    goForward: vi.fn(),
+    navigationHistory: {
+      canGoBack: vi.fn().mockReturnValue(true),
+      goBack: vi.fn(),
+      canGoForward: vi.fn().mockReturnValue(true),
+      goForward: vi.fn(),
+    },
   };
 
   class MockWebContentsView {
@@ -1003,21 +1005,25 @@ describe('AccountsManager', () => {
     (activeView?.webContents.getURL as unknown as Mock).mockReturnValue(
       'https://mail.google.com/mail/u/0/#inbox',
     );
-    (activeView!.webContents.canGoBack as unknown as Mock).mockReturnValue(true);
+    (activeView!.webContents.navigationHistory.canGoBack as unknown as Mock).mockReturnValue(true);
     expect(accountsManager.canGoBack()).toBe(true);
     expect(accountsManager.goBack()).toBe(true);
-    expect(activeView!.webContents.goBack).toHaveBeenCalledTimes(1);
+    expect(activeView!.webContents.navigationHistory.goBack).toHaveBeenCalledTimes(1);
 
-    (activeView!.webContents.canGoBack as unknown as Mock).mockReturnValue(false);
+    (activeView!.webContents.navigationHistory.canGoBack as unknown as Mock).mockReturnValue(false);
     expect(accountsManager.canGoBack()).toBe(false);
     expect(accountsManager.goBack()).toBe(false);
 
-    (activeView!.webContents.canGoForward as unknown as Mock).mockReturnValue(true);
+    (activeView!.webContents.navigationHistory.canGoForward as unknown as Mock).mockReturnValue(
+      true,
+    );
     expect(accountsManager.canGoForward()).toBe(true);
     expect(accountsManager.goForward()).toBe(true);
-    expect(activeView!.webContents.goForward).toHaveBeenCalledTimes(1);
+    expect(activeView!.webContents.navigationHistory.goForward).toHaveBeenCalledTimes(1);
 
-    (activeView!.webContents.canGoForward as unknown as Mock).mockReturnValue(false);
+    (activeView!.webContents.navigationHistory.canGoForward as unknown as Mock).mockReturnValue(
+      false,
+    );
     expect(accountsManager.canGoForward()).toBe(false);
     expect(accountsManager.goForward()).toBe(false);
   });
@@ -1029,7 +1035,7 @@ describe('AccountsManager', () => {
     (activeView?.webContents.getURL as unknown as Mock).mockReturnValue(
       'https://mail.google.com/mail/u/0/#inbox/FMfcgzGxT123456789',
     );
-    (activeView!.webContents.canGoBack as unknown as Mock).mockReturnValue(false);
+    (activeView!.webContents.navigationHistory.canGoBack as unknown as Mock).mockReturnValue(false);
 
     expect(accountsManager.canGoBack()).toBe(true);
     expect(accountsManager.goBack()).toBe(true);

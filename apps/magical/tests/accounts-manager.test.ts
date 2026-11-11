@@ -76,10 +76,12 @@ vi.mock('electron', () => {
         executeJavaScript: vi.fn().mockResolvedValue(false),
         sendInputEvent: vi.fn(),
         focus: vi.fn(),
-        canGoBack: vi.fn().mockReturnValue(true),
-        goBack: vi.fn(),
-        canGoForward: vi.fn().mockReturnValue(true),
-        goForward: vi.fn(),
+        navigationHistory: {
+          canGoBack: vi.fn().mockReturnValue(true),
+          goBack: vi.fn(),
+          canGoForward: vi.fn().mockReturnValue(true),
+          goForward: vi.fn(),
+        },
       } as unknown as MockWebContents;
       constructedViews.push(this as unknown as MockView);
     }
@@ -397,23 +399,29 @@ describe('AccountsManager in Magical', () => {
       const view = manager.getActiveView();
       expect(view).toBeDefined();
 
-      (view!.webContents.canGoBack as unknown as ReturnType<typeof vi.fn>).mockReturnValue(true);
+      (
+        view!.webContents.navigationHistory.canGoBack as unknown as ReturnType<typeof vi.fn>
+      ).mockReturnValue(true);
       expect(manager.canGoBack()).toBe(true);
       expect(manager.goBack()).toBe(true);
-      expect(view!.webContents.goBack).toHaveBeenCalledTimes(1);
+      expect(view!.webContents.navigationHistory.goBack).toHaveBeenCalledTimes(1);
 
-      (view!.webContents.canGoBack as unknown as ReturnType<typeof vi.fn>).mockReturnValue(false);
+      (
+        view!.webContents.navigationHistory.canGoBack as unknown as ReturnType<typeof vi.fn>
+      ).mockReturnValue(false);
       expect(manager.canGoBack()).toBe(false);
       expect(manager.goBack()).toBe(false);
 
-      (view!.webContents.canGoForward as unknown as ReturnType<typeof vi.fn>).mockReturnValue(true);
+      (
+        view!.webContents.navigationHistory.canGoForward as unknown as ReturnType<typeof vi.fn>
+      ).mockReturnValue(true);
       expect(manager.canGoForward()).toBe(true);
       expect(manager.goForward()).toBe(true);
-      expect(view!.webContents.goForward).toHaveBeenCalledTimes(1);
+      expect(view!.webContents.navigationHistory.goForward).toHaveBeenCalledTimes(1);
 
-      (view!.webContents.canGoForward as unknown as ReturnType<typeof vi.fn>).mockReturnValue(
-        false,
-      );
+      (
+        view!.webContents.navigationHistory.canGoForward as unknown as ReturnType<typeof vi.fn>
+      ).mockReturnValue(false);
       expect(manager.canGoForward()).toBe(false);
       expect(manager.goForward()).toBe(false);
     });

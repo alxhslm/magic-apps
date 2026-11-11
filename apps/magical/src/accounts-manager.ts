@@ -331,8 +331,8 @@ export class AccountsManager {
 
   public goBack(): boolean {
     const view = this.getActiveView();
-    if (viewIsAlive(view) && view.webContents.canGoBack()) {
-      view.webContents.goBack();
+    if (viewIsAlive(view) && view.webContents.navigationHistory.canGoBack()) {
+      view.webContents.navigationHistory.goBack();
       return true;
     }
     return false;
@@ -340,8 +340,8 @@ export class AccountsManager {
 
   public goForward(): boolean {
     const view = this.getActiveView();
-    if (viewIsAlive(view) && view.webContents.canGoForward()) {
-      view.webContents.goForward();
+    if (viewIsAlive(view) && view.webContents.navigationHistory.canGoForward()) {
+      view.webContents.navigationHistory.goForward();
       return true;
     }
     return false;
@@ -349,12 +349,12 @@ export class AccountsManager {
 
   public canGoBack(): boolean {
     const view = this.getActiveView();
-    return Boolean(viewIsAlive(view) && view.webContents.canGoBack());
+    return Boolean(viewIsAlive(view) && view.webContents.navigationHistory.canGoBack());
   }
 
   public canGoForward(): boolean {
     const view = this.getActiveView();
-    return Boolean(viewIsAlive(view) && view.webContents.canGoForward());
+    return Boolean(viewIsAlive(view) && view.webContents.navigationHistory.canGoForward());
   }
 
   /**
