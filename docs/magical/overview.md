@@ -304,9 +304,9 @@ Three actions take data back, and each sits where the scope it clears is visible
   Other accounts and the global settings stay. The partition directory itself stays until the next
   launch's `pruneOrphanPartitions` sweep, rather than the removal, because Chromium may still hold the
   files open. Startup sweeps unconfigured account IDs in `settings.json` (`lastActiveAccountId`,
-  `hiddenCalendars`, `disabledAlertCalendarIds`), and startup cache loaders (`loadEventCache` and
-  `alert-state.json`) prune keys for unconfigured accounts before re-arming, sweeping any state left
-  behind by an interrupted removal or a crash.
+  `hiddenCalendars`, `disabledAlertCalendarIds`, `firstWeekdayByAccount`), and startup cache loaders
+  (`loadEventCache` and `alert-state.json`) prune keys for unconfigured accounts before re-arming,
+  sweeping any state left behind by an interrupted removal or a crash.
 - **Remove All App Data and Quit…**, on its own above Quit in the app menu, removes everything the
   install wrote and then quits. It is the only one of the three that leaves nothing behind, and the
   only cleanup that can run at all: macOS runs no code when a bundle is deleted and never clears its

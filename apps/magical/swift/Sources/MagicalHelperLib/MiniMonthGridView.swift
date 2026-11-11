@@ -1,37 +1,66 @@
 import SwiftUI
 
+/// What the mini month derives from the week's first day.
+///
+/// Both answers are the whole reason this is not arithmetic inside the view: the sidebar
+/// begins on the day Google Calendar begins its weeks, the popover on the Mac's, and a test has
+/// to be able to ask each one the same question.
+public enum MiniMonthLayout {
+    /// The locale's own short weekday letters, rotated so the week's first day leads.
+    ///
+    /// The letters are not ours to spell out: a locale that starts its week on Sunday, or
+    /// does not use Latin letters, would be shown the wrong seven either way.
+    public static func weekdaySymbols(firstWeekday: Int, locale: Locale = .current) -> [String] {
+        let symbols = calendar(firstWeekday: firstWeekday, locale: locale).veryShortWeekdaySymbols
+        let offset = (firstWeekday - 1) % symbols.count
+        return Array(symbols[offset...] + symbols[..<offset])
+    }
+
+    /// How many days of the previous month fill the first row before the 1st.
+    public static func leadDays(of date: Date, firstWeekday: Int, locale: Locale = .current) -> Int {
+        let calendar = calendar(firstWeekday: firstWeekday, locale: locale)
+        let weekday = calendar.component(.weekday, from: date)
+        return (weekday - firstWeekday + 7) % 7
+    }
+
+    static func calendar(firstWeekday: Int, locale: Locale) -> Calendar {
+        var calendar = Calendar.current
+        calendar.firstWeekday = (1 ... 7).contains(firstWeekday)
+            ? firstWeekday
+            : Calendar.current.firstWeekday
+        calendar.locale = locale
+        return calendar
+    }
+}
+
 public struct MiniMonthGridView: View {
     public let displayedMonth: Date
     public let selectedDate: Date
     public let densityDots: [String: [Color]]
+    /// The day this grid's weeks start on: Google Calendar's for the sidebar, the Mac's
+    /// region for the popover.
+    public let firstWeekday: Int
     public let onSelectDate: (Date) -> Void
 
     private var calendar: Calendar {
-        var calendar = Calendar.current
-        calendar.firstWeekday = 2
-        calendar.locale = .current
-        return calendar
+        MiniMonthLayout.calendar(firstWeekday: firstWeekday, locale: .current)
     }
 
-    /// `M T W T F S S`, from the user's locale and rotated to Monday, the day the
-    /// grid starts on. The letters are not ours to spell out: a locale that starts
-    /// its week on Sunday, or does not use Latin letters, would be shown the wrong
-    /// seven either way.
     private var weekdaySymbols: [String] {
-        let symbols = calendar.veryShortWeekdaySymbols
-        let offset = calendar.firstWeekday - 1
-        return Array(symbols[offset...] + symbols[..<offset])
+        MiniMonthLayout.weekdaySymbols(firstWeekday: firstWeekday)
     }
 
     public init(
         displayedMonth: Date,
         selectedDate: Date,
         densityDots: [String: [Color]],
+        firstWeekday: Int,
         onSelectDate: @escaping (Date) -> Void
     ) {
         self.displayedMonth = displayedMonth
         self.selectedDate = selectedDate
         self.densityDots = densityDots
+        self.firstWeekday = firstWeekday
         self.onSelectDate = onSelectDate
     }
 
@@ -140,10 +169,7 @@ public struct MiniMonthGridView: View {
         }
 
         let firstDayOfMonth = monthInterval.start
-        // Align to Monday start (1=Sunday, 2=Monday, ..., 7=Saturday in Apple Calendar)
-        let weekday = calendar.component(.weekday, from: firstDayOfMonth)
-        // Monday=0, Tuesday=1, ..., Sunday=6
-        let leadDays = (weekday + 5) % 7
+        let leadDays = MiniMonthLayout.leadDays(of: firstDayOfMonth, firstWeekday: firstWeekday)
 
         var items: [DayGridItem] = []
         let today = calendar.startOfDay(for: Date())

@@ -191,7 +191,8 @@ struct SidebarModelTests {
         df.timeZone = .current
         let november = try #require(df.date(from: "2026-11-15"))
 
-        model.setViewMode(.fantastical, anchor: november, timeframe: "month")
+        // A Monday-first grid, which is what Google Calendar does for a Monday region.
+        model.setViewMode(.fantastical, anchor: november, timeframe: "month", firstWeekday: 2)
 
         // November 2026 starts on a Sunday, so a Monday-first grid leads with six October
         // days and trails with six December ones.
@@ -199,6 +200,22 @@ struct SidebarModelTests {
         #expect(df.string(from: range.lowerBound) == "2026-10-26")
         #expect(df.string(from: range.upperBound) == "2026-12-06")
         #expect(model.isMonthTimeframe)
+    }
+
+    @Test func monthGridRangeFollowsASundayFirstWeek() throws {
+        let model = SidebarModel()
+        let df = DateFormatter()
+        df.dateFormat = "yyyy-MM-dd"
+        df.timeZone = .current
+        let november = try #require(df.date(from: "2026-11-15"))
+
+        // The same month on Google's Sunday-first setting: the 1st is a Sunday, so the grid
+        // needs no lead padding at all and trails five days into December.
+        model.setViewMode(.fantastical, anchor: november, timeframe: "month", firstWeekday: 1)
+
+        let range = try #require(model.displayedMonthGridRange)
+        #expect(df.string(from: range.lowerBound) == "2026-11-01")
+        #expect(df.string(from: range.upperBound) == "2026-12-05")
     }
 
     @Test func monthAgendaIsBoundedToTheGridDays() throws {
@@ -239,7 +256,7 @@ struct SidebarModelTests {
             }
         }
 
-        model.setViewMode(.fantastical, anchor: november, timeframe: "month")
+        model.setViewMode(.fantastical, anchor: november, timeframe: "month", firstWeekday: 2)
         let monthDays = dayGroupDates(model.visibleScheduleFeedItems)
         #expect(monthDays.contains("2026-12-03"))
         #expect(!monthDays.contains("2026-12-10"))
@@ -412,7 +429,7 @@ struct SidebarModelTests {
 
         // 2026-11-08 is a Sunday (end of week with Monday start)
         let sunday = try #require(df.date(from: "2026-11-08"))
-        model.setViewMode(.week, anchor: sunday)
+        model.setViewMode(.week, anchor: sunday, firstWeekday: 2)
         #expect(df.string(from: model.selectedDate) == "2026-11-08")
         #expect(model.currentWeekDays.first?.id == "2026-11-02")
         #expect(model.currentWeekDays.last?.id == "2026-11-08")
@@ -434,6 +451,92 @@ struct SidebarModelTests {
         #expect(df.string(from: model.selectedDate) == "2026-11-02")
         #expect(model.currentWeekDays.first?.id == "2026-11-02")
         #expect(model.currentWeekDays.last?.id == "2026-11-08")
+    }
+
+    @Test func selectNextDayAndPreviousDayClampsOnASundayFirstWeek() throws {
+        let model = SidebarModel()
+        let df = DateFormatter()
+        df.dateFormat = "yyyy-MM-dd"
+        df.timeZone = .current
+
+        // Google on Start of the week = Sunday: the week holding Wednesday the 4th runs
+        // from the 1st (a Sunday) to the 7th (a Saturday).
+        let wednesday = try #require(df.date(from: "2026-11-04"))
+        model.setViewMode(.week, anchor: wednesday, firstWeekday: 1)
+        #expect(model.currentWeekDays.first?.id == "2026-11-01")
+        #expect(model.currentWeekDays.last?.id == "2026-11-07")
+
+        model.selectPreviousDay()
+        model.selectPreviousDay()
+        model.selectPreviousDay()
+        #expect(df.string(from: model.selectedDate) == "2026-11-01")
+
+        // The Saturday now ends the strip, where Monday-first would have let it run on.
+        model.selectPreviousDay()
+        #expect(df.string(from: model.selectedDate) == "2026-11-01")
+
+        for _ in 0 ..< 6 {
+            model.selectNextDay()
+        }
+        #expect(df.string(from: model.selectedDate) == "2026-11-07")
+        model.selectNextDay()
+        #expect(df.string(from: model.selectedDate) == "2026-11-07")
+    }
+
+    @Test func weekStripStartsOnTheFirstWeekdayItIsGiven() throws {
+        let model = SidebarModel()
+        let df = DateFormatter()
+        df.dateFormat = "yyyy-MM-dd"
+        df.timeZone = .current
+        let wednesday = try #require(df.date(from: "2026-11-04"))
+
+        model.setViewMode(.week, anchor: wednesday, firstWeekday: 2)
+        #expect(model.currentWeekDays.map(\.id) == [
+            "2026-11-02", "2026-11-03", "2026-11-04", "2026-11-05",
+            "2026-11-06", "2026-11-07", "2026-11-08",
+        ])
+
+        model.setViewMode(.week, anchor: wednesday, firstWeekday: 1)
+        #expect(model.currentWeekDays.map(\.id) == [
+            "2026-11-01", "2026-11-02", "2026-11-03", "2026-11-04",
+            "2026-11-05", "2026-11-06", "2026-11-07",
+        ])
+        #expect(model.firstWeekday == 1)
+    }
+
+    @Test func aWeekdayOutsideTheWeekIsIgnored() throws {
+        let model = SidebarModel()
+        let df = DateFormatter()
+        df.dateFormat = "yyyy-MM-dd"
+        df.timeZone = .current
+        let wednesday = try #require(df.date(from: "2026-11-04"))
+
+        model.setViewMode(.week, anchor: wednesday, firstWeekday: 1)
+        // A malformed or stale report must not lay out a grid with no sensible answer.
+        model.setViewMode(.week, anchor: wednesday, firstWeekday: 9)
+        #expect(model.firstWeekday == 1)
+        #expect(model.currentWeekDays.first?.id == "2026-11-01")
+    }
+
+    @Test func miniMonthLeadFollowsTheFirstWeekday() throws {
+        let df = DateFormatter()
+        df.dateFormat = "yyyy-MM-dd"
+        df.timeZone = .current
+        // 1 November 2026 is a Sunday.
+        let november = try #require(df.date(from: "2026-11-01"))
+
+        #expect(MiniMonthLayout.leadDays(of: november, firstWeekday: 1) == 0)
+        #expect(MiniMonthLayout.leadDays(of: november, firstWeekday: 2) == 6)
+    }
+
+    @Test func miniMonthHeaderRotatesToTheFirstWeekday() {
+        // en_US, so the letters are the same seven the app would draw on a Sunday region.
+        let sunday = MiniMonthLayout.weekdaySymbols(firstWeekday: 1, locale: Locale(identifier: "en_US"))
+        let monday = MiniMonthLayout.weekdaySymbols(firstWeekday: 2, locale: Locale(identifier: "en_US"))
+
+        #expect(sunday == ["S", "M", "T", "W", "T", "F", "S"])
+        #expect(monday == ["M", "T", "W", "T", "F", "S", "S"])
+        #expect(sunday.first == "S")
     }
 
     @Test func selectNextDayAndPreviousDayClampsInFourDayMode() throws {

@@ -91,11 +91,21 @@ public final class SidebarModel: ObservableObject {
         hoveredDate ?? selectedDate
     }
 
-    private let calendar: Calendar = {
+    /// The day the sidebar's weeks start on, as Apple's `.weekday` number.
+    ///
+    /// Google Calendar decides this, not the Mac: the sidebar shows the other events for the
+    /// period beside it, so a week beginning on a different day from Google's grid would show
+    /// the wrong seven days. Google keeps Start of the week per account, defaults
+    /// it to the locale, and does not expose it through the API, so the value arrives from
+    /// the grid itself and the main process stores it per account. Until this account has
+    /// ever reported one it stays on the Mac's own first day.
+    @Published public private(set) var firstWeekday: Int = Calendar.current.firstWeekday
+
+    private var calendar: Calendar {
         var cal = Calendar.current
-        cal.firstWeekday = 2 // Monday start
+        cal.firstWeekday = firstWeekday
         return cal
-    }()
+    }
 
     @MainActor
     public convenience init() {
@@ -239,7 +249,8 @@ public final class SidebarModel: ObservableObject {
         let first = calendar.startOfDay(for: month.start)
         let dayCount = calendar.range(of: .day, in: .month, for: displayedMonthDate)?.count ?? 30
         let weekday = calendar.component(.weekday, from: first)
-        let lead = (weekday + 5) % 7 // Monday = 0, Sunday = 6
+        // Whole days from the week's first day to the 1st, whatever day that first one is.
+        let lead = (weekday - calendar.firstWeekday + 7) % 7
         let cells = lead + dayCount
         let trailing = (7 - (cells % 7)) % 7
 
@@ -308,10 +319,16 @@ public final class SidebarModel: ObservableObject {
     public func setViewMode(
         _ mode: SidebarViewMode,
         anchor: Date? = nil,
-        timeframe: String? = nil
+        timeframe: String? = nil,
+        firstWeekday: Int? = nil
     ) {
         viewMode = mode
         gcalTimeframe = (timeframe ?? mode.rawValue).lowercased()
+        // Only 1-7 names a day; anything else would lay out a grid with no sensible answer,
+        // and a report that carries no value leaves the last one alone.
+        if let firstWeekday, (1 ... 7).contains(firstWeekday) {
+            self.firstWeekday = firstWeekday
+        }
         // A report with no anchor keeps the last one. Calendar sometimes changes view
         // without changing date, and resetting to today there would break the match.
         if let anchor {
@@ -995,6 +1012,7 @@ public struct SidebarRootView: View {
                     displayedMonth: model.displayedMonthDate,
                     selectedDate: model.highlightedDate,
                     densityDots: model.trayModel.densityDotsByDay,
+                    firstWeekday: model.firstWeekday,
                     onSelectDate: { date in
                         model.selectDate(date)
                     }

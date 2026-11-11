@@ -284,7 +284,7 @@ public final class SidebarManager {
         SidebarModel.shared.recomputeWeekDays()
     }
 
-    public func setViewMode(mode: String, anchorDateStr: String?) {
+    public func setViewMode(mode: String, anchorDateStr: String?, firstWeekday: Int?) {
         let viewMode: SidebarViewMode = switch mode.lowercased() {
         case "customday", "custom_days", "fourday", "four_day", "4day", "4_day":
             .fourDay
@@ -308,7 +308,12 @@ public final class SidebarManager {
             anchor = df.date(from: str)
         }
 
-        SidebarModel.shared.setViewMode(viewMode, anchor: anchor, timeframe: mode)
+        SidebarModel.shared.setViewMode(
+            viewMode,
+            anchor: anchor,
+            timeframe: mode,
+            firstWeekday: firstWeekday
+        )
     }
 
     public func setScrollPosition(
@@ -466,11 +471,21 @@ public func sidebarUpdateData(_ json: UnsafePointer<CChar>) {
 }
 
 @_cdecl("sidebar_set_view_mode")
-public func sidebarSetViewMode(_ modePtr: UnsafePointer<CChar>, _ anchorPtr: UnsafePointer<CChar>?) {
+public func sidebarSetViewMode(
+    _ modePtr: UnsafePointer<CChar>,
+    _ anchorPtr: UnsafePointer<CChar>?,
+    _ firstWeekday: Int32
+) {
     let mode = String(cString: modePtr)
     let anchor: String? = anchorPtr != nil ? String(cString: anchorPtr!) : nil
+    // 0 is the addon's "no value", which leaves the sidebar on the Mac's own first day.
+    let weekday: Int? = (1 ... 7).contains(Int(firstWeekday)) ? Int(firstWeekday) : nil
     DispatchQueue.main.async {
-        SidebarManager.shared.setViewMode(mode: mode, anchorDateStr: anchor)
+        SidebarManager.shared.setViewMode(
+            mode: mode,
+            anchorDateStr: anchor,
+            firstWeekday: weekday
+        )
     }
 }
 

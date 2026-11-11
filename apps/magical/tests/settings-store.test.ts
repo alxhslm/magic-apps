@@ -105,6 +105,31 @@ describe('array settings', () => {
   });
 });
 
+describe('first weekdays', () => {
+  it('keeps the weekday each account reported', () => {
+    const weekdays = { acc_personal: 1, acc_work: 2 };
+    expect(mergeSettings({ firstWeekdayByAccount: weekdays }).firstWeekdayByAccount).toEqual(
+      weekdays,
+    );
+  });
+
+  it('drops entries that are not a weekday, keeping the rest', () => {
+    // 0 and 8 would be handed to Calendar.firstWeekday and lay out a grid with no
+    // sensible answer, so they are not values this setting is allowed to hold.
+    const stored = { acc_personal: 1, acc_work: 8, acc_old: 0, acc_text: 'monday' };
+    expect(mergeSettings({ firstWeekdayByAccount: stored }).firstWeekdayByAccount).toEqual({
+      acc_personal: 1,
+    });
+  });
+
+  it('defaults to no known accounts, and survives a corrupt value', () => {
+    for (const bad of [null, 'monday', [], 2]) {
+      expect(mergeSettings({ firstWeekdayByAccount: bad }).firstWeekdayByAccount).toEqual({});
+    }
+    expect(mergeSettings({}).firstWeekdayByAccount).toEqual({});
+  });
+});
+
 describe('settings.json on disk', () => {
   const KEY = Buffer.alloc(32, 7);
 

@@ -41,8 +41,19 @@ Magical's date and time formats follow your Mac.
 
 - **12- or 24-hour clock**: the **24-Hour Time** switch in **System Settings → General → Date & Time**. On, a meeting reads `14:35`; off, `2:35 pm`.
 - **Date order and language**: **System Settings → General → Language & Region**. A British Mac reads `18 Oct`, an American one `Oct 18`.
+- **First day of the week**: also **Language & Region**, under **First day of week**. The menu bar popover and the widgets start their weeks on that day.
 
-Relaunch Magical after changing either, so the menu bar, popover, sidebar, banners and widgets all pick it up together.
+Relaunch Magical after changing any of them, so the menu bar, popover, sidebar, banners and widgets all pick it up together.
+
+#### First day of the week in the sidebar
+
+The first day of the week in the [companion sidebar](/help/magical/sidebar/) comes from **Google Calendar**, not from the Mac, because the sidebar shows the events for the period in the grid beside it. That setting lives in your Google account, not in Magical:
+
+1. Open Google Calendar in your browser.
+2. Go to **Settings** → **General** → **Start of the week**.
+3. Choose **Sunday**, **Monday** or **Saturday**, or leave it on the locale default.
+
+The sidebar updates within a moment, without relaunching Magical.
 
 ---
 

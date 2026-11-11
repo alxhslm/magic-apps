@@ -470,6 +470,16 @@ function forgetAccountSettings(live: ReadonlySet<string>): void {
     return sep < 0 ? true : live.has(entry.slice(0, sep));
   });
   if (keptMuted.length !== muted.length) saveSetting('disabledAlertCalendarIds', keptMuted);
+
+  // Google's Start of the week is per Google account, so the remembered weekdays are keyed
+  // by one. A removed account's entry would come back into play if its id were ever reused.
+  const weekdays = loadSettings().firstWeekdayByAccount ?? {};
+  const keptWeekdays = Object.fromEntries(
+    Object.entries(weekdays).filter(([accountId]) => live.has(accountId)),
+  );
+  if (Object.keys(keptWeekdays).length !== Object.keys(weekdays).length) {
+    saveSetting('firstWeekdayByAccount', keptWeekdays);
+  }
 }
 
 function pushToolbarAccounts(): void {
@@ -1533,8 +1543,8 @@ function createWindow(
     // menu. The helper ignores it when no window is showing.
     pushAccountsToSettings(accounts, calendarService?.getCachedEvents(), accountsNeedingSignIn());
   };
-  accounts.onTimeframeChanged = (timeframe, dateStr) => {
-    sidebarManager?.setTimeframe(timeframe, dateStr);
+  accounts.onTimeframeChanged = (timeframe, dateStr, firstWeekday) => {
+    sidebarManager?.setTimeframe(timeframe, dateStr, firstWeekday);
   };
   accounts.onGridScroll = (hour, hourHeight, gridTop, gridHeight, cardTop) => {
     sidebarManager?.setScrollPosition(hour, hourHeight, gridTop, gridHeight, cardTop);

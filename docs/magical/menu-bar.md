@@ -159,7 +159,9 @@ screen.
 
 ### Mini-month grid
 
-Seven columns, Monday first regardless of locale, with neighbouring months' days filling the grid out.
+Seven columns starting on the Mac's first day of the week, with neighbouring months' days filling the
+grid out. The widgets match it. See
+[`time-and-locale.md`](time-and-locale.md#first-day-of-the-week).
 Each day shows up to four dots, one per distinct calendar colour with an event that day, from
 `TrayModel.densityDotsByDay`. Today carries a solid disc and the selection a ring, so the two states
 compose. Clicking a day calls `requestScrollTo(date:)`, and scrolling the agenda calls `selectDate(_:)`,

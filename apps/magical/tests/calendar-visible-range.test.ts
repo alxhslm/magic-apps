@@ -13,6 +13,7 @@ import {
   dateKeyToISO,
   displayedMonthStart,
   visibleStartDate,
+  visibleWeekStartWeekday,
   resolveAnchorDate,
 } from '../src/calendar-visible-range.js';
 
@@ -66,6 +67,42 @@ describe('visibleStartDate', () => {
     expect(
       visibleStartDate([dateKey(2026, 11, 3), dateKey(2026, 11, 1), dateKey(2026, 11, 2)]),
     ).toBe('2026-11-01');
+  });
+});
+
+describe('visibleWeekStartWeekday', () => {
+  it('reads the week start from the leftmost cell of a Sunday-first week', () => {
+    // 1-7 November 2026, Sunday to Saturday.
+    const keys = [1, 2, 3, 4, 5, 6, 7].map((day) => dateKey(2026, 11, day));
+    expect(visibleWeekStartWeekday('week', keys)).toBe(1);
+  });
+
+  it('reads the week start from the leftmost cell of a Monday-first week', () => {
+    // 2-8 November 2026, Monday to Sunday.
+    const keys = [2, 3, 4, 5, 6, 7, 8].map((day) => dateKey(2026, 11, day));
+    expect(visibleWeekStartWeekday('week', keys)).toBe(2);
+  });
+
+  it('takes a month grid’s lead padding for the week start', () => {
+    // November 2026 begins on a Sunday: a Monday-first grid opens on 26 October.
+    const month = [26, 27, 28, 29, 30, 31].map((day) => dateKey(2026, 10, day));
+    month.push(dateKey(2026, 11, 1));
+    expect(visibleWeekStartWeekday('month', month)).toBe(2);
+
+    // The same month on a Sunday-first grid needs no lead padding, so the 1st leads.
+    expect(visibleWeekStartWeekday('month', [dateKey(2026, 11, 1), dateKey(2026, 11, 2)])).toBe(1);
+  });
+
+  it('says nothing for a view whose grid is not laid out in weeks', () => {
+    // A Day grid's only cell is the day itself, and a Year grid is months, so neither
+    // cell is the first day of a week and the caller keeps the weekday it already has.
+    expect(visibleWeekStartWeekday('day', [dateKey(2026, 11, 4)])).toBeNull();
+    expect(visibleWeekStartWeekday('schedule', [dateKey(2026, 11, 4)])).toBeNull();
+    expect(visibleWeekStartWeekday('year', [dateKey(2026, 1, 1)])).toBeNull();
+  });
+
+  it('says nothing with no cells on screen', () => {
+    expect(visibleWeekStartWeekday('week', [])).toBeNull();
   });
 });
 
