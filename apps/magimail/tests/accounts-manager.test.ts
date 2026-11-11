@@ -122,6 +122,9 @@ vi.mock('electron', () => {
 
   class MockBrowserWindow {
     static __handlers = windowHandlers;
+    isDestroyed = vi.fn().mockReturnValue(false);
+    isMinimized = vi.fn().mockReturnValue(false);
+    restore = vi.fn();
     show = vi.fn();
     focus = vi.fn();
     destroy = vi.fn();
@@ -1542,5 +1545,90 @@ describe('releasing account views on teardown', () => {
 
     expect(() => manager.suspendAllAccounts()).not.toThrow();
     expect(wc.close).toHaveBeenCalled();
+  });
+});
+
+describe('calendar event source resolution', () => {
+  let win: BaseWindow;
+  let manager: AccountsManager;
+
+  beforeEach(() => {
+    win = new BaseWindow();
+    manager = new AccountsManager(win, '/path/to/preload.js');
+    manager.initialize();
+  });
+
+  describe('extractThreadIdFromUrl', () => {
+    it('extracts thread ID from standard mailbox thread hashes', () => {
+      expect(
+        manager.extractThreadIdFromUrl('https://mail.google.com/mail/u/0/#inbox/FMfcgzQXKq'),
+      ).toBe('FMfcgzQXKq');
+      expect(
+        manager.extractThreadIdFromUrl('https://mail.google.com/mail/u/0/#all/18fa24b91ac051'),
+      ).toBe('18fa24b91ac051');
+      expect(
+        manager.extractThreadIdFromUrl('https://mail.google.com/mail/u/0/#sent/18fa24b91ac051'),
+      ).toBe('18fa24b91ac051');
+      expect(
+        manager.extractThreadIdFromUrl(
+          'https://mail.google.com/mail/u/0/#label/Trips/18fa24b91ac051',
+        ),
+      ).toBe('18fa24b91ac051');
+    });
+
+    it('extracts thread ID from query parameters th and permthid', () => {
+      expect(
+        manager.extractThreadIdFromUrl('https://mail.google.com/mail/u/0/?th=18fa24b91ac051'),
+      ).toBe('18fa24b91ac051');
+      expect(
+        manager.extractThreadIdFromUrl(
+          'https://mail.google.com/mail/u/0/?permthid=thread-f:1800000000000000',
+        ),
+      ).toBe('thread-f:1800000000000000');
+    });
+
+    it('extracts thread permalink hashes', () => {
+      expect(
+        manager.extractThreadIdFromUrl(
+          'https://mail.google.com/mail/u/0/#thread-f:1800000000000000',
+        ),
+      ).toBe('thread-f:1800000000000000');
+    });
+
+    it('returns null for non-thread URLs and calendar source URLs without thread IDs', () => {
+      expect(manager.extractThreadIdFromUrl('https://mail.google.com/mail/u/0/#inbox')).toBeNull();
+      expect(
+        manager.extractThreadIdFromUrl('https://mail.google.com/mail/u/0/#inbox/p2'),
+      ).toBeNull();
+      expect(
+        manager.extractThreadIdFromUrl(
+          'https://mail.google.com/mail?extsrc=cal&plid=ACUX6DNwTK67PHrtKuZt6DrTTz3oL-Ztw6XYr8A',
+        ),
+      ).toBeNull();
+      expect(manager.extractThreadIdFromUrl('not a url')).toBeNull();
+    });
+  });
+
+  describe('resolveCalendarEventSource', () => {
+    it('opens thread immediately when URL contains direct thread ID', async () => {
+      const perform = vi.spyOn(manager, 'performThreadAction').mockResolvedValue(true);
+      await manager.resolveCalendarEventSource(
+        'account_personal',
+        'https://mail.google.com/mail/u/0/#inbox/18fa24b91ac051',
+      );
+      expect(perform).toHaveBeenCalledWith('account_personal', '18fa24b91ac051', 'open');
+    });
+
+    it('intercepts extsrc=cal in openInAccount and triggers resolution', async () => {
+      const resolveSpy = vi.spyOn(manager, 'resolveCalendarEventSource').mockResolvedValue(true);
+      manager.openInAccount(
+        'account_personal',
+        'https://mail.google.com/mail?extsrc=cal&plid=ACUX6DNwTK67PHrtKuZt6DrTTz3oL-Ztw6XYr8A',
+      );
+      expect(resolveSpy).toHaveBeenCalledWith(
+        'account_personal',
+        'https://mail.google.com/mail?extsrc=cal&plid=ACUX6DNwTK67PHrtKuZt6DrTTz3oL-Ztw6XYr8A',
+      );
+    });
   });
 });

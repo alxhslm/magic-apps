@@ -65,31 +65,52 @@ A Gmail address in a calendar event and a Calendar address in an email belong in
 already shows that data. `crossAppLink` in `@magimail/core` maps one app's web addresses to the
 other's deep link:
 
-| Link                                                   | Deep link                                        |
-| :----------------------------------------------------- | :----------------------------------------------- |
-| `mail.google.com/mail/u/N/#inbox`                      | `magimail://inbox`                               |
-| `mail.google.com/mail/u/N/#inbox/<thread>`             | `magimail://thread/<thread>`                     |
-| `mail.google.com/mail/u/N/#search/<query>`             | `magimail://search?q=<query>`                    |
-| `mail.google.com/mail/u/N/#sent` (and mailbox views)   | `magimail://sent` (also `drafts`, `trash`, etc.) |
-| `mail.google.com/mail/u/N/#label/<name>`               | `magimail://label/<name>`                        |
-| `mail.google.com/mail/u/N/#category/<name>`            | `magimail://category/<name>`                     |
-| `mail.google.com/mail/?view=cm&to=…`                   | `magimail://compose?to=…`                        |
-| Other Gmail URLs (settings, etc.)                      | `magimail://navigate?url=…`                      |
-| `calendar.google.com/…/day/2026/11/5`                  | `magical://date?at=2026-11-05T00:00:00.000Z`     |
-| `calendar.google.com/…?eid=<eid>`                      | `magical://event?eid=<eid>&action=reveal`        |
-| `calendar.google.com/…/r/search?q=<query>`             | `magical://search?q=<query>`                     |
-| `calendar.google.com/calendar/render?action=TEMPLATE…` | `magical://quick-add?text=…&dates=…`             |
-| `tasks.google.com/…`                                   | `magical://tasks`                                |
-| Other Calendar URLs (settings, etc.)                   | `magical://navigate?url=…`                       |
+| Link                                                            | Deep link                                                                     |
+| :-------------------------------------------------------------- | :---------------------------------------------------------------------------- |
+| `mail.google.com/mail/u/N/#inbox`                               | `magimail://inbox`                                                            |
+| `mail.google.com/mail/u/N/#inbox/<thread>`                      | `magimail://thread/<thread>`                                                  |
+| `mail.google.com/mail/u/N/#search/<query>`                      | `magimail://search?q=<query>`                                                 |
+| `mail.google.com/mail/u/N/#snoozed`                             | `magimail://snoozed`                                                          |
+| `mail.google.com/mail/u/N/#sent` (and mailbox views)            | `magimail://sent` (also `drafts`, `trash`, `snoozed`, etc.)                   |
+| `mail.google.com/mail/u/N/#label/<name>`                        | `magimail://label/<name>`                                                     |
+| `mail.google.com/mail/u/N/#category/<name>`                     | `magimail://category/<name>`                                                  |
+| `mail.google.com/mail/?view=cm&to=…`                            | `magimail://compose?to=…`                                                     |
+| `mail.google.com/mail/?extsrc=mailto&url=mailto:…`              | `magimail://compose?…`                                                        |
+| `mail.google.com/mail/?th=…` (print/popout)                     | `magimail://thread/<thread>`                                                  |
+| `mail.google.com/mail?extsrc=cal&plid=…`                        | `magimail://navigate?url=…` (resolves to thread)                              |
+| Other Gmail URLs (settings, etc.)                               | `magimail://navigate?url=…`                                                   |
+| `calendar.google.com/…/day/2026/11/5`                           | `magical://date?at=2026-11-05T00:00:00.000Z`                                  |
+| `calendar.google.com/…?eid=<eid>`                               | `magical://event?eid=<eid>&action=reveal`                                     |
+| `calendar.google.com/calendar/event?action=RESPOND&eid=…&rst=1` | `magical://event?eid=…&action=yes` (also `rst=2` -> `no`, `rst=3` -> `maybe`) |
+| `calendar.google.com/…/r/search?q=<query>`                      | `magical://search?q=<query>`                                                  |
+| `calendar.google.com/calendar/render?action=TEMPLATE…`          | `magical://quick-add?text=…&dates=…`                                          |
+| `tasks.google.com/…`                                            | `magical://tasks`                                                             |
+| Other Calendar URLs (settings, etc.)                            | `magical://navigate?url=…`                                                    |
 
 The `u/<n>` segment is the browser's sign-in order, not one of our account ids, so it is dropped.
 When the originating account's email is known, `openExternalUrl` passes `account=<email>` in the
 deep link. Both apps resolve `account` by internal id or verified email, activating the matching
 account. When multiple accounts exist and `account` is omitted for a specific thread
-(`magimail://thread/<id>`), event (`magical://event?eid=...`), or external template quick-add
+(`magimail://thread/<id>`), event (`magical://event?eid=...`), calendar-source link
+(`magimail://navigate?url=...extsrc=cal...`), or external template quick-add
 (`magical://quick-add`), the app prompts with an account selector dialog rather than guessing
-the active account. Generic routes (`open`, `inbox`, `search`, `tasks`, `date`) fall back to the
-active account. The day path becomes midnight, because the calendar side either reveals an event,
+the active account. Generic routes (`open`, `inbox`, `search`, `tasks`, `date`, `snoozed`) fall back to the
+active account.
+
+Calendar events created automatically from Gmail (flights, reservations, confirmations) embed a source
+link (`mail.google.com/mail?extsrc=cal&plid=...`). In the browser, this displays a stripped-down
+standalone card webview. `crossAppLink` routes these to `magimail://navigate?url=...`; Magimail resolves
+the server-side `plid` token in the background and opens the originating conversation natively in the
+main window (`#inbox/<threadId>`). If resolution cannot be completed, the resolver window is cleanly
+destroyed without popping up extra windows or navigating the main window away.
+
+Email invitation links asking for an RSVP response (`calendar.google.com/calendar/event?action=RESPOND&eid=...&rst=...`)
+route to Magical triage links (`magical://event?eid=...&action=yes|no|maybe`), applying the response
+directly without moving the window. Print and popout links (`mail.google.com/mail/?th=...`) navigate
+directly to the native thread view, while mailto links wrapped in Gmail's web handler
+(`mail.google.com/mail/?extsrc=mailto&url=mailto:...`) unpack to `magimail://compose?...`.
+
+The day path becomes midnight, because the calendar side either reveals an event,
 which is a moment, or opens a day, which is a date.
 
 `openExternalUrl` uses the deep link only when the other app is installed, asked by bundle id.
