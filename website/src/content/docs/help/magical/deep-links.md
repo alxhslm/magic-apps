@@ -16,6 +16,8 @@ Magical registers the native macOS `magical://` URL scheme, allowing you to trig
 | `magical://date`      | `at`, `account`                                   | Navigates the calendar to a specific date (e.g. `2026-11-01`).                          |
 | `magical://search`    | `q` or `query`, `account`                         | Searches events and meetings across your schedules.                                     |
 | `magical://event`     | `eid`, `account`, `action`, `at`                  | Focuses an event or executes an RSVP action (`reveal`, `yes`, `no`, `maybe`, `delete`). |
+| `magical://subscribe` | `url`, `account`                                  | Subscribes to an external `webcal://` or `ical://` calendar feed in the background.     |
+| `magical://import`    | `file`, `account`                                 | Imports a `.ics` calendar file into the designated account.                             |
 
 :::tip[Targeting accounts by id or email]
 The `account` parameter accepts either an internal account identifier (such as `account=personal`) or the account's email address (such as `account=alex@company.com`). If omitted or if no account matches, Magical targets the currently active account.
@@ -61,6 +63,24 @@ open "magical://event?eid=abc123xyz&action=yes&account=work"
 
 ```sh
 open "magical://search?q=Dentist"
+```
+
+### Subscribe to a Calendar Feed in the Background
+
+```sh
+open "magical://subscribe?url=https%3A%2F%2Fexample.com%2Fcalendar.ics&account=work"
+```
+
+Magical also claims system `webcal://` and `ical://` URLs clicked in browsers or mail clients:
+
+```sh
+open "webcal://example.com/fixtures.ics?account=personal"
+```
+
+### Import a Calendar File
+
+```sh
+open "magical://import?file=%2FUsers%2Falex%2FDownloads%2Fmeeting.ics&account=work"
 ```
 
 ## Using Deep Links in Automations

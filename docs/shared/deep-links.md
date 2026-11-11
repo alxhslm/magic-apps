@@ -71,7 +71,7 @@ A triage that arrives with no window runs through `routeAcrossWindow`, `WindowRo
 - **Magimail**: [`../magimail/deep-links.md`](../magimail/deep-links.md) records the `magimail://` routes
   (`thread`, `inbox`, `search`, `compose`, `share`) and `mailto:` integration.
 - **Magical**: [`../magical/deep-links.md`](../magical/deep-links.md) records the `magical://` routes
-  (`event`, `date`, `search`, `quick-add`, `open`).
+  (`event`, `date`, `search`, `quick-add`, `open`, `subscribe`, `import`) along with `webcal://` and `ical://` feed subscriptions.
 
 ## Outbound links
 

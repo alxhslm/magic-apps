@@ -15,12 +15,14 @@ The General tab manages startup behaviour and default calendar file handling:
   - **Why turn it on**: Keeps your menu bar meeting countdown, upcoming alerts, and desktop widgets active and on time all day long.
   - **Silent startup**: Runs quietly in the menu bar without opening full desktop windows on startup.
 
-### Calendar Files (`.ics`)
+### Default Calendar Handlers (`.ics` and `webcal://`)
 
-- **Calendar files (.ics)**: Shows which app opens `.ics` calendar files, with a button to make Magical the one. Once Magical holds the type the button disappears, and the only way back is to name another app in Finder's Get Info panel.
-  - **Opening .ics Files**: Double-clicking a `.ics` file from the web, from an email or from AirDrop opens Magical, which reads the file and asks which account to import into when you have more than one. Google Calendar imports it, and a notification names the account and says how it went: imported, rejected in Google's own words, or unconfirmed, which puts Google's import page in front of you with the file already loaded.
-  - **Importing by hand**: **File → Import Calendar File…** (<kbd>⇧⌘I</kbd>) reaches the same flow for a file you have already found.
-  - **New event account**: Choose whether new events are added to your currently active calendar account or prompt you to pick an account every time.
+Magical can act as macOS's default handler for both invitation files and live feed subscriptions:
+
+- **Calendar files (.ics)**: Shows which app opens `.ics` files, with a button to make Magical the handler. Once Magical holds the type the button disappears, and the only way back is to name another app in Finder's Get Info panel. Double-clicking an invite imports it directly into Google Calendar in a background view without disturbing your active schedule.
+- **Calendar feeds (webcal://)**: Shows which app subscribes to `webcal://` and `ical://` URLs, with a button to make Magical the default. Clicking a calendar subscription link on a website hands it straight to Magical, which subscribes to the feed in Google Calendar in the background and posts a native notification banner when added.
+- **Importing by hand**: **File → Import Calendar File…** (<kbd>⇧⌘I</kbd>) reaches the same import flow for a file on your disk.
+- **New event account**: Choose whether new events are added to your currently active calendar account or prompt you to pick an account every time.
 
 ### Opening links
 
