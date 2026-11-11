@@ -38,11 +38,15 @@ When you launch Magimail for the first time, the window opens directly to Google
 
 Two things are worth setting up next: [Multiple Accounts](/help/magimail/accounts/) if you have more than one Google account, and [Notifications & Badges](/help/magimail/notifications/) to decide what interrupts you.
 
-## Working Offline
+## Working Offline (Recommended)
 
-Magimail needs **Offline mail** turned on in Gmail so it can show your unread count and recent emails in the [menu bar](/help/magimail/menu-bar/) and [desktop widgets](/help/magimail/widgets/). Each account needs it once.
+Enabling **Offline mail** in Gmail is required for the best experience in Magimail. It provides:
 
-If it is not already turned on, Magimail displays a prompt at the top of your inbox:
+- **Accurate category unread counts**: The local cache decodes true unread inbox items for each category without waiting for periodic background checks.
+- **Instant recent emails**: Menu bar popovers and desktop widgets load your latest emails instantly from local storage rather than waiting for a network fetch.
+- **Single-digit millisecond triage**: Marking emails as read or archiving them updates your Dock and menu bar counters immediately.
+
+Each account needs it enabled once. If it is not already turned on, Magimail displays a prompt at the top of your inbox:
 
 :::note[What the banner says]
 _"For accurate category badges and instant menu bar sync: enable offline mail in Gmail Settings."_
@@ -55,7 +59,7 @@ _"For accurate category badges and instant menu bar sync: enable offline mail in
 3. Select **Keep offline data on my computer**.
 4. Click **Save Changes** at the bottom of the page.
 
-Once enabled, your unread badges, menu bar previews and desktop widgets keep working without a connection.
+Once enabled, your unread badges, menu bar previews and desktop widgets keep working with instant responsiveness and full offline availability.
 
 ### Showing Categories in the Sidebar (Recommended)
 
