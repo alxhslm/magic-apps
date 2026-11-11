@@ -28,26 +28,95 @@ import { execFileSync, execSync, spawn } from 'node:child_process';
 import { existsSync, unlinkSync } from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { WebSocket } from 'ws';
 
-const argv = process.argv.slice(2);
-let targetApp = 'all';
-let outDir = path.resolve('website/src/assets');
-let keepOpen = false;
-let noLaunch = false;
+export function parseArgs(argv) {
+  let targetApp = 'all';
+  let outDir = path.resolve('website/src/assets');
+  let keepOpen = false;
+  let noLaunch = false;
+  let showHelp = false;
 
-for (let i = 0; i < argv.length; i++) {
-  const arg = argv[i];
-  if (arg === '--app') targetApp = argv[++i]?.toLowerCase();
-  else if (arg === '--out-dir') outDir = path.resolve(argv[++i]);
-  else if (arg === '--keep-open') keepOpen = true;
-  else if (arg === '--no-launch') noLaunch = true;
-  else if (arg === '--help' || arg === '-h') {
-    console.log(
-      `Usage: node tools/capture-window-shots.mjs [--app <magical|magimail|all>] [--out-dir <path>] [--keep-open] [--no-launch]`,
-    );
-    process.exit(0);
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    if (arg === '--app') targetApp = argv[++i]?.toLowerCase() ?? 'all';
+    else if (arg === '--out-dir') outDir = path.resolve(argv[++i]);
+    else if (arg === '--keep-open') keepOpen = true;
+    else if (arg === '--no-launch') noLaunch = true;
+    else if (arg === '--help' || arg === '-h') showHelp = true;
+    else if (!arg.startsWith('--')) outDir = path.resolve(arg);
   }
+
+  return { targetApp, outDir, keepOpen, noLaunch, showHelp };
+}
+
+export function validateMagicalCdp(targets) {
+  // Must have calendar target on demo fixture
+  const calTarget = targets.find((t) => t.url && t.url.includes('calendar.google.com'));
+  if (!calTarget) {
+    throw new Error('Magical is not loaded at calendar.google.com');
+  }
+  // Demo calendar fixture week is October 25, 2026
+  if (!calTarget.title?.includes('2026') && !calTarget.url?.includes('2026')) {
+    throw new Error(
+      `Magical is not showing the seeded demo calendar fixture (found: "${calTarget.title}"). Refusing to photograph!`,
+    );
+  }
+  return calTarget;
+}
+
+export async function validateMagimailCdp(targets, evaluateFn) {
+  // Dismiss offline banner if present
+  const bannerTarget = targets.find(
+    (t) =>
+      t.title?.includes('enable offline mail') || (t.url && t.url.startsWith('data:text/html')),
+  );
+  if (bannerTarget && bannerTarget.webSocketDebuggerUrl && evaluateFn) {
+    console.log('  ℹ Dismissing offline mail banner in Magimail...');
+    await evaluateFn(
+      bannerTarget.webSocketDebuggerUrl,
+      'document.querySelector(".dismiss-btn")?.click()',
+    );
+    await sleep(500);
+  }
+
+  // Check mail target
+  const mailTarget = targets.find((t) => t.url && t.url.includes('mail.google.com'));
+  if (!mailTarget) {
+    throw new Error('Magimail is not loaded at mail.google.com');
+  }
+  return mailTarget;
+}
+
+export function findPersonalProcesses(lines, appName) {
+  const mainAppRegex = new RegExp(
+    `/Applications/${appName}\\.app/Contents/MacOS/${appName}(\\s|$)`,
+  );
+  const offending = [];
+  for (const line of lines) {
+    if (mainAppRegex.test(line)) {
+      if (!line.includes('--demo') && !line.includes('--profile=demo')) {
+        offending.push(line.trim());
+      }
+    }
+  }
+  return offending;
+}
+
+export function extractRunningDemoPid(lines, appName) {
+  const mainAppRegex = new RegExp(
+    `/Applications/${appName}\\.app/Contents/MacOS/${appName}(\\s|$)`,
+  );
+  for (const line of lines) {
+    if (mainAppRegex.test(line)) {
+      if (line.includes('--demo') || line.includes('--profile=demo')) {
+        const pid = line.trim().split(/\s+/)[0];
+        return parseInt(pid, 10);
+      }
+    }
+  }
+  return null;
 }
 
 const APPS = {
@@ -62,20 +131,7 @@ const APPS = {
     canonicalHeight: 1025,
     lightAsset: 'shot-window-magical-light.webp',
     darkAsset: 'shot-window-magical-dark.webp',
-    validateCdp: (targets) => {
-      // Must have calendar target on demo fixture
-      const calTarget = targets.find((t) => t.url && t.url.includes('calendar.google.com'));
-      if (!calTarget) {
-        throw new Error('Magical is not loaded at calendar.google.com');
-      }
-      // Demo calendar fixture week is October 25, 2026
-      if (!calTarget.title?.includes('2026') && !calTarget.url?.includes('2026')) {
-        throw new Error(
-          `Magical is not showing the seeded demo calendar fixture (found: "${calTarget.title}"). Refusing to photograph!`,
-        );
-      }
-      return calTarget;
-    },
+    validateCdp: validateMagicalCdp,
   },
   magimail: {
     name: 'Magimail',
@@ -91,36 +147,7 @@ const APPS = {
     lightAsset: 'shot-window-light.webp',
     darkAsset: 'shot-window-dark.webp',
     heroAsset: 'shot-hero.webp',
-    validateCdp: async (targets, port) => {
-      // Dismiss offline banner if present
-      const bannerTarget = targets.find(
-        (t) =>
-          t.title?.includes('enable offline mail') || (t.url && t.url.startsWith('data:text/html')),
-      );
-      if (bannerTarget && bannerTarget.webSocketDebuggerUrl) {
-        console.log('  ℹ Dismissing offline mail banner in Magimail...');
-        await evaluateInTarget(
-          bannerTarget.webSocketDebuggerUrl,
-          'document.querySelector(".dismiss-btn")?.click()',
-        );
-        await sleep(500);
-      }
-
-      // Check mail target
-      const mailTarget = targets.find((t) => t.url && t.url.includes('mail.google.com'));
-      if (!mailTarget) {
-        throw new Error('Magimail is not loaded at mail.google.com');
-      }
-      if (
-        !mailTarget.title?.includes('alxhslm@gmail.com') &&
-        !mailTarget.url?.includes('mail.google.com')
-      ) {
-        throw new Error(
-          `Magimail is not on the demo mailbox (title: "${mailTarget.title}"). Refusing to photograph!`,
-        );
-      }
-      return mailTarget;
-    },
+    validateCdp: (targets) => validateMagimailCdp(targets, evaluateInTarget),
   },
 };
 
@@ -180,31 +207,15 @@ async function evaluateInTarget(wsUrl, expression) {
 
 function checkPersonalProcesses(appName) {
   const lines = tryRun(`ps -eo pid,command`).split('\n');
-  const offending = [];
-  for (const line of lines) {
-    if (line.includes(`/Applications/${appName}.app/Contents/MacOS/${appName}`)) {
-      if (!line.includes('--demo') && !line.includes('--profile=demo')) {
-        offending.push(line.trim());
-      }
-    }
-  }
-  return offending;
+  return findPersonalProcesses(lines, appName);
 }
 
 function getRunningDemoPid(appName) {
   const lines = tryRun(`ps -eo pid,command`).split('\n');
-  for (const line of lines) {
-    if (line.includes(`/Applications/${appName}.app/Contents/MacOS/${appName}`)) {
-      if (line.includes('--demo') || line.includes('--profile=demo')) {
-        const pid = line.trim().split(/\s+/)[0];
-        return parseInt(pid, 10);
-      }
-    }
-  }
-  return null;
+  return extractRunningDemoPid(lines, appName);
 }
 
-async function ensureAppRunning(spec) {
+async function ensureAppRunning(spec, options = {}) {
   const offending = checkPersonalProcesses(spec.name);
   if (offending.length > 0) {
     console.error(
@@ -224,7 +235,7 @@ async function ensureAppRunning(spec) {
   let spawnedProcess = null;
 
   if (!pid) {
-    if (noLaunch) {
+    if (options.noLaunch) {
       throw new Error(`${spec.name} is not running under --demo and --no-launch was specified.`);
     }
     if (!existsSync(spec.binaryPath)) {
@@ -422,7 +433,16 @@ async function captureWindow(spec, mode, outPath, width, height) {
   console.log(`  ✓ Written ${outPath} (${width}×${height})`);
 }
 
-async function main() {
+async function main(cliArgs = process.argv.slice(2)) {
+  const { targetApp, outDir, keepOpen, noLaunch, showHelp } = parseArgs(cliArgs);
+
+  if (showHelp) {
+    console.log(
+      `Usage: node tools/capture-window-shots.mjs [--app <magical|magimail|all>] [--out-dir <path>] [--keep-open] [--no-launch]`,
+    );
+    return;
+  }
+
   const originalDark =
     tryRun(
       `osascript -e 'tell application "System Events" to tell appearance preferences to return dark mode'`,
@@ -444,7 +464,7 @@ async function main() {
       console.log(`Processing ${spec.name}...`);
       console.log(`========================================`);
 
-      const { pid, spawned } = await ensureAppRunning(spec);
+      const { pid, spawned } = await ensureAppRunning(spec, { noLaunch });
       setupWindow(spec.name, spec.width, spec.height);
 
       // Light mode
@@ -477,7 +497,9 @@ async function main() {
   }
 }
 
-main().catch((err) => {
-  console.error(`\n❌ Error during window capture:`, err.message || err);
-  process.exit(1);
-});
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((err) => {
+    console.error(`\n❌ Error during window capture:`, err.message || err);
+    process.exit(1);
+  });
+}
