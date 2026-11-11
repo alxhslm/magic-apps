@@ -181,9 +181,13 @@ div[role="region"]:is(${labelUnion('settings')}) {
  * signed-in calendar it sits on the rail column, the panel itself and the wrapper
  * around the reopen button, and nowhere else. Matching it replaces the English
  * `aria-label*="side panel"` the rule used to depend on.
+ *
+ * Scoped with `:not(:has(iframe))` so that when Google loads content (like Maps
+ * from an event location click) into the side panel, the loaded card remains visible
+ * while the empty companion rail and reopen button stay hidden.
  */
 const HIDE_SIDEBAR_CSS = `
-${domSelector('sidePanel')} {
+${domSelector('sidePanel')}:not(:has(iframe)) {
   display: none !important;
 }
 `;
