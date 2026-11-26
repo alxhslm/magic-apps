@@ -16,6 +16,7 @@ export interface AppMenuOptions {
   canGoForward?: boolean;
   onNewEvent?: () => void;
   onImportFile?: () => void;
+  onSubscribeFeed?: () => void;
   onSetAsDefault?: () => void;
   onFindInPage?: () => void;
   onFindNext?: () => void;
@@ -59,6 +60,7 @@ export function buildAppMenu({
   canGoForward = true,
   onNewEvent,
   onImportFile,
+  onSubscribeFeed,
   onSetAsDefault,
   onFindInPage,
   onFindNext,
@@ -134,6 +136,11 @@ export function buildAppMenu({
           label: uiString('menu.file.importCalendarFile'),
           accelerator: 'Shift+CmdOrCtrl+I',
           click: () => onImportFile?.(),
+        },
+        {
+          label: uiString('menu.file.subscribeCalendarFeed'),
+          accelerator: 'Alt+CmdOrCtrl+S',
+          click: () => onSubscribeFeed?.(),
         },
         { type: 'separator' },
         { role: 'close' },

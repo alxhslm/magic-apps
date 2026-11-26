@@ -40,9 +40,10 @@ The toolbar's own search field, and the mouse and trackpad navigation in full, a
 
 A task is completed and deleted through controls of its own, which [Google Tasks](/help/magical/tasks/) covers.
 
-| Action                | Shortcut                                  | Description                                                       |
-| :-------------------- | :---------------------------------------- | :---------------------------------------------------------------- |
-| Create Event          | <kbd>⌘N</kbd> or <kbd>C</kbd>             | Opens the event creation modal.                                   |
-| Import Calendar File… | <kbd>⇧⌘I</kbd>                            | Opens file picker to import `.ics` / iCalendar files.             |
-| View Event Details    | <kbd>E</kbd>                              | Opens details card for the currently selected meeting.            |
-| Delete Event          | <kbd>Backspace</kbd> or <kbd>Delete</kbd> | Removes the selected event, or the occurrence of a recurring one. |
+| Action                      | Shortcut                                  | Description                                                        |
+| :-------------------------- | :---------------------------------------- | :----------------------------------------------------------------- |
+| Create Event                | <kbd>⌘N</kbd> or <kbd>C</kbd>             | Opens the event creation modal.                                    |
+| Import Calendar File…       | <kbd>⇧⌘I</kbd>                            | Opens file picker to import `.ics` / iCalendar files.              |
+| Subscribe to Calendar Feed… | <kbd>⌥⌘S</kbd>                            | Subscribes to calendar feed from clipboard or opens From URL pane. |
+| View Event Details          | <kbd>E</kbd>                              | Opens details card for the currently selected meeting.             |
+| Delete Event                | <kbd>Backspace</kbd> or <kbd>Delete</kbd> | Removes the selected event, or the occurrence of a recurring one.  |

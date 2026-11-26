@@ -4,7 +4,10 @@ import {
   buildEventLink,
   decodeEid,
   isAllowedCalendarNavigationUrl,
+  normalizeFeedUrl,
   parseEventLink,
+  parseImportLink,
+  parseSubscriptionLink,
   extractEid,
   resolveToCalendarUrl,
 } from '../src/event-links';
@@ -282,5 +285,97 @@ describe('isAllowedCalendarNavigationUrl', () => {
     expect(isAllowedCalendarNavigationUrl('https://evil.com/calendar.google.com')).toBe(false);
     expect(isAllowedCalendarNavigationUrl('javascript:alert(1)')).toBe(false);
     expect(isAllowedCalendarNavigationUrl('not a url')).toBe(false);
+  });
+});
+
+describe('normalizeFeedUrl', () => {
+  it('converts webcal:// to https://', () => {
+    expect(normalizeFeedUrl('webcal://example.com/calendar.ics')).toBe(
+      'https://example.com/calendar.ics',
+    );
+  });
+
+  it('converts ical:// to https://', () => {
+    expect(normalizeFeedUrl('ical://example.com/calendar.ics')).toBe(
+      'https://example.com/calendar.ics',
+    );
+  });
+
+  it('unwraps nested webcal://https:// URLs', () => {
+    expect(normalizeFeedUrl('webcal://https://example.com/calendar.ics')).toBe(
+      'https://example.com/calendar.ics',
+    );
+    expect(normalizeFeedUrl('webcal://http://example.com/calendar.ics')).toBe(
+      'http://example.com/calendar.ics',
+    );
+  });
+
+  it('leaves standard https:// URLs alone', () => {
+    expect(normalizeFeedUrl('https://example.com/calendar.ics')).toBe(
+      'https://example.com/calendar.ics',
+    );
+  });
+});
+
+describe('parseSubscriptionLink', () => {
+  it('parses system webcal:// and ical:// links and preserves third-party query params', () => {
+    expect(parseSubscriptionLink('webcal://example.com/fixtures.ics')).toEqual({
+      feedUrl: 'https://example.com/fixtures.ics',
+    });
+    expect(parseSubscriptionLink('ical://example.com/fixtures.ics')).toEqual({
+      feedUrl: 'https://example.com/fixtures.ics',
+    });
+    expect(parseSubscriptionLink('webcal://example.com/fixtures.ics?account=12345')).toEqual({
+      feedUrl: 'https://example.com/fixtures.ics?account=12345',
+    });
+    expect(parseSubscriptionLink('webcal://https://example.com/fixtures.ics')).toEqual({
+      feedUrl: 'https://example.com/fixtures.ics',
+    });
+  });
+
+  it('parses magical://subscribe and magical://webcal deep links', () => {
+    expect(
+      parseSubscriptionLink(
+        'magical://subscribe?url=https%3A%2F%2Fexample.com%2Ffixtures.ics&account=work',
+      ),
+    ).toEqual({
+      feedUrl: 'https://example.com/fixtures.ics',
+      accountId: 'work',
+    });
+
+    expect(
+      parseSubscriptionLink('magical://webcal?url=webcal%3A%2F%2Fexample.com%2Fcal.ics'),
+    ).toEqual({
+      feedUrl: 'https://example.com/cal.ics',
+      accountId: undefined,
+    });
+  });
+
+  it('rejects non-http(s) feed URLs and incomplete links', () => {
+    expect(parseSubscriptionLink('magical://subscribe')).toBeNull();
+    expect(parseSubscriptionLink('magical://subscribe?url=javascript%3Aalert(1)')).toBeNull();
+    expect(
+      parseSubscriptionLink('magical://subscribe?url=file%3A%2F%2F%2Fetc%2Fpasswd'),
+    ).toBeNull();
+    expect(parseSubscriptionLink('magical://event?eid=123')).toBeNull();
+    expect(parseSubscriptionLink('not a url')).toBeNull();
+  });
+});
+
+describe('parseImportLink', () => {
+  it('parses magical://import and magical://ics deep links', () => {
+    expect(parseImportLink('magical://import?file=%2Ftmp%2Fevent.ics&account=work')).toEqual({
+      filePath: '/tmp/event.ics',
+      accountId: 'work',
+    });
+    expect(parseImportLink('magical://ics?path=%2Ftmp%2Fevent.ics')).toEqual({
+      filePath: '/tmp/event.ics',
+      accountId: undefined,
+    });
+  });
+
+  it('returns null when no file or path is provided', () => {
+    expect(parseImportLink('magical://import')).toBeNull();
+    expect(parseImportLink('magical://date?at=2026-09-15')).toBeNull();
   });
 });

@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer, webFrame } from 'electron';
 import { applyMainWorldIdentity, chromeBrands, chromeFullVersionBrands } from '@magimail/core';
 import { IPC_CHANNELS } from './constants.js';
 import { derivePresentCategories, extractTabText, type PresentCategory } from './category-tabs.js';
+import { installMainWorldPrintOpenStub } from './print-window-open.js';
 
 // Suppress automatic window.print() on Gmail print view (view=pt) so Magimail controls printing
 try {
@@ -31,6 +32,19 @@ try {
     func: applyMainWorldIdentity,
     args: [chromeBrands(), chromeFullVersionBrands()],
   });
+} catch {
+  // Ignore
+}
+
+try {
+  if (process.contextIsolated) {
+    contextBridge.executeInMainWorld({
+      func: installMainWorldPrintOpenStub,
+      args: [],
+    });
+  } else {
+    installMainWorldPrintOpenStub();
+  }
 } catch {
   // Ignore
 }
