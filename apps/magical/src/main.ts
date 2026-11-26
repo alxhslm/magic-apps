@@ -120,8 +120,6 @@ if (isDemoMode()) {
 // Claimed here but reported below, once the logger exists: moving the claim
 // later would risk a launching link arriving before it is registered.
 const protocolClaimed = app.setAsDefaultProtocolClient(MAGICAL_PROTOCOL);
-app.setAsDefaultProtocolClient('webcal');
-app.setAsDefaultProtocolClient('ical');
 watchForIcsFiles();
 try {
   const userData = resolveUserDataPath({

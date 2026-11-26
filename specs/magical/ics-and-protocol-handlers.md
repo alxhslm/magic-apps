@@ -10,12 +10,7 @@ A `webcal://` link is a subscription to a feed, not a file to import, and the di
 implementation. Importing copies events once; subscribing hands Google a URL that Google re-fetches
 on its own schedule.
 
-Magical claims the schemes before `whenReady`:
-
-```ts
-app.setAsDefaultProtocolClient('webcal');
-app.setAsDefaultProtocolClient('ical');
-```
+Magical advertises `webcal` and `ical` in `CFBundleURLTypes`, and users can claim them in **Settings → General** (`DefaultHandler.Target.webcal`) rather than hijacking them unconditionally on launch.
 
 Handling one drives Google Calendar's **From URL** pane (`/settings/addbyurl`) in a background view
 via plain DOM scripting without CDP, falling back to revealing the pane with the URL pre-populated
