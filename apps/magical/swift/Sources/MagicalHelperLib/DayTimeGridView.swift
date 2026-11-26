@@ -13,6 +13,7 @@ public struct DayTimeGridView: View {
     public let events: [TrayEvent]
     public let onSelectEvent: (TrayEvent) -> Void
     public let onJoinCall: ((String, String) -> Void)?
+    public let onOpenUrl: ((String, String) -> Void)?
     public let onRsvp: ((TrayEvent, String) -> Void)?
     public let onDeleteEvent: ((TrayEvent) -> Void)?
     public let onCompleteTask: ((TrayEvent, Bool) -> Void)?
@@ -30,6 +31,7 @@ public struct DayTimeGridView: View {
         events: [TrayEvent],
         onSelectEvent: @escaping (TrayEvent) -> Void,
         onJoinCall: ((String, String) -> Void)? = nil,
+        onOpenUrl: ((String, String) -> Void)? = nil,
         onRsvp: ((TrayEvent, String) -> Void)? = nil,
         onDeleteEvent: ((TrayEvent) -> Void)? = nil,
         onCompleteTask: ((TrayEvent, Bool) -> Void)? = nil
@@ -38,6 +40,7 @@ public struct DayTimeGridView: View {
         self.events = events
         self.onSelectEvent = onSelectEvent
         self.onJoinCall = onJoinCall
+        self.onOpenUrl = onOpenUrl
         self.onRsvp = onRsvp
         self.onDeleteEvent = onDeleteEvent
         self.onCompleteTask = onCompleteTask
@@ -137,6 +140,7 @@ public struct DayTimeGridView: View {
                                 event: item.event,
                                 onSelect: { onSelectEvent(item.event) },
                                 onJoinCall: onJoinCall,
+                                onOpenUrl: onOpenUrl,
                                 onRsvp: onRsvp != nil ? { onRsvp?(item.event, $0) } : nil,
                                 onDelete: onDeleteEvent,
                                 onComplete: onCompleteTask,

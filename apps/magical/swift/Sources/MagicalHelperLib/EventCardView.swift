@@ -51,6 +51,7 @@ public struct EventCardView: View {
     public let height: CGFloat
     public let onSelect: () -> Void
     public let onJoinCall: ((String, String) -> Void)?
+    public let onOpenUrl: ((String, String) -> Void)?
     public let onRsvp: ((String) -> Void)?
     public let onDelete: ((TrayEvent) -> Void)?
     public let onComplete: ((TrayEvent, Bool) -> Void)?
@@ -61,6 +62,7 @@ public struct EventCardView: View {
         event: TrayEvent,
         onSelect: @escaping () -> Void,
         onJoinCall: ((String, String) -> Void)? = nil,
+        onOpenUrl: ((String, String) -> Void)? = nil,
         onRsvp: ((String) -> Void)? = nil,
         onDelete: ((TrayEvent) -> Void)? = nil,
         onComplete: ((TrayEvent, Bool) -> Void)? = nil,
@@ -71,6 +73,7 @@ public struct EventCardView: View {
         self.event = event
         self.onSelect = onSelect
         self.onJoinCall = onJoinCall
+        self.onOpenUrl = onOpenUrl
         self.onRsvp = onRsvp
         self.onDelete = onDelete
         self.onComplete = onComplete
@@ -94,6 +97,7 @@ public struct EventCardView: View {
             event: event,
             onSelect: onSelect,
             onJoinCall: onJoinCall,
+            onOpenUrl: onOpenUrl,
             onRsvp: onRsvp,
             onDelete: onDelete,
             onComplete: onComplete
@@ -197,7 +201,9 @@ public struct EventCardView: View {
                 EventLocationButton(
                     location: loc,
                     mapsUrl: mapsUrl,
-                    iconSize: style == .grid ? 8 : 8.5
+                    accountId: event.accountId,
+                    iconSize: style == .grid ? 8 : 8.5,
+                    onOpenUrl: onOpenUrl
                 )
             }
 
@@ -256,8 +262,10 @@ public struct EventCardView: View {
                 EventLocationButton(
                     location: loc,
                     mapsUrl: mapsUrl,
+                    accountId: event.accountId,
                     iconSize: 9.5,
-                    textSize: 10.5
+                    textSize: 10.5,
+                    onOpenUrl: onOpenUrl
                 )
             }
 
@@ -306,7 +314,9 @@ public struct EventCardView: View {
                 EventLocationButton(
                     location: loc,
                     mapsUrl: mapsUrl,
-                    iconSize: 8.5
+                    accountId: event.accountId,
+                    iconSize: 8.5,
+                    onOpenUrl: onOpenUrl
                 )
             }
 
@@ -497,14 +507,20 @@ public struct EventCardView: View {
 struct EventLocationButton: View {
     let location: String
     let mapsUrl: URL
+    let accountId: String
     let iconSize: CGFloat
     var textSize: CGFloat?
+    var onOpenUrl: ((String, String) -> Void)?
 
     @State private var isHovering = false
 
     var body: some View {
         Button {
-            NSWorkspace.shared.open(mapsUrl)
+            if let onOpenUrl {
+                onOpenUrl(mapsUrl.absoluteString, accountId)
+            } else {
+                NSWorkspace.shared.open(mapsUrl)
+            }
         } label: {
             HStack(spacing: 3) {
                 Image(systemName: "mappin.and.ellipse")

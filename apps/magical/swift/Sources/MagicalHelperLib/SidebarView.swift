@@ -764,6 +764,7 @@ public struct DayFocusedEventsList: View {
                 EventCardView(
                     event: event,
                     onSelect: { onAction?("sidebarOpenEvent", event.id) },
+                    onOpenUrl: { url, accountId in onAction?("sidebarOpenUrl", "\(accountId)|\(url)") },
                     onDelete: { onAction?("sidebarDeleteEvent", "\($0.accountId):\($0.id)") },
                     onComplete: { onAction?("sidebarCompleteTask", "\($0.accountId):\($0.id):\($1)") },
                     style: .allDay
@@ -814,6 +815,7 @@ public struct DayFocusedEventsList: View {
                 events: timedEvents,
                 onSelectEvent: { onAction?("sidebarOpenEvent", $0.id) },
                 onJoinCall: { url, accountId in onAction?("sidebarJoinCall", "\(accountId)|\(url)") },
+                onOpenUrl: { url, accountId in onAction?("sidebarOpenUrl", "\(accountId)|\(url)") },
                 onRsvp: { onAction?("sidebarRsvp", "\($0.accountId):\($0.id):\($1)") },
                 onDeleteEvent: { onAction?("sidebarDeleteEvent", "\($0.accountId):\($0.id)") },
                 onCompleteTask: { onAction?("sidebarCompleteTask", "\($0.accountId):\($0.id):\($1)") }
@@ -1033,6 +1035,7 @@ public struct SidebarRootView: View {
                 requestedScrollDate: model.requestedScrollDate,
                 onSelectEvent: { event in model.onAction?("sidebarOpenEvent", event.id) },
                 onJoinCall: { url, accountId in model.onAction?("sidebarJoinCall", "\(accountId)|\(url)") },
+                onOpenUrl: { url, accountId in model.onAction?("sidebarOpenUrl", "\(accountId)|\(url)") },
                 onRsvp: { event, reply in model.onAction?("sidebarRsvp", "\(event.accountId):\(event.id):\(reply)") },
                 onDeleteEvent: { event in model.onAction?("sidebarDeleteEvent", "\(event.accountId):\(event.id)") },
                 onCompleteTask: { event, completed in model.onAction?("sidebarCompleteTask", "\(event.accountId):\(event.id):\(completed)") },

@@ -538,6 +538,16 @@ export class MenuBarManager {
         return true;
       }
 
+      case 'tray.openUrl': {
+        const url = typeof params.url === 'string' ? params.url : '';
+        const accountId = typeof params.accountId === 'string' ? params.accountId : undefined;
+        const service = this.getCalendarService();
+        if (url && /^https?:\/\//i.test(url) && service) {
+          void service.openExternalLink(url, accountId);
+        }
+        return true;
+      }
+
       // Handed to the same `openDeepLink` a meeting banner goes through, so both surfaces
       // share one set of measured fallbacks: route the document rather than load it, keep
       // the user's view mode, refuse to move out from under an open editor, and open the

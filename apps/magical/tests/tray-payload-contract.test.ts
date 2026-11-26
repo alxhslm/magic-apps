@@ -341,6 +341,19 @@ describe('Magical Tray Payload Contracts', () => {
     );
   });
 
+  it('handles tray.openUrl and routes to CalendarService.openExternalLink', () => {
+    (mockCalendarService as Record<string, unknown>).openExternalLink = vi.fn();
+    const handled = manager.handleEvent('tray.openUrl', {
+      url: 'https://www.google.com/maps/search/?api=1&query=London',
+      accountId: 'account_work',
+    });
+    expect(handled).toBe(true);
+    expect((mockCalendarService as Record<string, unknown>).openExternalLink).toHaveBeenCalledWith(
+      'https://www.google.com/maps/search/?api=1&query=London',
+      'account_work',
+    );
+  });
+
   it('handles tray.search, tray.refresh, and tray.popoverOpened', () => {
     const mockOnSearch = vi.fn();
     const searchableManager = new MenuBarManager(

@@ -13,6 +13,7 @@ public struct HeroNextEventCard: View {
     public let minutesUntil: Int
     public let calendarColor: Color
     public let onJoinCall: (String, String) -> Void
+    public let onOpenUrl: ((String, String) -> Void)?
     public let onSelectEvent: (TrayEvent) -> Void
     public let onRsvp: ((String) -> Void)?
     public let onDeleteEvent: ((TrayEvent) -> Void)?
@@ -25,6 +26,7 @@ public struct HeroNextEventCard: View {
         minutesUntil: Int,
         calendarColor: Color,
         onJoinCall: @escaping (String, String) -> Void,
+        onOpenUrl: ((String, String) -> Void)? = nil,
         onSelectEvent: @escaping (TrayEvent) -> Void,
         onRsvp: ((String) -> Void)? = nil,
         onDeleteEvent: ((TrayEvent) -> Void)? = nil,
@@ -34,6 +36,7 @@ public struct HeroNextEventCard: View {
         self.minutesUntil = minutesUntil
         self.calendarColor = calendarColor
         self.onJoinCall = onJoinCall
+        self.onOpenUrl = onOpenUrl
         self.onSelectEvent = onSelectEvent
         self.onRsvp = onRsvp
         self.onDeleteEvent = onDeleteEvent
@@ -92,8 +95,10 @@ public struct HeroNextEventCard: View {
                         EventLocationButton(
                             location: loc,
                             mapsUrl: mapsUrl,
+                            accountId: event.accountId,
                             iconSize: 9.5,
-                            textSize: 10.5
+                            textSize: 10.5,
+                            onOpenUrl: onOpenUrl
                         )
                     }
 
@@ -156,6 +161,7 @@ public struct HeroNextEventCard: View {
             event: event,
             onSelect: { onSelectEvent(event) },
             onJoinCall: onJoinCall,
+            onOpenUrl: onOpenUrl,
             onRsvp: onRsvp,
             onDelete: onDeleteEvent,
             onComplete: onCompleteTask
