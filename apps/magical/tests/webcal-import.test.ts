@@ -6,6 +6,9 @@ describe('parseWebcalResult', () => {
     expect(parseWebcalResult('Calendar added')).toEqual({ kind: 'subscribed' });
     expect(parseWebcalResult('Settings saved')).toEqual({ kind: 'subscribed' });
     expect(parseWebcalResult('Calendar created')).toEqual({ kind: 'subscribed' });
+    expect(parseWebcalResult('Calendar created. Fetching events in the background.')).toEqual({
+      kind: 'subscribed',
+    });
   });
 
   it('reads a rejection when Google cannot fetch the feed', () => {

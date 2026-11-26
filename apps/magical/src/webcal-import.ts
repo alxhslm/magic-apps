@@ -145,16 +145,30 @@ export async function runWebcalSubscription(
     return { kind: 'unconfirmed', reason: uiString('dialog.webcal.reason.paneRejected') };
   }
 
-  const clicked = await evaluate<boolean>(
+  const buttonReady = await waitInPage<boolean>(
     view,
     `(() => {
-      const buttons = Array.from(document.querySelectorAll('button'));
-      const button = buttons.find((b) => /Add calendar/i.test((b.textContent || '').trim()));
-      if (!button || button.disabled) return false;
-      button.click();
-      return true;
+      const button = Array.from(document.querySelectorAll('button')).find((b) =>
+        /Add calendar/i.test((b.textContent || '').trim()),
+      );
+      return Boolean(button) && !button.disabled;
     })()`,
-  ).catch(() => false);
+    5_000,
+    'webcal-button-enabled',
+  );
+
+  const clicked =
+    buttonReady === true &&
+    (await evaluate<boolean>(
+      view,
+      `(() => {
+        const buttons = Array.from(document.querySelectorAll('button'));
+        const button = buttons.find((b) => /Add calendar/i.test((b.textContent || '').trim()));
+        if (!button || button.disabled) return false;
+        button.click();
+        return true;
+      })()`,
+    ).catch(() => false));
 
   if (!clicked) {
     return { kind: 'unconfirmed', reason: uiString('dialog.webcal.reason.buttonUnavailable') };
@@ -163,6 +177,7 @@ export async function runWebcalSubscription(
   const resultText = await waitInPage<string>(
     view,
     `(() => {
+      const resultPattern = /(calendar added|settings saved|calendar created|imported|could not fetch|failed|invalid|error|unable to|not a valid|could not access)/i;
       const textEls = Array.from(
         document.querySelectorAll(
           '[aria-live], div[id*="help-text"], [role="status"], [role="alert"], [data-mdc-dialog-action], .Y5186b, .b0t70b',
@@ -170,19 +185,14 @@ export async function runWebcalSubscription(
       );
       for (const el of textEls) {
         const text = (el.textContent || '').trim();
-        if (
-          text &&
-          /(calendar added|settings saved|calendar created|imported|could not fetch|failed|invalid|error|unable to|not a valid|could not access)/i.test(
-            text,
-          )
-        ) {
+        if (text && resultPattern.test(text)) {
           return text;
         }
       }
-      const dialog = document.querySelector('[role="dialog"], [role="alertdialog"]');
-      if (dialog) {
+      const dialogs = Array.from(document.querySelectorAll('[role="dialog"], [role="alertdialog"]'));
+      for (const dialog of dialogs) {
         const text = (dialog.textContent || '').trim();
-        if (text) return text;
+        if (text && resultPattern.test(text)) return text;
       }
       return false;
     })()`,
