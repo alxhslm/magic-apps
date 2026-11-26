@@ -77,7 +77,7 @@ export function setQuickComposeShortcut(
   const accelerator = resolveQuickComposeChord(chord);
   if (accelerator === 'off') return null;
 
-  let ok = false;
+  let ok: boolean;
   try {
     ok = globalShortcut.register(accelerator, handler);
   } catch {

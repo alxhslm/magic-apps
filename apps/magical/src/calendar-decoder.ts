@@ -958,7 +958,9 @@ export function parsePrefetchEventRangeResponse(
   try {
     parsed = JSON.parse(jsonText);
   } catch (err) {
-    throw new Error(`Failed to parse Google Calendar JSON: ${(err as Error).message}`);
+    throw new Error(`Failed to parse Google Calendar JSON: ${(err as Error).message}`, {
+      cause: err,
+    });
   }
 
   if (isUnauthenticatedResponse(parsed)) {

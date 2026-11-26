@@ -40,7 +40,7 @@ function isRefusal(status: number): boolean {
  * are read rather than assuming the shape. The caller caps the answer either way.
  */
 function retryAfterFrom(response: Response): number | null {
-  let raw: string | null = null;
+  let raw: string | null;
   try {
     raw = response.headers?.get('retry-after') ?? null;
   } catch {
