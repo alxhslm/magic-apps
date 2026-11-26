@@ -6,6 +6,7 @@ public extension View {
         event: TrayEvent,
         onSelect: @escaping () -> Void,
         onJoinCall: ((String, String) -> Void)? = nil,
+        onOpenUrl: ((String, String) -> Void)? = nil,
         onRsvp: ((String) -> Void)? = nil,
         onDelete: ((TrayEvent) -> Void)? = nil,
         onComplete: ((TrayEvent, Bool) -> Void)? = nil
@@ -36,6 +37,18 @@ public extension View {
                     onJoinCall(conferenceUrl, event.accountId)
                 } label: {
                     Label("Join Meeting", systemImage: "video")
+                }
+            }
+
+            if let mapsUrl = event.locationMapsUrl {
+                Button {
+                    if let onOpenUrl {
+                        onOpenUrl(mapsUrl.absoluteString, event.accountId)
+                    } else {
+                        NSWorkspace.shared.open(mapsUrl)
+                    }
+                } label: {
+                    Label("Open in Google Maps", systemImage: "mappin.and.ellipse")
                 }
             }
 

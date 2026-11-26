@@ -440,6 +440,9 @@ public final class MenuBarController: NSObject, NSPopoverDelegate {
             onJoinCall: { [weak self] url, accountId in
                 self?.send(method: "tray.joinCall", params: ["url": url, "accountId": accountId])
             },
+            onOpenUrl: { [weak self] url, accountId in
+                self?.send(method: "tray.openUrl", params: ["url": url, "accountId": accountId])
+            },
             onSelectEvent: { [weak self] event in
                 self?.send(method: "tray.focusEvent", params: [
                     "accountId": event.accountId,

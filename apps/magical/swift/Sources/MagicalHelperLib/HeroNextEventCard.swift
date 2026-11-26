@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// The meeting that is running or about to, at the top of the popover.
@@ -12,6 +13,7 @@ public struct HeroNextEventCard: View {
     public let minutesUntil: Int
     public let calendarColor: Color
     public let onJoinCall: (String, String) -> Void
+    public let onOpenUrl: ((String, String) -> Void)?
     public let onSelectEvent: (TrayEvent) -> Void
     public let onRsvp: ((String) -> Void)?
     public let onDeleteEvent: ((TrayEvent) -> Void)?
@@ -24,6 +26,7 @@ public struct HeroNextEventCard: View {
         minutesUntil: Int,
         calendarColor: Color,
         onJoinCall: @escaping (String, String) -> Void,
+        onOpenUrl: ((String, String) -> Void)? = nil,
         onSelectEvent: @escaping (TrayEvent) -> Void,
         onRsvp: ((String) -> Void)? = nil,
         onDeleteEvent: ((TrayEvent) -> Void)? = nil,
@@ -33,6 +36,7 @@ public struct HeroNextEventCard: View {
         self.minutesUntil = minutesUntil
         self.calendarColor = calendarColor
         self.onJoinCall = onJoinCall
+        self.onOpenUrl = onOpenUrl
         self.onSelectEvent = onSelectEvent
         self.onRsvp = onRsvp
         self.onDeleteEvent = onDeleteEvent
@@ -61,6 +65,8 @@ public struct HeroNextEventCard: View {
                     .padding(.vertical, 2.5)
                     .background(statusColor.opacity(0.15))
                     .clipShape(Capsule())
+                    .fixedSize(horizontal: true, vertical: false)
+                    .layoutPriority(1)
 
                     Text(verbatim: "·")
                         .font(.system(size: 10))
@@ -69,6 +75,8 @@ public struct HeroNextEventCard: View {
                     Text(event.formattedTime)
                         .font(.system(size: 10.5, design: .rounded).monospacedDigit())
                         .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: true, vertical: false)
+                        .layoutPriority(1)
 
                     if let service = event.conferenceServiceName, event.conferenceUrl != nil {
                         Text(verbatim: "·")
@@ -77,6 +85,21 @@ public struct HeroNextEventCard: View {
                         Text(service)
                             .font(.system(size: 10.5))
                             .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+
+                    if let loc = event.trimmedLocation, let mapsUrl = event.locationMapsUrl {
+                        Text(verbatim: "·")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.tertiary)
+                        EventLocationButton(
+                            location: loc,
+                            mapsUrl: mapsUrl,
+                            accountId: event.accountId,
+                            iconSize: 9.5,
+                            textSize: 10.5,
+                            onOpenUrl: onOpenUrl
+                        )
                     }
 
                     // The band stands alone, with no filled card beside it to read an outline
@@ -138,6 +161,7 @@ public struct HeroNextEventCard: View {
             event: event,
             onSelect: { onSelectEvent(event) },
             onJoinCall: onJoinCall,
+            onOpenUrl: onOpenUrl,
             onRsvp: onRsvp,
             onDelete: onDeleteEvent,
             onComplete: onCompleteTask
@@ -154,6 +178,8 @@ public struct HeroNextEventCard: View {
                 Capsule()
                     .strokeBorder(Color.secondary.opacity(0.45), lineWidth: 1)
             )
+            .fixedSize(horizontal: true, vertical: false)
+            .layoutPriority(1)
     }
 
     /// Green only while it is actually running. A meeting three hours out in the same green reads

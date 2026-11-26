@@ -6,6 +6,7 @@ public struct ScheduleAgendaView: View {
     public let requestedScrollDate: Date?
     public let onSelectEvent: (TrayEvent) -> Void
     public let onJoinCall: (String, String) -> Void
+    public let onOpenUrl: ((String, String) -> Void)?
     public let onRsvp: (TrayEvent, String) -> Void
     public let onDeleteEvent: ((TrayEvent) -> Void)?
     public let onCompleteTask: ((TrayEvent, Bool) -> Void)?
@@ -55,6 +56,7 @@ public struct ScheduleAgendaView: View {
         requestedScrollDate: Date? = nil,
         onSelectEvent: @escaping (TrayEvent) -> Void,
         onJoinCall: @escaping (String, String) -> Void,
+        onOpenUrl: ((String, String) -> Void)? = nil,
         onRsvp: @escaping (TrayEvent, String) -> Void,
         onDeleteEvent: ((TrayEvent) -> Void)? = nil,
         onCompleteTask: ((TrayEvent, Bool) -> Void)? = nil,
@@ -68,6 +70,7 @@ public struct ScheduleAgendaView: View {
         self.requestedScrollDate = requestedScrollDate
         self.onSelectEvent = onSelectEvent
         self.onJoinCall = onJoinCall
+        self.onOpenUrl = onOpenUrl
         self.onRsvp = onRsvp
         self.onDeleteEvent = onDeleteEvent
         self.onCompleteTask = onCompleteTask
@@ -299,6 +302,7 @@ public struct ScheduleAgendaView: View {
                     EventCardView(
                         event: event,
                         onSelect: { onSelectEvent(event) },
+                        onOpenUrl: onOpenUrl,
                         onDelete: onDeleteEvent,
                         onComplete: onCompleteTask,
                         style: .allDay
@@ -320,6 +324,7 @@ public struct ScheduleAgendaView: View {
                         cluster: cluster,
                         onSelectEvent: onSelectEvent,
                         onJoinCall: onJoinCall,
+                        onOpenUrl: onOpenUrl,
                         onRsvp: onRsvp,
                         onDeleteEvent: onDeleteEvent,
                         onCompleteTask: onCompleteTask

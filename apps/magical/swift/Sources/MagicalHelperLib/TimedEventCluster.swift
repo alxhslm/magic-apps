@@ -77,6 +77,7 @@ public struct ClusterEventRowView: View {
     public let cluster: TimedEventCluster
     public let onSelectEvent: (TrayEvent) -> Void
     public let onJoinCall: ((String, String) -> Void)?
+    public let onOpenUrl: ((String, String) -> Void)?
     public let onRsvp: ((TrayEvent, String) -> Void)?
     public let onDeleteEvent: ((TrayEvent) -> Void)?
     public let onCompleteTask: ((TrayEvent, Bool) -> Void)?
@@ -85,6 +86,7 @@ public struct ClusterEventRowView: View {
         cluster: TimedEventCluster,
         onSelectEvent: @escaping (TrayEvent) -> Void,
         onJoinCall: ((String, String) -> Void)? = nil,
+        onOpenUrl: ((String, String) -> Void)? = nil,
         onRsvp: ((TrayEvent, String) -> Void)? = nil,
         onDeleteEvent: ((TrayEvent) -> Void)? = nil,
         onCompleteTask: ((TrayEvent, Bool) -> Void)? = nil
@@ -92,6 +94,7 @@ public struct ClusterEventRowView: View {
         self.cluster = cluster
         self.onSelectEvent = onSelectEvent
         self.onJoinCall = onJoinCall
+        self.onOpenUrl = onOpenUrl
         self.onRsvp = onRsvp
         self.onDeleteEvent = onDeleteEvent
         self.onCompleteTask = onCompleteTask
@@ -104,6 +107,7 @@ public struct ClusterEventRowView: View {
                     event: cluster.events[0],
                     onSelect: { onSelectEvent(cluster.events[0]) },
                     onJoinCall: onJoinCall,
+                    onOpenUrl: onOpenUrl,
                     onRsvp: { status in onRsvp?(cluster.events[0], status) },
                     onDelete: onDeleteEvent,
                     onComplete: onCompleteTask,
@@ -115,6 +119,7 @@ public struct ClusterEventRowView: View {
                     event: cluster.events[1],
                     onSelect: { onSelectEvent(cluster.events[1]) },
                     onJoinCall: onJoinCall,
+                    onOpenUrl: onOpenUrl,
                     onRsvp: { status in onRsvp?(cluster.events[1], status) },
                     onDelete: onDeleteEvent,
                     onComplete: onCompleteTask,
@@ -129,6 +134,7 @@ public struct ClusterEventRowView: View {
                         event: event,
                         onSelect: { onSelectEvent(event) },
                         onJoinCall: onJoinCall,
+                        onOpenUrl: onOpenUrl,
                         onRsvp: { status in onRsvp?(event, status) },
                         onDelete: onDeleteEvent,
                         onComplete: onCompleteTask

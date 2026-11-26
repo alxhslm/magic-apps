@@ -334,6 +334,14 @@ export class SidebarManager {
         break;
       }
 
+      case 'sidebarOpenUrl': {
+        const [accountId, url] = splitJoinValue(value);
+        if (url && /^https?:\/\//i.test(url)) {
+          void this.getCalendarService?.()?.openExternalLink(url, accountId);
+        }
+        break;
+      }
+
       case 'sidebarDeleteEvent': {
         const colonIdx = value.indexOf(':');
         if (colonIdx > 0) {

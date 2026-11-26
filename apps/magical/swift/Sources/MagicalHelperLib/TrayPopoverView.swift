@@ -52,6 +52,7 @@ public struct TrayPopoverView: View {
     let onOpenSettings: () -> Void
     let onQuit: () -> Void
     let onJoinCall: (String, String) -> Void
+    let onOpenUrl: ((String, String) -> Void)?
     let onSelectEvent: (TrayEvent) -> Void
     let onRsvp: (TrayEvent, String) -> Void
     let onShowAccount: (String) -> Void
@@ -66,6 +67,7 @@ public struct TrayPopoverView: View {
         onOpenSettings: @escaping () -> Void,
         onQuit: @escaping () -> Void,
         onJoinCall: @escaping (String, String) -> Void,
+        onOpenUrl: ((String, String) -> Void)? = nil,
         onSelectEvent: @escaping (TrayEvent) -> Void,
         onRsvp: @escaping (TrayEvent, String) -> Void,
         onShowAccount: @escaping (String) -> Void,
@@ -79,6 +81,7 @@ public struct TrayPopoverView: View {
         self.onOpenSettings = onOpenSettings
         self.onQuit = onQuit
         self.onJoinCall = onJoinCall
+        self.onOpenUrl = onOpenUrl
         self.onSelectEvent = onSelectEvent
         self.onRsvp = onRsvp
         self.onShowAccount = onShowAccount
@@ -257,6 +260,7 @@ public struct TrayPopoverView: View {
                         minutesUntil: hero.minutesUntil,
                         calendarColor: Color(hex: hero.event.colorHex),
                         onJoinCall: onJoinCall,
+                        onOpenUrl: onOpenUrl,
                         onSelectEvent: onSelectEvent,
                         onRsvp: { response in onRsvp(hero.event, response) },
                         onDeleteEvent: onDeleteEvent,
@@ -318,6 +322,7 @@ public struct TrayPopoverView: View {
                 requestedScrollDate: model.requestedScrollDate,
                 onSelectEvent: onSelectEvent,
                 onJoinCall: onJoinCall,
+                onOpenUrl: onOpenUrl,
                 onRsvp: onRsvp,
                 onDeleteEvent: onDeleteEvent,
                 onCompleteTask: onCompleteTask,

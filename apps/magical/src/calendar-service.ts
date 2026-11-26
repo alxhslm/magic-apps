@@ -2076,6 +2076,15 @@ export class CalendarService {
   }
 
   /**
+   * Opens an external URL (such as a Google Maps location link) using the user's configured
+   * browser and the event account's Chrome/Chromium profile when set.
+   */
+  public async openExternalLink(url: string, accountId?: string): Promise<void> {
+    const account = accountId ? loadAccounts().find((a) => a.id === accountId) : undefined;
+    await openExternalUrl(url, account);
+  }
+
+  /**
    * Routes a `magical://` link to the right account's view.
    *
    * Reveals the event in place where it can — routing the document and clicking the
