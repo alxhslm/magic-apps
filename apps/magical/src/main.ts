@@ -83,6 +83,7 @@ import {
   isAllowedCalendarNavigationUrl,
   MAGICAL_PROTOCOL,
   normalizeFeedUrl,
+  parseImportLink,
   parseSubscriptionLink,
 } from './event-links.js';
 import { onIcsFile, readIcsFile, watchForIcsFiles } from './ics-handler.js';
@@ -934,10 +935,13 @@ async function dispatchProtocolUrl(rawUrl: string): Promise<void> {
     }
 
     if (parsed.hostname === 'import' || parsed.hostname === 'ics') {
-      const filePath = parsed.searchParams.get('file') || parsed.searchParams.get('path');
-      const targetAccountId = parsed.searchParams.get('account') || undefined;
-      if (filePath) {
-        await handleIcsFile(filePath, targetAccountId);
+      const imp = parseImportLink(rawUrl);
+      if (
+        imp &&
+        path.isAbsolute(imp.filePath) &&
+        path.extname(imp.filePath).toLowerCase() === '.ics'
+      ) {
+        await handleIcsFile(imp.filePath, imp.accountId);
         return;
       }
     }
