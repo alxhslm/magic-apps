@@ -75,7 +75,8 @@ public enum DefaultHandler {
                 guard let dummyUrl = URL(string: "\(scheme):"),
                       let handler = NSWorkspace.shared.urlForApplication(toOpen: dummyUrl)
                 else {
-                    return nil
+                    allMagical = false
+                    continue
                 }
                 let name = FileManager.default.displayName(atPath: handler.path)
                 lastName = name
