@@ -87,8 +87,8 @@ public enum DefaultHandler {
                     }
                 }
             }
-            guard let name = allMagical ? lastName : (otherName ?? lastName) else { return nil }
-            return (name, allMagical)
+            guard lastName != nil else { return nil }
+            return (allMagical ? (lastName ?? "") : (otherName ?? ""), allMagical)
         }
         return nil
     }

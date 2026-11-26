@@ -202,7 +202,7 @@ export async function runWebcalSubscription(
       const dialogs = Array.from(document.querySelectorAll('[role="dialog"], [role="alertdialog"]'));
       for (const dialog of dialogs) {
         const text = (dialog.textContent || '').trim();
-        if (text && resultPattern.test(text)) return text;
+        if (text && !baseline.has(text) && resultPattern.test(text)) return text;
       }
       return false;
     })()`,

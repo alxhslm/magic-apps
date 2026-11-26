@@ -269,12 +269,7 @@ app.on('open-url', (event, url) => {
 
 app.on('second-instance', (_event, argv) => {
   log.info('Second instance launched; focusing main window');
-  const protocolUrl = argv.find(
-    (a) =>
-      a.startsWith(`${MAGICAL_PROTOCOL}://`) ||
-      a.startsWith('webcal://') ||
-      a.startsWith('ical://'),
-  );
+  const protocolUrl = argv.find((a) => /^(magical|webcal|ical):\/\//i.test(a));
   if (protocolUrl && calendarService) {
     log.info('second-instance URL:', redactUrl(protocolUrl));
     void dispatchProtocolUrl(protocolUrl);
@@ -1826,14 +1821,7 @@ app.whenReady().then(async () => {
   // because the manager's constructor is what builds and loads an account's view, so
   // the account the link names has to be chosen first.
   const startupUrl =
-    pendingProtocolUrl ??
-    process.argv.find(
-      (a) =>
-        a.startsWith(`${MAGICAL_PROTOCOL}://`) ||
-        a.startsWith('webcal://') ||
-        a.startsWith('ical://'),
-    ) ??
-    null;
+    pendingProtocolUrl ?? process.argv.find((a) => /^(magical|webcal|ical):\/\//i.test(a)) ?? null;
   const startupAccountId = startupUrl ? accountIdFromLink(startupUrl) : undefined;
   if (startupUrl) {
     log.info(
