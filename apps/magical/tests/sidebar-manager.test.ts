@@ -240,52 +240,58 @@ describe('SidebarManager', () => {
   });
 
   it('serializes events and accounts and pushes to native addon', () => {
-    const manager = new SidebarManager(
-      () => mockMainWindow as any,
-      () => mockAccountsManager as any,
-    );
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-14T08:00:00Z'));
+    try {
+      const manager = new SidebarManager(
+        () => mockMainWindow as any,
+        () => mockAccountsManager as any,
+      );
 
-    const accounts: CalendarAccount[] = [
-      {
-        id: 'acc_personal',
-        name: 'Personal',
-        email: 'person@example.com',
-        color: '#4285f4',
-        calendarIds: ['person@example.com'],
-      },
-    ];
+      const accounts: CalendarAccount[] = [
+        {
+          id: 'acc_personal',
+          name: 'Personal',
+          email: 'person@example.com',
+          color: '#4285f4',
+          calendarIds: ['person@example.com'],
+        },
+      ];
 
-    const events = new Map<string, NormalizedCalendarEvent[]>([
-      [
-        'acc_personal',
+      const events = new Map<string, NormalizedCalendarEvent[]>([
         [
-          {
-            id: 'evt_1',
-            summary: 'Team Standup',
-            startTime: new Date('2026-10-14T09:00:00Z'),
-            endTime: new Date('2026-10-14T09:30:00Z'),
-            isAllDay: false,
-            calendarIds: ['person@example.com'],
-            attendees: [],
-            eventType: 0,
-            webUrl: 'https://calendar.google.com/event?eid=123',
-            created: null,
-            updated: null,
-            conferenceUrl: 'https://meet.google.com/abc-defg-hij',
-          },
+          'acc_personal',
+          [
+            {
+              id: 'evt_1',
+              summary: 'Team Standup',
+              startTime: new Date('2026-10-14T09:00:00Z'),
+              endTime: new Date('2026-10-14T09:30:00Z'),
+              isAllDay: false,
+              calendarIds: ['person@example.com'],
+              attendees: [],
+              eventType: 0,
+              webUrl: 'https://calendar.google.com/event?eid=123',
+              created: null,
+              updated: null,
+              conferenceUrl: 'https://meet.google.com/abc-defg-hij',
+            },
+          ],
         ],
-      ],
-    ]);
+      ]);
 
-    manager.updateAccounts(accounts);
-    manager.updateEvents(events);
+      manager.updateAccounts(accounts);
+      manager.updateEvents(events);
 
-    expect(sidebarUpdateData).toHaveBeenCalled();
-    const lastCallJson = JSON.parse(sidebarUpdateData.mock.calls.at(-1)![0]);
-    expect(lastCallJson.accounts).toHaveLength(1);
-    expect(lastCallJson.events).toHaveLength(1);
-    expect(lastCallJson.events[0].summary).toBe('Team Standup');
-    expect(lastCallJson.events[0].conferenceUrl).toBe('https://meet.google.com/abc-defg-hij');
+      expect(sidebarUpdateData).toHaveBeenCalled();
+      const lastCallJson = JSON.parse(sidebarUpdateData.mock.calls.at(-1)![0]);
+      expect(lastCallJson.accounts).toHaveLength(1);
+      expect(lastCallJson.events).toHaveLength(1);
+      expect(lastCallJson.events[0].summary).toBe('Team Standup');
+      expect(lastCallJson.events[0].conferenceUrl).toBe('https://meet.google.com/abc-defg-hij');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('handles sidebar actions: date selection, event open, join call, delete, task, rsvp, and refresh', () => {
