@@ -317,6 +317,36 @@ public struct TrayEvent: Identifiable, Equatable {
         }
         return String(localized: "Video call")
     }
+
+    /// Trimmed non-empty location string, or `nil` when absent or whitespace-only.
+    public var trimmedLocation: String? {
+        guard let raw = location?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else {
+            return nil
+        }
+        return raw
+    }
+
+    /// URL that opens the event's location: directly when it is already an `http(s)` URL,
+    /// or as a Google Maps search query otherwise.
+    public var locationMapsUrl: URL? {
+        guard let loc = trimmedLocation else { return nil }
+        if let url = URL(string: loc),
+           let scheme = url.scheme?.lowercased(),
+           scheme == "http" || scheme == "https",
+           url.host?.isEmpty == false
+        {
+            return url
+        }
+        var components = URLComponents()
+        components.scheme = "https"
+        components.host = "www.google.com"
+        components.path = "/maps/search/"
+        components.queryItems = [
+            URLQueryItem(name: "api", value: "1"),
+            URLQueryItem(name: "query", value: loc),
+        ]
+        return components.url
+    }
 }
 
 // MARK: - Tray Observable Model

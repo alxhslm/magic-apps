@@ -1,3 +1,4 @@
+import AppKit
 import HelperUI
 import SwiftUI
 
@@ -192,6 +193,14 @@ public struct EventCardView: View {
 
             Spacer(minLength: 2)
 
+            if let loc = event.trimmedLocation, let mapsUrl = event.locationMapsUrl {
+                EventLocationButton(
+                    location: loc,
+                    mapsUrl: mapsUrl,
+                    iconSize: style == .grid ? 8 : 8.5
+                )
+            }
+
             if event.conferenceUrl != nil {
                 Image(systemName: "video.fill")
                     .font(.system(size: style == .grid ? 8 : 8.5))
@@ -240,14 +249,16 @@ public struct EventCardView: View {
                     .lineLimit(1)
             }
 
-            if let loc = event.location, !loc.isEmpty {
+            if let loc = event.trimmedLocation, let mapsUrl = event.locationMapsUrl {
                 Text(verbatim: "·")
                     .font(.system(size: 10))
                     .foregroundStyle(.tertiary)
-                Text(loc)
-                    .font(.system(size: 10.5))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                EventLocationButton(
+                    location: loc,
+                    mapsUrl: mapsUrl,
+                    iconSize: 9.5,
+                    textSize: 10.5
+                )
             }
 
             Spacer(minLength: 4)
@@ -289,6 +300,20 @@ public struct EventCardView: View {
                     .font(.system(size: 8.5))
                     .foregroundStyle(.tertiary)
                     .lineLimit(1)
+            }
+
+            if let loc = event.trimmedLocation, let mapsUrl = event.locationMapsUrl {
+                EventLocationButton(
+                    location: loc,
+                    mapsUrl: mapsUrl,
+                    iconSize: 8.5
+                )
+            }
+
+            if event.conferenceUrl != nil {
+                Image(systemName: "video.fill")
+                    .font(.system(size: 8.5))
+                    .foregroundStyle(.secondary)
             }
 
             Text("All day")
@@ -465,5 +490,39 @@ public struct EventCardView: View {
         return event.isTentative
             ? StrokeStyle(lineWidth: width, dash: [3, 2])
             : StrokeStyle(lineWidth: width)
+    }
+}
+
+/// Pin SF Symbol (with optional 1-line location label) that opens the event's location in Google Maps.
+struct EventLocationButton: View {
+    let location: String
+    let mapsUrl: URL
+    let iconSize: CGFloat
+    var textSize: CGFloat?
+
+    @State private var isHovering = false
+
+    var body: some View {
+        Button {
+            NSWorkspace.shared.open(mapsUrl)
+        } label: {
+            HStack(spacing: 3) {
+                Image(systemName: "mappin.and.ellipse")
+                    .font(.system(size: iconSize))
+                if let textSize {
+                    Text(location)
+                        .font(.system(size: textSize))
+                        .lineLimit(1)
+                }
+            }
+            .padding(.horizontal, textSize == nil ? 2 : 0)
+            .padding(.vertical, 1)
+            .contentShape(Rectangle())
+            .foregroundStyle(isHovering ? .primary : .secondary)
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovering = $0 }
+        .help(String(localized: "Open “\(location)” in Google Maps"))
+        .accessibilityLabel(String(localized: "Open \(location) in Google Maps"))
     }
 }

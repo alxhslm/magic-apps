@@ -39,6 +39,14 @@ public extension View {
                 }
             }
 
+            if let mapsUrl = event.locationMapsUrl {
+                Button {
+                    NSWorkspace.shared.open(mapsUrl)
+                } label: {
+                    Label("Open in Google Maps", systemImage: "mappin.and.ellipse")
+                }
+            }
+
             // Not offered on a task, which has no link that opens it. The `eid` in a task's
             // own `webUrl` lands on the task's day with nothing open, and the `ttb_` form the
             // grid chip carries is answered with an HTTP 500. Both measured.
