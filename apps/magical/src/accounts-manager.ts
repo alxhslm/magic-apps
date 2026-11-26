@@ -42,6 +42,11 @@ import { mergeCalendarList, resolveCalendarList, type RawCalendar } from './cale
 import { loadSettings, saveSetting } from './settings-store.js';
 import { preparePane, releaseDebugger, runImport, type IcsImportOutcome } from './ics-import.js';
 import {
+  prepareWebcalPane,
+  runWebcalSubscription,
+  type WebcalSubscriptionOutcome,
+} from './webcal-import.js';
+import {
   createCalendarActionDriver,
   type CalendarActionDriver,
   type DomCalendarActionDriver,
@@ -1497,6 +1502,60 @@ export class AccountsManager {
 
     if (outcome.kind === 'unconfirmed') await this.revealImportPane(accountId, filePath);
     return outcome;
+  }
+
+  /**
+   * Subscribes an account to a webcal / iCal feed using Google's "From URL" pane.
+   */
+  public async subscribeWebcal(
+    accountId: string,
+    feedUrl: string,
+  ): Promise<WebcalSubscriptionOutcome> {
+    const account = this.accounts.find((a) => a.id === accountId);
+    if (!account) {
+      return { kind: 'unconfirmed', reason: uiString('dialog.webcal.reason.accountMissing') };
+    }
+
+    log.info(`Subscribing to webcal feed in account ${accountId}: ${redactUrl(feedUrl)}`);
+    const worker = this.createAccountView(account);
+    const [width, height] = this.mainWindow.getContentSize();
+    const settings = loadSettings();
+    worker.setBounds(
+      layoutCalendarView(width, height, {
+        sidebarVisible: settings.sidebarVisible,
+      }),
+    );
+
+    let outcome: WebcalSubscriptionOutcome;
+    try {
+      outcome = await runWebcalSubscription(worker, feedUrl);
+    } catch (error) {
+      log.error('Webcal subscription failed while driving the pane:', error);
+      outcome = { kind: 'unconfirmed', reason: uiString('dialog.webcal.reason.paneUnavailable') };
+    } finally {
+      if (viewIsAlive(worker)) worker.webContents.close();
+    }
+
+    if (outcome.kind === 'unconfirmed') {
+      await this.revealWebcalPane(accountId, feedUrl);
+    }
+    return outcome;
+  }
+
+  /**
+   * Shows the From URL pane in the account's own view, optionally with a feed URL already entered.
+   */
+  async revealWebcalPane(accountId: string, feedUrl = ''): Promise<void> {
+    this.switchAccount(accountId);
+    const view = this.pool.view(accountId);
+    if (!viewIsAlive(view)) return;
+
+    log.info(`Falling back to the on-screen From URL pane for account ${accountId}`);
+    try {
+      await prepareWebcalPane(view, feedUrl);
+    } catch (error) {
+      log.error('Could not prepare the on-screen webcal pane:', error);
+    }
   }
 
   /**

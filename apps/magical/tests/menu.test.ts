@@ -143,6 +143,30 @@ describe('buildAppMenu for Magical', () => {
     expect(onImportFile).toHaveBeenCalledTimes(1);
   });
 
+  it('offers Subscribe to Calendar Feed in the File menu', () => {
+    const onSubscribeFeed = vi.fn();
+    const menu = buildAppMenu(defaultOptions({ onSubscribeFeed })) as unknown as TemplateItem[];
+    const fileMenu = menu.find((item) => item.label === 'File');
+    const item = fileMenu?.submenu?.find((sub) => sub.label === 'Subscribe to Calendar Feed…');
+
+    expect(item).toBeDefined();
+    expect(item?.accelerator).toBe('Alt+CmdOrCtrl+S');
+
+    item?.click?.();
+    expect(onSubscribeFeed).toHaveBeenCalledTimes(1);
+  });
+
+  it('leaves Subscribe to Calendar Feed inert rather than absent when nothing handles it', () => {
+    const menu = buildAppMenu(
+      defaultOptions({ onSubscribeFeed: undefined }),
+    ) as unknown as TemplateItem[];
+    const fileMenu = menu.find((item) => item.label === 'File');
+    const item = fileMenu?.submenu?.find((sub) => sub.label === 'Subscribe to Calendar Feed…');
+
+    expect(item).toBeDefined();
+    expect(() => item?.click?.()).not.toThrow();
+  });
+
   it('leaves Import Calendar File inert rather than absent when nothing handles it', () => {
     const menu = buildAppMenu(
       defaultOptions({ onImportFile: undefined }),

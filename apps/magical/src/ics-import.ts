@@ -150,15 +150,18 @@ export async function attachFileToPane(view: WebContentsView, filePath: string):
   );
 }
 
-/** Waits for the pane to have rendered its file field. */
+/** Waits for the pane to have rendered its file field, bailing early on login redirects. */
 async function waitForPane(view: WebContentsView): Promise<boolean> {
-  const found = await waitInPage<boolean>(
+  const result = await waitInPage<'ready' | 'login'>(
     view,
-    `document.querySelector(${JSON.stringify(FILE_INPUT_SELECTOR)}) !== null`,
+    `(() => {
+      if (location.hostname === 'accounts.google.com') return 'login';
+      return document.querySelector(${JSON.stringify(FILE_INPUT_SELECTOR)}) !== null ? 'ready' : false;
+    })()`,
     PANE_TIMEOUT_MS,
     'ics-pane',
   );
-  return found === true;
+  return result === 'ready';
 }
 
 /**
