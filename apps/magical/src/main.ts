@@ -1236,7 +1236,7 @@ async function handleSubscribeFeedMenu(): Promise<void> {
   const manager = accounts;
   if (!manager) return;
 
-  const clip = clipboard.readText().trim();
+  const clip = (await clipboard.readText()).trim();
   const looksLikeFeed =
     /^(webcal|ical|https?):\/\/[^\s]+$/i.test(clip) &&
     (clip.includes('.ics') || /^(webcal|ical):/i.test(clip) || /calendar|feed/i.test(clip));
