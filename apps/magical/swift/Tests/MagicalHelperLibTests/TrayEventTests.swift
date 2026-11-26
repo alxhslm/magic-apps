@@ -164,7 +164,7 @@ import Testing
         "calendarIds": ["user@example.com"],
         "location": "HTTPS://maps.example.com/place",
     ])
-    #expect(uppercaseScheme.locationMapsUrl == URL(string: "HTTPS://maps.example.com/place"))
+    #expect(uppercaseScheme.locationMapsUrl == URL(string: "https://maps.example.com/place"))
 
     let hostlessPath = TrayEvent(from: [
         "id": "loc_evt_7",

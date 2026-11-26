@@ -342,16 +342,21 @@ describe('Magical Tray Payload Contracts', () => {
   });
 
   it('handles tray.openUrl and routes to CalendarService.openExternalLink', () => {
-    (mockCalendarService as Record<string, unknown>).openExternalLink = vi.fn();
+    const openExternalLink = vi.fn();
+    (mockCalendarService as Record<string, unknown>).openExternalLink = openExternalLink;
     const handled = manager.handleEvent('tray.openUrl', {
       url: 'https://www.google.com/maps/search/?api=1&query=London',
       accountId: 'account_work',
     });
     expect(handled).toBe(true);
-    expect((mockCalendarService as Record<string, unknown>).openExternalLink).toHaveBeenCalledWith(
+    expect(openExternalLink).toHaveBeenCalledWith(
       'https://www.google.com/maps/search/?api=1&query=London',
       'account_work',
     );
+
+    manager.handleEvent('tray.openUrl', { url: 'javascript:alert(1)', accountId: 'account_work' });
+    manager.handleEvent('tray.openUrl', { url: 'file:///etc/passwd', accountId: 'account_work' });
+    expect(openExternalLink).toHaveBeenCalledTimes(1);
   });
 
   it('handles tray.search, tray.refresh, and tray.popoverOpened', () => {

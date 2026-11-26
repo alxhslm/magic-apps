@@ -335,7 +335,9 @@ public struct TrayEvent: Identifiable, Equatable {
            scheme == "http" || scheme == "https",
            url.host?.isEmpty == false
         {
-            return url
+            var normalized = URLComponents(url: url, resolvingAgainstBaseURL: false)
+            normalized?.scheme = scheme
+            return normalized?.url ?? url
         }
         var components = URLComponents()
         components.scheme = "https"
