@@ -69,6 +69,7 @@ public enum DefaultHandler {
             return (name, handler == appBundle)
         } else if !target.urlSchemes.isEmpty {
             var lastName: String?
+            var otherName: String?
             var allMagical = true
             for scheme in target.urlSchemes {
                 guard let dummyUrl = URL(string: "\(scheme):"),
@@ -76,12 +77,16 @@ public enum DefaultHandler {
                 else {
                     return nil
                 }
-                lastName = FileManager.default.displayName(atPath: handler.path)
+                let name = FileManager.default.displayName(atPath: handler.path)
+                lastName = name
                 if handler != appBundle {
                     allMagical = false
+                    if otherName == nil {
+                        otherName = name
+                    }
                 }
             }
-            guard let name = lastName else { return nil }
+            guard let name = allMagical ? lastName : (otherName ?? lastName) else { return nil }
             return (name, allMagical)
         }
         return nil
