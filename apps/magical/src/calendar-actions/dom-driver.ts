@@ -765,11 +765,7 @@ export class DomCalendarActionDriver implements CalendarActionDriver {
     // region changing from what it held before the click. Both compare against the
     // snapshot taken before the click above; the panel has to have been open for its
     // absence to mean anything.
-    let result: { ok: boolean; reason: string; elapsedMs: number } | boolean = {
-      ok: false,
-      reason: 'unhandled',
-      elapsedMs: 0,
-    };
+    let result: { ok: boolean; reason: string; elapsedMs: number } | boolean;
     try {
       result = await view.webContents.executeJavaScript(`
         ${DOM_DRIVE_PREAMBLE}
@@ -995,7 +991,7 @@ export class DomCalendarActionDriver implements CalendarActionDriver {
       return false;
     }
 
-    let point: { x: number; y: number } | null = null;
+    let point: { x: number; y: number } | null;
     try {
       point = await view.webContents.executeJavaScript(`
         new Promise((resolve) => {
@@ -1146,11 +1142,7 @@ export class DomCalendarActionDriver implements CalendarActionDriver {
     // Wait for evidence Calendar took the response: the three controls disappear, the
     // panel closes, or something is announced that was not being announced before.
     // Uses waitUntil from core with quietMs so slow renderers do not cause false failures.
-    let result: { ok: boolean; reason: string; elapsedMs: number } | boolean = {
-      ok: false,
-      reason: 'unhandled',
-      elapsedMs: 0,
-    };
+    let result: { ok: boolean; reason: string; elapsedMs: number } | boolean;
     try {
       result = await view.webContents.executeJavaScript(`
         ${DOM_DRIVE_PREAMBLE}
