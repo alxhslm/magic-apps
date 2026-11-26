@@ -318,16 +318,15 @@ describe('normalizeFeedUrl', () => {
 });
 
 describe('parseSubscriptionLink', () => {
-  it('parses system webcal:// and ical:// links, extracting account when present', () => {
+  it('parses system webcal:// and ical:// links and preserves third-party query params', () => {
     expect(parseSubscriptionLink('webcal://example.com/fixtures.ics')).toEqual({
       feedUrl: 'https://example.com/fixtures.ics',
     });
     expect(parseSubscriptionLink('ical://example.com/fixtures.ics')).toEqual({
       feedUrl: 'https://example.com/fixtures.ics',
     });
-    expect(parseSubscriptionLink('webcal://example.com/fixtures.ics?account=work')).toEqual({
-      feedUrl: 'https://example.com/fixtures.ics',
-      accountId: 'work',
+    expect(parseSubscriptionLink('webcal://example.com/fixtures.ics?account=12345')).toEqual({
+      feedUrl: 'https://example.com/fixtures.ics?account=12345',
     });
   });
 
@@ -349,8 +348,12 @@ describe('parseSubscriptionLink', () => {
     });
   });
 
-  it('returns null for other links or missing URLs', () => {
+  it('rejects non-http(s) feed URLs and incomplete links', () => {
     expect(parseSubscriptionLink('magical://subscribe')).toBeNull();
+    expect(parseSubscriptionLink('magical://subscribe?url=javascript%3Aalert(1)')).toBeNull();
+    expect(
+      parseSubscriptionLink('magical://subscribe?url=file%3A%2F%2F%2Fetc%2Fpasswd'),
+    ).toBeNull();
     expect(parseSubscriptionLink('magical://event?eid=123')).toBeNull();
     expect(parseSubscriptionLink('not a url')).toBeNull();
   });

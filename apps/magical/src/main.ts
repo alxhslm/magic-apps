@@ -926,10 +926,9 @@ async function dispatchProtocolUrl(rawUrl: string): Promise<void> {
     if (parsed.protocol !== `${MAGICAL_PROTOCOL}:`) return;
 
     if (parsed.hostname === 'subscribe' || parsed.hostname === 'webcal') {
-      const feedUrl = parsed.searchParams.get('url');
-      const targetAccountId = parsed.searchParams.get('account') || undefined;
-      if (feedUrl) {
-        await handleWebcalSubscription(feedUrl, targetAccountId);
+      const sub = parseSubscriptionLink(rawUrl);
+      if (sub) {
+        await handleWebcalSubscription(sub.feedUrl, sub.accountId);
         return;
       }
     }
@@ -1237,7 +1236,7 @@ async function handleSubscribeFeedMenu(): Promise<void> {
   const manager = accounts;
   if (!manager) return;
 
-  const clip = (await clipboard.readText()).trim();
+  const clip = clipboard.readText().trim();
   const looksLikeFeed =
     /^(webcal|ical|https?):\/\/[^\s]+$/i.test(clip) &&
     (clip.includes('.ics') || /^(webcal|ical):/i.test(clip) || /calendar|feed/i.test(clip));
@@ -1349,9 +1348,15 @@ async function handleWebcalSubscription(
 
   let feedHost = '';
   try {
-    feedHost = new URL(feedUrl).hostname;
+    const parsedFeed = new URL(feedUrl);
+    if (parsedFeed.protocol !== 'http:' && parsedFeed.protocol !== 'https:') {
+      log.warn(`Ignoring feed URL with unsupported protocol: ${parsedFeed.protocol}`);
+      return;
+    }
+    feedHost = parsedFeed.hostname;
   } catch {
-    feedHost = feedUrl;
+    log.warn(`Ignoring unparseable feed URL: ${redactUrl(feedUrl)}`);
+    return;
   }
   log.info(`Subscribing to calendar feed: ${redactUrl(feedUrl)}`);
 
@@ -1377,7 +1382,7 @@ async function handleWebcalSubscription(
   if (!account) return;
 
   const outcome = await manager.subscribeWebcal(account.id, feedUrl);
-  await reportWebcalSubscription(outcome, account.name, feedHost);
+  await reportWebcalSubscription(outcome, account.id, account.name, feedHost);
 }
 
 /**
@@ -1385,13 +1390,14 @@ async function handleWebcalSubscription(
  */
 async function reportWebcalSubscription(
   outcome: WebcalSubscriptionOutcome,
+  accountId: string,
   accountName: string,
   feedHost: string,
 ): Promise<void> {
   if (outcome.kind === 'subscribed') {
     dispatchNotice({
       key: `magical.webcal.${Date.now()}`,
-      accountId: accounts?.getActiveAccountId() ?? '',
+      accountId,
       title: uiString('dialog.webcal.subscribed.title'),
       subtitle: accountName,
       body: feedHost
@@ -1816,7 +1822,14 @@ app.whenReady().then(async () => {
   // because the manager's constructor is what builds and loads an account's view, so
   // the account the link names has to be chosen first.
   const startupUrl =
-    pendingProtocolUrl ?? process.argv.find((a) => a.startsWith(`${MAGICAL_PROTOCOL}://`)) ?? null;
+    pendingProtocolUrl ??
+    process.argv.find(
+      (a) =>
+        a.startsWith(`${MAGICAL_PROTOCOL}://`) ||
+        a.startsWith('webcal://') ||
+        a.startsWith('ical://'),
+    ) ??
+    null;
   const startupAccountId = startupUrl ? accountIdFromLink(startupUrl) : undefined;
   if (startupUrl) {
     log.info(

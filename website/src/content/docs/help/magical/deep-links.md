@@ -71,10 +71,10 @@ open "magical://search?q=Dentist"
 open "magical://subscribe?url=https%3A%2F%2Fexample.com%2Fcalendar.ics&account=work"
 ```
 
-Magical also claims system `webcal://` and `ical://` URLs clicked in browsers or mail clients:
+Magical also handles system `webcal://` and `ical://` URLs clicked in browsers or mail clients once enabled in **Settings → General**:
 
 ```sh
-open "webcal://example.com/fixtures.ics?account=personal"
+open "webcal://example.com/fixtures.ics"
 ```
 
 ### Import a Calendar File

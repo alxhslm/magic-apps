@@ -190,33 +190,31 @@ export interface SubscriptionLinkTarget {
   accountId?: string;
 }
 
+function isHttpUrl(rawUrl: string): boolean {
+  try {
+    const { protocol } = new URL(rawUrl);
+    return protocol === 'http:' || protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
 /** Parses a feed subscription link (`webcal://`, `ical://`, or `magical://subscribe?url=...`). */
 export function parseSubscriptionLink(rawUrl: string): SubscriptionLinkTarget | null {
   try {
     const url = new URL(rawUrl);
     if (url.protocol === 'webcal:' || url.protocol === 'ical:') {
-      const accountId = url.searchParams.get('account') || undefined;
-      if (accountId) url.searchParams.delete('account');
-      return { feedUrl: normalizeFeedUrl(url.toString()), accountId };
+      const feedUrl = normalizeFeedUrl(url.toString());
+      return isHttpUrl(feedUrl) ? { feedUrl } : null;
     }
     if (url.protocol === `${MAGICAL_PROTOCOL}:`) {
       const kind = url.hostname || url.pathname.replace(/^\/+/, '');
       if (kind === 'subscribe' || kind === 'webcal') {
-        const feedUrl = url.searchParams.get('url');
-        if (!feedUrl) return null;
-        let accountId = url.searchParams.get('account') || undefined;
-        try {
-          const innerUrl = new URL(feedUrl);
-          const innerAccount = innerUrl.searchParams.get('account');
-          if (innerAccount && !accountId) {
-            accountId = innerAccount;
-            innerUrl.searchParams.delete('account');
-            return { feedUrl: normalizeFeedUrl(innerUrl.toString()), accountId };
-          }
-        } catch {
-          // If not parseable as a full URL, use as is
-        }
-        return { feedUrl: normalizeFeedUrl(feedUrl), accountId };
+        const rawFeedUrl = url.searchParams.get('url');
+        if (!rawFeedUrl) return null;
+        const accountId = url.searchParams.get('account') || undefined;
+        const feedUrl = normalizeFeedUrl(rawFeedUrl);
+        return isHttpUrl(feedUrl) ? { feedUrl, accountId } : null;
       }
     }
     return null;
