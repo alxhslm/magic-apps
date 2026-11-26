@@ -73,11 +73,12 @@ async function waitInPage<T>(
   }
 }
 
-/** Waits for the pane to have rendered its URL field and Add calendar button. */
+/** Waits for the pane to have rendered its URL field and Add calendar button, bailing early on login redirects. */
 async function waitForPane(view: WebContentsView): Promise<boolean> {
-  const found = await waitInPage<boolean>(
+  const result = await waitInPage<'ready' | 'login'>(
     view,
     `(() => {
+      if (location.hostname === 'accounts.google.com') return 'login';
       const btn = Array.from(document.querySelectorAll('button')).find((b) =>
         /Add calendar/i.test((b.textContent || '').trim()),
       );
@@ -85,12 +86,12 @@ async function waitForPane(view: WebContentsView): Promise<boolean> {
       const input = Array.from(container.querySelectorAll('input')).find(
         (i) => i.type !== 'hidden' && i.type !== 'checkbox' && i.type !== 'radio' && i.name !== 'q',
       );
-      return Boolean(input && btn);
+      return input && btn ? 'ready' : false;
     })()`,
     PANE_TIMEOUT_MS,
     'webcal-pane',
   );
-  return found === true;
+  return result === 'ready';
 }
 
 /**
@@ -104,7 +105,7 @@ export async function populateFeedUrl(view: WebContentsView, feedUrl: string): P
         const btn = Array.from(document.querySelectorAll('button')).find((b) =>
           /Add calendar/i.test((b.textContent || '').trim()),
         );
-        const container = btn?.closest('c-wiz') || document;
+        const container = btn?.closest('c-wiz') || document.querySelector('c-wiz') || document;
         const input = Array.from(container.querySelectorAll('input')).find(
           (i) => i.type !== 'hidden' && i.type !== 'checkbox' && i.type !== 'radio' && i.name !== 'q',
         );
@@ -153,9 +154,17 @@ export async function runWebcalSubscription(
       );
       return Boolean(button) && !button.disabled;
     })()`,
-    5_000,
+    2_000,
     'webcal-button-enabled',
   );
+
+  // Snapshot existing status/help text before clicking so stale DOM messages don't match.
+  const baselineTexts = await evaluate<string[]>(
+    view,
+    `Array.from(document.querySelectorAll('[aria-live], div[id*="help-text"], [role="status"], [role="alert"], [data-mdc-dialog-action], .Y5186b, .b0t70b'))
+      .map((el) => (el.textContent || '').trim())
+      .filter(Boolean)`,
+  ).catch(() => []);
 
   const clicked =
     buttonReady === true &&
@@ -177,6 +186,7 @@ export async function runWebcalSubscription(
   const resultText = await waitInPage<string>(
     view,
     `(() => {
+      const baseline = new Set(${JSON.stringify(baselineTexts)});
       const resultPattern = /(calendar added|settings saved|calendar created|imported|could not fetch|failed|invalid|error|unable to|not a valid|could not access)/i;
       const textEls = Array.from(
         document.querySelectorAll(
@@ -185,7 +195,7 @@ export async function runWebcalSubscription(
       );
       for (const el of textEls) {
         const text = (el.textContent || '').trim();
-        if (text && resultPattern.test(text)) {
+        if (text && !baseline.has(text) && resultPattern.test(text)) {
           return text;
         }
       }
