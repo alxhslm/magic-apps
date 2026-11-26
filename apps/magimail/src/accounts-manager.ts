@@ -935,7 +935,7 @@ export class AccountsManager {
       // Authentic Gmail print view (user clicked print inside Gmail's own UI)
       if (url.includes('view=pt')) {
         if (!process.env.MAGIMAIL_E2E) {
-          this.printUrl(url).catch(() => {});
+          this.printUrl(url, account.id).catch(() => {});
         }
         return { action: 'deny' };
       }
