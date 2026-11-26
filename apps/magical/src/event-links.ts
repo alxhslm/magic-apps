@@ -204,7 +204,7 @@ export function parseSubscriptionLink(rawUrl: string): SubscriptionLinkTarget | 
   try {
     const url = new URL(rawUrl);
     if (url.protocol === 'webcal:' || url.protocol === 'ical:') {
-      const feedUrl = normalizeFeedUrl(url.toString());
+      const feedUrl = normalizeFeedUrl(rawUrl);
       return isHttpUrl(feedUrl) ? { feedUrl } : null;
     }
     if (url.protocol === `${MAGICAL_PROTOCOL}:`) {

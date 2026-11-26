@@ -328,6 +328,9 @@ describe('parseSubscriptionLink', () => {
     expect(parseSubscriptionLink('webcal://example.com/fixtures.ics?account=12345')).toEqual({
       feedUrl: 'https://example.com/fixtures.ics?account=12345',
     });
+    expect(parseSubscriptionLink('webcal://https://example.com/fixtures.ics')).toEqual({
+      feedUrl: 'https://example.com/fixtures.ics',
+    });
   });
 
   it('parses magical://subscribe and magical://webcal deep links', () => {
