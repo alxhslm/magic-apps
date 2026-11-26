@@ -33,7 +33,7 @@ export function installMainWorldPrintOpenStub(): void {
         return opened;
       }
 
-      let isPrintView = false;
+      let isPrintView: boolean;
       try {
         const parsed = new URL(String(url), win.location.href);
         isPrintView =

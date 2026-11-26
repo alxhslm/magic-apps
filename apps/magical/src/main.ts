@@ -1345,7 +1345,7 @@ async function handleWebcalSubscription(
   const feedUrl = parsed ? parsed.feedUrl : normalizeFeedUrl(rawFeedUrl);
   const resolvedAccountId = targetAccountId ?? parsed?.accountId;
 
-  let feedHost = '';
+  let feedHost: string;
   try {
     const parsedFeed = new URL(feedUrl);
     if (parsedFeed.protocol !== 'http:' && parsedFeed.protocol !== 'https:') {
